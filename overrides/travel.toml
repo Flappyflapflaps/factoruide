@@ -39,8 +39,8 @@ seconds = 210
 [[link]]
 name = "Deeprun Tram Ironforge - Stormwind"
 faction = "Alliance"
-from = { zone = 1537, x = 84.1, y = 53.1 }  # Questie dungeon entrances
-to = { zone = 1519, x = 71.98, y = 27.61 } # Questie dungeon entrances
+from = { zone = 1537, x = 84.1, y = 53.1 }  # dungeon entrances of the quest data
+to = { zone = 1519, x = 71.98, y = 27.61 } # dungeon entrances of the quest data
 seconds = 120
 
 [[link]]

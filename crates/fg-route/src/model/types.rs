@@ -33,7 +33,7 @@ pub struct Profile {
     pub group_races: Vec<(i64, i64)>,
 }
 
-/// Quest race bit of a race in QuestieDB Forever's encoding (Skyborne uses bits 32/33).
+/// Quest race bit of a race in the quest data's Forever encoding (Skyborne uses bits 32/33).
 pub fn race_bit(race_id: i64) -> i64 {
     match race_id {
         95 => 1 << 32,

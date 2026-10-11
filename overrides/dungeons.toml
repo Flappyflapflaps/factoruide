@@ -1,4 +1,4 @@
-# Dungeons: entrances missing from Questie (new Forever dungeons) and per-dungeon tuning.
+# Dungeons: entrances missing from the quest data (new Forever dungeons) and per-dungeon tuning.
 # Defaults: levels from the dungeon's quests, minutes = 40 + level (50-120),
 # kills = 60 + 2 x level, XP shared by a 5-man group (see dungeon_xp_share).
 #

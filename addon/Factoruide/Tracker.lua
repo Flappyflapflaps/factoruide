@@ -1,7 +1,7 @@
 -- Quest tracker replacing Blizzard's: the next quests of the log to do in the route's order
 -- (as many as configured), objectives with progress, "turn in" with the NPC, quest item
 -- buttons. Blizzard's tracker (QuestWatchFrame on Classic, ObjectiveTrackerFrame later) is hidden
--- while `replaceTracker` is on (deferred after combat when the frame is protected, like Questie).
+-- while `replaceTracker` is on (deferred after combat when the frame is protected).
 
 local _, FG = ...
 local Tracker = {}

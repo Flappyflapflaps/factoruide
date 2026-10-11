@@ -39,8 +39,8 @@ impl Edition {
         }
     }
 
-    /// QuestieDB flavor.
-    pub fn questie_flavor(self) -> &'static str {
+    /// Flavor of the quest data for this edition.
+    pub fn data_flavor(self) -> &'static str {
         match self {
             Edition::Forever => "Forever",
             Edition::Classic => "Vanilla",

@@ -33,7 +33,7 @@ impl Names {
         if locale == "enUS" {
             return Ok(names);
         }
-        // Names seen in the game client first, then QuestieDB's translations.
+        // Names seen in the game client first, then the quest data's translations.
         let mut stmt = conn.prepare(
             "SELECT entity_type, id, name FROM l10n WHERE locale = ?1 AND name IS NOT NULL AND name != ''
              ORDER BY CASE source WHEN 'client_cache' THEN 0 ELSE 1 END DESC",

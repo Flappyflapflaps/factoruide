@@ -363,7 +363,7 @@ struct VersionMeta {
     total_time: f64,
     total_time_text: String,
     quests: usize,
-    /// Game data used (QuestieDB import).
+    /// Game data used (version of the quest data imported).
     data: Option<String>,
     /// Received from someone else (imported from a .fgguide file).
     #[serde(default)]

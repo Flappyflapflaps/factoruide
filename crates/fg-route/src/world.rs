@@ -249,7 +249,7 @@ impl World {
         self.zones.values().find(|z| z.ui_map == ui_map).map(|z| z.continent)
     }
 
-    /// Zone percent coordinates (as Questie stores them) to world space.
+    /// Zone percent coordinates (as the quest data stores them) to world space.
     pub fn to_world(&self, zone: i64, x: f64, y: f64) -> Option<Pos> {
         let z = self.zones.get(&zone)?;
         Some(Pos {

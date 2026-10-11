@@ -1,5 +1,5 @@
 # Starting point of each race: the NPC players spawn next to.
-# `id` is the ChrRaces ID; `mask` is the quest race bit (QuestieDB Forever encoding).
+# `id` is the ChrRaces ID; `mask` is the quest race bit (Forever encoding of the quest data).
 
 [human]
 id = 1

@@ -123,7 +123,7 @@ pub(super) struct Sources {
     pub(super) objectives: ObjectiveRows,
     pub(super) item_origins: HashMap<i64, Vec<(SourceKind, i64)>>,
     pub(super) drop_chance: HashMap<(i64, i64), f64>,
-    /// XP of quests Questie has no value for: the most common reward column for their level.
+    /// XP of quests the quest data has no value for: the most common reward column for their level.
     pub(super) default_xp: HashMap<i64, i64>,
     pub(super) pvp: HashSet<i64>,
     /// Quests whose reward is an item (an item that starts another quest is got there).
@@ -454,8 +454,8 @@ pub(super) struct QuestRow {
 }
 
 impl QuestRow {
-    /// Known only from catalogues: Wowhead's tooltip (text) and AllTheThings (givers). Their
-    /// objectives and turn-in are unknown (AllTheThings' giver stands for it).
+    /// Known only from catalogues (a tooltip's text, a giver): their objectives and turn-in are
+    /// unknown (the giver stands for it).
     pub(super) fn catalogued_only(&self) -> bool {
         self.sources
             .as_deref()

@@ -1,4 +1,4 @@
-//! Loading Lua data files (Questie exports, SavedVariables) into plain Rust values.
+//! Loading Lua data files (quest data exports, SavedVariables) into plain Rust values.
 //!
 //! Lua tables keep their keys so that sparse maps (`{[12] = ...}`) and positional rows
 //! with holes (`{"a", nil, 3}`) stay distinguishable.
