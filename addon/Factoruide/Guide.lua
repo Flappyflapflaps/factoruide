@@ -86,7 +86,6 @@ local WIDTH = 330
 
 local state -- per character: { route = name, step = n, point = {...}, flightLearned = id }
 local route
-local routeQuests = {}
 local acceptIndex = {} -- quest -> index of its accept step
 local turninIndex = {} -- quest -> index of its turn-in step
 -- Whether the shown step was already done when we arrived on it (manual navigation): the
@@ -721,7 +720,13 @@ function Guide:Go(n)
     self:Refresh()
 end
 
-function Guide:RouteHasQuest(questID) return routeQuests[questID] or false end
+--- Whether the guide still takes this quest: it has a step accepting it that is not done (not
+--- marked by hand, not left behind, no exclusive alternative taken). The quests it abandons,
+--- and the others, are not.
+function Guide:WantsQuest(questID)
+    local at = route and questID and acceptIndex[questID]
+    return at ~= nil and not IsDone(route.steps[at], at)
+end
 
 --- Fields of the guide state that belong to the route in use: the step shown, the steps
 --- marked by their index and the quests marked done by hand.
@@ -763,11 +768,9 @@ local function UseRoute(name)
     SwitchProgress(name)
     state.route = name
     wipe(acceptIndex)
-    wipe(routeQuests)
     wipe(turninIndex)
     for i, s in ipairs(route and route.steps or {}) do
         if s.q then
-            routeQuests[s.q] = true
             if s.k == "accept" and not acceptIndex[s.q] then acceptIndex[s.q] = i end
             if s.k == "turnin" and not turninIndex[s.q] then turninIndex[s.q] = i end
         end

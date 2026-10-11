@@ -239,8 +239,11 @@ print("navigation ok")
 -- Automation
 fire("GOSSIP_SHOW")
 assert(calls.SelectAvailableQuest and calls.SelectAvailableQuest[1] == 233, "gossip quest selected")
+local detailID = GetQuestID
+GetQuestID = function() return 233 end
 fire("QUEST_DETAIL", 0)
 assert(calls.AcceptQuest, "quest accepted")
+GetQuestID = detailID
 fire("QUEST_PROGRESS")
 assert(calls.CompleteQuest, "quest completed")
 fire("QUEST_COMPLETE")
@@ -807,3 +810,39 @@ fire("ZONE_CHANGED_NEW_AREA")
 assert(char.guide.step == 2, "an old run is done back out, step " .. char.guide.step)
 onQuest[8001] = nil
 print("dungeon ok")
+
+-- Only the guide's quests: those it still takes, not those it abandons, marked done by hand or
+-- out of it, nor escorts shared by the group (the event does not tell which quest).
+FG.Config.autoAccept = true
+FG.Routes["accept-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "abandon", t = "Abandon Unwanted (not in this guide)", q = 9001, lvl = 21 },
+        { k = "accept", t = "Accept Wanted", q = 9002, lvl = 21 },
+        { k = "accept", t = "Accept Skipped", q = 9003, lvl = 21 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+SlashCmdList.FACTORUIDE("route accept-test")
+local questID = GetQuestID
+local function taken(q)
+    calls.AcceptQuest = nil
+    GetQuestID = function() return q end
+    fire("QUEST_DETAIL", 0)
+    return calls.AcceptQuest ~= nil
+end
+assert(not taken(9001), "a quest the guide abandons is not taken")
+assert(taken(9002), "a quest of the guide is taken")
+SlashCmdList.FACTORUIDE("skip 9003")
+assert(not taken(9003), "a quest marked done by hand is not taken")
+assert(not taken(9999), "a quest out of the guide is not taken")
+calls.ConfirmAcceptQuest = nil
+fire("QUEST_ACCEPT_CONFIRM", "Friend", "Shared Escort")
+assert(not calls.ConfirmAcceptQuest, "a shared escort is not confirmed")
+GetQuestID = questID
+print("guide quests only ok")

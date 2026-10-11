@@ -5,12 +5,11 @@ local _, FG = ...
 
 local function Skip() return IsShiftKeyDown() end
 
---- Whether a quest may be accepted automatically.
+--- Whether a quest may be accepted automatically: with "only the guide's quests", one the guide
+--- still takes.
 local function Wanted(questID)
     if not FG:Get("autoAccept") then return false end
-    if FG:Get("routeQuestsOnly") and FG.Guide and FG.Guide.RouteHasQuest then
-        return questID ~= nil and FG.Guide:RouteHasQuest(questID)
-    end
+    if FG:Get("routeQuestsOnly") then return FG.Guide ~= nil and FG.Guide:WantsQuest(questID) end
     return true
 end
 
@@ -61,9 +60,10 @@ FG:On("QUEST_DETAIL", function()
     end
 end)
 
--- Escort quests shared by a party member.
+-- Escort quests shared by a party member (the event does not tell which quest: not with "only
+-- the guide's quests").
 FG:On("QUEST_ACCEPT_CONFIRM", function()
-    if FG:Get("autoAccept") and not Skip() then ConfirmAcceptQuest() end
+    if FG:Get("autoAccept") and not FG:Get("routeQuestsOnly") and not Skip() then ConfirmAcceptQuest() end
 end)
 
 FG:On("QUEST_PROGRESS", function()

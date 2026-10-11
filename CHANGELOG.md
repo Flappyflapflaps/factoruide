@@ -2,6 +2,10 @@
 
 The notes of each version are the message of its tag (`scripts/release.sh`), shown in the app.
 
+## Unreleased
+
+- Addon: with "Only the guide's quests", a quest is accepted automatically only while the guide still takes it: no longer the quests it abandons (they were taken again when talking to their giver), nor those marked done by hand or left behind, nor escorts shared by the group.
+
 ## 0.4.0 (2026-10-11)
 
 Stop or cancel a generation, a new guide page, dungeon quests step by step, a "To pick up" box and a guide mark on the XP bar.
