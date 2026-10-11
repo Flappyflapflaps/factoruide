@@ -199,6 +199,78 @@ fn pet_quest_comes_early() {
     assert!(at < 25, "imp turned in at stop {at}");
 }
 
+/// A stopped search (the user stopped the generation) ends at once, however long its budget,
+/// and hands back a valid route.
+#[test]
+fn stopped_search_ends_at_once() {
+    let p = orc_warlock();
+    let planner = planner(p);
+    let route = planner.construct(|_| {});
+    let begun = std::time::Instant::now();
+    let improved = planner.improve_while(
+        route,
+        std::time::Duration::from_secs(600),
+        || false,
+        |_| {},
+        |_, _, _| {},
+    );
+    assert!(
+        begun.elapsed() < std::time::Duration::from_secs(30),
+        "took {:?}",
+        begun.elapsed()
+    );
+    assert!(
+        planner.simulate(&improved, None).is_some(),
+        "{:?}",
+        planner.diagnose(&improved)
+    );
+}
+
+/// An aborted construction (the generation stopped or cancelled) gives up at once with an
+/// unfinished route; without abort it reaches the target level.
+#[test]
+fn aborted_construction_gives_up() {
+    let p = orc_warlock();
+    let abort = || true;
+    let given_up = planner(p).abortable(&abort).construct(|_| {});
+    let built = planner(p).construct(|_| {});
+    assert!(
+        given_up.len() < built.len() / 10,
+        "{} stops of {}",
+        given_up.len(),
+        built.len()
+    );
+}
+
+/// A job stopped before its optimization (a 10 minute budget) still ends with a guide: the
+/// first routes are built and the best one is kept.
+#[test]
+fn stopped_job_keeps_a_guide() {
+    let interrupt = job::Interrupt::default();
+    interrupt.stop();
+    let request = request("orc", "warlock", 12, &["time_limit_ms=600000"]);
+    let begun = std::time::Instant::now();
+    let outcome = job::plan_interruptible(&database(), &overrides(), &request, &|_| {}, &interrupt).unwrap();
+    assert!(
+        begun.elapsed() < std::time::Duration::from_secs(300),
+        "took {:?}",
+        begun.elapsed()
+    );
+    assert!(outcome.route.total_time.is_finite());
+    assert_eq!(outcome.route.to_level, 12);
+}
+
+/// A cancelled job fails with `Cancelled` instead of returning a route (the app saves nothing).
+#[test]
+fn cancelled_job_returns_no_route() {
+    let interrupt = job::Interrupt::default();
+    interrupt.cancel();
+    let request = request("orc", "warlock", 12, &["time_limit_ms=600000"]);
+    let outcome = job::plan_interruptible(&database(), &overrides(), &request, &|_| {}, &interrupt);
+    let error = outcome.expect_err("a cancelled job has no route");
+    assert!(error.downcast_ref::<job::Cancelled>().is_some(), "{error:#}");
+}
+
 /// The local search hands back a valid route (cutting the stops after the target level once
 /// made the start of a route invalid: a quest it plans later decides what is taken early), and
 /// its incremental evaluations match a full replay (quests taken at hand look ahead in the

@@ -44,6 +44,20 @@ impl Planner<'_> {
         log: impl Fn(&str),
         on_best: impl Fn(f64, f64, &[Stop]),
     ) -> Vec<Stop> {
+        self.improve_while(route, budget, || true, log, on_best)
+    }
+
+    /// `improve`, ending as soon as `keep_going` says no (the user stopped the generation): the
+    /// best route so far is cleaned up and returned. An aborted planner (`abortable`) skips the
+    /// clean-up: its route is thrown away, or cleaned up when improved again.
+    pub fn improve_while(
+        &self,
+        route: Vec<Stop>,
+        budget: Duration,
+        keep_going: impl Fn() -> bool,
+        log: impl Fn(&str),
+        on_best: impl Fn(f64, f64, &[Stop]),
+    ) -> Vec<Stop> {
         let Some(run) = self.run(&route) else {
             log("greedy route is invalid");
             return route;
@@ -62,9 +76,12 @@ impl Planner<'_> {
             tries: 0,
             wins: 0,
         };
-        while search.started.elapsed() < budget && search.route.len() > 2 {
+        while search.started.elapsed() < budget && search.route.len() > 2 && keep_going() {
             search.tries += 1;
             self.try_a_move(&mut search, &on_best);
+        }
+        if self.aborted() {
+            return search.best.1;
         }
         let (tries, wins) = (search.tries, search.wins);
         let (route, run) = self.clean_up(search);

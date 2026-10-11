@@ -37,6 +37,10 @@ export function NewRoutePage({ options, start, onBusy }: { options: Options; sta
   const [result, setResult] = useState<GuideVersion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  // Stop (keep the best guide so far) or cancel asked, until the generation ends.
+  const [interrupting, setInterrupting] = useState<"stop" | "cancel" | null>(null);
+  const interrupted = useRef<"stop" | "cancel" | null>(null);
   const slots = useRef(new Map<number, number>());
   const running = useRef(false);
 
@@ -90,6 +94,9 @@ export function NewRoutePage({ options, start, onBusy }: { options: Options; sta
     setStep("run");
     setError(null);
     setMessage(null);
+    setNotice(null);
+    setInterrupting(null);
+    interrupted.current = null;
     setOptimize(null);
     setSeries({});
     setColors({});
@@ -99,15 +106,27 @@ export function NewRoutePage({ options, start, onBusy }: { options: Options; sta
     try {
       const meta = await api.planRoute(request);
       setResult(await api.getVersion(meta.guide, meta.version, gameLocale(lang)));
+      if (interrupted.current === "stop") setNotice(t("Optimisation arrêtée avant la fin : voici le meilleur guide trouvé jusque-là. « Relancer le calcul » le cherche jusqu'au bout."));
       setStep("result");
     } catch (e) {
-      setError(String(e));
+      // Cancelled: back to the configuration (the same one), nothing saved.
+      if (String(e) === "cancelled") setNotice(t("Génération annulée : la configuration est conservée."));
+      else setError(String(e));
       setStep("config");
     } finally {
+      setInterrupting(null);
       running.current = false;
       onBusy?.(false);
     }
   };
+
+  const interrupt = (how: "stop" | "cancel") => {
+    if (!running.current || interrupted.current === "cancel" || interrupted.current === how) return;
+    interrupted.current = how;
+    setInterrupting(how);
+    (how === "stop" ? api.stopPlan() : api.cancelPlan()).catch((e) => setError(String(e)));
+  };
+  const cancel = () => interrupt("cancel");
 
   // Recomputing a saved result starts right away.
   useEffect(() => {
@@ -129,6 +148,10 @@ export function NewRoutePage({ options, start, onBusy }: { options: Options; sta
                 <button className="link" onClick={() => setStep("config")}>
                   {t(s.label)}
                 </button>
+              ) : s.id === "config" && step === "run" ? (
+                <button className="link" onClick={cancel} disabled={interrupting === "cancel"} title={t("Abandonne la génération et revient à la configuration")}>
+                  {t(s.label)}
+                </button>
               ) : (
                 <span>{t(s.label)}</span>
               )}
@@ -138,6 +161,7 @@ export function NewRoutePage({ options, start, onBusy }: { options: Options; sta
       </ol>
       {error && <div className="error">{error}</div>}
       {message && <div className="success">{message}</div>}
+      {notice && step !== "run" && <div className="notice">{notice}</div>}
       {step === "config" && (
         <ConfigForm
           key={JSON.stringify(initial)}
@@ -154,7 +178,7 @@ export function NewRoutePage({ options, start, onBusy }: { options: Options; sta
           }}
         />
       )}
-      {step === "run" && <RunView state={optimize} series={series} colors={colors} route={route} log={log} />}
+      {step === "run" && <RunView state={optimize} series={series} colors={colors} route={route} log={log} onStop={() => interrupt("stop")} onCancel={cancel} interrupting={interrupting} />}
       {step === "result" && result && (
         <ResultView
           key={`${result.meta.guide}-${result.meta.version}`}

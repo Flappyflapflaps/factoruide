@@ -11,7 +11,7 @@ impl Planner<'_> {
         let mut s = self.initial_state();
         let mut route = Vec::new();
         let n = self.model.quests.len() as u32;
-        while s.level < self.profile.to_level {
+        while s.level < self.profile.to_level && !self.aborted() {
             let mut best: Option<(f64, Stop)> = None;
             let found = std::cell::Cell::new(false);
             // Quest value only decides what is worth accepting. Weights favour finishing what
@@ -266,6 +266,10 @@ impl Planner<'_> {
         } else {
             self.plan_regions(&log)
         };
+        // Given up (see `abortable`): the unfinished route is thrown away.
+        if self.aborted() {
+            return route;
+        }
         let route = if self.params.construction == Construction::Greedy {
             route
         } else {

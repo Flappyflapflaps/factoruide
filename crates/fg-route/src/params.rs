@@ -221,7 +221,9 @@ pub struct Params {
     pub mandatory_penalty: f64,
     /// How the first route is built.
     pub construction: Construction,
-    /// Whole optimization time: the race of candidates, then the search on the best.
+    /// Whole optimization time: the race of candidates, then the search on the best. It counts
+    /// from the first route built (the first construction, filling the walking memory, is not
+    /// part of it).
     pub time_limit_ms: u64,
     /// Parallel searches (different seeds), the best one wins.
     pub threads: usize,

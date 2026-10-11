@@ -92,6 +92,8 @@ pub struct Planner<'a> {
     /// Check every incremental evaluation of the search against a full replay (`verified`, or
     /// the FG_VERIFY environment variable).
     verify: bool,
+    /// Tells the construction to give up (`abortable`).
+    abort: Option<&'a dyn Fn() -> bool>,
 }
 
 impl<'a> Planner<'a> {
@@ -116,7 +118,23 @@ impl<'a> Planner<'a> {
             blocked_by,
             followers: followers(model),
             verify: std::env::var_os("FG_VERIFY").is_some(),
+            abort: None,
         }
+    }
+
+    /// The same planner whose construction gives up as soon as `abort` says so (the user stopped
+    /// or cancelled the generation): it then returns the route built so far, unfinished.
+    #[must_use]
+    pub fn abortable(self, abort: &'a dyn Fn() -> bool) -> Self {
+        Self {
+            abort: Some(abort),
+            ..self
+        }
+    }
+
+    /// Whether the construction must give up (see `abortable`).
+    pub fn aborted(&self) -> bool {
+        self.abort.is_some_and(|abort| abort())
     }
 
     /// The same planner checking each incremental evaluation of its search against a full

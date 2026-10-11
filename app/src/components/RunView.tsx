@@ -55,9 +55,15 @@ interface Props {
   colors: Record<number, number>;
   route: WorldPoint[];
   log: string[];
+  /** End the optimization now and keep the best guide so far. */
+  onStop: () => void;
+  /** Give the generation up and go back to the configuration. */
+  onCancel: () => void;
+  /** Stop or cancel asked, the generation not ended yet. */
+  interrupting: "stop" | "cancel" | null;
 }
 
-export function RunView({ state, series, colors, route, log }: Props) {
+export function RunView({ state, series, colors, route, log, onStop, onCancel, interrupting }: Props) {
   const t = useT();
   const [continent, setContinent] = useState<ContinentView>("both");
   const [showLog, setShowLog] = useState(false);
@@ -74,6 +80,17 @@ export function RunView({ state, series, colors, route, log }: Props) {
           <div className="run-phase">{phaseText(state, t)}</div>
           <div className="run-best">{kept != null ? <AnimatedTime value={kept} /> : "—"}</div>
           <div className="run-sub">{kept != null ? t("temps du guide retenu") : t("construction en cours")}</div>
+        </div>
+        <div className="run-actions">
+          {/* Until a first route is built there is no guide to keep: only cancelling. */}
+          {optimizing && kept != null && (
+            <button className="primary" onClick={onStop} disabled={interrupting !== null} title={t("Arrête l'optimisation et garde le meilleur guide trouvé jusqu'ici")}>
+              {interrupting === "stop" ? t("Arrêt…") : t("Arrêter et garder ce guide")}
+            </button>
+          )}
+          <button className="link" onClick={onCancel} disabled={interrupting === "cancel"} title={t("Abandonne la génération et revient à la configuration")}>
+            {interrupting === "cancel" ? t("Annulation…") : t("Annuler")}
+          </button>
         </div>
       </header>
       <div className={`progress big${optimizing ? "" : " indeterminate"}`} role="progressbar" aria-valuenow={Math.round(ratio * 100)}>

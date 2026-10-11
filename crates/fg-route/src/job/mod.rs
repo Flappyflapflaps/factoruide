@@ -12,7 +12,7 @@ mod start;
 
 pub use options::{NamedId, Options, RaceOption, ZoneOption, options, race_classes};
 pub use overrides::{Overrides, RaceDef};
-pub use race::optimize;
+pub use race::{optimize, optimize_interruptible};
 pub use request::{PlanOutcome, PlanRequest, Prepared};
 pub use routes::{load_routes, render_routes, save_route, slug, write_addon_config, write_addon_routes};
 pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, StartState};
@@ -24,6 +24,53 @@ use crate::plan::Planner;
 use crate::world::World;
 use anyhow::{Result, bail};
 use rusqlite::Connection;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// What the user asks a running job, from another thread (the app's buttons).
+#[derive(Debug, Default)]
+pub struct Interrupt {
+    stop: AtomicBool,
+    cancel: AtomicBool,
+}
+
+impl Interrupt {
+    /// End the optimization now: the job goes on with the best route found so far.
+    pub fn stop(&self) {
+        self.stop.store(true, Ordering::Relaxed);
+    }
+
+    /// Give the job up: it fails with `Cancelled`.
+    pub fn cancel(&self) {
+        self.cancel.store(true, Ordering::Relaxed);
+    }
+
+    /// Ready for a new job.
+    pub fn reset(&self) {
+        self.stop.store(false, Ordering::Relaxed);
+        self.cancel.store(false, Ordering::Relaxed);
+    }
+
+    /// The optimization must end (stopped or cancelled).
+    pub(crate) fn stopping(&self) -> bool {
+        self.stop.load(Ordering::Relaxed) || self.cancelled()
+    }
+
+    pub(crate) fn cancelled(&self) -> bool {
+        self.cancel.load(Ordering::Relaxed)
+    }
+}
+
+/// The error of a planning job the user cancelled (`Interrupt::cancel`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Cancelled;
+
+impl std::fmt::Display for Cancelled {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("cancelled")
+    }
+}
+
+impl std::error::Error for Cancelled {}
 
 /// Plan a route. `progress` receives status lines (it may be called from several threads).
 pub fn plan(
@@ -32,9 +79,29 @@ pub fn plan(
     req: &PlanRequest,
     progress: &(dyn Fn(&str) + Sync),
 ) -> Result<PlanOutcome> {
+    plan_interruptible(conn, overrides, req, progress, &Interrupt::default())
+}
+
+/// `plan`, which `interrupt` can end early from another thread. Stopped, the optimization ends
+/// at once and the route is the best found so far (the first routes are built if there are
+/// none yet). Cancelled, it fails with `Cancelled` once the step under way ends (loading the
+/// data is not cut).
+pub fn plan_interruptible(
+    conn: &Connection,
+    overrides: &Overrides,
+    req: &PlanRequest,
+    progress: &(dyn Fn(&str) + Sync),
+    interrupt: &Interrupt,
+) -> Result<PlanOutcome> {
     let mut prepared = prepare(conn, overrides, req, progress)?;
+    if interrupt.cancelled() {
+        return Err(Cancelled.into());
+    }
     let planner = Planner::new(&prepared.model, &prepared.world, &prepared.params, &prepared.profile);
-    let best = optimize(&planner, progress);
+    let best = optimize_interruptible(&planner, progress, interrupt);
+    if interrupt.cancelled() {
+        return Err(Cancelled.into());
+    }
     let route = export::build(&planner, &prepared.profile, &best);
     for missing in planner.missing_class_quests(&best) {
         prepared.notes.push(format!("class quest not planned: {missing}"));

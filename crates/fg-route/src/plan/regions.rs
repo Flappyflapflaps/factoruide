@@ -326,7 +326,7 @@ impl Planner<'_> {
         // Groups where nothing progressed, ignored until the next level.
         let mut stuck: Vec<bool> = vec![false; groups.list.len()];
         let mut stuck_level = s.level;
-        while s.level < self.profile.to_level {
+        while s.level < self.profile.to_level && !self.aborted() {
             if s.level != stuck_level {
                 stuck.fill(false);
                 stuck_level = s.level;

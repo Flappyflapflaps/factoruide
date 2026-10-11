@@ -85,6 +85,8 @@ struct AppState {
     names: Mutex<HashMap<(Edition, String), Arc<Names>>>,
     /// Saved guides and debug exports.
     data_dir: PathBuf,
+    /// Stops or cancels the generation under way (`stop_plan`, `cancel_plan`).
+    plan_interrupt: job::Interrupt,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -543,12 +545,14 @@ fn migrate_results(state: &AppState) {
 }
 
 /// Plan a guide on a worker thread, streaming progress as `plan-progress` events. The result
-/// is saved as a new version of the guide of the request's name.
+/// is saved as a new version of the guide of the request's name. `stop_plan` ends it early with
+/// the best guide found so far; `cancel_plan` makes it fail with "cancelled" (nothing saved).
 #[tauri::command]
 async fn plan_route(app: AppHandle, request: PlanRequest) -> CmdResult<VersionMeta> {
     let app2 = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let state = app2.state::<AppState>();
+        state.plan_interrupt.reset();
         // The edition the configuration was made for (the current one when unset).
         let edition = request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
         let conn = open_db(&state.db_path(edition)?)?;
@@ -556,7 +560,14 @@ async fn plan_route(app: AppHandle, request: PlanRequest) -> CmdResult<VersionMe
         let progress = |m: &str| {
             let _ = app.emit("plan-progress", m.to_owned());
         };
-        let outcome = job::plan(&conn, &overrides, &request, &progress).map_err(err)?;
+        let outcome =
+            job::plan_interruptible(&conn, &overrides, &request, &progress, &state.plan_interrupt).map_err(|e| {
+                if e.is::<job::Cancelled>() {
+                    job::Cancelled.to_string()
+                } else {
+                    err(e)
+                }
+            })?;
         let data = conn
             .query_row("SELECT detail FROM import_run WHERE source = 'questie'", [], |r| {
                 r.get::<_, Option<String>>(0)
@@ -567,6 +578,26 @@ async fn plan_route(app: AppHandle, request: PlanRequest) -> CmdResult<VersionMe
     })
     .await
     .map_err(err)?
+}
+
+/// End the optimization under way now: `plan_route` saves and returns the best guide so far.
+#[tauri::command]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn stop_plan(state: State<'_, AppState>) {
+    state.plan_interrupt.stop();
+}
+
+/// Give the generation under way up: `plan_route` fails with "cancelled" within a moment.
+#[tauri::command]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn cancel_plan(state: State<'_, AppState>) {
+    state.plan_interrupt.cancel();
 }
 
 fn summary(state: &AppState, id: &str) -> CmdResult<GuideSummary> {
@@ -960,6 +991,7 @@ fn main() {
                 dbs: Mutex::new(HashMap::default()),
                 names: Mutex::new(HashMap::default()),
                 data_dir,
+                plan_interrupt: job::Interrupt::default(),
             });
             migrate_guides(&app.state::<AppState>().data_dir);
             migrate_results(&app.state::<AppState>());
@@ -971,6 +1003,8 @@ fn main() {
             set_settings,
             get_options,
             plan_route,
+            stop_plan,
+            cancel_plan,
             export_request,
             install_addon,
             list_clients,

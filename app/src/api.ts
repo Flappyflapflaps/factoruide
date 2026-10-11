@@ -293,6 +293,10 @@ export const api = {
   getOptions: () => invoke<Options>("get_options"),
   /** Computes a guide and saves it as a new version of the guide of the request's name. */
   planRoute: (request: PlanRequest) => invoke<VersionMeta>("plan_route", { request }),
+  /** Ends the optimization under way now: `planRoute` saves and returns the best guide so far. */
+  stopPlan: () => invoke<void>("stop_plan"),
+  /** Gives the generation under way up: `planRoute` then rejects with "cancelled" (nothing saved). */
+  cancelPlan: () => invoke<void>("cancel_plan"),
   listGuides: () => invoke<GuideSummary[]>("list_guides"),
   getGuide: (id: string) => invoke<GuideSummary>("get_guide", { id }),
   /** A version, its guide written in `locale` (game locale). */

@@ -2,6 +2,7 @@
 //! built and improved briefly in a race, then the best are improved in parallel until the end of
 //! the budget. The app follows it live (`@progress` and `@route` lines).
 
+use super::Interrupt;
 use crate::model::{Model, Profile};
 use crate::params::{Construction, Params};
 use crate::plan::{Planner, Stop, fmt_time};
@@ -18,6 +19,13 @@ type Progress<'p> = &'p (dyn Fn(&str) + Sync);
 /// `params.threads`) within `params.time_limit_ms`, after a race of candidates taking
 /// `qualify_share` of it. The best wins.
 pub fn optimize(planner: &Planner<'_>, progress: Progress<'_>) -> Vec<Stop> {
+    optimize_interruptible(planner, progress, &Interrupt::default())
+}
+
+/// `optimize`, ended early by `interrupt`: no new candidate starts (but the first ones, so that
+/// there is a route) and the searches end at their next move. Stopped, the best route so far is
+/// returned; cancelled, the caller throws it away.
+pub fn optimize_interruptible(planner: &Planner<'_>, progress: Progress<'_>, interrupt: &Interrupt) -> Vec<Stop> {
     let plan = RacePlan::new(planner.params);
     progress(&plan.announce());
     let live = Live::new(&plan, progress);
@@ -29,9 +37,11 @@ pub fn optimize(planner: &Planner<'_>, progress: Progress<'_>) -> Vec<Stop> {
         live: &live,
         quiet: plan.race,
         progress,
+        interrupt,
     };
-    // The budget counts from here: the first routes' construction is part of it.
-    live.started.get_or_init(Instant::now);
+    // The budget counts from the first route built (`Searcher::search`), not from here: building
+    // the first routes fills the walking memory (paths around the terrain, see `terrain`), which
+    // takes seconds on a long guide and is not part of the optimization time chosen.
     let results = std::thread::scope(|scope| {
         scope.spawn(|| live.watch(&searcher));
         let finalists = if plan.race {
@@ -44,7 +54,9 @@ pub fn optimize(planner: &Planner<'_>, progress: Progress<'_>) -> Vec<Stop> {
         results
     });
     live.report();
-    progress(&summary(planner, &results));
+    if !interrupt.cancelled() {
+        progress(&summary(planner, &results));
+    }
     results
         .into_iter()
         .min_by(|a, b| a.0.total_cmp(&b.0))
@@ -292,39 +304,56 @@ struct Searcher<'a> {
     /// During a race the candidates do not log their progress.
     quiet: bool,
     progress: Progress<'a>,
+    /// The user stopping or cancelling the generation.
+    interrupt: &'a Interrupt,
 }
 
 impl Searcher<'_> {
     /// Improve `route` (built when None) with candidate `k`'s settings until `until` after the
-    /// start of the optimization. Returns its score under the request's own settings.
-    fn search(&self, k: usize, route: Option<Vec<Stop>>, until: Duration) -> (f64, Vec<Stop>) {
+    /// start of the optimization. Returns its score under the request's own settings; None when
+    /// the generation is cancelled, or stopped while building a route that is not `needed` (the
+    /// first ones are: without them there would be no guide to keep).
+    fn search(&self, k: usize, route: Option<Vec<Stop>>, until: Duration, needed: bool) -> Option<(f64, Vec<Stop>)> {
+        if self.interrupt.cancelled() {
+            return None;
+        }
         let p = candidate_params(self.params, k);
-        let planner = Planner::new(self.model, self.world, &p, self.profile);
+        let give_up = || self.interrupt.cancelled() || (!needed && self.interrupt.stopping());
+        let planner = Planner::new(self.model, self.world, &p, self.profile).abortable(&give_up);
         let log = |m: &str| {
             if k == 0 && !self.quiet {
                 (self.progress)(m);
             }
         };
         let first = Cell::new(route.is_none());
-        let start = route.unwrap_or_else(|| {
+        let start = if let Some(route) = route {
+            route
+        } else {
             let begun = Instant::now();
             let route = planner.construct(log);
+            if planner.aborted() {
+                return None;
+            }
             let mut built = self.live.built.lock().unwrap();
             built.0 += begun.elapsed();
             built.1 += 1;
             route
-        });
+        };
         let begun = *self.live.started.get_or_init(Instant::now);
-        let route = planner.improve(
+        let route = planner.improve_while(
             start,
             until.saturating_sub(begun.elapsed()),
+            || !self.interrupt.stopping(),
             log,
             |score, play, route| {
                 self.live.on_best(k, &first, score, play, route);
             },
         );
+        if self.interrupt.cancelled() {
+            return None;
+        }
         let base = Planner::new(self.model, self.world, self.params, self.profile);
-        (base.simulate(&route, None).unwrap_or(f64::INFINITY), route)
+        Some((base.simulate(&route, None).unwrap_or(f64::INFINITY), route))
     }
 }
 
@@ -343,7 +372,9 @@ fn qualify(searcher: &Searcher<'_>, plan: &RacePlan) -> Vec<(usize, Option<Vec<S
             scope.spawn(|| {
                 loop {
                     let k = next.fetch_add(1, Ordering::Relaxed);
-                    if k >= plan.candidates {
+                    // Stopped: no new candidate, but the first round, so that there is a route.
+                    let stopping = searcher.interrupt.stopping() && k >= plan.threads;
+                    if k >= plan.candidates || stopping || searcher.interrupt.cancelled() {
                         break;
                     }
                     let (time, n) = *searcher.live.built.lock().unwrap();
@@ -360,9 +391,10 @@ fn qualify(searcher: &Searcher<'_>, plan: &RacePlan) -> Vec<(usize, Option<Vec<S
                     } else {
                         (slot * round).min(plan.qualify)
                     };
-                    let (score, route) = searcher.search(k, None, until);
-                    qualified.lock().unwrap().push((score, k, route));
-                    searcher.live.qualified.fetch_add(1, Ordering::Relaxed);
+                    if let Some((score, route)) = searcher.search(k, None, until, k < plan.threads) {
+                        qualified.lock().unwrap().push((score, k, route));
+                        searcher.live.qualified.fetch_add(1, Ordering::Relaxed);
+                    }
                 }
             });
         }
@@ -390,9 +422,15 @@ fn final_round(
     let results: Vec<(usize, (f64, Vec<Stop>))> = std::thread::scope(|scope| {
         let handles: Vec<_> = finalists
             .into_iter()
-            .map(|(k, route)| scope.spawn(move || (k, searcher.search(k, route, plan.budget))))
+            .map(|(k, route)| scope.spawn(move || (k, searcher.search(k, route, plan.budget, true))))
             .collect();
-        handles.into_iter().map(|h| h.join().unwrap()).collect()
+        handles
+            .into_iter()
+            .filter_map(|h| {
+                let (k, result) = h.join().unwrap();
+                result.map(|r| (k, r))
+            })
+            .collect()
     });
     if std::env::var_os("FG_RACE_LOG").is_some() {
         for (k, (t, _)) in &results {
