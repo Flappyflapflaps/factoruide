@@ -34,14 +34,20 @@ export function ResultView({ version, onRerun, onEdit, onOpenVersion, options }:
   const [guide, setGuide] = useState<GuideSummary | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [continent, setContinent] = useState<ContinentView>("both");
+  const line = useMemo(() => route.steps.filter((s) => s.world).map((s) => s.world as WorldPoint), [route]);
+  // The continent the guide stays on, both when it goes to several.
+  const [continent, setContinent] = useState<ContinentView>(() => {
+    const used = new Set(line.map((p) => p[0]));
+    return used.size === 1 ? [...used][0] : "both";
+  });
+  // Steps of the zone opened in the route table, drawn over the route.
+  const [highlight, setHighlight] = useState<WorldPoint[] | null>(null);
 
   const loadGuide = useCallback(() => {
     api.getGuide(meta.guide).then(setGuide).catch(() => setGuide(null));
   }, [meta.guide]);
   useEffect(loadGuide, [loadGuide]);
 
-  const line = useMemo(() => route.steps.filter((s) => s.world).map((s) => s.world as WorldPoint), [route]);
   const markers = useMemo(() => routeMarkers(route.steps, (zone, level) => t("{zone} · niveau {level}", { zone, level })), [route, t]);
 
   const act = async (action: () => Promise<string | void>) => {
@@ -69,31 +75,12 @@ export function ResultView({ version, onRerun, onEdit, onOpenVersion, options }:
             {route.name} <span className="version-tag">v{meta.version}</span>
             {installed && <span className="tag installed">{t("installée")}</span>}
           </h2>
-          <div className="muted">
+          <div className="muted result-meta">
             <Character race={version.request.race} klass={version.request.class} group={version.request.group} options={options} /> ·{" "}
-            {t("Calculé le {date} · niveau {from} → {to}", { date: date(meta.created), from: route.from_level, to: route.to_level })}
-            {meta.data && <> · {meta.data.split(":")[0]}</>}
+            <span title={meta.data ? t("Données : {data}", { data: meta.data }) : undefined}>{t("Calculé le {date}", { date: date(meta.created) })}</span>
             {meta.imported && <> · {t("importé")}</>}
             {meta.character && <> · {t("depuis {name}", { name: meta.character })}</>}
           </div>
-        </div>
-        <div className="result-figures">
-          <div>
-            <strong>{route.total_time_text}</strong>
-            <small>{t("temps de jeu estimé")}</small>
-          </div>
-          <div>
-            <strong>{route.quests}</strong>
-            <small>{t("quêtes")}</small>
-          </div>
-          {previous && (
-            <div>
-              <strong>
-                <Delta seconds={meta.total_time - previous.total_time} />
-              </strong>
-              <small>{t("vs version {n}", { n: previous.version })}</small>
-            </div>
-          )}
         </div>
       </header>
       <div className="actions">
@@ -169,9 +156,25 @@ export function ResultView({ version, onRerun, onEdit, onOpenVersion, options }:
       <section className="panel">
         <h3>{t("Carte du guide")}</h3>
         <p className="muted">{t("Les pastilles indiquent le niveau en arrivant dans chaque grande étape (survolez pour la zone).")}</p>
-        <WorldMap continent={continent} onContinent={setContinent} route={line} markers={markers} height={560} />
+        <WorldMap continent={continent} onContinent={setContinent} route={line} markers={markers} highlight={highlight ?? undefined} height={560} />
       </section>
-      <RouteView route={route} notes={outcome.notes} />
+      <RouteView
+        route={route}
+        notes={outcome.notes}
+        compare={
+          previous && (
+            <>
+              <Delta seconds={meta.total_time - previous.total_time} /> {t("vs version {n}", { n: previous.version })}
+            </>
+          )
+        }
+        onHighlight={(points) => {
+          setHighlight(points);
+          // The continent of the opened zone, when another one is shown alone.
+          const map = points?.[0]?.[0];
+          if (map != null && continent !== "both" && continent !== map) setContinent(map);
+        }}
+      />
     </div>
   );
 }

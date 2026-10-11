@@ -61,11 +61,11 @@ export function useT() {
 export const bcp47 = (lang: Lang) =>
   ({ fr: "fr-FR", en: "en-US", de: "de-DE", es: "es-ES", esMX: "es-MX", pt: "pt-BR", ru: "ru-RU", ko: "ko-KR", zhCN: "zh-CN", zhTW: "zh-TW" })[lang];
 
-/** Short date and time of unix seconds, in the app language. */
+/** Date (month in letters: 10/11 reads both ways) and time of unix seconds, in the app language. */
 export function useDate() {
   const lang = useLang();
   return useCallback(
-    (secs: number) => new Date(secs * 1000).toLocaleString(bcp47(lang), { dateStyle: "short", timeStyle: "short" }),
+    (secs: number) => new Date(secs * 1000).toLocaleString(bcp47(lang), { dateStyle: "medium", timeStyle: "short" }),
     [lang],
   );
 }

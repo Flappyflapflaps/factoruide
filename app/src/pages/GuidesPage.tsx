@@ -104,7 +104,7 @@ export function GuidesPage({ options, onRerun, onEdit }: Props) {
   }
 
   const bar = (
-    <div className="results-bar">
+    <div className="page-head">
       <h2>{t("Mes guides")}</h2>
       <input
         ref={fileRef}
@@ -145,7 +145,7 @@ export function GuidesPage({ options, onRerun, onEdit }: Props) {
       <table className="table">
         <thead>
           <tr>
-            {header("addon", t("Addon"), t("Installé dans l'addon"))}
+            {header("addon", t("Dans l'addon"), t("Guides installés dans l'addon : cochez pour installer (la dernière version), décochez pour retirer"))}
             {header("name", t("Guide"))}
             {header("character", t("Personnage"))}
             {header("levels", t("Niveaux"))}
@@ -162,14 +162,17 @@ export function GuidesPage({ options, onRerun, onEdit }: Props) {
             return (
               <tr key={g.id}>
                 <td>
-                  <input
-                    type="checkbox"
-                    aria-label={t("Installer « {name} » dans l'addon", { name: g.name })}
-                    checked={g.installed != null}
-                    onChange={(e) =>
-                      act(async () => t("Guides dans l'addon : {n} — faites /reload en jeu", { n: await api.setInstalled(g.id, e.target.checked ? latest.version : null) }))
-                    }
-                  />
+                  <label className="switch" title={g.installed != null ? t("Retirer de l'addon") : t("Installer dans l'addon")}>
+                    <input
+                      type="checkbox"
+                      aria-label={t("Installer « {name} » dans l'addon", { name: g.name })}
+                      checked={g.installed != null}
+                      onChange={(e) =>
+                        act(async () => t("Guides dans l'addon : {n} — faites /reload en jeu", { n: await api.setInstalled(g.id, e.target.checked ? latest.version : null) }))
+                      }
+                    />
+                    <span aria-hidden />
+                  </label>
                 </td>
                 <td>
                   <button className="link" onClick={() => openVersion(g.id, shown.version)}>

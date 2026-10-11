@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { api, type Edition, type EditionInfo, type GuideVersion, type Options } from "./api";
 import { clearMapCache } from "./components/WorldMap";
 import { I18nProvider, LANGS, detectLang, useT, type Lang } from "./i18n";
@@ -52,6 +53,12 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
   const [wizard, setWizard] = useState<{ key: number; start: WizardStart }>({ key: 0, start: { initial: null, rerun: false } });
   // A generation is running: the wizard keeps it (and its progress) until it ends.
   const [busy, setBusy] = useState(false);
+  const [version, setVersion] = useState<string | null>(null);
+  useEffect(() => {
+    getVersion()
+      .then(setVersion)
+      .catch(() => {});
+  }, []);
   const openWizard = (start: WizardStart) => {
     if (!busy) setWizard((w) => ({ key: w.key + 1, start }));
     setPage("plan");
@@ -86,6 +93,9 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
         <div className="brand">
           <span className="logo">★</span> Factoruide
         </div>
+        <div className="sidebar-label" aria-hidden>
+          {t("Version du jeu")}
+        </div>
         <div className="edition-switch" role="radiogroup" aria-label={t("Version du jeu")}>
           {editions.map((e) => (
             <button
@@ -111,7 +121,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
             {p.id === "plan" && busy && <span className="spinner" role="status" aria-label={t("Génération en cours")} title={t("Génération en cours")} />}
           </button>
         ))}
-        <div className="sidebar-footer">{t("Pexing optimisé")}</div>
+        {version && <div className="sidebar-footer">Factoruide {version}</div>}
       </nav>
       <div className="content">
         <UpdateBanner />

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { api, type Settings } from "../api";
+import { NumberInput } from "../components/NumberInput";
 import { gameLocale, LANGS, useLang, useT } from "../i18n";
 
 type Option =
   | { key: string; kind: "bool"; label: string; help?: string; default: boolean }
-  | { key: string; kind: "number"; label: string; help?: string; default: number; min: number; max: number; step: number }
+  | { key: string; kind: "number"; label: string; help?: string; default: number; min: number; max: number; step: number; percent?: boolean }
   | { key: string; kind: "select"; label: string; help?: string; default: string; options: { value: string; label: string }[] };
 
 /** Mirror of `FG.defaults` in addon/Factoruide/Settings.lua. */
@@ -26,7 +27,7 @@ const OPTIONS: { title: string; options: Option[] }[] = [
         ],
       },
       { key: "pickupLines", kind: "number", label: "Quêtes de la boîte « À prendre »", help: "Les prochaines quêtes que vous pouvez prendre maintenant, avec leur distance : prenez les plus proches dans l'ordre qui vous arrange. 0 la masque.", default: 10, min: 0, max: 20, step: 1 },
-      { key: "scale", kind: "number", label: "Taille des fenêtres", default: 1, min: 0.6, max: 1.6, step: 0.05 },
+      { key: "scale", kind: "number", label: "Taille des fenêtres", default: 1, min: 0.6, max: 1.6, step: 0.05, percent: true },
       { key: "lockFrames", kind: "bool", label: "Verrouiller les fenêtres", default: false },
       { key: "waypoints", kind: "bool", label: "Flèche vers l'étape en cours", help: "Waypoint natif du jeu.", default: true },
       { key: "xpMarker", kind: "bool", label: "Repère du guide sur la barre d'XP", help: "Un trait jaune sur la barre d'expérience montre l'XP que le guide prévoit à l'étape en cours ; au survol, votre avance ou votre retard.", default: true },
@@ -104,18 +105,34 @@ export function AddonPage() {
   const t = useT();
   const lang = useLang();
   const [settings, setSettings] = useState<Settings | null>(null);
+  // What is saved, to tell the changes not saved yet.
+  const [saved, setSaved] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Every option with its value (the default when unset), and the guide language.
+  const snapshot = (s: Settings) =>
+    JSON.stringify([OPTIONS.flatMap((g) => g.options.map((o) => s.addon[o.key] ?? o.default)), s.guide_locale ?? gameLocale(lang)]);
   useEffect(() => {
-    api.getSettings().then(setSettings).catch((e) => setError(String(e)));
+    api
+      .getSettings()
+      .then((s) => {
+        setSettings(s);
+        setSaved(snapshot(s));
+      })
+      .catch((e) => setError(String(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   if (!settings) return error ? <div className="error">{error}</div> : null;
 
   const value = (o: Option) => settings.addon[o.key] ?? o.default;
-  const update = (key: string, v: boolean | number | string) => setSettings({ ...settings, addon: { ...settings.addon, [key]: v } });
+  const update = (key: string, v: boolean | number | string) => {
+    setMessage(null);
+    setSettings({ ...settings, addon: { ...settings.addon, [key]: v } });
+  };
   // Guides in the app language until another one is chosen.
   const guideLocale = settings.guide_locale ?? gameLocale(lang);
+  const dirty = saved !== null && snapshot(settings) !== saved;
 
   const save = async (install: boolean) => {
     setError(null);
@@ -126,6 +143,7 @@ export function AddonPage() {
       const next = { ...settings, addon, guide_locale: guideLocale };
       await api.setSettings(next);
       setSettings(next);
+      setSaved(snapshot(next));
       setMessage(install ? t("Guides dans l'addon : {n} — faites /reload en jeu", { n: await api.installAddon() }) : t("Réglages enregistrés"));
     } catch (e) {
       setError(String(e));
@@ -134,11 +152,17 @@ export function AddonPage() {
 
   return (
     <div className="addon-page">
-      <div className="actions">
-        <button className="primary" onClick={() => save(true)}>
-          {t("Enregistrer et installer l'addon")}
-        </button>
-        <button onClick={() => save(false)}>{t("Enregistrer")}</button>
+      <div className={`save-bar${dirty ? " dirty" : ""}`}>
+        <h2>{t("Addon")}</h2>
+        {dirty && <span className="unsaved">{t("Modifications non enregistrées")}</span>}
+        <div className="actions">
+          <button onClick={() => save(false)} disabled={!dirty}>
+            {t("Enregistrer")}
+          </button>
+          <button className="primary" onClick={() => save(true)} title={t("Copie l'addon et les guides installés dans le jeu")}>
+            {t("Enregistrer et installer l'addon")}
+          </button>
+        </div>
       </div>
       {message && <div className="success">{message}</div>}
       {error && <div className="error">{error}</div>}
@@ -147,7 +171,10 @@ export function AddonPage() {
           <h3>{t("Langue")}</h3>
           <label className="field">
             <span>{t("Langue des guides dans l'addon")}</span>
-            <select value={guideLocale} onChange={(e) => setSettings({ ...settings, guide_locale: e.target.value })}>
+            <select value={guideLocale} onChange={(e) => {
+              setMessage(null);
+              setSettings({ ...settings, guide_locale: e.target.value });
+            }}>
               {LANGS.map((l) => (
                 <option key={l.key} value={l.locale}>
                   {l.label}
@@ -180,10 +207,19 @@ export function AddonPage() {
                   </select>
                   {o.help && <small>{t(o.help)}</small>}
                 </label>
-              ) : (
+              ) : o.percent ? (
                 <label className="field" key={o.key}>
                   <span>{t(o.label)}</span>
-                  <input type="number" min={o.min} max={o.max} step={o.step} value={Number(value(o))} onChange={(e) => update(o.key, Number(e.target.value))} />
+                  <span className="slider">
+                    <input type="range" min={o.min * 100} max={o.max * 100} step={o.step * 100} value={Math.round(Number(value(o)) * 100)} onChange={(e) => update(o.key, Number(e.target.value) / 100)} />
+                    <output>{Math.round(Number(value(o)) * 100)} %</output>
+                  </span>
+                  {o.help && <small>{t(o.help)}</small>}
+                </label>
+              ) : (
+                <label className="field field-short" key={o.key}>
+                  <span>{t(o.label)}</span>
+                  <NumberInput min={o.min} max={o.max} step={o.step} value={Number(value(o))} onChange={(v) => update(o.key, v)} />
                   {o.help && <small>{t(o.help)}</small>}
                 </label>
               ),

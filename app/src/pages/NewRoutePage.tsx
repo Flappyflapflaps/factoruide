@@ -17,9 +17,9 @@ export interface WizardStart {
 type Step = "config" | "run" | "result";
 
 const STEPS: { id: Step; label: string }[] = [
-  { id: "config", label: "1. Configuration" },
-  { id: "run", label: "2. Génération" },
-  { id: "result", label: "3. Résultat" },
+  { id: "config", label: "Configuration" },
+  { id: "run", label: "Génération" },
+  { id: "result", label: "Résultat" },
 ];
 
 /** New route in three steps: configure, watch the generation live, then the saved result. */
@@ -118,17 +118,23 @@ export function NewRoutePage({ options, start, onBusy }: { options: Options; sta
   return (
     <div className="wizard">
       <ol className="wizard-steps">
-        {STEPS.map((s) => (
-          <li key={s.id} className={s.id === step ? "active" : STEPS.findIndex((x) => x.id === step) > STEPS.findIndex((x) => x.id === s.id) ? "done" : ""}>
-            {s.id === "config" && step === "result" ? (
-              <button className="link" onClick={() => setStep("config")}>
-                {t(s.label)}
-              </button>
-            ) : (
-              t(s.label)
-            )}
-          </li>
-        ))}
+        {STEPS.map((s, i) => {
+          const done = STEPS.findIndex((x) => x.id === step) > i;
+          return (
+            <li key={s.id} className={s.id === step ? "active" : done ? "done" : ""} aria-current={s.id === step ? "step" : undefined}>
+              <span className="step-num" aria-hidden>
+                {done ? "✓" : i + 1}
+              </span>
+              {s.id === "config" && step === "result" ? (
+                <button className="link" onClick={() => setStep("config")}>
+                  {t(s.label)}
+                </button>
+              ) : (
+                <span>{t(s.label)}</span>
+              )}
+            </li>
+          );
+        })}
       </ol>
       {error && <div className="error">{error}</div>}
       {message && <div className="success">{message}</div>}

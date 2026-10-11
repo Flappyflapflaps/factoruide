@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type ContributionPreview } from "../api";
-import { useDate, useT } from "../i18n";
+import { bcp47, useDate, useLang, useT } from "../i18n";
 
 /** Send this computer's quest cache and addon recordings to consolidate the quest database. */
 export function ContributePage({ onSettings }: { onSettings: () => void }) {
   const t = useT();
+  const lang = useLang();
   const date = useDate();
+  const kilobytes = (bytes: number) =>
+    new Intl.NumberFormat(bcp47(lang), { style: "unit", unit: "kilobyte", unitDisplay: "short", maximumFractionDigits: 0 }).format(Math.max(1, bytes / 1024));
   const [preview, setPreview] = useState<ContributionPreview | null>(null);
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -33,8 +36,11 @@ export function ContributePage({ onSettings }: { onSettings: () => void }) {
 
   const empty = preview && preview.quests === 0 && preview.events === 0;
   return (
-    <section className="panel contribute">
-      <h3>{t("Contribuer")}</h3>
+    <div className="contribute">
+      <div className="page-head">
+        <h2>{t("Contribuer")}</h2>
+      </div>
+    <section className="panel">
       <p>
         {t(
           "Les quêtes que votre jeu a vues (son cache de quêtes) et ce que l'addon a enregistré (quêtes prises et rendues, PNJ et positions) complètent la base de quêtes. Plus il y a de joueurs, plus les guides sont justes.",
@@ -61,15 +67,15 @@ export function ContributePage({ onSettings }: { onSettings: () => void }) {
           </div>
           <div className="tile">
             <span>{t("Taille")}</span>
-            <strong>{Math.max(1, Math.round(preview.size / 1024))} Ko</strong>
-            <small>{preview.client_dir}</small>
+            <strong>{kilobytes(preview.size)}</strong>
+            <small title={preview.client_dir}>{preview.client_dir}</small>
           </div>
         </div>
       )}
       {preview && !preview.found && <div className="error">{t("Dossier du jeu introuvable : vérifiez le dossier World of Warcraft dans les Réglages.")}</div>}
       {preview && !preview.url && (
-        <div className="error">
-          {t("Aucun serveur de contribution configuré.")}{" "}
+        <div className="notice">
+          {t("L'envoi n'est pas disponible : aucun serveur de contribution n'est configuré.")}{" "}
           <button className="link" onClick={onSettings}>
             {t("Réglages")}
           </button>
@@ -85,5 +91,6 @@ export function ContributePage({ onSettings }: { onSettings: () => void }) {
       {message && <div className="success">{message}</div>}
       {error && <div className="error">{error}</div>}
     </section>
+    </div>
   );
 }

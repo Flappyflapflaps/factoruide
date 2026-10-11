@@ -1,6 +1,7 @@
 import type { Params } from "../api";
 import type { Field } from "../paramSchema";
 import { useT } from "../i18n";
+import { NumberInput } from "./NumberInput";
 
 interface Props {
   field: Field;
@@ -22,7 +23,7 @@ export function ParamField({ field, params, defaults, onChange }: Props) {
 
   if (field.kind === "bool") {
     return (
-      <label className="field field-bool" title={field.help ? t(field.help) : undefined}>
+      <label className={`field field-bool${changed ? " changed" : ""}`} title={field.help ? t(field.help) : undefined}>
         <input type="checkbox" checked={Boolean(value)} onChange={(e) => onChange(field.key, e.target.checked)} />
         <span>{t(field.label)}</span>
         {reset}
@@ -33,7 +34,7 @@ export function ParamField({ field, params, defaults, onChange }: Props) {
 
   if (field.kind === "select") {
     return (
-      <label className="field">
+      <label className={`field${changed ? " changed" : ""}`}>
         <span>
           {t(field.label)} {reset}
         </span>
@@ -51,21 +52,17 @@ export function ParamField({ field, params, defaults, onChange }: Props) {
 
   const scale = field.scale ?? 1;
   return (
-    <label className="field">
+    <label className={`field${changed ? " changed" : ""}`}>
       <span>
         {t(field.label)} {reset}
       </span>
       <div className="field-number">
-        <input
-          type="number"
+        <NumberInput
           value={Math.round(((value as number) / scale) * 1000) / 1000}
           min={field.min}
           max={field.max}
           step={field.step}
-          onChange={(e) => {
-            const v = Number(e.target.value);
-            if (!Number.isNaN(v)) onChange(field.key, v * scale);
-          }}
+          onChange={(v) => onChange(field.key, v * scale)}
         />
         {field.unit && <em>{t(field.unit)}</em>}
       </div>

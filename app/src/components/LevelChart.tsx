@@ -23,7 +23,17 @@ export function LevelChart({ steps, fromLevel, toLevel }: { steps: Step[]; fromL
 
   const hours = Math.ceil(maxTime / 3600);
   const hourStep = hours > 60 ? 20 : hours > 24 ? 10 : hours > 8 ? 2 : 1;
-  const levelStep = toLevel - fromLevel > 30 ? 10 : 5;
+  // Hour ticks inside the plot only.
+  const hourTicks = Array.from({ length: Math.floor(maxTime / 3600 / hourStep) + 1 }, (_, i) => i * hourStep);
+  // Every level on a short guide, else round levels; the first and last always, unless too close.
+  const span = toLevel - fromLevel;
+  const levelStep = span <= 12 ? 1 : span <= 30 ? 5 : 10;
+  const levelTicks = [fromLevel];
+  for (let l = Math.ceil((fromLevel + 1) / levelStep) * levelStep; l < toLevel; l += levelStep) if (l - fromLevel >= levelStep / 2) levelTicks.push(l);
+  if (toLevel > fromLevel) {
+    if (toLevel - levelTicks[levelTicks.length - 1] < levelStep / 2 && levelTicks.length > 1) levelTicks.pop();
+    levelTicks.push(toLevel);
+  }
 
   const onMove = (e: React.PointerEvent) => {
     const rect = svg.current!.getBoundingClientRect();
@@ -39,7 +49,7 @@ export function LevelChart({ steps, fromLevel, toLevel }: { steps: Step[]; fromL
       <figcaption>{t("Niveau selon le temps de jeu")}</figcaption>
       <div className="chart-plot" ref={frame}>
         <svg ref={svg} width={W} height={H} viewBox={`0 0 ${W} ${H}`} onPointerMove={onMove} onPointerLeave={() => setHover(null)} role="img" aria-label={t("Niveau selon le temps de jeu")}>
-          {Array.from({ length: Math.floor(hours / hourStep) + 1 }, (_, i) => i * hourStep).map((hr) => (
+          {hourTicks.map((hr) => (
             <g key={`x${hr}`}>
               <line className="grid" x1={x(hr * 3600)} x2={x(hr * 3600)} y1={PAD.top} y2={H - PAD.bottom} />
               <text className="axis" x={x(hr * 3600)} y={H - 8} textAnchor="middle">
@@ -47,7 +57,7 @@ export function LevelChart({ steps, fromLevel, toLevel }: { steps: Step[]; fromL
               </text>
             </g>
           ))}
-          {[fromLevel, ...Array.from({ length: Math.floor(toLevel / levelStep) }, (_, i) => (i + 1) * levelStep).filter((l) => l > fromLevel && l <= toLevel)].map((lvl) => (
+          {levelTicks.map((lvl) => (
             <g key={`y${lvl}`}>
               <line className="grid" x1={PAD.left} x2={W - PAD.right} y1={y(lvl)} y2={y(lvl)} />
               <text className="axis" x={PAD.left - 6} y={y(lvl) + 4} textAnchor="end">

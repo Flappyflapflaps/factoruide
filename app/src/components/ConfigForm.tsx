@@ -37,7 +37,15 @@ function Segmented<T>({ label, choices, value, onChange, help }: { label: string
       <div className="segmented" role="radiogroup" aria-label={label}>
         {choices.map((c) => (
           <button key={c.label} role="radio" aria-checked={c.value === value} className={c.value === value ? "active" : ""} onClick={() => onChange(c.value)}>
-            {c.label}
+            {/* "Thorough (6 min)": the detail under the name, so that both fit. */}
+            {/^(.+) \((.+)\)$/.test(c.label) ? (
+              <>
+                {c.label.replace(/ \(.+\)$/, "")}
+                <small>{c.label.replace(/^.+ \((.+)\)$/, "$1")}</small>
+              </>
+            ) : (
+              c.label
+            )}
           </button>
         ))}
       </div>
@@ -181,10 +189,9 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
 
   // The pace preset whose values are all in use, if any.
   const pace = presets.find((p) => Object.entries(p.values).every(([k, v]) => params[k as keyof Params] === v))?.label ?? null;
-  // Settings of the advanced view that differ from the defaults.
-  const changed = sections
-    .flatMap((s) => s.fields)
-    .filter((f) => !SIMPLE_KEYS.includes(f.key) && JSON.stringify(params[f.key]) !== JSON.stringify(defaults[f.key])).length;
+  // Settings of the advanced view, and those that differ from the defaults.
+  const advancedKeys = sections.flatMap((s) => s.fields).map((f) => f.key).filter((k) => !SIMPLE_KEYS.includes(k));
+  const changed = advancedKeys.filter((k) => JSON.stringify(params[k]) !== JSON.stringify(defaults[k])).length;
 
   const request = (): PlanRequest => ({
     race,
@@ -216,11 +223,6 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
           </div>
         </div>
         <div className="actions">
-          {onExport && (
-            <button className="link" onClick={() => onExport(request())} title={t("Enregistre la requête dans debug/ pour la rejouer en ligne de commande")}>
-              {t("Exporter (debug)")}
-            </button>
-          )}
           <button
             className="primary big"
             onClick={() => {
@@ -416,6 +418,18 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
           </div>
         </div>
       ) : (
+        <>
+        <div className="advanced-bar">
+          <span className="muted">{changed > 0 ? t("Réglages modifiés : {n}", { n: changed }) : t("Tous les réglages sont aux valeurs par défaut.")}</span>
+          <button disabled={changed === 0} onClick={() => setParams((p) => ({ ...p, ...Object.fromEntries(advancedKeys.map((k) => [k, defaults[k]])) }))}>
+            {t("Tout remettre par défaut")}
+          </button>
+          {onExport && (
+            <button className="link" onClick={() => onExport(request())} title={t("Enregistre la requête dans debug/ pour la rejouer en ligne de commande")}>
+              {t("Exporter (debug)")}
+            </button>
+          )}
+        </div>
         <div className="config-advanced">
           <section className="panel">
             <h3>{t("Quêtes de classe obligatoires")}</h3>
@@ -473,10 +487,8 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
             <ProfessionPicker goals={professions} onChange={setProfessions} />
           </section>
 
-          <div className="config-reset">
-            <button onClick={() => setParams(defaults)}>{t("Tout remettre par défaut")}</button>
-          </div>
         </div>
+        </>
       )}
     </div>
   );

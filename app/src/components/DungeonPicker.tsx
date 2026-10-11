@@ -37,7 +37,11 @@ export function DungeonPicker({ dungeons, forced, excluded, onChange }: Props) {
           );
         })}
       </div>
-      <small>{t("Un clic : forcé (fait même s'il n'est pas rentable), deux : exclu, trois : automatique.")}</small>
+      <small className="chip-legend">
+        {t("Clic :")} <span className="chip">{t("automatique")}</span> → <span className="chip forced">★ {t("forcé")}</span> →{" "}
+        <span className="chip excluded">✕ {t("exclu")}</span>
+        <span>{t("Forcé : fait même s'il n'est pas rentable.")}</span>
+      </small>
     </div>
   );
 }

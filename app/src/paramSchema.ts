@@ -168,7 +168,7 @@ export const sections: Section[] = [
 ];
 
 /** Settings of the simple view (left out of the advanced sections). */
-export const SIMPLE_KEYS: (keyof Params)[] = ["dungeons", "allow_elite", "crowded"];
+export const SIMPLE_KEYS: (keyof Params)[] = ["dungeons", "allow_elite", "crowded", "progression"];
 
 /** Speed presets applied on top of the defaults. */
 export const presets: { label: string; values: Partial<Params> }[] = [

@@ -13,7 +13,10 @@ export function BreakdownBars({ breakdown }: { breakdown: Breakdown }) {
     { label: t("Donjons"), value: breakdown.dungeons },
     { label: t("Dialogues / loot"), value: breakdown.overhead },
     { label: t("Entraînement"), value: breakdown.training },
-  ].filter((r) => r.value > 0);
+  ]
+    // Under half a minute shows as 0h00: left out.
+    .filter((r) => r.value >= 30)
+    .sort((a, b) => b.value - a.value);
   const max = Math.max(...rows.map((r) => r.value), 1);
   const total = rows.reduce((s, r) => s + r.value, 0);
 

@@ -940,6 +940,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             migrate_app_dirs(app.handle());
             let config_file = app.path().app_config_dir()?.join("settings.json");

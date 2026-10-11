@@ -75,7 +75,7 @@ export function ProfessionPicker({ goals, onChange }: Props) {
     const goal = goals.find((g) => g.key === p.key);
     const blocked = !goal && !p.secondary && primaries >= 2;
     return (
-      <div className="profession" key={p.key}>
+      <div className={`profession${goal ? " on" : ""}`} key={p.key}>
         <label
           className="field-bool"
           title={blocked ? t("Deux métiers principaux au maximum") : undefined}
@@ -160,9 +160,9 @@ export function ProfessionPicker({ goals, onChange }: Props) {
 
   return (
     <div className="professions">
-      <small className="muted">{t("Principaux (2 max)")}</small>
+      <small className="muted professions-group">{t("Principaux (2 max)")}</small>
       {PROFESSIONS.filter((p) => !p.secondary).map(row)}
-      <small className="muted">{t("Secondaires")}</small>
+      <small className="muted professions-group">{t("Secondaires")}</small>
       {PROFESSIONS.filter((p) => p.secondary).map(row)}
     </div>
   );

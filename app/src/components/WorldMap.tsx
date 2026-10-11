@@ -22,6 +22,8 @@ interface Props {
   /** Zone states by game zone (AreaTable ID). */
   zoneStates?: Record<number, ZoneState>;
   onZoneClick?: (area: number, name: string) => void;
+  /** Part of the route drawn over it (the steps of a zone). */
+  highlight?: WorldPoint[];
   /** Animate the route (while it is being optimized). */
   live?: boolean;
   /** Maximum height in pixels. */
@@ -68,7 +70,24 @@ interface Panel {
   project: (x: number, y: number) => [number, number];
 }
 
-export function WorldMap({ continent, onContinent, route, markers, zoneStates, onZoneClick, live, height = 520 }: Props) {
+/** Color of the route at `f` (0 start, 1 end): light blue, blue, violet, magenta. */
+const RAMP = [
+  [94, 200, 255],
+  [57, 135, 229],
+  [122, 79, 214],
+  [192, 57, 155],
+];
+function rampColor(f: number): string {
+  const x = Math.min(1, Math.max(0, f)) * (RAMP.length - 1);
+  const i = Math.min(RAMP.length - 2, Math.floor(x));
+  const c = RAMP[i].map((v, k) => Math.round(v + (RAMP[i + 1][k] - v) * (x - i)));
+  return `rgb(${c.join(",")})`;
+}
+const RAMP_CSS = `linear-gradient(90deg, ${[0, 1 / 3, 2 / 3, 1].map(rampColor).join(", ")})`;
+/** Route pieces colored along the ramp. */
+const CHUNKS = 8;
+
+export function WorldMap({ continent, onContinent, route, markers, highlight, zoneStates, onZoneClick, live, height = 520 }: Props) {
   const t = useT();
   const areaName = useAreaName();
   const [index, setIndex] = useState<MapInfo[] | null>(null);
@@ -173,32 +192,44 @@ export function WorldMap({ continent, onContinent, route, markers, zoneStates, o
     return [p.x, p.y] as const;
   };
 
-  // Local moves as a solid line; long jumps (flights, hearthstone) as faint dashes; trips
-  // between continents (boats, zeppelins) drawn from one map to the other.
-  let path = "";
-  let jumps = "";
-  let crossings = "";
-  let prev: WorldPoint | null = null;
-  let prevXY: [number, number] | null = null;
+  // Local moves as a solid line colored from start to end; long jumps (flights, hearthstone)
+  // as faint dashes; trips between continents (boats, zeppelins) drawn from one map to the other.
   const fmt = (q: [number, number]) => `${q[0].toFixed(1)},${q[1].toFixed(1)}`;
-  for (const p of route ?? []) {
-    const q = project(p);
-    if (!q) {
-      prev = null;
-      prevXY = null;
-      continue;
-    }
-    if (!prev || !prevXY) path += `M${fmt(q)}`;
-    else if (prev[0] !== p[0]) {
-      crossings += `M${fmt(prevXY)}L${fmt(q)}`;
-      path += `M${fmt(q)}`;
-    } else if (Math.hypot(p[1] - prev[1], p[2] - prev[2]) > 1200) {
-      jumps += `M${fmt(prevXY)}L${fmt(q)}`;
-      path += `M${fmt(q)}`;
-    } else path += `L${fmt(q)}`;
-    prev = p;
-    prevXY = q;
-  }
+  const trace = (points: WorldPoint[], chunks: number) => {
+    const out = { pieces: Array.from({ length: chunks }, () => ""), jumps: "", crossings: "" };
+    let prev: WorldPoint | null = null;
+    let prevXY: [number, number] | null = null;
+    // Piece the pen is drawing in (-1: lifted).
+    let pen = -1;
+    points.forEach((p, i) => {
+      const q = project(p);
+      const c = Math.min(chunks - 1, Math.floor((i * chunks) / points.length));
+      if (!q) {
+        prev = null;
+        prevXY = null;
+        pen = -1;
+        return;
+      }
+      if (!prev || !prevXY) pen = -1;
+      else if (prev[0] !== p[0]) {
+        out.crossings += `M${fmt(prevXY)}L${fmt(q)}`;
+        pen = -1;
+      } else if (Math.hypot(p[1] - prev[1], p[2] - prev[2]) > 1200) {
+        out.jumps += `M${fmt(prevXY)}L${fmt(q)}`;
+        pen = -1;
+      } else if (pen === c) out.pieces[c] += `L${fmt(q)}`;
+      else {
+        out.pieces[c] += `M${fmt(prevXY)}L${fmt(q)}`;
+        pen = c;
+      }
+      prev = p;
+      prevXY = q;
+    });
+    return out;
+  };
+  const { pieces, jumps, crossings } = trace(route ?? [], CHUNKS);
+  const path = pieces.join("");
+  const lit = highlight?.length ? trace(highlight, 1).pieces[0] : "";
   // Tabs: the continents of this game version, then all of them side by side.
   const available = CONTINENTS.filter((c) => (index ?? []).some((m) => m.kind === 2 && m.bounds?.map === c.map));
   const TABS: { view: ContinentView; label: string }[] = [
@@ -207,6 +238,18 @@ export function WorldMap({ continent, onContinent, route, markers, zoneStates, o
   ];
   const k = 1 / view.scale; // keep strokes and labels readable when zoomed
   const s = panels.length > 2 ? 2.2 : panels.length > 1 ? 1.6 : 1; // maps side by side are drawn smaller
+  // Markers too close to be read apart are drawn as one: the first level and how many more
+  // (all of them on hover). Groups are a marker apart, so they never overlap.
+  const groups: { q: [number, number]; labels: string[]; titles: string[] }[] = [];
+  for (const m of markers ?? []) {
+    const q = project(m.at);
+    if (!q) continue;
+    const near = groups.find((g) => Math.hypot(g.q[0] - q[0], g.q[1] - q[1]) < 34 * k * s);
+    if (near) {
+      near.labels.push(m.label);
+      near.titles.push(m.title ?? m.label);
+    } else groups.push({ q, labels: [m.label], titles: [m.title ?? m.label] });
+  }
 
   return (
     <div className="world-map">
@@ -217,6 +260,11 @@ export function WorldMap({ continent, onContinent, route, markers, zoneStates, o
               {t(tab.label)}
             </button>
           ))}
+        {path && (
+          <span className="route-legend" aria-hidden>
+            {t("début")} <i style={{ background: RAMP_CSS }} /> {t("fin")}
+          </span>
+        )}
         <span className="map-hover">{hover?.name ?? (onZoneClick ? t("Cliquez une zone : privilégiée → exclue → neutre · Ctrl + molette : zoom") : t("Ctrl + molette : zoom · glisser : déplacer · double-clic : vue entière"))}</span>
       </div>
       <div
@@ -279,27 +327,37 @@ export function WorldMap({ continent, onContinent, route, markers, zoneStates, o
                   </text>
                 </g>
               ))}
-            {jumps && <path d={jumps} className="route-jump" strokeWidth={1.5 * k * s} />}
-            {crossings && <path d={crossings} className="route-crossing" strokeWidth={1.6 * k * s} />}
+            {jumps && <path d={jumps} className="route-jump" strokeWidth={1.2 * k * s} />}
+            {crossings && <path d={crossings} className="route-crossing" strokeWidth={1.2 * k * s} />}
             {path && (
+              <g key={live ? path.length : "static"} className={live ? "live" : undefined}>
+                <path d={path} className="route-halo" strokeWidth={6 * k * s} />
+                {pieces.map((d, i) => d && <path key={i} d={d} className="route-line" stroke={rampColor(i / (CHUNKS - 1))} strokeWidth={2.6 * k * s} />)}
+              </g>
+            )}
+            {lit && (
               <>
-                <path d={path} className="route-halo" strokeWidth={8 * k * s} />
-                <path key={live ? path.length : "static"} d={path} className={`route-line${live ? " live" : ""}`} strokeWidth={3.5 * k * s} />
+                <path d={lit} className="route-halo" strokeWidth={9 * k * s} />
+                <path d={lit} className="route-highlight" strokeWidth={4.5 * k * s} />
               </>
             )}
-            {(markers ?? []).map((m, i) => {
-              const q = project(m.at);
-              if (!q) return null;
-              return (
-                <g key={i} className="map-marker" transform={`translate(${q[0]},${q[1]}) scale(${k * s})`}>
-                  <title>{m.title ?? m.label}</title>
-                  <circle r={15} />
-                  <text textAnchor="middle" dominantBaseline="central" fontSize={15}>
-                    {m.label}
-                  </text>
-                </g>
-              );
-            })}
+            {groups.map((g, i) => (
+              <g key={i} className="map-marker" transform={`translate(${g.q[0]},${g.q[1]}) scale(${k * s})`}>
+                <title>{g.titles.join("\n")}</title>
+                <circle r={15} />
+                <text textAnchor="middle" dominantBaseline="central" fontSize={15}>
+                  {g.labels[0]}
+                </text>
+                {g.labels.length > 1 && (
+                  <g className="map-marker-more" transform="translate(13,-13)">
+                    <circle r={9} />
+                    <text textAnchor="middle" dominantBaseline="central" fontSize={10}>
+                      +{g.labels.length - 1}
+                    </text>
+                  </g>
+                )}
+              </g>
+            ))}
           </svg>
         </div>
       </div>

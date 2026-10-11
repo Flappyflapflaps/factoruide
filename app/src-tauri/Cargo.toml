@@ -23,6 +23,7 @@ tauri = { version = "2", features = [] }
 # Updates published with the GitHub releases (latest.json), and the restart after installing one.
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-dialog = "2"
 
 [lints]
 workspace = true
