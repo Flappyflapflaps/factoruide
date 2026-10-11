@@ -209,6 +209,8 @@ export interface Step {
   objective?: number;
   /** Done along the way (mobs met going to the next steps): does not stop the guide. */
   bg?: boolean;
+  /** A quest done inside the dungeon of the run step before it. */
+  inside?: boolean;
   text: string;
   target?: { kind: string; id: number; name: string };
   zone?: string;

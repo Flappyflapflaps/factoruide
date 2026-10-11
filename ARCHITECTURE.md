@@ -113,7 +113,9 @@ quest whose objectives are far out of reach is not picked up.
   `train_every`.
 
 Some content is set apart: a quest filed under a dungeon, or whose mobs, objects, giver or turn-in
-live only inside one, is done in a run of that dungeon (with dungeons on). Battleground quests
+live only inside one, is done in a run of that dungeon (with dungeons on); in the guide, the run
+is a step that takes the player in, followed by a step per quest done inside (`inside`, `di` in
+the addon: the run step is then done on entering). Battleground quests
 (filed under a battleground, asking for its marks of honor, or rewarding a faction that only
 battleground quests reward) are left out unless `pvp_quests` is on, each mark or objective then
 taking `pvp_mark_time`. Items no source drops but several quests ask for (marks, tokens, crafted

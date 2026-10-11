@@ -119,8 +119,32 @@ pub fn build_traced(
                     StepWriter::add_farm(&mut step, farmed);
                     farmed = 0;
                 }
+                let run = match &t.event {
+                    Event::Stop { stop, .. } if stop.kind == Kind::Dungeon => Some(stop.index as usize),
+                    _ => None,
+                };
+                let inside = run.map(|d| writer.dungeon_quests(d, &step)).unwrap_or_default();
+                let Some(d) = run.filter(|_| !inside.is_empty()) else {
+                    steps.push(step);
+                    xps.push(t.xp);
+                    continue;
+                };
+                // The run: entered after the way there with the level and XP of the step before,
+                // its quests done in turn until its end.
+                let (start, level, xp) = steps
+                    .last()
+                    .zip(xps.last())
+                    .map_or((0.0, t.level, t.xp), |(s, x)| (s.time, s.level, *x));
+                let entered = (t.time - planner.model.dungeons[d].minutes * 60.0).max(start);
+                (step.time, step.level) = (entered, level);
                 steps.push(step);
-                xps.push(t.xp);
+                xps.push(xp);
+                let count = inside.len() as f64;
+                for (k, mut quest) in inside.into_iter().enumerate() {
+                    quest.time = entered + (t.time - entered) * (k as f64 + 1.0) / count;
+                    steps.push(quest);
+                    xps.push(t.xp);
+                }
             }
         }
     }

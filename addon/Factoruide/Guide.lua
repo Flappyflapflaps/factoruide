@@ -216,7 +216,12 @@ function IsDone(step, index)
     elseif step.k == "flight_master" or step.k == "train" or step.k == "bind" or step.k == "profession" then
         return state.marks[index or state.step] or false
     elseif step.k == "dungeon" then
-        return state.marks[index or state.step] == true
+        -- Followed by the quests done inside (steps of their own): done on entering the dungeon.
+        -- Guides made before: once back out of it.
+        local mark = state.marks[index or state.step]
+        local inside = route.steps[(index or state.step) + 1]
+        if inside and inside.di then return mark == "inside" or mark == true end
+        return mark == true
     elseif step.k == "hearth" then
         local d = Distance(step)
         return d ~= nil and d < 100

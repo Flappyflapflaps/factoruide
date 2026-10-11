@@ -151,7 +151,7 @@ impl QuestBuilder<'_> {
     /// some dungeon mobs at the entrance, or in the mine before the instance); otherwise only
     /// targets that live nowhere else.
     fn inside_dungeon(&self, quest: &QuestContext<'_>, row: &ObjectiveRow) -> Option<Objective> {
-        let (kind, target, text, ..) = row;
+        let (kind, target, text, _, amount) = row;
         let target = target.unwrap_or(0);
         let quest_dungeon = quest
             .row
@@ -197,6 +197,8 @@ impl QuestBuilder<'_> {
         });
         Some(Objective {
             dungeon: Some(d),
+            // Shown in the guide ("Defias Prisoner x10").
+            count: amount.map_or(1.0, |n| n.max(1) as f64),
             ..Objective::plain(dungeon.entrance.clone(), text, 0.0)
         })
     }

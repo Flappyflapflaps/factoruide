@@ -777,3 +777,33 @@ assert(FG.XpMarker:Line():find("3"), "two levels behind: the planned level")
 FG.XpMarker:Refresh()
 UnitXP, playerLevel = unitXP, 3
 print("xp marker ok")
+
+-- A dungeon run followed by its quests is done on entering the dungeon, then each quest step as
+-- the quest progresses; without them (guides made before), once back out of the dungeon.
+local inside = false
+IsInInstance = function() return inside end
+local function dungeonRoute(name, withQuests)
+    local steps = { { k = "dungeon", t = "Dungeon: The Deadmines with a group", lvl = 21 } }
+    if withQuests then steps[2] = { k = "objective", t = "Red Silk Bandanas", q = 8001, di = true, lvl = 21 } end
+    steps[#steps + 1] = { k = "grind", t = "Grind", lvl = 60 }
+    FG.Routes[name] =
+        { race = 7, class = 8, faction = "Alliance", fromLevel = 1, toLevel = 60, time = 1, steps = steps }
+end
+onQuest[8001] = true
+dungeonRoute("dungeon-test", true)
+SlashCmdList.FACTORUIDE("route dungeon-test")
+assert(char.guide.step == 1, "the run first, step " .. char.guide.step)
+inside = true
+fire("ZONE_CHANGED_NEW_AREA")
+assert(char.guide.step == 2, "run done on entering, step " .. char.guide.step)
+inside = false
+dungeonRoute("dungeon-old", false)
+SlashCmdList.FACTORUIDE("route dungeon-old")
+inside = true
+fire("ZONE_CHANGED_NEW_AREA")
+assert(char.guide.step == 1, "an old run is not done inside")
+inside = false
+fire("ZONE_CHANGED_NEW_AREA")
+assert(char.guide.step == 2, "an old run is done back out, step " .. char.guide.step)
+onQuest[8001] = nil
+print("dungeon ok")

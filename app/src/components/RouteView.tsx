@@ -65,6 +65,14 @@ function segments(route: Route): Segment[] {
   let previousTime = 0;
   route.steps.forEach((s, i) => {
     const last = out[out.length - 1];
+    // The quests done inside a dungeon belong to its run.
+    if (s.inside && last?.dungeon) {
+      last.end = s.time;
+      last.toLevel = s.level;
+      last.last = i;
+      previousTime = s.time;
+      return;
+    }
     const dungeon = s.kind === "dungeon";
     // Steps done anywhere (practicing a profession, abandoning a quest) have no place: they
     // belong to the zone the character is in.

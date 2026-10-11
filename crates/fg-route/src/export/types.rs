@@ -136,6 +136,10 @@ pub struct Step {
     /// Objective done along the way while doing other quests (does not block the guide).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub bg: bool,
+    /// A quest done inside the dungeon of the run step before it: the run is done on entering
+    /// the dungeon, its quests as they progress.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inside: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub objective: Option<u8>,
     /// The step's sentence in a language: written from `say` (`render`), else (a guide of

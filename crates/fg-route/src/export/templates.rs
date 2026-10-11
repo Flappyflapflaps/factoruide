@@ -450,6 +450,34 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "dungeon.run",
+        [
+            "Dungeon: {dungeon} with a group (~{minutes} min)",
+            "Donjon : {dungeon} en groupe (~{minutes} min)",
+            "Dungeon: {dungeon} in der Gruppe (~{minutes} Min.)",
+            "Mazmorra: {dungeon} en grupo (~{minutes} min)",
+            "Masmorra: {dungeon} em grupo (~{minutes} min)",
+            "Подземелье: {dungeon} в группе (~{minutes} мин)",
+            "던전: {dungeon} 파티 (~{minutes}분)",
+            "地下城：{dungeon}组队（约{minutes}分钟）",
+            "地城：{dungeon}組隊（約{minutes}分鐘）",
+        ],
+    ),
+    (
+        "dungeon.quest",
+        [
+            "{quest}: {objectives}",
+            "{quest} : {objectives}",
+            "{quest}: {objectives}",
+            "{quest}: {objectives}",
+            "{quest}: {objectives}",
+            "{quest}: {objectives}",
+            "{quest}: {objectives}",
+            "{quest}：{objectives}",
+            "{quest}：{objectives}",
+        ],
+    ),
+    (
         "dungeon",
         [
             "Dungeon: {dungeon} with a group (~{minutes} min) - quests: {quests}",

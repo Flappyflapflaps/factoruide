@@ -505,6 +505,45 @@ fn quest_given_up_opens_no_follow_up() {
     assert!(planner(&p).simulate(&route, None).is_none(), "given up, it does not");
 }
 
+/// A dungeon run is a step that takes the player in, then a step per quest of the route done
+/// inside (marked `inside`, in the run's time), each turned in later.
+#[test]
+fn dungeon_quests_are_steps_of_their_own() {
+    use fg_route::export::StepKind;
+    let p = prepare(
+        "human",
+        "warrior",
+        25,
+        &["progression=cautious", "forced_dungeons=[1581]"],
+    );
+    let planner = planner(&p);
+    let route = planner.construct(|_| {});
+    let guide = fg_route::export::build(&planner, &p.profile, &route);
+    let steps = &guide.steps;
+    assert!(steps.iter().any(|s| s.kind == StepKind::Dungeon), "the forced run");
+    assert!(steps.iter().any(|s| s.inside), "no quest step in the runs");
+    for (i, s) in steps.iter().enumerate().filter(|(_, s)| s.inside) {
+        let before = &steps[i - 1];
+        assert!(
+            before.kind == StepKind::Dungeon || before.inside,
+            "{} not after a run",
+            s.text
+        );
+        assert_eq!(s.kind, StepKind::Objective);
+        let q = s.quest.unwrap();
+        let turnin = steps
+            .iter()
+            .position(|t| t.kind == StepKind::TurnIn && t.quest == Some(q));
+        assert!(turnin.is_some_and(|t| t > i), "{} not turned in after the run", s.text);
+    }
+    assert!(
+        steps.windows(2).all(|w| w[0].time <= w[1].time + 1e-6),
+        "time goes back"
+    );
+    // The addon tells them apart (the run step is then done on entering the dungeon).
+    assert!(fg_route::export::to_lua(std::slice::from_ref(&guide)).contains("di = true"));
+}
+
 /// Dungeon mobs keep their level: a character far above them gets no XP from the run (they used
 /// to follow the character's level).
 #[test]

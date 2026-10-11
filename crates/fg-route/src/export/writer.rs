@@ -102,6 +102,7 @@ impl StepWriter<'_> {
             pre_any: Vec::new(),
             min_level: None,
             bg: false,
+            inside: false,
             objective: None,
             text: String::new(),
             say: vec![say],
@@ -195,6 +196,7 @@ impl StepWriter<'_> {
             pre_any: Vec::new(),
             min_level: None,
             bg: false,
+            inside: false,
             objective: None,
             text: String::new(),
             say: Vec::new(),
@@ -456,28 +458,73 @@ impl StepWriter<'_> {
         self.place(&loc.pos, Some(loc.zone))
     }
 
-    /// A dungeon run with a group, and the quests of the route done inside.
+    /// A dungeon run with a group (its quests follow as steps of their own, `dungeon_quests`).
     fn dungeon(&self, step: &mut Step, d: usize) {
-        let model = &self.planner.model;
-        let dungeon = &model.dungeons[d];
+        let dungeon = &self.planner.model.dungeons[d];
         step.kind = StepKind::Dungeon;
-        let quests: Vec<Arg> = model
-            .quests
-            .iter()
-            .filter(|q| q.objectives.iter().any(|o| o.dungeon == Some(d)))
-            .filter(|q| {
-                self.route
-                    .iter()
-                    .any(|s| s.kind == Kind::TurnIn && model.quests[s.index as usize].id == q.id)
-            })
-            .map(|q| Arg::Quest(q.id, q.name.clone()))
-            .collect();
         step.say.push(
-            Phrase::new("dungeon")
+            Phrase::new("dungeon.run")
                 .arg("dungeon", Arg::Zone(dungeon.area, dungeon.name.clone()))
-                .arg("minutes", num(dungeon.minutes.round() as i64))
-                .arg("quests", Arg::List(quests)),
+                .arg("minutes", num(dungeon.minutes.round() as i64)),
         );
+    }
+
+    /// The quests of the route done inside dungeon `d`, a step each after the run step `run`
+    /// (same place): the quest's objectives inside, done once the quest is complete when they
+    /// are all its objectives, else a step per objective inside.
+    pub(super) fn dungeon_quests(&self, d: usize, run: &Step) -> Vec<Step> {
+        let model = &self.planner.model;
+        let turned_in = |id: i64| {
+            self.route
+                .iter()
+                .any(|s| s.kind == Kind::TurnIn && model.quests[s.index as usize].id == id)
+        };
+        let mut out = Vec::new();
+        for q in model.quests.iter().filter(|q| turned_in(q.id)) {
+            let inside: Vec<u8> = (0..q.objectives.len() as u8)
+                .filter(|&k| q.objectives[k as usize].dungeon == Some(d))
+                .collect();
+            if inside.is_empty() {
+                continue;
+            }
+            let whole = inside.len() == q.objectives.len();
+            let groups: Vec<Vec<u8>> = if whole {
+                vec![inside]
+            } else {
+                inside.into_iter().map(|k| vec![k]).collect()
+            };
+            for ks in groups {
+                let mut step = run.clone();
+                step.kind = StepKind::Objective;
+                step.quest = Some(q.id);
+                step.quest_name = Some(q.name.clone());
+                step.target = None;
+                step.say.clear();
+                step.inside = true;
+                for &k in &ks {
+                    Self::objective(&mut step, &q.objectives[k as usize], k);
+                }
+                // Several objectives: done when the quest is.
+                if ks.len() > 1 {
+                    step.objective = None;
+                }
+                // "The Stockade: Defias Prisoner" (the database's text) as "Defias Prisoner x10".
+                let prefix = format!("{}: ", model.dungeons[d].name);
+                let texts = ks.iter().map(|&k| {
+                    let o = &q.objectives[k as usize];
+                    let text = o.text.strip_prefix(&prefix).unwrap_or(&o.text);
+                    let n = o.count.round() as i64;
+                    Arg::Text(if n > 1 { format!("{text} x{n}") } else { text.to_owned() })
+                });
+                step.say = vec![
+                    Phrase::new("dungeon.quest")
+                        .arg("quest", Arg::Quest(q.id, q.name.clone()))
+                        .arg("objectives", Arg::List(texts.collect())),
+                ];
+                out.push(step);
+            }
+        }
+        out
     }
 
     /// Accept, objective or turn-in of a quest.
