@@ -105,3 +105,20 @@ impl Overrides {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Overrides;
+    use crate::xp::Edition;
+    use std::path::Path;
+
+    /// Forever has more quests: the shipped settings farm less on the way there than on Classic
+    /// and TBC.
+    #[test]
+    fn farming_on_the_way_depends_on_the_edition() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../overrides");
+        let cap = |e| Overrides::load_edition(&dir, e).unwrap().params.farm_cap;
+        assert!(cap(Edition::Forever) < cap(Edition::Classic));
+        assert!((cap(Edition::Classic) - cap(Edition::Tbc)).abs() < 1e-9);
+    }
+}

@@ -298,7 +298,7 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
               />
               <Toggle
                 label={t("Farmer en chemin")}
-                help={t("Les mobs croisés à pied sont tués au passage. Ce farm remplace le farm pur et reste limité à {n} % de chaque niveau (réglable dans les réglages avancés).", { n: Math.round(params.grind_cap * 100) })}
+                help={t("Les mobs croisés à pied sont tués au passage. Ce farm remplace le farm pur et reste limité à {n} % de chaque niveau (réglable dans les réglages avancés).", { n: Math.round(params.farm_cap * 100) })}
                 checked={params.farm_on_way}
                 onChange={(v) => set("farm_on_way", v)}
               />

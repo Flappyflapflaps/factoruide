@@ -1,0 +1,4 @@
+# Planner settings of this game version, over the defaults (crates/fg-route/src/params.rs).
+
+# Share of each level's XP farming on the way may give (Forever, with more quests: 0.1).
+farm_cap = 0.2

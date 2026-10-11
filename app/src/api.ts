@@ -65,6 +65,7 @@ export interface Params {
   grind_weight: number;
   allow_grind: boolean;
   grind_cap: number;
+  farm_cap: number;
   grind_over_weight: number;
   gather_overlap: number;
   gather_radius: number;

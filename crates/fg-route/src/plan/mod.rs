@@ -172,6 +172,7 @@ impl<'a> Planner<'a> {
             abandon_check: (0, 0),
             log: 0,
             grind_used: 0,
+            farm_used: 0,
             spent: Breakdown::default(),
         };
         for &i in &init.turned {

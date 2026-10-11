@@ -2,6 +2,10 @@
 
 The notes of each version are the message of its tag (`scripts/release.sh`), shown in the app.
 
+## Unreleased
+
+- Farming on the way has its own share of each level, apart from pure grinding (still 10%): 20% on Classic Era / Hardcore and TBC, 10% on Forever, which has more quests ("Maximum share of grinding on the way per level" in the advanced settings).
+
 ## 0.3.0 (2026-10-11)
 
 Guides in every language, guides started from your character's quest log.

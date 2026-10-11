@@ -207,6 +207,7 @@ impl Planner<'_> {
                     && s.gear == old.gear
                     && s.explored == old.explored
                     && s.grind_used == old.grind_used
+                    && s.farm_used == old.farm_used
                 {
                     let extra = self.weights(&s.spent) - self.weights(&old.spent);
                     return Some(run.total + s.time - old.time + extra);

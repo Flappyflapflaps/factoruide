@@ -94,17 +94,26 @@ impl<'g> Growth<'g> {
         }
         if s.level != before {
             s.grind_used = 0;
+            s.farm_used = 0;
             self.refresh_power(s);
         }
     }
 
-    /// XP grinding (farming on the way included) may still give in the current level.
+    /// XP grinding may still give in the current level.
     pub(crate) fn grind_budget(self, s: &State) -> i64 {
-        if self.params.grind_cap >= 1.0 {
+        self.budget(s, self.params.grind_cap, s.grind_used)
+    }
+
+    /// XP farming on the way may still give in the current level.
+    pub(crate) fn farm_budget(self, s: &State) -> i64 {
+        self.budget(s, self.params.farm_cap, s.farm_used)
+    }
+
+    fn budget(self, s: &State, cap: f64, used: i64) -> i64 {
+        if cap >= 1.0 {
             return i64::MAX;
         }
-        let cap = self.params.grind_cap.max(0.0) * self.rules().to_next_level(s.level) as f64;
-        cap.round() as i64 - s.grind_used
+        (cap.max(0.0) * self.rules().to_next_level(s.level) as f64).round() as i64 - used
     }
 
     /// XP the power a quest's rewards add is worth: `gear_value` levels of XP per level of

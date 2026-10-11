@@ -218,7 +218,7 @@ fn improved_route_stays_valid() {
 
 /// Farming on the way replaces grinding: it gives XP, but never more than its share of each level.
 #[test]
-fn farm_on_the_way_stays_under_the_grind_cap() {
+fn farm_on_the_way_stays_under_its_cap() {
     let p = human_warrior();
     let planner = planner(p);
     let route = planner.construct(|_| {});
@@ -227,7 +227,7 @@ fn farm_on_the_way_stays_under_the_grind_cap() {
     let levels: i64 = (1..30).map(|l| rules.to_next_level(l)).sum();
     assert!(spent.farm_xp > 0, "nothing farmed on the way");
     assert!(
-        spent.farm_xp as f64 <= p.params.grind_cap * levels as f64 * 1.01,
+        spent.farm_xp as f64 <= p.params.farm_cap * levels as f64 * 1.01,
         "{} XP farmed for {levels} XP of levels",
         spent.farm_xp
     );

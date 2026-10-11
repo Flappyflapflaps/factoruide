@@ -164,8 +164,10 @@ pub(crate) struct State {
     /// Explorable areas already discovered.
     pub(crate) explored: Vec<bool>,
     pub(crate) log: usize,
-    /// XP grinding and farming on the way gave in the current level (see `Params::grind_cap`).
+    /// XP grinding and farming on the way gave in the current level (see `Params::grind_cap`
+    /// and `Params::farm_cap`).
     pub(crate) grind_used: i64,
+    pub(crate) farm_used: i64,
     pub(crate) spent: Breakdown,
 }
 

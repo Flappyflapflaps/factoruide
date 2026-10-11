@@ -57,7 +57,7 @@ pub struct Params {
     /// Kill the normal mobs met on every walk, not only those of the log's quests (as guides
     /// ask): those within `farm_corridor` of the path, from `farm_below` levels under the
     /// character to `farm_above` over it (lower ones give little XP, higher ones are slow and
-    /// risky). It replaces grinding: counted in `grind_cap`, weighed like grinding.
+    /// risky). It replaces grinding: limited to `farm_cap` of each level, weighed like grinding.
     pub farm_on_way: bool,
     pub farm_corridor: f64,
     pub farm_below: i64,
@@ -180,10 +180,13 @@ pub struct Params {
     /// How much a minute of grinding weighs against a minute of questing for the optimizer
     /// (1 = only total time matters; higher values trade time for less grinding).
     pub grind_weight: f64,
-    /// Share of each level's XP grinding may give, mobs farmed on the way included (1 = no
-    /// limit): farming on the way stops there, grinding beyond weighs `grind_over_weight` times
-    /// its duration, so the route takes quests instead whenever it can.
+    /// Share of each level's XP grinding may give (1 = no limit): grinding beyond weighs
+    /// `grind_over_weight` times its duration, so the route takes quests instead whenever it can.
     pub grind_cap: f64,
+    /// Share of each level's XP farming on the way may give (1 = no limit), apart from
+    /// `grind_cap`: farming on the way stops there. Forever has more quests: Classic and TBC
+    /// allow more in `overrides/<edition>/routing.toml`.
+    pub farm_cap: f64,
     pub grind_over_weight: f64,
     /// Share of a kill (resting, looking for the next mob) during which quest objects close by
     /// are gathered: a gathering objective within `gather_radius` of a kill objective of the log
@@ -309,6 +312,7 @@ impl Default for Params {
             mandatory_penalty: 7200.0,
             grind_weight: 1.5,
             grind_cap: 0.1,
+            farm_cap: 0.1,
             grind_over_weight: 4.0,
             gather_overlap: 0.4,
             gather_radius: 150.0,

@@ -44,13 +44,13 @@ level:
   worth it, how fast mobs die, how much XP they give.
 - **On the way**: class training when the new spells are worth it, flight paths picked up nearby,
   dungeon runs, the normal mobs met on foot (`farm_on_way`, mobs near the character's level, up to
-  the grinding share of the level), quest objects among another quest's mobs gathered between
-  kills (`gather_overlap`). Professions add no time: only their quests are planned, once the
+  `farm_cap` of each level: 20% on Classic and TBC, 10% on Forever, which has more quests), quest
+  objects among another quest's mobs gathered between kills (`gather_overlap`). Professions add no time: only their quests are planned, once the
   skill curve reaches them (optional in the guide).
 - **Rules of the game**: prerequisites, exclusive quests and the quest log size are respected; a
   route breaking them is invalid.
 - **When quests run out**, the simulation grinds mobs of the character's level up to the next
-  step. Grinding (mobs on the way included) gives at most `grind_cap` of each level (10%);
+  step. Grinding gives at most `grind_cap` of each level (10%, apart from farming on the way);
   beyond, it weighs `grind_over_weight` times its duration, so quests are taken first.
 - **Guide export**: each checkpoint gets a step to grind when behind the route, and grinds are
   placed at the last step where mobs of the character's level live, with an XP target.

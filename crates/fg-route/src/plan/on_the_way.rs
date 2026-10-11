@@ -215,13 +215,13 @@ impl Planner<'_> {
 
     /// On a walk from `a` to `b`, kill the normal mobs met (`Params::farm_on_way`): those within
     /// `farm_corridor` of the path whose level is close to the character's, until grinding has
-    /// given its share of the level (`grind_cap`).
+    /// given its share of the level (`farm_cap`).
     pub(crate) fn farm_along(&self, s: &mut State, a: &Pos, b: &Pos, record: &mut impl FnMut(&State, Event)) {
         let p = self.params;
         if !p.farm_on_way || p.farm_corridor <= 0.0 || a.continent != b.continent || a == b {
             return;
         }
-        let budget = self.growth().grind_budget(s);
+        let budget = self.growth().farm_budget(s);
         if budget <= 0 || s.level >= self.profile.to_level {
             return;
         }
@@ -252,7 +252,7 @@ impl Planner<'_> {
         let gained = gained as i64;
         s.time += time;
         s.spent.farming += time;
-        s.grind_used += gained;
+        s.farm_used += gained;
         s.spent.farm_xp += self.growth().gain_kills(s, gained);
         record(
             s,
