@@ -21,9 +21,11 @@ use crate::export;
 use crate::model::{self, Profile};
 use crate::params::Params;
 use crate::plan::Planner;
+use crate::terrain::Walks;
 use crate::world::World;
 use anyhow::{Result, bail};
 use rusqlite::Connection;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// What the user asks a running job, from another thread (the app's buttons).
@@ -79,21 +81,26 @@ pub fn plan(
     req: &PlanRequest,
     progress: &(dyn Fn(&str) + Sync),
 ) -> Result<PlanOutcome> {
-    plan_interruptible(conn, overrides, req, progress, &Interrupt::default())
+    plan_interruptible(conn, overrides, req, progress, &Interrupt::default(), None)
 }
 
 /// `plan`, which `interrupt` can end early from another thread. Stopped, the optimization ends
 /// at once and the route is the best found so far (the first routes are built if there are
 /// none yet). Cancelled, it fails with `Cancelled` once the step under way ends (loading the
-/// data is not cut).
+/// data is not cut). With `walks`, the walking memory kept between jobs, the paths it already
+/// knows are not searched again, and the outcome holds those the route needed (to save with it).
 pub fn plan_interruptible(
     conn: &Connection,
     overrides: &Overrides,
     req: &PlanRequest,
     progress: &(dyn Fn(&str) + Sync),
     interrupt: &Interrupt,
+    walks: Option<&Arc<Walks>>,
 ) -> Result<PlanOutcome> {
     let mut prepared = prepare(conn, overrides, req, progress)?;
+    if let Some(walks) = walks {
+        prepared.world.terrain.share(Arc::clone(walks));
+    }
     if interrupt.cancelled() {
         return Err(Cancelled.into());
     }
@@ -120,6 +127,7 @@ pub fn plan_interruptible(
     Ok(PlanOutcome {
         route,
         notes: prepared.notes,
+        walks: walks.map(|_| prepared.world.terrain.memory()),
     })
 }
 

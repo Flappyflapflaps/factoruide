@@ -5,15 +5,22 @@
 //! A straight line that only crosses walkable cells is the walk; otherwise the shortest path
 //! around (A* on the cells, cached). Points the terrain does not connect (a ledge, a cave under
 //! a hill) keep the straight line.
+//!
+//! The paths searched are slow to find (the first route of a long guide asks for thousands):
+//! they are kept in a walking memory (`Walks`) that the app shares between generations, and
+//! saved with each guide (`WalkMemory`).
 
 use crate::world::Pos;
+use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD as BASE64;
 use rusqlite::Connection;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::hash::{BuildHasherDefault, Hasher};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 
 const TILE: f64 = 1600.0 / 3.0;
 const CELL: f64 = TILE / 64.0;
@@ -122,20 +129,177 @@ impl Grid {
     }
 }
 
+/// Shard of a pair of cells in the sharded maps.
+fn shard((_, r1, c1, r2, c2): Key) -> usize {
+    (r1 ^ r2 ^ c1.wrapping_mul(31) ^ c2.wrapping_mul(17)).unsigned_abs() as usize % SHARDS
+}
+
+/// Walking memory: the paths around the terrain already searched (walking distance between two
+/// cells, infinite when not connected), shared by every route built on the same terrain data.
+/// The app keeps one between generations, filled with the memories saved with the guides.
+pub struct Walks {
+    /// Fingerprint of the terrain data the paths were searched on (None: not known yet).
+    terrain: Mutex<Option<u64>>,
+    shards: Vec<Mutex<HashMap<Key, f32>>>,
+    /// Memories added before the terrain was known, merged once it is.
+    waiting: Mutex<Vec<WalkMemory>>,
+}
+
+impl Default for Walks {
+    fn default() -> Self {
+        Self {
+            terrain: Mutex::new(None),
+            shards: (0..SHARDS).map(|_| Mutex::new(HashMap::new())).collect(),
+            waiting: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+impl Walks {
+    /// Remember the paths of a saved memory (dropped when searched on other terrain data).
+    pub fn add(&self, memory: WalkMemory) {
+        let terrain = *self.terrain.lock().unwrap();
+        match terrain {
+            Some(t) if t == memory.terrain => self.insert_all(&memory),
+            Some(_) => {}
+            None => self.waiting.lock().unwrap().push(memory),
+        }
+    }
+
+    /// Paths remembered.
+    pub fn len(&self) -> usize {
+        self.shards.iter().map(|s| s.lock().unwrap().len()).sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Ties the memory to the terrain data of fingerprint `terrain`: the paths of other data are
+    /// forgotten, the memories waiting for this one merged.
+    fn bind(&self, terrain: u64) {
+        let mut bound = self.terrain.lock().unwrap();
+        if *bound == Some(terrain) {
+            return;
+        }
+        if bound.is_some() {
+            for s in &self.shards {
+                s.lock().unwrap().clear();
+            }
+        }
+        *bound = Some(terrain);
+        for memory in std::mem::take(&mut *self.waiting.lock().unwrap()) {
+            if memory.terrain == terrain {
+                self.insert_all(&memory);
+            }
+        }
+    }
+
+    fn insert_all(&self, memory: &WalkMemory) {
+        for &(key, d) in &memory.paths {
+            self.shards[shard(key)].lock().unwrap().insert(key, d);
+        }
+    }
+
+    fn get(&self, key: Key) -> Option<f32> {
+        self.shards[shard(key)].lock().unwrap().get(&key).copied()
+    }
+
+    fn insert(&self, key: Key, d: f32) {
+        self.shards[shard(key)].lock().unwrap().insert(key, d);
+    }
+}
+
+/// The paths a guide needed, saved with it (and in the files it is shared as) so that computing
+/// it again, or other guides, do not search them again. In JSON: a string (sorted, zstd, base64).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct WalkMemory {
+    /// Fingerprint of the terrain data the paths were searched on.
+    terrain: u64,
+    paths: Vec<(Key, f32)>,
+}
+
+impl WalkMemory {
+    pub fn len(&self) -> usize {
+        self.paths.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.paths.is_empty()
+    }
+
+    /// Format 1: terrain fingerprint, count, then each path (continent, cells, distance), little
+    /// endian, compressed.
+    fn encode(&self) -> String {
+        let mut bytes = Vec::with_capacity(12 + self.paths.len() * 24);
+        bytes.extend(self.terrain.to_le_bytes());
+        bytes.extend((self.paths.len() as u32).to_le_bytes());
+        for &((map, r1, c1, r2, c2), d) in &self.paths {
+            bytes.extend((map as i32).to_le_bytes());
+            for v in [r1, c1, r2, c2] {
+                bytes.extend(v.to_le_bytes());
+            }
+            bytes.extend(d.to_le_bytes());
+        }
+        let packed = zstd::encode_all(bytes.as_slice(), 9).unwrap_or_default();
+        format!("1:{}", BASE64.encode(packed))
+    }
+
+    fn decode(text: &str) -> Option<Self> {
+        let bytes = zstd::decode_all(BASE64.decode(text.strip_prefix("1:")?).ok()?.as_slice()).ok()?;
+        let terrain = u64::from_le_bytes(bytes.get(..8)?.try_into().ok()?);
+        let count = u32::from_le_bytes(bytes.get(8..12)?.try_into().ok()?) as usize;
+        let int = |at: usize| Some(i32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?));
+        let paths = (0..count)
+            .map(|i| {
+                let at = 12 + i * 24;
+                let key = (
+                    i64::from(int(at)?),
+                    int(at + 4)?,
+                    int(at + 8)?,
+                    int(at + 12)?,
+                    int(at + 16)?,
+                );
+                Some((key, f32::from_le_bytes(bytes.get(at + 20..at + 24)?.try_into().ok()?)))
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(Self { terrain, paths })
+    }
+}
+
+impl Serialize for WalkMemory {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.encode())
+    }
+}
+
+/// A memory that cannot be read (another format) is empty: it only saves time.
+impl<'de> Deserialize<'de> for WalkMemory {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(Self::decode(&String::deserialize(deserializer)?).unwrap_or_default())
+    }
+}
+
 #[derive(Default)]
 pub struct Terrain {
     /// Tells this terrain's answers from another's in the thread caches.
     id: u32,
+    /// Hash of the terrain data: tells which data a saved memory belongs to.
+    fingerprint: u64,
     grids: HashMap<i64, Grid>,
-    cache: Vec<Mutex<HashMap<Key, f32>>>,
+    walks: Arc<Walks>,
+    /// Paths this terrain asked its memory (or searched), for the memory of its guide.
+    used: Vec<Mutex<HashSet<Key>>>,
 }
 
 impl Terrain {
     pub fn load(conn: &Connection) -> rusqlite::Result<Self> {
         let mut terrain = Self {
             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
+            fingerprint: 0,
             grids: HashMap::new(),
-            cache: (0..SHARDS).map(|_| Mutex::new(HashMap::new())).collect(),
+            walks: Arc::new(Walks::default()),
+            used: (0..SHARDS).map(|_| Mutex::new(HashSet::new())).collect(),
         };
         let exists: bool = conn.query_row(
             "SELECT count(*) > 0 FROM sqlite_schema WHERE name = 'client_terrain'",
@@ -143,6 +307,7 @@ impl Terrain {
             |r| r.get(0),
         )?;
         if !exists {
+            terrain.walks.bind(terrain.fingerprint);
             return Ok(terrain);
         }
         let mut tiles: HashMap<i64, Vec<(i32, i32, [u64; 64])>> = HashMap::new();
@@ -156,6 +321,13 @@ impl Terrain {
             ))
         })? {
             let (map, x, y, blob) = row?;
+            // Whatever order the rows come in: a sum of the tiles' hashes.
+            let mut h = Packed::default();
+            h.write_u64(map as u64);
+            h.write_u32(x as u32);
+            h.write_u32(y as u32);
+            h.write(&blob);
+            terrain.fingerprint = terrain.fingerprint.wrapping_add(h.finish());
             if blob.len() == 512 {
                 let mut rows = [0u64; 64];
                 for (r, b) in rows.iter_mut().zip(blob.as_chunks::<8>().0) {
@@ -191,7 +363,30 @@ impl Terrain {
             grid.label();
             terrain.grids.insert(map, grid);
         }
+        terrain.walks.bind(terrain.fingerprint);
         Ok(terrain)
+    }
+
+    /// Use `walks` as memory (the app's, kept between generations): paths already searched on
+    /// this terrain data are not searched again, and the new ones stay for the next routes.
+    pub fn share(&mut self, walks: Arc<Walks>) {
+        walks.bind(self.fingerprint);
+        self.walks = walks;
+    }
+
+    /// The paths this terrain needed so far: to save with the guide.
+    pub fn memory(&self) -> WalkMemory {
+        let mut paths: Vec<(Key, f32)> = self
+            .used
+            .iter()
+            .flat_map(|s| s.lock().unwrap().iter().copied().collect::<Vec<_>>())
+            .filter_map(|key| Some((key, self.walks.get(key)?)))
+            .collect();
+        paths.sort_by_key(|p| p.0);
+        WalkMemory {
+            terrain: self.fingerprint,
+            paths,
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -298,16 +493,14 @@ impl Terrain {
         } else {
             (map, cb.0, cb.1, ca.0, ca.1)
         };
-        let hash = (ca.0 ^ cb.0 ^ ca.1.wrapping_mul(31) ^ cb.1.wrapping_mul(17)).unsigned_abs();
-        let shard = &self.cache[hash as usize % SHARDS];
-        if let Some(&d) = shard.lock().unwrap().get(&key) {
+        if let Some(used) = self.used.get(shard(key)) {
+            used.lock().unwrap().insert(key);
+        }
+        if let Some(d) = self.walks.get(key) {
             return d.is_finite().then_some(f64::from(d));
         }
         let found = MARGINS.iter().find_map(|&m| Self::path(grid, ca, cb, m));
-        shard
-            .lock()
-            .unwrap()
-            .insert(key, found.map_or(f32::INFINITY, |d| d as f32));
+        self.walks.insert(key, found.map_or(f32::INFINITY, |d| d as f32));
         found
     }
 
@@ -394,6 +587,38 @@ mod tests {
         // Same side: straight.
         let c = at(30.0, 20.0);
         assert!((t.distance(&a, &c).unwrap() - a.dist(&c)).abs() < 1e-6);
+    }
+
+    /// The memory of a terrain, saved (JSON) and given to another load of the same data, spares
+    /// the search: the walk is the same and no path is added.
+    #[test]
+    fn saved_memory_spares_the_search() {
+        let first = terrain(&[60, 61, 62, 63]);
+        let (a, b) = (at(10.0, 20.0), at(10.0, 44.0));
+        let walk = first.distance(&a, &b).unwrap();
+        let memory = first.memory();
+        assert_eq!(memory.len(), 1);
+        let saved: WalkMemory = serde_json::from_str(&serde_json::to_string(&memory).unwrap()).unwrap();
+        assert_eq!(saved, memory);
+        let walks = Arc::new(Walks::default());
+        walks.add(saved);
+        let mut second = terrain(&[60, 61, 62, 63]);
+        second.share(Arc::clone(&walks));
+        assert_eq!(walks.len(), 1);
+        assert!((second.distance(&a, &b).unwrap() - walk).abs() < 1e-3);
+        assert_eq!(walks.len(), 1, "searched again");
+    }
+
+    /// A memory of other terrain data (the game changed) is not used: its walks would be wrong.
+    #[test]
+    fn memory_of_other_terrain_is_dropped() {
+        let old = terrain(&[60, 61, 62, 63]);
+        old.distance(&at(10.0, 20.0), &at(10.0, 44.0)).unwrap();
+        let walks = Arc::new(Walks::default());
+        walks.add(old.memory());
+        let mut new = terrain(&[0, 1, 2, 3]);
+        new.share(Arc::clone(&walks));
+        assert!(walks.is_empty());
     }
 
     /// Two continents share cell numbers: the answers of one are not reused for the other.

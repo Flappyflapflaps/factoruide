@@ -960,6 +960,7 @@ name = "fg-route"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "rand",
  "rusqlite",
  "serde",

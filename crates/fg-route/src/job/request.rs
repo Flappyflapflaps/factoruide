@@ -44,6 +44,10 @@ pub struct PlanOutcome {
     pub route: Route,
     /// Human readable notes: skipped quests, class quests not planned...
     pub notes: Vec<String>,
+    /// The paths around the terrain the planning searched (see `terrain::WalkMemory`): saved and
+    /// shared with the guide, so that computing it again, or other guides, do not search them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub walks: Option<crate::terrain::WalkMemory>,
 }
 
 impl PlanOutcome {

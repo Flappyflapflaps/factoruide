@@ -4,6 +4,7 @@
 use fg_route::Route;
 use fg_route::job::{self, Options, Overrides, PlanOutcome, PlanRequest, StartState};
 use fg_route::model::Names;
+use fg_route::terrain::{WalkMemory, Walks};
 use fg_route::xp::Edition;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -87,6 +88,9 @@ struct AppState {
     data_dir: PathBuf,
     /// Stops or cancels the generation under way (`stop_plan`, `cancel_plan`).
     plan_interrupt: job::Interrupt,
+    /// Walking memory of each edition (paths around the terrain already searched), kept between
+    /// generations: filled at the first one with the memories saved with the guides.
+    walks: Mutex<HashMap<Edition, Arc<Walks>>>,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -436,6 +440,34 @@ impl AppState {
         })
     }
 
+    /// The walking memory of an edition: the first time, the memories of all its guides (each
+    /// version's outcome holds the paths it searched).
+    fn walks(&self, edition: Edition) -> Arc<Walks> {
+        /// Only the memory of a saved outcome.
+        #[derive(Deserialize)]
+        struct Saved {
+            #[serde(default)]
+            walks: Option<WalkMemory>,
+        }
+        if let Some(w) = self.walks.lock().unwrap().get(&edition) {
+            return Arc::clone(w);
+        }
+        let walks = Arc::new(Walks::default());
+        let dir = self.data_dir.join("guides").join(edition.key());
+        for guide in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+            for version in std::fs::read_dir(guide.path()).into_iter().flatten().flatten() {
+                let memory = std::fs::read_to_string(version.path().join("outcome.json"))
+                    .ok()
+                    .and_then(|json| serde_json::from_str::<Saved>(&json).ok())
+                    .and_then(|saved| saved.walks);
+                if let Some(memory) = memory {
+                    walks.add(memory);
+                }
+            }
+        }
+        Arc::clone(self.walks.lock().unwrap().entry(edition).or_insert(walks))
+    }
+
     /// Add a version to the guide of this name (created when new).
     fn add_version(
         &self,
@@ -557,17 +589,25 @@ async fn plan_route(app: AppHandle, request: PlanRequest) -> CmdResult<VersionMe
         let edition = request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
         let conn = open_db(&state.db_path(edition)?)?;
         let overrides = overrides(edition)?;
+        let walks = state.walks(edition);
         let progress = |m: &str| {
             let _ = app.emit("plan-progress", m.to_owned());
         };
-        let outcome =
-            job::plan_interruptible(&conn, &overrides, &request, &progress, &state.plan_interrupt).map_err(|e| {
-                if e.is::<job::Cancelled>() {
-                    job::Cancelled.to_string()
-                } else {
-                    err(e)
-                }
-            })?;
+        let outcome = job::plan_interruptible(
+            &conn,
+            &overrides,
+            &request,
+            &progress,
+            &state.plan_interrupt,
+            Some(&walks),
+        )
+        .map_err(|e| {
+            if e.is::<job::Cancelled>() {
+                job::Cancelled.to_string()
+            } else {
+                err(e)
+            }
+        })?;
         let data = conn
             .query_row("SELECT detail FROM import_run WHERE source = 'questie'", [], |r| {
                 r.get::<_, Option<String>>(0)
@@ -650,6 +690,8 @@ fn get_version(
     locale: Option<String>,
 ) -> CmdResult<GuideVersion> {
     let mut v = state.version(&guide, version)?;
+    // The walking memory stays in the files (the app does not show it).
+    v.outcome.walks = None;
     if let Some(locale) = locale {
         v.outcome.route = state.render(&v.outcome.route, Some(&locale))?;
     }
@@ -824,6 +866,10 @@ fn import_guide(state: State<'_, AppState>, content: String) -> CmdResult<Versio
         return Err("not a Factoruide guide file".into());
     }
     let data = shared.meta.get("data").and_then(|d| d.as_str()).map(str::to_owned);
+    // Its walking memory joins the app's (when made on the same terrain data).
+    if let (Some(memory), Some(walks)) = (&shared.outcome.walks, state.walks.lock().unwrap().get(&state.edition())) {
+        walks.add(memory.clone());
+    }
     state.add_version(&shared.request, &shared.outcome, data, true, now()?)
 }
 
@@ -992,6 +1038,7 @@ fn main() {
                 names: Mutex::new(HashMap::default()),
                 data_dir,
                 plan_interrupt: job::Interrupt::default(),
+                walks: Mutex::new(HashMap::default()),
             });
             migrate_guides(&app.state::<AppState>().data_dir);
             migrate_results(&app.state::<AppState>());

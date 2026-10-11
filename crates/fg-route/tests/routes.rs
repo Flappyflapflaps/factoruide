@@ -250,7 +250,7 @@ fn stopped_job_keeps_a_guide() {
     interrupt.stop();
     let request = request("orc", "warlock", 12, &["time_limit_ms=600000"]);
     let begun = std::time::Instant::now();
-    let outcome = job::plan_interruptible(&database(), &overrides(), &request, &|_| {}, &interrupt).unwrap();
+    let outcome = job::plan_interruptible(&database(), &overrides(), &request, &|_| {}, &interrupt, None).unwrap();
     assert!(
         begun.elapsed() < std::time::Duration::from_secs(300),
         "took {:?}",
@@ -260,13 +260,34 @@ fn stopped_job_keeps_a_guide() {
     assert_eq!(outcome.route.to_level, 12);
 }
 
+/// A job given the walking memory saves the paths it searched with its outcome (kept through
+/// JSON, as in the app's files and the shared guides), and computing it again searches none.
+#[test]
+fn job_saves_its_walks() {
+    let walks = std::sync::Arc::new(fg_route::terrain::Walks::default());
+    let interrupt = job::Interrupt::default();
+    interrupt.stop();
+    let request = request("orc", "warlock", 12, &["time_limit_ms=600000"]);
+    let first =
+        job::plan_interruptible(&database(), &overrides(), &request, &|_| {}, &interrupt, Some(&walks)).unwrap();
+    let memory = first.walks.clone().expect("a memory with the outcome");
+    assert!(!memory.is_empty());
+    let saved = job::PlanOutcome::from_json(&serde_json::to_string(&first).unwrap()).unwrap();
+    assert_eq!(saved.walks.as_ref(), Some(&memory));
+    let known = walks.len();
+    let again =
+        job::plan_interruptible(&database(), &overrides(), &request, &|_| {}, &interrupt, Some(&walks)).unwrap();
+    assert_eq!(walks.len(), known, "paths searched again");
+    assert_eq!(again.walks.map(|m| m.len()), Some(memory.len()));
+}
+
 /// A cancelled job fails with `Cancelled` instead of returning a route (the app saves nothing).
 #[test]
 fn cancelled_job_returns_no_route() {
     let interrupt = job::Interrupt::default();
     interrupt.cancel();
     let request = request("orc", "warlock", 12, &["time_limit_ms=600000"]);
-    let outcome = job::plan_interruptible(&database(), &overrides(), &request, &|_| {}, &interrupt);
+    let outcome = job::plan_interruptible(&database(), &overrides(), &request, &|_| {}, &interrupt, None);
     let error = outcome.expect_err("a cancelled job has no route");
     assert!(error.downcast_ref::<job::Cancelled>().is_some(), "{error:#}");
 }
