@@ -130,7 +130,7 @@ impl Planner<'_> {
                 }
             }
             if let Some((_, better)) = best
-                && let Some(r) = self.run(&better)
+                && let Some(r) = self.replace_run(&mut run, &route, &better)
             {
                 (route, run) = (better, r);
             }

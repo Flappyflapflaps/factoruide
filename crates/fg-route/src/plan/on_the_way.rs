@@ -112,7 +112,7 @@ impl Planner<'_> {
                 None => c.dist(to),
             };
             if d <= r {
-                s.explored[i] = true;
+                s.explored.set(i, true);
                 let xp = self.rules().exploration_xp(s.level, self.model.explore[i].level);
                 s.spent.explore_xp += xp;
                 self.growth().gain(s, xp);

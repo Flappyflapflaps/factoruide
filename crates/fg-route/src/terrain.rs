@@ -75,9 +75,18 @@ struct Grid {
     /// Steep cells (and cells without terrain), a bit per cell, row by row.
     steep: Vec<u64>,
     words: usize,
-    /// Connected walkable area of each cell (0: steep), and the size of each area.
-    area: Vec<u32>,
+    /// Connected walkable area of each cell (0: steep), by tile of 64 x 64 cells (row by row,
+    /// `tile_cols` a row), and the size of each area.
+    areas: Vec<TileAreas>,
+    tile_cols: usize,
     sizes: Vec<u32>,
+}
+
+/// The areas of a tile's cells: one for the whole tile (no terrain, or all walkable), else each
+/// cell's. A continent's box holds tens of millions of cells, most of them in such tiles.
+enum TileAreas {
+    Uniform(u32),
+    Cells(Box<[u32]>),
 }
 
 impl Grid {
@@ -95,22 +104,26 @@ impl Grid {
         if r < 0 || c < 0 || r >= self.rows || c >= self.cols {
             return 0;
         }
-        self.area[(r * self.cols + c) as usize]
+        let (r, c) = (r as usize, c as usize);
+        match &self.areas[r / 64 * self.tile_cols + c / 64] {
+            TileAreas::Uniform(a) => *a,
+            TileAreas::Cells(cells) => cells[r % 64 * 64 + c % 64],
+        }
     }
 
     /// Label the walkable areas (4-connected, as paths do not cut corners).
     fn label(&mut self) {
-        self.area = vec![0; (self.rows * self.cols) as usize];
+        let mut area = vec![0; (self.rows * self.cols) as usize];
         self.sizes = vec![0];
         let mut stack = Vec::new();
-        for start in 0..self.area.len() {
+        for start in 0..area.len() {
             let (r, c) = ((start as i32) / self.cols, (start as i32) % self.cols);
-            if self.area[start] != 0 || self.blocked(r + self.r0, c + self.c0) {
+            if area[start] != 0 || self.blocked(r + self.r0, c + self.c0) {
                 continue;
             }
             let id = self.sizes.len() as u32;
             let mut size = 0;
-            self.area[start] = id;
+            area[start] = id;
             stack.push((r, c));
             while let Some((r, c)) = stack.pop() {
                 size += 1;
@@ -119,14 +132,30 @@ impl Grid {
                         continue;
                     }
                     let k = (nr * self.cols + nc) as usize;
-                    if self.area[k] == 0 && !self.blocked(nr + self.r0, nc + self.c0) {
-                        self.area[k] = id;
+                    if area[k] == 0 && !self.blocked(nr + self.r0, nc + self.c0) {
+                        area[k] = id;
                         stack.push((nr, nc));
                     }
                 }
             }
             self.sizes.push(size);
         }
+        // Rows and columns are whole tiles.
+        let cols = self.cols as usize;
+        self.tile_cols = cols / 64;
+        self.areas = (0..self.rows as usize / 64 * self.tile_cols)
+            .map(|t| {
+                let (r0, c0) = (t / self.tile_cols * 64, t % self.tile_cols * 64);
+                let cells: Vec<u32> = (0..64)
+                    .flat_map(|r| area[(r0 + r) * cols + c0..][..64].iter().copied())
+                    .collect();
+                if cells.iter().all(|&a| a == cells[0]) {
+                    TileAreas::Uniform(cells[0])
+                } else {
+                    TileAreas::Cells(cells.into())
+                }
+            })
+            .collect();
     }
 }
 
@@ -358,7 +387,8 @@ impl Terrain {
                 cols,
                 steep,
                 words,
-                area: Vec::new(),
+                areas: Vec::new(),
+                tile_cols: 0,
                 sizes: Vec::new(),
             };
             grid.label();

@@ -102,6 +102,10 @@ fn build_quests(
     let mut skipped = Vec::new();
     for row in &sources.rows {
         match builder.build(row) {
+            // The objectives done are a mask of 8 bits (`State::objectives`).
+            Ok(Some(quest)) if quest.objectives.len() > 8 => {
+                skipped.push((row.id, row.name.clone(), "more than 8 objectives".to_owned()));
+            }
             Ok(Some(quest)) => quests.push(quest),
             Ok(None) => {}
             Err(reason) => skipped.push((row.id, row.name.clone(), reason.to_owned())),

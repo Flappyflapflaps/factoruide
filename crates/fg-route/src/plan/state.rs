@@ -138,6 +138,36 @@ pub struct Timed {
     pub gear: f64,
 }
 
+/// A flag per quest (or per area), a bit each: a state is kept before every stop of a route.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) struct Flags(Vec<u64>);
+
+impl Flags {
+    pub(crate) fn new(n: usize) -> Self {
+        Self(vec![0; n.div_ceil(64)])
+    }
+
+    pub(crate) fn set(&mut self, i: usize, on: bool) {
+        if on {
+            self.0[i / 64] |= 1 << (i % 64);
+        } else {
+            self.0[i / 64] &= !(1 << (i % 64));
+        }
+    }
+}
+
+impl std::ops::Index<usize> for Flags {
+    type Output = bool;
+
+    fn index(&self, i: usize) -> &bool {
+        if self.0[i / 64] >> (i % 64) & 1 != 0 {
+            &true
+        } else {
+            &false
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct State {
     pub(crate) pos: Pos,
@@ -153,12 +183,13 @@ pub(crate) struct State {
     pub(crate) recall_ready: f64,
     pub(crate) trained: i64,
     pub(crate) dungeons: u128,
-    pub(crate) accepted: Vec<bool>,
+    pub(crate) accepted: Flags,
     /// Quests out of play: turned in, or given up (those are also in `dropped`).
-    pub(crate) turned: Vec<bool>,
+    pub(crate) turned: Flags,
     /// Quests given up (`Event::Abandon`): never turned in, so they open no follow-up.
     pub(crate) dropped: Vec<u32>,
-    pub(crate) objectives: Vec<u32>,
+    /// Objectives done of each quest, a bit each.
+    pub(crate) objectives: Vec<u8>,
     /// Timed quests of the log: (quest, time by which the route must turn it in).
     pub(crate) timers: Vec<(u32, f64)>,
     /// Objectives of the log whose mobs can be killed on the way to other stops, with the
@@ -182,7 +213,7 @@ pub(crate) struct State {
     /// Level and dungeons done at the last check for quests to give up.
     pub(crate) abandon_check: (i64, u128),
     /// Explorable areas already discovered.
-    pub(crate) explored: Vec<bool>,
+    pub(crate) explored: Flags,
     pub(crate) log: usize,
     /// XP grinding and farming on the way gave in the current level (see `Params::grind_cap`
     /// and `Params::farm_cap`).

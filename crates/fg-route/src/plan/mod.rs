@@ -58,7 +58,7 @@ use crate::xp;
 use availability::{Availability, blocks, followers};
 use growth::Growth;
 use on_the_way::FarmWalks;
-use state::{Planned, State};
+use state::{Flags, Planned, State};
 use std::cell::Cell;
 use std::rc::Rc;
 use step::{CampIndex, camp_index};
@@ -184,8 +184,8 @@ impl<'a> Planner<'a> {
             recall_ready: 0.0,
             trained: init.trained.unwrap_or(level).min(level),
             dungeons: 0,
-            accepted: vec![false; n],
-            turned: vec![false; n],
+            accepted: Flags::new(n),
+            turned: Flags::new(n),
             dropped: Vec::new(),
             objectives: vec![0; n],
             timers: Vec::new(),
@@ -197,7 +197,7 @@ impl<'a> Planner<'a> {
             gear: crate::power::Gear::default(),
             bonus: 0.0,
             gear_bonus: 0.0,
-            explored: vec![false; self.model.explore.len()],
+            explored: Flags::new(self.model.explore.len()),
             abandon_check: (0, 0),
             log: 0,
             grind_used: 0,
@@ -205,12 +205,12 @@ impl<'a> Planner<'a> {
             spent: Breakdown::default(),
         };
         for &i in &init.turned {
-            s.turned[i] = true;
+            s.turned.set(i, true);
             self.growth().gain_power(&mut s, i as u32);
         }
         for &i in &init.accepted {
             if !s.turned[i] {
-                s.accepted[i] = true;
+                s.accepted.set(i, true);
                 s.log += 1;
                 for &(_, k, _) in init.progress.iter().filter(|p| p.0 == i && p.2 >= 1.0) {
                     s.objectives[i] |= 1 << k;

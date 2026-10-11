@@ -84,11 +84,11 @@ impl Planner<'_> {
             return search.best.1;
         }
         let (tries, wins) = (search.tries, search.wins);
-        let (route, run) = self.clean_up(search);
+        let (route, total) = self.clean_up(search);
         log(&format!(
             "improved: {} stops, {} ({tries} tries, {wins} improvements)",
             route.len(),
-            fmt_time(run.total)
+            fmt_time(total)
         ));
         route
     }
@@ -114,7 +114,7 @@ impl Planner<'_> {
         if search
             .acceptance
             .accepts(cost, current, search.progress(), search.tries, &mut search.rng)
-            && let Some(run) = self.run(&candidate)
+            && let Some(run) = self.replace_run(&mut search.run, &search.route, &candidate)
         {
             search.run = run;
             search.route = candidate;
@@ -161,36 +161,53 @@ impl Planner<'_> {
     /// and the stops after the target level cut. Dropping and cutting are kept only when they do
     /// not make the route worse; moving a pet quest early may, by up to `class_power_slack` each
     /// (on purpose: a pet or a form early is worth more to the player than the model says).
-    fn clean_up(&self, search: Search) -> (Vec<Stop>, Run) {
-        let (mut route, mut run) = (search.route, search.run);
-        if search.best.0 < run.total - 0.5 {
-            route = search.best.1;
-            run = self.run(&route).expect("best route was valid");
+    /// Its score is returned with it.
+    fn clean_up(&self, search: Search) -> (Vec<Stop>, f64) {
+        // Only the score and the stops done of each route are kept: the states of a run weigh
+        // megabytes, and the clean-up replays routes of its own.
+        let done = |run: Run| (run.total, run.states.len() - 1);
+        let Search { route, run, best, .. } = search;
+        let (mut route, mut run) = (route, done(run));
+        if best.0 < run.0 - 0.5 {
+            route = best.1;
+            run = done(self.run(&route).expect("best route was valid"));
         }
         let early = self.power_first(route.clone());
         if early != route {
             route = early;
-            run = self.run(&route).expect("power_first keeps the route valid");
+            run = done(self.run(&route).expect("power_first keeps the route valid"));
         }
         let rebound = self.place_hearths(self.rebind(route.clone()));
         if rebound != route {
             route = rebound;
-            run = self.run(&route).expect("rebind keeps the route valid");
+            run = done(self.run(&route).expect("rebind keeps the route valid"));
         }
-        if let Some(pruned) = self.drop_unfinished(&route, run.total) {
+        if let Some(pruned) = self.drop_unfinished(&route, run.0) {
             route = pruned;
-            run = self.run(&route).expect("pruned route was valid");
+            run = done(self.run(&route).expect("pruned route was valid"));
         }
         // The stops after the target level are cut, unless the route needs them: the quests it
         // plans later decide what is taken early and turned in at hand before (not a quest
         // blocking one it takes later; an XP reward lost to grinding instead).
-        let cut = route[..run.states.len() - 1].to_vec();
+        let cut = route[..run.1].to_vec();
         if let Some(r) = self.run(&cut)
-            && r.total <= run.total + 0.5
+            && r.total <= run.0 + 0.5
         {
-            (route, run) = (cut, r);
+            (route, run) = (cut, done(r));
         }
-        (route, run)
+        (route, run.0)
+    }
+
+    /// The run of `candidate`, built once the states of `run` (of `route`) are released: two
+    /// runs of a long route weigh tens of megabytes. Called for a candidate whose evaluation
+    /// just succeeded, so it seldom fails; when it does, `run` is built again.
+    pub(crate) fn replace_run(&self, run: &mut Run, route: &[Stop], candidate: &[Stop]) -> Option<Run> {
+        run.states = Vec::new();
+        let new = self.run(candidate);
+        if new.is_none() {
+            *run = self.run(route).expect("the current route was valid");
+        }
+        new
     }
 
     /// The route without the quests it takes but never turns in (given up, or still in the log at

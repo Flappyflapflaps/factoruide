@@ -133,8 +133,8 @@ impl Planner<'_> {
             if hopeless {
                 s.along.retain(|&(q, _, _)| q as usize != i);
                 s.timers.retain(|&(q, _)| q as usize != i);
-                s.accepted[i] = false;
-                s.turned[i] = true;
+                s.accepted.set(i, false);
+                s.turned.set(i, true);
                 s.dropped.push(i as u32);
                 s.log = s.log.saturating_sub(1);
                 s.time += 2.0;
@@ -158,7 +158,7 @@ impl Planner<'_> {
                 * self.params.group_xp_share()) as i64;
             s.spent.mob_xp += self.growth().gain_kills(s, mob_xp);
         }
-        s.accepted[i as usize] = true;
+        s.accepted.set(i as usize, true);
         s.log += 1;
         if let Some(limit) = q.time_limit {
             s.timers.push((i, s.time + limit * TIMED_SHARE));
@@ -171,7 +171,7 @@ impl Planner<'_> {
     pub(crate) fn turn_in(&self, s: &mut State, i: u32) -> Option<i64> {
         let q = self.quest(i);
         s.timers.retain(|&(q, _)| q != i);
-        s.turned[i as usize] = true;
+        s.turned.set(i as usize, true);
         s.log -= 1;
         s.along.retain(|&(q, _, _)| q != i);
         let reward = self.growth().quest_reward(q, s.level);
@@ -202,8 +202,8 @@ impl Planner<'_> {
         }
         s.timers.retain(|&(q, _)| q != i);
         s.along.retain(|&(q, _, _)| q != i);
-        s.accepted[i as usize] = false;
-        s.turned[i as usize] = true;
+        s.accepted.set(i as usize, false);
+        s.turned.set(i as usize, true);
         s.dropped.push(i);
         s.log = s.log.saturating_sub(1);
         s.time += 2.0;
