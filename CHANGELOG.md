@@ -2,26 +2,36 @@
 
 The notes of each version are the message of its tag (`scripts/release.sh`), shown in the app.
 
-## Unreleased
+## 0.5.0 (2026-10-11)
+
+The hearthstone used where it saves the most, mage teleports and Astral Recall, objectives done at their best place, timed quests in time, and an addon without blocked-action popups.
+
+### Routes
 
 - Objectives whose mobs or objects live in several places: besides the main one, up to two other groups are considered (advanced setting "Other places per objective"), each with its own mobs, their level and packs, the guards around and the wait for respawns. The guide goes to the one costing the least between where the character is and the quest's turn-in, the levels to grind first included when the mobs there are too strong (undead mage 1-60, starting route: 1.8 h shorter).
 - Hearthstone: bound anew as the route moves on, by bands of levels (5 levels at first, then 4, then 3 from level 40): the inns closest to where each band's time is spent, the one among most of its quest givers and the closest one next to a flight master are tried and the best kept, and the optimizer moves the binds between those inns. Starting routes used to keep the first bind for good.
 - Hearthstone used where it saves the most: a step the route chooses, no longer the first trip it shortens by 3 minutes. Once it is ready, the trips of the next 20 minutes are compared (typically back to town once a zone's quests are done rather than a shortcut just before), and the optimizer moves, adds or removes uses.
 - Class spells that travel: a mage teleports to its capitals once trained (Stormwind and Ironforge, Orgrimmar and Undercity at 20; Darnassus, Thunder Bluff at 30), landing at the city's mage trainer; a shaman has Astral Recall from level 30, a second hearthstone with its own cooldown (15 min, a setting). Guide steps "Teleport to Undercity", "Astral Recall to…".
 - Starting routes no longer take a quest whose giver stands among mobs too strong yet when nothing else is left at the character's level: they grind to the level that quest really requires, not its minimum level (undead mage 1-60: a 52 to 60 grind for Defenders of Darrowshire). Undead mage 1-60, starting route with all the above: 142.9 h to 128.9 h.
-- Guide: a grind step is no longer placed between a dungeon run and the quests done inside it.
-- Addon: no more "blocked from an action only available to the Blizzard UI" on loading: the mobs killed on the way are counted from the game's kill event, the combat log being forbidden to addons on recent clients. During combat the boxes holding a quest item button (secure) also keep their size and visibility until the fight ends, the game's quest tracker of Classic clients is made invisible instead of hidden, and an action the game refuses names its function in the chat.
-- Addon: the guide's buttons are on a bar of their own above it (steps on the left; the box under the guide, start over and settings on the right), with tooltips; the header keeps the step and the level.
 - No more mobs to kill on the way through a capital (Stormwind, Ironforge, Orgrimmar, Shattrath...): the NPCs the data knows nothing of there were taken for mobs (Theramore Emissary in Stormwind's Old Town, the warlock trainers' demons, the Stockade's prisoners put at its door).
-- Addon: the XP bar shows the current tasks as a translucent yellow band, from the mark where the guide expects you to start them to a lighter one where it expects you once they are done; its tooltip gives both ("Current tasks: from 1,200 to 3,400 xp").
-- Addon: the mobs to kill on the way to a step have a line of their own in the current tasks, before the step: their count once the step is current ("mobs on the way 5/14", the character's and its pet's kills since then, checked when reached), else how many are planned ("~14 mobs on the way").
-- Addon: the box under the guide has two tabs again, "Next" (the steps that follow, as before) and "To pick up", and a button in the guide's bar shows or hides it (both kept).
-- Addon: the guide's start-over button also undoes the steps and quests marked done by hand (a skip by mistake), after asking; also /fg restart.
-- Addon: the quest tracker lists the guide's quests in progress from the guide itself, 8 by default: opening the game's quest log (headers collapsed or expanded) no longer changes the list, and the game's own tracker of Classic clients is hidden too.
-- WoW Forever: quest givers and turn-ins no longer have Wowhead positions that every other source, and the game, contradict (old or event places, a few to twenty map units off: Furen Longbeard, Lakeshire's NPCs, 179 NPCs in all): the arrow no longer points at a spot where the NPC is not.
-- WoW Forever: the quests new to Forever keep the prerequisites the data was missing (59 prerequisites on 41 quests): The Shamed Lieutenant after A Friend of the Family, Remember That I Love You (2/2) after its first part, the Moonbrook chain in order… A guide no longer sends you to a quest you cannot take yet.
 - Timed quests (The Rethban Gauntlet, Mist, The Affray…) keep to their time limit: the guide turns them in within three quarters of it (a margin for its estimates), says so when taking them ("timed: turn it in within 60 min"), and a route that would be late gives the quest up instead, without its reward, so the optimizer keeps the routes in time. TBC uses the limits of the quests it shares with Classic.
-- Addon: with "Only the guide's quests", a quest is accepted automatically only while the guide still takes it: no longer the quests it abandons (they were taken again when talking to their giver), nor those marked done by hand or left behind, nor escorts shared by the group.
+- Guide: a grind step is no longer placed between a dungeon run and the quests done inside it.
+
+### Addon
+
+- No more "blocked from an action only available to the Blizzard UI" on loading: the mobs killed on the way are counted from the game's kill event, the combat log being forbidden to addons on recent clients. During combat the boxes holding a quest item button (secure) also keep their size and visibility until the fight ends, the game's quest tracker of Classic clients is made invisible instead of hidden, and an action the game refuses names its function in the chat.
+- The guide's buttons are on a bar of their own above it (steps on the left; the box under the guide, start over and settings on the right), with tooltips; the header keeps the step and the level.
+- The XP bar shows the current tasks as a translucent yellow band, from the mark where the guide expects you to start them to a lighter one where it expects you once they are done; its tooltip gives both ("Current tasks: from 1,200 to 3,400 xp").
+- The mobs to kill on the way to a step have a line of their own in the current tasks, before the step: their count once the step is current ("mobs on the way 5/14", the character's and its pet's kills since then, checked when reached), else how many are planned ("~14 mobs on the way").
+- The box under the guide has two tabs again, "Next" (the steps that follow, as before) and "To pick up", and a button in the guide's bar shows or hides it (both kept).
+- The guide's start-over button also undoes the steps and quests marked done by hand (a skip by mistake), after asking; also /fg restart.
+- The quest tracker lists the guide's quests in progress from the guide itself, 8 by default: opening the game's quest log (headers collapsed or expanded) no longer changes the list, and the game's own tracker of Classic clients is hidden too.
+- With "Only the guide's quests", a quest is accepted automatically only while the guide still takes it: no longer the quests it abandons (they were taken again when talking to their giver), nor those marked done by hand or left behind, nor escorts shared by the group.
+
+### WoW Forever data
+
+- Quest givers and turn-ins no longer have Wowhead positions that every other source, and the game, contradict (old or event places, a few to twenty map units off: Furen Longbeard, Lakeshire's NPCs, 179 NPCs in all): the arrow no longer points at a spot where the NPC is not.
+- The quests new to Forever keep the prerequisites the data was missing (59 prerequisites on 41 quests): The Shamed Lieutenant after A Friend of the Family, Remember That I Love You (2/2) after its first part, the Moonbrook chain in order… A guide no longer sends you to a quest you cannot take yet.
 
 ## 0.4.0 (2026-10-11)
 
