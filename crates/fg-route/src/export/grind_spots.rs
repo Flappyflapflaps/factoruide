@@ -10,6 +10,9 @@ use crate::world::Pos;
 /// `RADIUS` yards of it.
 const RADIUS: f64 = 250.0;
 const MIN_MOBS: usize = 8;
+/// Between checkpoints, every level has its own step too, letting the character be this share
+/// of a level behind the route before it asks to grind.
+const LEVEL_SLACK: f64 = 0.1;
 
 /// Steps of the guide with the XP the route has after each one (in its level).
 pub(super) struct Guide<'s> {
@@ -44,9 +47,11 @@ impl Guide<'_> {
     }
 }
 
-/// Planned grinds and checkpoints placed where mobs of the character's level live.
+/// Planned grinds and checkpoints placed where mobs of the character's level live, and a step at
+/// every other level.
 pub(super) fn place(writer: &StepWriter<'_>, guide: &mut Guide<'_>) {
     move_grinds(writer, guide);
+    let checkpoints: Vec<i64> = guide.checkpoints.iter().map(|c| c.level).collect();
     for n in 0..guide.checkpoints.len() {
         let (at, level) = (guide.checkpoints[n].step, guide.checkpoints[n].level);
         // Be where the route is at the last place to grind before the level.
@@ -59,6 +64,33 @@ pub(super) fn place(writer: &StepWriter<'_>, guide: &mut Guide<'_>) {
             guide.insert(at, step, 0);
             guide.checkpoints[n].step = at;
         }
+    }
+    levels(writer, guide, &checkpoints);
+}
+
+/// A step before each level the route reaches (but the checkpoints'): a character more than
+/// `LEVEL_SLACK` of a level behind grinds at the last place of the level where its mobs live,
+/// instead of going on into content made for a higher level. None where no such place is (the
+/// next level's step catches up).
+fn levels(writer: &StepWriter<'_>, guide: &mut Guide<'_>, checkpoints: &[i64]) {
+    let rules = writer.planner.rules();
+    let profile = writer.planner.profile;
+    for level in profile.from_level + 2..profile.to_level {
+        if checkpoints.contains(&level) {
+            continue;
+        }
+        let Some(at) = guide.steps.iter().position(|s| s.level >= level) else {
+            break;
+        };
+        let Some(k) = spot(writer, guide.steps, guide.floor(at), at, level - 1) else {
+            continue;
+        };
+        let xp = guide.xps[k] - (LEVEL_SLACK * rules.to_next_level(level - 1) as f64) as i64;
+        if xp <= 0 {
+            continue;
+        }
+        let step = writer.catch_up(&guide.steps[k], level, level - 1, xp);
+        guide.insert(k + 1, step, guide.xps[k]);
     }
 }
 
@@ -94,6 +126,10 @@ fn move_grinds(writer: &StepWriter<'_>, guide: &mut Guide<'_>) {
         let step = writer.grind_before(grind, &guide.steps[k], to, xp, minutes);
         guide.remove(i);
         guide.insert(k + 1, step, xp);
+        // The steps it now comes before have that XP too (above their level when it crosses one).
+        for x in &mut guide.xps[k + 2..=i] {
+            *x += gained;
+        }
         i += 1;
     }
 }

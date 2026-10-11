@@ -314,6 +314,8 @@ fn gathering_next_to_kills_overlaps_them() {
             count: kills + uses,
             mobs: vec![],
             pull: 1.0,
+            spawns: 0,
+            pack: 1.0,
             spots: Some(Spots {
                 continent: loc.pos.continent,
                 min: point,
@@ -612,8 +614,8 @@ fn turn_in_among_strong_mobs_waits() {
 }
 
 /// On a crowded server, escorts wait for their turn and targets with few spawns are fought
-/// over: Miran's escort (level 15) and Bellygrub (one spawn) take waiting, the wolves of
-/// Northshire (many spawns) hardly any.
+/// over: Miran's escort (level 15: 90 % of the crowd) and Bellygrub (one spawn) take waiting,
+/// the wolves of Northshire (many spawns) hardly any.
 #[test]
 fn crowded_server_waits_for_escorts_and_rare_spawns() {
     let quiet = human_warrior();
@@ -628,7 +630,7 @@ fn crowded_server_waits_for_escorts_and_rare_spawns() {
         };
         extra(&crowded) - extra(quiet)
     };
-    assert!(wait(309) >= 900.0, "escort: {} s", wait(309));
+    assert!(wait(309) >= 0.9 * 900.0 - 1e-6, "escort: {} s", wait(309));
     assert!(wait(34) >= 90.0, "Bellygrub: {} s", wait(34));
     assert!(wait(33) / 8.0 < wait(34) / 2.0, "wolves: {} s for 8 meats", wait(33));
 }
@@ -697,6 +699,8 @@ fn wait_of_a_crowded_target_is_paid_on_the_way() {
         count: 1.0,
         mobs: vec![],
         pull: 1.0,
+        spawns: 0,
+        pack: 1.0,
         spots: Some(Spots {
             continent: here.continent,
             min: point,
@@ -797,6 +801,8 @@ fn object_gathered_between_kills_waits_for_its_guards() {
             count: 1.0,
             mobs: vec![],
             pull: 1.0,
+            spawns: 0,
+            pack: 1.0,
             spots: Some(Spots {
                 continent: loc.pos.continent,
                 min: point,
@@ -927,5 +933,137 @@ fn a_guide_is_written_in_any_language() {
         for s in &g.steps {
             assert!(!s.text.is_empty() && !s.text.contains('{'), "{locale}: {s:?}");
         }
+    }
+}
+
+/// Accept steps tell what their quest needs (quests done, level), so that the addon lists only
+/// the quests that can be taken now.
+#[test]
+fn accept_steps_carry_what_the_quest_needs() {
+    let p = human_warrior();
+    let planner = planner(p);
+    let route = planner.construct(|_| {});
+    let guide = fg_route::export::build(&planner, &p.profile, &route);
+    let accepts: Vec<_> = guide
+        .steps
+        .iter()
+        .filter(|s| s.kind == fg_route::export::StepKind::Accept)
+        .collect();
+    let follow_up = accepts
+        .iter()
+        .find(|s| !s.pre_any.is_empty())
+        .expect("a follow-up quest in the route");
+    let q = &p.model.quests[p.model.index[&follow_up.quest.unwrap()]];
+    assert_eq!((&follow_up.pre, &follow_up.pre_any), (&q.pre_all, &q.pre_any));
+    assert!(accepts.iter().all(|s| s.min_level.is_some()));
+    let lua = fg_route::export::to_lua(std::slice::from_ref(&guide));
+    let ids: Vec<String> = q.pre_any.iter().map(ToString::to_string).collect();
+    assert!(
+        lua.contains(&format!("pa = {{ {} }}", ids.join(", "))),
+        "prerequisites in the addon's routes"
+    );
+}
+
+/// Blackrock Menace (axes from Blackrock orcs, Redridge): its spot near the giver holds only a
+/// few orcs standing in pairs, one point for a Grunt or an Outrunner taking turns. The pairs
+/// make it harder than lone orcs, the ~22 kills wait for respawns, more on a crowded server.
+#[test]
+fn small_spot_in_pairs_is_harder_and_slower() {
+    let p = human_warrior();
+    let objective = |p: &Prepared| p.model.quests[quest(p, 20).unwrap() as usize].objectives[0].clone();
+    let o = objective(p);
+    assert!((5..=10).contains(&o.spawns), "{} spawns", o.spawns);
+    assert!(o.pack >= 1.5, "{} mobs per pull", o.pack);
+    let q = &p.model.quests[quest(p, 20).unwrap() as usize];
+    let need = planner(p).combat().need(q, &o);
+    assert!(need >= o.mob_level as f64 + p.params.pack_extra() + 0.5, "need {need}");
+    assert!(o.extra > 0.0, "respawns waited for");
+    let crowded = prepare("human", "warrior", 30, &["progression=cautious", "crowded=1"]);
+    assert!(
+        objective(&crowded).extra > 3.0 * o.extra,
+        "{} vs {}",
+        objective(&crowded).extra,
+        o.extra
+    );
+}
+
+/// Settings saved before the crowd scale (`crowded: true`) read as a full crowd.
+#[test]
+fn crowded_on_reads_as_a_full_crowd() {
+    let on: fg_route::params::Params = serde_json::from_str(r#"{"crowded": true}"#).unwrap();
+    let half: fg_route::params::Params = serde_json::from_str(r#"{"crowded": 0.5}"#).unwrap();
+    assert!((on.crowded - 1.0).abs() < 1e-9 && (half.crowded - 0.5).abs() < 1e-9);
+}
+
+/// The crowd thins out with the levels: all of it in the starting zones, half from level 40.
+#[test]
+fn crowd_thins_out_with_the_levels() {
+    let p: fg_route::params::Params = serde_json::from_str(r#"{"crowded": 1}"#).unwrap();
+    let at: Vec<f64> = [1, 10, 11, 25, 35, 45, 60, 70].iter().map(|&l| p.crowd_at(l)).collect();
+    assert_eq!(at, [1.0, 1.0, 0.9, 0.8, 0.6, 0.5, 0.5, 0.5]);
+}
+
+/// Every level the route reaches has a step to catch up (grind) for a character behind it, at
+/// a place of the level where mobs live, asking at most 90 % of the level: a character a few
+/// percent behind goes on.
+#[test]
+fn every_level_has_a_step_to_catch_up() {
+    let p = human_warrior();
+    let planner = planner(p);
+    let route = planner.construct(|_| {});
+    let guide = fg_route::export::build(&planner, &p.profile, &route);
+    let rules = p.params.edition.rules();
+    let gates: Vec<_> = guide
+        .steps
+        .iter()
+        .filter(|s| s.say.first().is_some_and(|p| p.key == "catch_up"))
+        .collect();
+    let levels: std::collections::BTreeSet<i64> = gates.iter().map(|s| s.level).collect();
+    assert!(levels.len() >= 20, "levels with a step: {levels:?}");
+    for s in &gates {
+        assert!(
+            s.xp.unwrap() as f64 <= 0.9 * rules.to_next_level(s.level) as f64 + 1.0,
+            "level {} asks {} xp",
+            s.level,
+            s.xp.unwrap()
+        );
+    }
+}
+
+/// Turn-in steps tell the XP they give, for the addon's grind steps to count the quests
+/// complete in the log.
+#[test]
+fn turn_ins_carry_their_xp() {
+    let p = human_warrior();
+    let planner = planner(p);
+    let guide = fg_route::export::build(&planner, &p.profile, &planner.construct(|_| {}));
+    let turn_ins: Vec<_> = guide
+        .steps
+        .iter()
+        .filter(|s| s.kind == fg_route::export::StepKind::TurnIn)
+        .collect();
+    assert!(turn_ins.iter().all(|s| s.reward_xp.is_some()));
+    assert!(turn_ins.iter().filter(|s| s.reward_xp.unwrap() > 0).count() * 10 >= turn_ins.len() * 9);
+    assert!(fg_route::export::to_lua(std::slice::from_ref(&guide)).contains(", rx = "));
+}
+
+/// Every step tells the XP the route has once it is done, never going down from one step to
+/// the next (planned grinds moved earlier included): the addon shows it on the XP bar.
+#[test]
+fn steps_carry_the_planned_xp() {
+    let p = human_warrior();
+    let planner = planner(p);
+    let guide = fg_route::export::build(&planner, &p.profile, &planner.construct(|_| {}));
+    let rules = p.params.edition.rules();
+    let total = |s: &fg_route::export::Step| {
+        (1..s.level).map(|l| rules.to_next_level(l)).sum::<i64>() + s.route_xp.expect("planned xp")
+    };
+    for pair in guide.steps.windows(2) {
+        assert!(
+            total(&pair[1]) >= total(&pair[0]),
+            "{} -> {}",
+            pair[0].text,
+            pair[1].text
+        );
     }
 }

@@ -44,6 +44,9 @@ pub struct Params {
     /// Levels of power an objective in a camp of elites requires per extra elite expected in a
     /// pull (1: three elites per pull need two levels more than a lone elite).
     pub elite_pull_levels: f64,
+    /// Levels of power normal mobs require per extra mob coming in each pull at their spot (1:
+    /// mobs standing in pairs need one level more than mobs standing alone).
+    pub pull_levels: f64,
     /// Power a pack (three kills or more) requires on top of a lone target of the same level,
     /// instead of the progression profile's own (tuning).
     pub pack_power: Option<f64>,
@@ -71,13 +74,20 @@ pub struct Params {
     /// `pvp_mark_time` seconds of battleground.
     pub pvp_quests: bool,
     pub pvp_mark_time: f64,
-    /// Crowded server (a launch): escorts and events wait `crowd_event_time` for their turn,
-    /// mobs and objects with few spawns `crowd_spawn_time` per kill or use (less the more spawns
-    /// they have). Full up to quests of level `crowd_level` (starting zones), half above.
-    pub crowded: bool,
+    /// How crowded the server is, from 0 (nobody else) to 1 (a launch): escorts and events wait
+    /// up to `crowd_event_time` for their turn, and up to `crowd_players` other players farm the
+    /// same mobs and objects, leaving fewer of them (see `respawn_time`). Times
+    /// `crowd_by_level` for the quest's level. `true`/`false` (before the scale) read as 1 and 0.
+    #[serde(deserialize_with = "crowd_share")]
+    pub crowded: f64,
     pub crowd_event_time: f64,
-    pub crowd_spawn_time: f64,
-    pub crowd_level: i64,
+    pub crowd_players: f64,
+    /// Share of the crowd by quest level, one value per 10 levels (1-10, 11-20...; the last one
+    /// above): players spread out as they level.
+    pub crowd_by_level: Vec<f64>,
+    /// Seconds before a killed mob or a used object is back: an objective asking for more than
+    /// its spot holds waits for them (shared with the other players of a crowded server).
+    pub respawn_time: f64,
     /// Without `allow_elite`, elite objectives of at most this many kills are kept anyway: the
     /// lone elites a player kills solo (Hogger, Tharil'zun, Mor'Ladim...). 0 = none.
     pub solo_elite_kills: f64,
@@ -250,6 +260,7 @@ impl Default for Params {
             progression: Progression::Normal,
             progression_margin: None,
             elite_pull_levels: 1.0,
+            pull_levels: 1.0,
             pack_power: None,
             quest_log_size: 40,
             flight_learn_radius: 300.0,
@@ -262,10 +273,11 @@ impl Default for Params {
             allow_elite: false,
             pvp_quests: false,
             pvp_mark_time: 900.0,
-            crowded: false,
+            crowded: 0.0,
             crowd_event_time: 900.0,
-            crowd_spawn_time: 180.0,
-            crowd_level: 20,
+            crowd_players: 3.0,
+            crowd_by_level: vec![1.0, 0.9, 0.8, 0.6, 0.5],
+            respawn_time: 300.0,
             solo_elite_kills: 2.0,
             zone_stay: 2.5,
             construction_random: true,
@@ -374,6 +386,18 @@ impl Params {
         }
     }
 
+    /// Share of the crowd at quests of `level` (`crowd_by_level`), times `crowded`.
+    pub fn crowd_at(&self, level: i64) -> f64 {
+        let k = usize::try_from((level.max(1) - 1) / 10).unwrap_or(0);
+        let share = self
+            .crowd_by_level
+            .get(k)
+            .or(self.crowd_by_level.last())
+            .copied()
+            .unwrap_or(1.0);
+        self.crowded * share.clamp(0.0, 1.0)
+    }
+
     /// How much a minute of grinding beyond `grind_cap` weighs for the optimizer.
     pub fn grind_over_weight(&self) -> f64 {
         self.grind_over_weight.max(self.grind_weight())
@@ -444,6 +468,20 @@ impl Params {
         }
         Ok(serde_json::from_value(json)?)
     }
+}
+
+/// `crowded`: a number from 0 to 1, or a boolean (settings saved before the scale).
+fn crowd_share<'de, D: serde::Deserializer<'de>>(d: D) -> Result<f64, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Level {
+        On(bool),
+        Share(f64),
+    }
+    Ok(match Level::deserialize(d)? {
+        Level::On(on) => f64::from(u8::from(on)),
+        Level::Share(v) => v.clamp(0.0, 1.0),
+    })
 }
 
 /// How far above its power the character goes.

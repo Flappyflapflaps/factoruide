@@ -15,6 +15,9 @@ type Cells = HashMap<(i64, i64, i64), Vec<(f32, f32, u8, bool)>>;
 #[derive(Debug, Default)]
 pub struct Guards {
     cells: Cells,
+    /// Every one of them (only those at the same place merged: one spawn point the sources give
+    /// for several mobs that take turns), to count the mobs of a pull.
+    mobs: HashMap<(i64, i64, i64), Vec<(f32, f32)>>,
 }
 
 impl Guards {
@@ -25,6 +28,10 @@ impl Guards {
     pub const RADIUS: f64 = 30.0;
     /// Mobs this many levels below the strongest one around do not make the place harder.
     const LEVELS: u8 = 2;
+    /// Spawn points closer than this are one mob (mobs taking turns at one point).
+    pub const ONE_POINT: f64 = 1.5;
+    /// Mobs this close to the one pulled come with it (yards).
+    const LINK: f64 = 8.0;
 
     pub(super) fn load(conn: &Connection, world: &World) -> Result<Self> {
         let mut stmt = conn.prepare(
@@ -34,6 +41,7 @@ impl Guards {
              WHERE s.entity_type = 'npc' AND s.x >= 0 AND coalesce(n.friendly_to, '') = ''",
         )?;
         let mut cells = Cells::new();
+        let mut mobs: HashMap<(i64, i64, i64), Vec<(f32, f32)>> = HashMap::new();
         let mut seen = HashSet::new();
         let rows = stmt.query_map([], |r| {
             Ok((
@@ -49,6 +57,13 @@ impl Guards {
             let (zone, x, y, min, max, rank) = row?;
             let Some(p) = world.to_world(zone, x, y) else { continue };
             let level = min.max(max).clamp(1, 255) as u8;
+            let cell = mobs.entry(Self::cell(p.continent, p.x, p.y)).or_default();
+            if !cell
+                .iter()
+                .any(|&(x, y)| (f64::from(x) - p.x).hypot(f64::from(y) - p.y) < Self::ONE_POINT)
+            {
+                cell.push((p.x as f32, p.y as f32));
+            }
             let same = (
                 p.continent,
                 (p.x / Self::SAME).floor() as i64,
@@ -64,7 +79,28 @@ impl Guards {
                 ));
             }
         }
-        Ok(Self { cells })
+        Ok(Self { cells, mobs })
+    }
+
+    /// Hostile mobs that come together when the one at `p` is pulled, itself included (1 when
+    /// it stands alone, or is not a known hostile spawn).
+    pub fn pull_at(&self, p: &Pos) -> u32 {
+        let r = Self::LINK;
+        let (lo, hi) = (
+            Self::cell(p.continent, p.x - r, p.y - r),
+            Self::cell(p.continent, p.x + r, p.y + r),
+        );
+        let mut n = 0;
+        for cx in lo.1..=hi.1 {
+            for cy in lo.2..=hi.2 {
+                for &(x, y) in self.mobs.get(&(p.continent, cx, cy)).into_iter().flatten() {
+                    if (f64::from(x) - p.x).hypot(f64::from(y) - p.y) <= r {
+                        n += 1;
+                    }
+                }
+            }
+        }
+        n.max(1)
     }
 
     fn cell(continent: i64, x: f64, y: f64) -> (i64, i64, i64) {

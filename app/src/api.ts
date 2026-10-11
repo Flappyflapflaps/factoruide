@@ -27,10 +27,12 @@ export interface Params {
   pvp_quests: boolean;
   pvp_mark_time: number;
   /** Crowded server (a launch): escorts, events and targets with few spawns take waiting. */
-  crowded: boolean;
+  crowded: number;
   crowd_event_time: number;
-  crowd_spawn_time: number;
-  crowd_level: number;
+  crowd_players: number;
+  crowd_by_level: number[];
+  respawn_time: number;
+  pull_levels: number;
   quest_log_size: number;
   flight_learn_radius: number;
   along_corridor: number;

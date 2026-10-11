@@ -352,6 +352,20 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "catch_up",
+        [
+            "Before level {next}: be level {level} and {p}% ({xp} xp) to go on (grind here if behind)",
+            "Avant le niveau {next} : être niveau {level} et {p} % ({xp} xp) pour continuer (farmer ici si en retard)",
+            "Vor Stufe {next}: Stufe {level} und {p} % ({xp} EP) erreichen, um weiterzumachen (bei Rückstand hier grinden)",
+            "Antes del nivel {next}: llegar al nivel {level} y {p} % ({xp} PX) para seguir (farmear aquí si vas con retraso)",
+            "Antes do nível {next}: estar no nível {level} e {p}% ({xp} XP) para continuar (farmar aqui se estiver atrasado)",
+            "Перед {next} уровнем: достичь {level} уровня и {p}% ({xp} опыта), чтобы идти дальше (гриндить здесь при отставании)",
+            "레벨 {next} 전: 계속하려면 레벨 {level}, {p}% ({xp} 경험치) 달성 (뒤처졌다면 여기서 사냥)",
+            "{next}级之前：达到{level}级{p}%（{xp}经验）再继续（落后时在此刷怪）",
+            "{next}級之前：達到{level}級{p}%（{xp}經驗）再繼續（落後時在此練怪）",
+        ],
+    ),
+    (
         "death_skip",
         [
             "Die and respawn at the spirit healer ({zone})",

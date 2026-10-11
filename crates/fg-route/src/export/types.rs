@@ -124,6 +124,15 @@ pub struct Step {
     /// breadcrumb leads to): the addon skips the step when one of them is done.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub alt: Vec<i64>,
+    /// Accept steps: what the quest needs before it can be taken, so that the addon lists the
+    /// quests that can be taken now: quests all done (`pre`), one of them done (`pre_any`), the
+    /// character's level.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pre: Vec<i64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pre_any: Vec<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_level: Option<i64>,
     /// Objective done along the way while doing other quests (does not block the guide).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub bg: bool,
@@ -170,6 +179,14 @@ pub struct Step {
     /// Reward to pick among the quest's choices (item ID) on a turn-in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reward: Option<i64>,
+    /// XP a turn-in gives at the level it is planned at: a quest complete in the log counts for
+    /// the grind steps aiming at a level it is turned in before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reward_xp: Option<i64>,
+    /// XP the route has in `level` once the step is done: where the player should be, for the
+    /// addon's XP bar marker.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub route_xp: Option<i64>,
     /// Class spells to learn (spell IDs) on a training step.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub spells: Vec<i64>,

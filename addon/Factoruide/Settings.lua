@@ -1,5 +1,5 @@
 -- Settings come from the Factoruide app (generated Config.lua). In game, a few UI
--- tweaks (+/- on the "Next" box) only last for the session; the window size is saved (it
+-- tweaks (+/- on the "To pick up" box) only last for the session; the window size is saved (it
 -- follows the screen, the same for every character).
 
 local _, FG = ...
@@ -7,7 +7,7 @@ local _, FG = ...
 FG.defaults = {
     guideShown = true,
     uiTheme = "auto",
-    nextLines = 5,
+    pickupLines = 10,
     lockFrames = false,
     scale = 1.0,
     waypoints = true,
@@ -21,9 +21,8 @@ FG.defaults = {
     trainUseful = true,
     trackerShown = true,
     replaceTracker = true,
-    trackerMaxQuests = 25,
+    trackerQuests = 10,
     trackerAll = false,
-    trackerWindow = 15,
     professionsShown = true,
     targetMacro = true,
     targetMark = true,
@@ -40,6 +39,7 @@ FG.defaults = {
     safetyAlerts = true,
     partySync = true,
     levelTiming = true,
+    xpMarker = true,
     mapPins = true,
     mapPinsCount = 15,
     autoFly = true,

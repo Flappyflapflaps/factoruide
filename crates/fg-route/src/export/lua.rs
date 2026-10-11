@@ -70,6 +70,17 @@ pub fn to_lua(routes: &[Route]) -> String {
                     s.alt.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
                 ));
             }
+            for (key, ids) in [("pre", &s.pre), ("pa", &s.pre_any)] {
+                if !ids.is_empty() {
+                    fields.push(format!(
+                        "{key} = {{ {} }}",
+                        ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+                    ));
+                }
+            }
+            if let Some(l) = s.min_level {
+                fields.push(format!("min = {l}"));
+            }
             if let Some(o) = s.objective {
                 fields.push(format!("o = {}", o + 1));
             }
@@ -105,6 +116,9 @@ pub fn to_lua(routes: &[Route]) -> String {
             if let Some(item) = s.reward {
                 fields.push(format!("rw = {item}"));
             }
+            if let Some(xp) = s.reward_xp {
+                fields.push(format!("rx = {xp}"));
+            }
             if !s.spells.is_empty() {
                 fields.push(format!(
                     "sp = {{ {} }}",
@@ -115,6 +129,9 @@ pub fn to_lua(routes: &[Route]) -> String {
                 fields.push("kp = true".into());
             }
             fields.push(format!("lvl = {}", s.level));
+            if let Some(xp) = s.route_xp {
+                fields.push(format!("px = {xp}"));
+            }
             if let Some(xp) = s.xp {
                 fields.push(format!("xp = {xp}"));
             }

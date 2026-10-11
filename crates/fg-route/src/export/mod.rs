@@ -135,6 +135,9 @@ pub fn build_traced(
             checkpoints: &mut checkpoints,
         },
     );
+    for (step, xp) in steps.iter_mut().zip(&xps) {
+        step.route_xp = Some(*xp);
+    }
     // The texts in the language the guide is made in (other languages: `render`).
     for step in &mut steps {
         step.text = phrase::render_all(&step.say, &planner.model.names);

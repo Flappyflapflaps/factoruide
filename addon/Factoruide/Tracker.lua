@@ -1,5 +1,6 @@
--- Quest tracker replacing Blizzard's: quests of the log sorted by the route, objectives with
--- progress, "turn in" with the NPC, quest item buttons. Blizzard's tracker is hidden while
+-- Quest tracker replacing Blizzard's: the next quests of the log to do in the route's order
+-- (as many as configured), objectives with progress, "turn in" with the NPC, quest item
+-- buttons. Blizzard's tracker is hidden while
 -- `replaceTracker` is on (deferred after combat when the frame is protected, like Questie).
 
 local _, FG = ...
@@ -80,13 +81,11 @@ end
 local function CollectQuests()
     local quests = {}
     local nextStep = FG.Guide and FG.Guide.NextStepByQuest and FG.Guide:NextStepByQuest() or {}
-    -- Only the quests being done: their next step is among the coming steps of the route.
+    -- Only the quests being done: their next step is still ahead in the route (or done along
+    -- the way); the first ones are kept.
     local current = FG.Guide and FG.Guide.CurrentStep and FG.Guide:CurrentStep() or 1
-    local window = FG:Get("trackerWindow")
     local all = FG:Get("trackerAll")
-    local function inProgress(step)
-        return step and (step.bg or (step.index >= current and step.index <= current + window))
-    end
+    local function inProgress(step) return step and (step.bg or step.index >= current) end
     for i = 1, C_QuestLog.GetNumQuestLogEntries() do
         local info = C_QuestLog.GetInfo(i)
         if
@@ -222,7 +221,7 @@ function Tracker:Refresh()
     if not shown then return end
 
     local quests = CollectQuests()
-    local max = FG:Get("trackerMaxQuests")
+    local max = FG:Get("trackerQuests")
     local n, used, itemIndex = 0, 0, 0
     local canAssign = not InCombatLockdown()
     local function add(text, questID, indent)
@@ -347,7 +346,7 @@ FG:On("PLAYER_LOGIN", function()
     HookBlizzard()
     FG:OnSetting("replaceTracker", ApplyBlizzardVisibility)
     FG:OnSetting("trackerShown", Schedule)
-    FG:OnSetting("trackerMaxQuests", Schedule)
+    FG:OnSetting("trackerQuests", Schedule)
     FG:OnSetting("professionsShown", Schedule)
     Schedule()
 end)

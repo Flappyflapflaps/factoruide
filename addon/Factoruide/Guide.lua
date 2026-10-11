@@ -1,6 +1,8 @@
 -- Shows the planned route and advances automatically. Two boxes:
 --   "To do": the current tasks (steps done at the same place are grouped), with progress
---   "Next": the following steps, as many lines as configured (0 hides it)
+--   "To pick up": the next quests that can be taken now, with their distance, as many as
+--   configured (0 hides it): close quests can be taken in any order, the route skips them
+--   once in the log.
 -- The native waypoint arrow points at the first unfinished task.
 
 local _, FG = ...
@@ -10,7 +12,8 @@ FG.Guide = Guide
 local fr = GetLocale() == "frFR"
 local L = {
     todo = fr and "À faire" or "To do",
-    next = fr and "Ensuite" or "Next",
+    pickup = fr and "À prendre" or "To pick up",
+    pointHint = fr and "Clic gauche : flèche vers cette étape" or "Left-click: point the arrow at this step",
     level = fr and "Niv." or "Lvl",
     planned = fr and "prévu" or "planned",
     noRoute = fr and "Pas de route pour cette race/classe.\nGénérez-en une avec `fg route`."
@@ -75,6 +78,8 @@ local KINDS = {
 }
 
 local GROUP_MAX = 6
+-- Steps ahead looked at for the quests to pick up.
+local PICKUP_AHEAD = 300
 -- Steps planned this many levels below the character are skipped.
 local OUTDATED_LEVELS = 4
 local WIDTH = 330
@@ -83,11 +88,14 @@ local state -- per character: { route = name, step = n, point = {...}, flightLea
 local route
 local routeQuests = {}
 local acceptIndex = {} -- quest -> index of its accept step
+local turninIndex = {} -- quest -> index of its turn-in step
 -- Whether the shown step was already done when we arrived on it (manual navigation): the
 -- guide only moves on when the shown step becomes done.
 local arrivedDone = false
-local todoBox, nextBox
+local todoBox, pickupBox
 local waypointStep
+-- Step picked by hand (left-click on a row): the arrow points at it until it is done.
+local pointed
 local Distance -- defined below, used by IsDone
 
 -- Progress -------------------------------------------------------------------
@@ -125,6 +133,27 @@ local function AcceptSkipped(step, index)
         and not C_QuestLog.IsOnQuest(step.q)
         and not C_QuestLog.IsQuestFlaggedCompleted(step.q)
         and IsDone(route.steps[at], at)
+end
+
+--- XP of the quests complete in the log that the route turns in after grind step `index` and
+--- before the level it aims at (the turn-in reaching it included): earned already, it counts.
+--- Those turned in later do not, or the guide would be behind at its next steps.
+local function PendingXP(step, index)
+    local before = step.xp and step.lvl or step.lvl - 1
+    local last = index
+    while route.steps[last + 1] and (route.steps[last].lvl or 0) <= before do
+        last = last + 1
+    end
+    local xp = 0
+    for i = 1, C_QuestLog.GetNumQuestLogEntries() do
+        local info = C_QuestLog.GetInfo(i)
+        local q = info and not info.isHeader and info.questID
+        local at = q and turninIndex[q]
+        if at and at > index and at <= last and route.steps[at].rx and C_QuestLog.IsComplete(q) then
+            xp = xp + route.steps[at].rx
+        end
+    end
+    return xp
 end
 
 function IsDone(step, index)
@@ -165,9 +194,14 @@ function IsDone(step, index)
         -- Done once the quest has left the log (or was never in it).
         return not C_QuestLog.IsOnQuest(q)
     elseif step.k == "grind" then
-        -- To a level, or to an XP amount in it (grind placed before the end of the level).
-        local level = UnitLevel("player")
-        return level > step.lvl or (level == step.lvl and (not step.xp or UnitXP("player") >= step.xp))
+        -- To a level, or to an XP amount in it (grind placed before the end of the level), with
+        -- the XP of the quests complete in the log the route turns in before that level.
+        local level, xp = UnitLevel("player"), UnitXP("player") + PendingXP(step, index or state.step)
+        local max = UnitXPMax("player")
+        if max and max > 0 and xp >= max then
+            level, xp = level + 1, xp - max
+        end
+        return level > step.lvl or (level == step.lvl and (not step.xp or xp >= step.xp))
     elseif step.k == "fly" then
         return UnitOnTaxi("player")
     elseif step.k == "practice" then
@@ -191,6 +225,34 @@ function IsDone(step, index)
         return nextStep and nextStep.m and C_Map.GetBestMapForUnit("player") == nextStep.m or false
     end
     return false
+end
+
+--- Whether an accept step's quest can be taken now: the quests it needs are done and the
+--- character has its level (routes made before these were exported: always).
+local function CanTake(step)
+    if step.min and UnitLevel("player") < step.min then return false end
+    for _, q in ipairs(step.pre or {}) do
+        if not C_QuestLog.IsQuestFlaggedCompleted(q) then return false end
+    end
+    if step.pa then
+        for _, q in ipairs(step.pa) do
+            if C_QuestLog.IsQuestFlaggedCompleted(q) then return true end
+        end
+        return false
+    end
+    return true
+end
+
+--- Indexes of the next `max` accept steps not done whose quest can be taken now.
+function Guide:Pickups(max)
+    local out = {}
+    if not route or not state then return out end
+    for i = state.step, math.min(#route.steps, state.step + PICKUP_AHEAD) do
+        if #out >= max then break end
+        local s = route.steps[i]
+        if s.k == "accept" and CanTake(s) and not IsDone(s, i) then table.insert(out, i) end
+    end
+    return out
 end
 
 --- Steps done around the same place as the current one, shown together.
@@ -306,15 +368,21 @@ local function Row(box, i, big)
     if row then return row end
     row = CreateFrame("Button", nil, box)
     row:SetHeight(big and 20 or 16)
-    row:RegisterForClicks("RightButtonUp")
+    row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:SetScript("OnClick", function(self, button)
-        if button == "RightButton" and self.index then Guide:ToggleSkip(self.index) end
+        if not self.index then return end
+        if button == "RightButton" then
+            Guide:ToggleSkip(self.index)
+        else
+            Guide:PointToStep(self.index)
+        end
     end)
     row:SetScript("OnEnter", function(self)
         local step = self.index and route and route.steps[self.index]
         if not step then return end
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:AddLine(step.t, 1, 1, 1, true)
+        GameTooltip:AddLine(L.pointHint, 0.6, 0.6, 0.6, true)
         GameTooltip:AddLine(L.skipHint, 0.6, 0.6, 0.6, true)
         GameTooltip:Show()
     end)
@@ -416,20 +484,21 @@ local function CreateUI()
     if FG.Skin then FG.Skin:Style(ahead, "button") end
     todoBox.ahead = ahead
 
-    nextBox = CreateBox("FactoruideNext", L.next, "panel")
-    nextBox:SetPoint("TOPLEFT", todoBox, "BOTTOMLEFT", 0, -3)
-    HeaderButton(nextBox, "+", -4, function() FG:Set("nextLines", math.min(15, FG:Get("nextLines") + 1)) end)
-    HeaderButton(nextBox, "-", -20, function() FG:Set("nextLines", math.max(0, FG:Get("nextLines") - 1)) end)
+    -- Named FactoruideNext: the tracker sits under it by default.
+    pickupBox = CreateBox("FactoruideNext", L.pickup, "panel")
+    pickupBox:SetPoint("TOPLEFT", todoBox, "BOTTOMLEFT", 0, -3)
+    HeaderButton(pickupBox, "+", -4, function() FG:Set("pickupLines", math.min(20, FG:Get("pickupLines") + 1)) end)
+    HeaderButton(pickupBox, "-", -20, function() FG:Set("pickupLines", math.max(0, FG:Get("pickupLines") - 1)) end)
 
     local function ApplyScale(v)
         todoBox:SetScale(v)
-        nextBox:SetScale(v)
+        pickupBox:SetScale(v)
     end
     ApplyScale(FG:Get("scale"))
     FG:OnSetting("scale", ApplyScale)
     FG:Zoomable(todoBox)
-    FG:Zoomable(nextBox)
-    FG:OnSetting("nextLines", function() Guide:Refresh() end)
+    FG:Zoomable(pickupBox)
+    FG:OnSetting("pickupLines", function() Guide:Refresh() end)
     FG:OnSetting("guideShown", function() Guide:Refresh() end)
     FG:OnSetting("waypoints", function(on)
         waypointStep = nil
@@ -487,7 +556,7 @@ function Guide:Refresh()
     local shown = FG:Get("guideShown")
     todoBox:SetShown(shown)
     if not shown then
-        nextBox:Hide()
+        pickupBox:Hide()
         if FG.Arrow then FG.Arrow:SetTarget(nil) end
         return
     end
@@ -502,7 +571,7 @@ function Guide:Refresh()
         Layout(todoBox, 1, true, false)
         todoBox.info:SetText("")
         todoBox.footer:SetText("")
-        nextBox:Hide()
+        pickupBox:Hide()
         return
     end
 
@@ -550,6 +619,8 @@ function Guide:Refresh()
     if FG.ItemButton then FG.ItemButton:SetSteps(todo) end
     if FG.MapPins then FG.MapPins:Refresh() end
     target = target or route.steps[state.step]
+    if pointed and (not route.steps[pointed] or IsDone(route.steps[pointed], pointed)) then pointed = nil end
+    if pointed then target = route.steps[pointed] end
 
     local level = UnitLevel("player")
     local planned = route.steps[state.step].lvl
@@ -574,24 +645,28 @@ function Guide:Refresh()
     SetWaypoint(target)
     if FG.Arrow then FG.Arrow:SetTarget(target) end
 
-    local lines = FG:Get("nextLines")
-    local start = group[#group] + 1
-    local count = 0
-    for i = 1, lines do
-        local step = route.steps[start + i - 1]
-        if not step then break end
-        count = i
-        local row = Row(nextBox, i, false)
-        row.index = start + i - 1
-        row.icon:SetTexture((KINDS[step.k] or {}).icon)
-        row.icon:SetDesaturated(true)
+    -- Quests to pick up: in the route's order, with their distance, to take the close ones in
+    -- the order that suits.
+    local lines = FG:Get("pickupLines")
+    local pickups = self:Pickups(lines)
+    for i, index in ipairs(pickups) do
+        local step = route.steps[index]
+        local row = Row(pickupBox, i, false)
+        row.index = index
+        row.icon:SetTexture(KINDS.accept.icon)
+        row.icon:SetDesaturated(false)
         row.check:Hide()
-        local plain = StepLine(step, false):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
-        row.text:SetText("|cffb0b0b0" .. plain .. "|r")
+        local text = (QuestTitle(step) or step.t) .. (step.n and ("  |cff9d9d9d" .. step.n .. "|r") or "")
+        local dist = Distance(step)
+        if dist then
+            text = text .. string.format("  |cff%s%d %s|r", dist < 100 and "ffffff" or "9d9d9d", dist, L.yards)
+        end
+        row.text:SetText("|cffffd100" .. text .. "|r")
     end
-    Layout(nextBox, count, false, false)
-    nextBox.info:SetText(count > 0 and string.format("%d", #route.steps - start + 1) or "")
-    nextBox:SetShown(lines > 0 and count > 0)
+    Layout(pickupBox, #pickups, false, false)
+    pickupBox.info:SetText(#pickups > 0 and tostring(#pickups) or "")
+    pickupBox:SetShown(lines > 0 and #pickups > 0)
+    if FG.XpMarker then FG.XpMarker:Refresh() end
 end
 
 -- Navigation -------------------------------------------------------------------
@@ -628,7 +703,7 @@ function Guide:Resync()
         state.step = 1
         SkipDone()
     end
-    waypointStep = nil
+    waypointStep, pointed = nil, nil
     self:Refresh()
 end
 
@@ -637,7 +712,7 @@ function Guide:Go(n)
     state.step = math.max(1, math.min(n, #route.steps + 1))
     local here = route.steps[state.step]
     arrivedDone = here ~= nil and (here.bg or IsDone(here, state.step))
-    waypointStep = nil
+    waypointStep, pointed = nil, nil
     self:Refresh()
 end
 
@@ -684,10 +759,12 @@ local function UseRoute(name)
     state.route = name
     wipe(acceptIndex)
     wipe(routeQuests)
+    wipe(turninIndex)
     for i, s in ipairs(route and route.steps or {}) do
         if s.q then
             routeQuests[s.q] = true
             if s.k == "accept" and not acceptIndex[s.q] then acceptIndex[s.q] = i end
+            if s.k == "turnin" and not turninIndex[s.q] then turninIndex[s.q] = i end
         end
     end
 end
@@ -776,7 +853,7 @@ function Guide:Command(cmd, arg)
     elseif cmd == "skip" then
         self:SkipCommand(arg)
     elseif cmd == "lines" then
-        FG:Set("nextLines", tonumber(arg) or FG:Get("nextLines"))
+        FG:Set("pickupLines", tonumber(arg) or FG:Get("pickupLines"))
     elseif cmd == "time" then
         FG.Timing:Print()
     elseif cmd == "macro" then
@@ -833,14 +910,18 @@ function Guide:NextStepByQuest()
     return out
 end
 
+--- Point the arrows at a step until it is done (or another step is picked).
+function Guide:PointToStep(index)
+    local step = route and route.steps[index]
+    if not step or not step.m then return end
+    pointed = index
+    self:Refresh()
+end
+
 --- Point the waypoint arrow at a quest's next step.
 function Guide:PointToQuest(questID)
     local next = self:NextStepByQuest()[questID]
-    local step = next and route.steps[next.index]
-    if step and step.m and C_Map.CanSetUserWaypointOnMap(step.m) then
-        C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(step.m, step.x / 100, step.y / 100))
-        C_SuperTrack.SetSuperTrackedUserWaypoint(true)
-    end
+    if next then self:PointToStep(next.index) end
 end
 
 --- Mark a step as already done by hand (its whole quest for quest steps), or undo it.

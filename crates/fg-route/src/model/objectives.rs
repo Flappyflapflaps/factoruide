@@ -40,6 +40,8 @@ impl Objective {
             count: 1.0,
             mobs: vec![],
             pull: 1.0,
+            spawns: 0,
+            pack: 1.0,
             spots: None,
             guard: Guard::default(),
         }
@@ -71,7 +73,7 @@ impl QuestBuilder<'_> {
         for o in objs.iter_mut().filter(|o| o.kills <= 0.0 && o.dungeon.is_none()) {
             o.guard = self.sources.guards.around(&o.loc.pos);
         }
-        self.crowd(r, &mut objs);
+        self.spots_and_crowd(r, &mut objs);
         self.add_dungeon_givers(r, &mut objs);
         Ok(objs)
     }

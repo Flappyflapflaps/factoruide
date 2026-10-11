@@ -98,6 +98,9 @@ impl StepWriter<'_> {
             quest: None,
             quest_name: None,
             alt: Vec::new(),
+            pre: Vec::new(),
+            pre_any: Vec::new(),
+            min_level: None,
             bg: false,
             objective: None,
             text: String::new(),
@@ -110,12 +113,28 @@ impl StepWriter<'_> {
             elite: false,
             mob_level: None,
             reward: None,
+            reward_xp: None,
+            route_xp: None,
             spells: Vec::new(),
             xp: (xp > 0).then_some(xp),
             level,
             keep: true,
             ..at.clone()
         }
+    }
+
+    /// The step before `next` (a level that is no checkpoint): a character behind the route by
+    /// more than a little catches up to `xp` XP in `level` at `at` before going on.
+    pub(super) fn catch_up(&self, at: &Step, next: i64, level: i64, xp: i64) -> Step {
+        let mut step = self.checkpoint(at, next, level, xp);
+        step.say = vec![
+            Phrase::new("catch_up")
+                .arg("next", num(next))
+                .arg("level", num(level))
+                .arg("p", num(self.xp_share(level, xp)))
+                .arg("xp", num(xp)),
+        ];
+        step
     }
 
     /// A planned grind moved to a place with mobs of the character's level, earlier: it grinds
@@ -172,6 +191,9 @@ impl StepWriter<'_> {
             quest: None,
             quest_name: None,
             alt: Vec::new(),
+            pre: Vec::new(),
+            pre_any: Vec::new(),
+            min_level: None,
             bg: false,
             objective: None,
             text: String::new(),
@@ -188,6 +210,8 @@ impl StepWriter<'_> {
             elite: false,
             mob_level: None,
             reward: None,
+            reward_xp: None,
+            route_xp: None,
             spells: Vec::new(),
             xp: None,
             level: t.level,
@@ -473,6 +497,9 @@ impl StepWriter<'_> {
         match stop.kind {
             Kind::Accept => {
                 step.kind = StepKind::Accept;
+                step.pre.clone_from(&q.pre_all);
+                step.pre_any.clone_from(&q.pre_any);
+                step.min_level = Some(q.min_level);
                 let key = if loc.kind == EntityKind::Item {
                     "accept.item"
                 } else {
@@ -498,6 +525,7 @@ impl StepWriter<'_> {
             }
             Kind::TurnIn => {
                 step.kind = StepKind::TurnIn;
+                step.reward_xp = Some(self.planner.growth().quest_reward(q, step.level));
                 step.say.push(Phrase::new("turnin").arg("quest", quest).arg("who", who));
             }
             Kind::LearnFlight | Kind::Bind | Kind::Dungeon => unreachable!(),

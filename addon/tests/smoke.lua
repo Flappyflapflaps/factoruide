@@ -248,7 +248,7 @@ assert(calls.GetQuestReward and calls.GetQuestReward[1] == 1, "single reward tak
 fire("LOOT_READY", false)
 assert(calls.loot == 3, "all loot slots taken")
 SlashCmdList.FACTORUIDE("lines 2")
-assert(FG:Get("nextLines") == 2, "session tweak")
+assert(FG:Get("pickupLines") == 2, "session tweak")
 
 -- Settings from the app (Config.lua) are respected.
 FG.Config.autoAccept = false
@@ -668,3 +668,112 @@ GetInventoryItemID = inventory
 FG.Profile:Snapshot()
 assert(not profile.errors, "no error left")
 print("profile parts ok")
+
+-- Quests to pick up: the next accepts not done that can be taken now (quests needed done,
+-- level reached), the hand-picked one pointed at until done.
+playerLevel = 21
+FG.Routes["pickup-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "accept", t = "Accept First", q = 6001, m = 1426, x = 30, y = 71, lvl = 21 },
+        { k = "accept", t = "Accept Follow-up", q = 6002, pre = { 6001 }, m = 1426, x = 30, y = 72, lvl = 21 },
+        { k = "accept", t = "Accept Later", q = 6003, min = 30, m = 1426, x = 31, y = 71, lvl = 21 },
+        { k = "accept", t = "Accept Either", q = 6004, pa = { 6005, 6001 }, m = 1426, x = 31, y = 72, lvl = 21 },
+        { k = "accept", t = "Accept Close", q = 6006, m = 1426, x = 32, y = 71, lvl = 21 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+FG:Set("pickupLines", 10)
+SlashCmdList.FACTORUIDE("route pickup-test")
+local function pickups() return table.concat(FG.Guide:Pickups(FG:Get("pickupLines")), ",") end
+assert(pickups() == "1,5", "only quests that can be taken now: " .. pickups())
+completed[6001] = true
+assert(pickups() == "2,4,5", "their prerequisites done: " .. pickups())
+FG:Set("pickupLines", 1)
+assert(pickups() == "2", "as many as configured: " .. pickups())
+FG.Guide:PointToStep(5)
+assert(waypoint and waypoint.x == 0.32, "hand-picked step pointed at")
+FG.Guide:Advance()
+assert(waypoint.x == 0.32, "still pointed at after a refresh")
+onQuest[6006] = true
+FG.Guide:Advance()
+assert(waypoint.x ~= 0.32, "back to the route once taken")
+print("pickups ok")
+
+-- Grind steps count the XP of the quests complete in the log the route turns in before the
+-- level they aim at, not of those it turns in later.
+playerLevel = 3
+FG.Routes["pending-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "grind", t = "Be level 3 and 300 xp", lvl = 3, xp = 300 },
+        { k = "turnin", t = "Turn in Soon", q = 7001, rx = 400, lvl = 3 },
+        { k = "turnin", t = "Turn in Reaching 4", q = 7003, rx = 900, lvl = 4 },
+        { k = "turnin", t = "Turn in Later", q = 7002, rx = 500, lvl = 5 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+local complete = {}
+onQuest[7001], onQuest[7002], onQuest[7003] = true, true, true
+local log = { 7002, 7003, 7001 }
+C_QuestLog.GetNumQuestLogEntries = function() return #log end
+C_QuestLog.GetInfo = function(i) return { questID = log[i], title = "Q" .. log[i], level = 3 } end
+local isComplete = C_QuestLog.IsComplete
+C_QuestLog.IsComplete = function(q) return complete[q] or false end
+SlashCmdList.FACTORUIDE("route pending-test")
+assert(char.guide.step == 1, "not enough XP yet, step " .. char.guide.step)
+complete[7002] = true
+FG.Guide:Advance()
+assert(char.guide.step == 1, "a quest turned in after the level does not count")
+complete[7003] = true
+FG.Guide:Advance()
+assert(char.guide.step == 2, "the turn-in reaching the level counts, step " .. char.guide.step)
+FG.Guide:Go(1)
+complete[7003] = nil
+complete[7001] = true
+FG.Guide:Resync()
+assert(char.guide.step == 2, "a quest turned in before the level counts, step " .. char.guide.step)
+C_QuestLog.IsComplete = isComplete
+print("pending xp ok")
+
+-- XP bar mark: where the guide expects the character before the step shown, and the gap.
+FG.Routes["xp-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "accept", t = "Accept A", q = 8001, lvl = 3, px = 150 },
+        { k = "accept", t = "Accept B", q = 8002, lvl = 3, px = 250 },
+        { k = "grind", t = "Grind", lvl = 60, px = 0 },
+    },
+}
+playerLevel = 3
+SlashCmdList.FACTORUIDE("route xp-test")
+onQuest[8001] = true
+FG.Guide:Advance()
+assert(char.guide.step == 2, "step " .. char.guide.step)
+local level, xp = FG.XpMarker:Planned()
+assert(level == 3 and xp == 150, "planned before step 2: " .. tostring(level) .. " " .. tostring(xp))
+local unitXP = UnitXP
+UnitXP = function() return 100 end
+assert(FG.XpMarker:Line():find("50"), "50 xp behind: " .. FG.XpMarker:Line())
+UnitXP = function() return 350 end
+assert(FG.XpMarker:Line():find("200"), "200 xp ahead: " .. FG.XpMarker:Line())
+playerLevel = 1
+assert(FG.XpMarker:Line():find("3"), "two levels behind: the planned level")
+FG.XpMarker:Refresh()
+UnitXP, playerLevel = unitXP, 3
+print("xp marker ok")

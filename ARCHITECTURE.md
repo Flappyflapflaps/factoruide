@@ -52,8 +52,10 @@ level:
 - **When quests run out**, the simulation grinds mobs of the character's level up to the next
   step. Grinding gives at most `grind_cap` of each level (10%, apart from farming on the way);
   beyond, it weighs `grind_over_weight` times its duration, so quests are taken first.
-- **Guide export**: each checkpoint gets a step to grind when behind the route, and grinds are
-  placed at the last step where mobs of the character's level live, with an XP target.
+- **Guide export**: each checkpoint gets a step to grind when behind the route, every other level
+  one that lets the character be 10% of a level behind (at the last place of the level where its
+  mobs live), and grinds are placed at the last step where mobs of the character's level live,
+  with an XP target.
 
 ### Power
 
@@ -69,13 +71,23 @@ reach (`Params::reach`, `Planner::objective_need`):
   exploring, escorts; talking and delivering require nothing), and the mobs' level: one less for a
   lone target (one or two kills), two more for an elite, times `1 + elite_pull_power` per extra
   elite expected in each pull. The pull is measured from the spawns: the elites within aggro range
-  of each spawn of the target (a lone elite like Hogger counts 1, a camp of ogres more, capped at 3);
+  of each spawn of the target (a lone elite like Hogger counts 1, a camp of ogres more, capped at 3).
+  Normal mobs farmed at a spot require `pull_levels` more per extra hostile mob within 8 yards of
+  each of their spawns (orcs standing in pairs: one level more);
 - reach: `(level + gear, at most +0.5) × factor + margin`, set by the **progression profile**:
   cautious (+1.5, packs of mobs requiring one level more), the hardcore survival style, takes
   yellow quests and lone targets up to two levels above but packs at most one, normal (+2) goes
   up to the yellow content two levels above and never orange, risky (+3) takes orange quests and
   borderline elites. The factor stays at 1: the game's colors are a number of levels, whatever
   the level.
+
+**Spots** are measured once, when the model is built: the spawn points of an objective's mobs (or
+objects) within 200 yards of its place, a point shared by mobs taking turns counted once, and the
+mobs per pull. An objective asking for more than its spot holds waits for respawns
+(`respawn_time`), and on a crowded server (`crowded`, 0 to 1) up to `crowd_players` other players
+share the spot, fewer as players spread out with the levels (`crowd_by_level`: all of it up to
+level 10, then 90, 80, 60 and 50 % from level 40): Blackrock Menace's 8 orcs for ~22 kills wait
+4 minutes alone, about 36 at a launch.
 
 An objective out of reach waits (the simulation grinds when the route goes there anyway), and a
 quest whose objectives are far out of reach is not picked up.

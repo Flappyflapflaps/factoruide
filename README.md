@@ -44,7 +44,7 @@ zones to do, the level to reach before moving on from each, and where the XP is.
 - **Your play style**: a relaxed, normal or fast pace (time per fight, per loot, per stop), how far
   above your level you take quests and fight mobs, how much grinding you accept, flights or
   walking to save gold, finishing a zone before leaving, staying on one continent, elite quests
-  solo or in a group, a crowded server at launch (escorts, events and rare spawns fought over).
+  solo or in a group, how crowded the server is (escorts, events and small spots fought over).
 - **Your group**: level in a duo or a group with other classes: faster fights, shared XP with the
   group bonus, quest items for everyone, each class's quests and trainers.
 - **Your language**: the app and the guide in 10 languages. A guide is computed once and shown in

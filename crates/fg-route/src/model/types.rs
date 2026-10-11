@@ -117,6 +117,10 @@ pub struct Objective {
     pub spots: Option<Spots>,
     /// Elites expected per pull: 1 for a lone elite (Hogger), more in a camp of elites.
     pub pull: f64,
+    /// Normal mobs: how many of them live at its spot (0: unknown), and how many hostile mobs
+    /// come in each pull there (1: they stand alone).
+    pub spawns: u32,
+    pub pack: f64,
     /// Hostile mobs around where it is done.
     pub guard: Guard,
 }

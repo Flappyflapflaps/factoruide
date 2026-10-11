@@ -30,8 +30,9 @@ impl Combat<'_> {
 
     /// Power an objective requires: its quest's level (where its mobs live), and its mobs: their
     /// level, one less for a lone target (one or two kills: a named mob), `pack_extra` more for a
-    /// pack (three kills or more), two more for an elite, plus `elite_pull_levels` per extra
-    /// elite expected in each pull (a camp of elites). Exploring an area or escorting requires
+    /// pack (three kills or more) and `pull_levels` per extra mob coming in each pull at their
+    /// spot (mobs in pairs), two more for an elite, plus `elite_pull_levels` per extra elite
+    /// expected in each pull (a camp of elites). Exploring an area or escorting requires
     /// the quest's level; talking and delivering nothing.
     pub fn need(self, q: &Quest, o: &Objective) -> f64 {
         let guard = self.guard_need(&o.guard);
@@ -40,7 +41,12 @@ impl Combat<'_> {
         }
         let mut need = q.level as f64;
         if o.kills > 0.0 {
-            let mut mob = o.mob_level as f64 + if o.kills <= 2.0 { -1.0 } else { self.params.pack_extra() };
+            let mut mob = o.mob_level as f64
+                + if o.kills <= 2.0 {
+                    -1.0
+                } else {
+                    self.params.pack_extra() + self.params.pull_levels * (o.pack - 1.0).max(0.0)
+                };
             if o.elite {
                 mob += 2.0 + self.params.elite_pull_levels * (o.pull - 1.0).max(0.0);
             }

@@ -4,6 +4,14 @@ The notes of each version are the message of its tag (`scripts/release.sh`), sho
 
 ## Unreleased
 
+- Addon: the "Next" box becomes "To pick up": the next quests that can be taken now (their prerequisites done, the level reached), with their distance, 10 by default. Close quests can be taken in any order, the guide skips them once in the log. A left-click on a step points the arrow at it until it is done.
+- Addon: the quest tracker shows the next 10 quests of the log to do in the guide's order (setting "Quests shown"), instead of the quests with a step among the next 15.
+- Farm spots are measured: mobs standing in pairs or groups require more power (cautious: no longer taken on as lone mobs), and an objective asking for more kills than its spot has mobs counts the wait for respawns.
+- "Crowded server" becomes a slider (players on the server, from empty to launch): other players share the mobs of small spots, and escorts and events wait longer the busier it is: all of it up to level 10, then less as players spread out (90, 80, 60, then 50 % from level 40). Settings saved with the option on read as a launch.
+- Guides: before every level (not only at checkpoints), a step to catch up when more than 10% of a level behind the route, at the last place of the level where its mobs live: you no longer go into content made for a higher level.
+- Addon: a yellow mark on the XP bar shows the XP the guide plans at the current step, and its tooltip how far ahead or behind you are (a thin bar under the guide when the UI's XP bar is not found; "Guide mark on the XP bar" in the Addon tab).
+- Addon: grind steps (checkpoints, catching up, planned grinds) count the XP of the quests complete in your log that the guide turns in before the level they aim at: no grinding for XP the guide gets you there anyway (quests it turns in later do not count).
+- WoW Forever, Redridge: Tharil'zun and Shadow Magic need Alther's Mill and Blackrock Blockade too (Marshal Marris offered neither after Blackrock Menace alone), so a guide no longer abandons Blackrock Blockade before them.
 - Farming on the way has its own share of each level, apart from pure grinding (still 10%): 20% on Classic Era / Hardcore and TBC, 10% on Forever, which has more quests ("Maximum share of grinding on the way per level" in the advanced settings).
 
 ## 0.3.0 (2026-10-11)

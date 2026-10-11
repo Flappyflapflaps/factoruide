@@ -46,6 +46,27 @@ function Segmented<T>({ label, choices, value, onChange, help }: { label: string
   );
 }
 
+/** How crowded the server is, as words for the slider's ends and middle. */
+const CROWD_WORDS = ["Vide", "Calme", "Fréquenté", "Chargé", "Lancement"];
+
+/** A level from 0 to 1 with its explanation: a slider in steps of 5 %. */
+function Level({ label, help, value, words, onChange }: { label: string; help: string; value: number; words: string[]; onChange: (v: number) => void }) {
+  const t = useT();
+  const word = words[Math.min(words.length - 1, Math.round(value * (words.length - 1)))];
+  return (
+    <label className={`toggle level${value > 0 ? " on" : ""}`}>
+      <span className="level-value">{Math.round(value * 100)} %</span>
+      <span className="toggle-text">
+        <strong>
+          {label} · {t(word)}
+        </strong>
+        <input type="range" min={0} max={100} step={5} value={Math.round(value * 100)} onChange={(e) => onChange(Number(e.target.value) / 100)} />
+        <small>{help}</small>
+      </span>
+    </label>
+  );
+}
+
 /** An on/off option with its explanation. */
 function Toggle({ label, help, checked, onChange }: { label: string; help: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -302,10 +323,11 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
                 checked={params.farm_on_way}
                 onChange={(v) => set("farm_on_way", v)}
               />
-              <Toggle
-                label={t("Serveur blindé (lancement)")}
-                help={t("Les escortes, les événements et les mobs ou objets peu nombreux sont disputés : le guide compte l'attente et les évite quand d'autres quêtes rapportent plus.")}
-                checked={params.crowded}
+              <Level
+                label={t("Monde sur le serveur")}
+                help={t("D'autres joueurs farment les mêmes mobs et objets, et attendent leur tour pour les escortes et les événements : le guide compte l'attente aux petits spots et les évite quand d'autres quêtes rapportent plus.")}
+                value={params.crowded}
+                words={CROWD_WORDS}
                 onChange={(v) => set("crowded", v)}
               />
               <Toggle

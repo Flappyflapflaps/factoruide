@@ -845,6 +845,19 @@ button.big {
 .toggle.on {
   border-color: var(--accent);
 }
+.level-value {
+  min-width: 36px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.level input[type="range"] {
+  position: static;
+  opacity: 1;
+  pointer-events: auto;
+  width: 100%;
+  margin: 6px 0 2px;
+  accent-color: var(--accent);
+}
 .toggle input {
   position: absolute;
   opacity: 0;
