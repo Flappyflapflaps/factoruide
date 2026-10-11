@@ -2,22 +2,50 @@
 
 The notes of each version are the message of its tag (`scripts/release.sh`), shown in the app.
 
-## Unreleased
+## 0.4.0 (2026-10-11)
 
-- Dungeons: the quests done in a run are steps of their own, in the app and the addon ("<quest>: <objectives>", done as the quest progresses), after the run step, which the addon now marks done on entering the dungeon (guides computed before keep a single step, done once back out).
-- App: a guide's steps are in one table by zone (expand or collapse all, filter), with columns that no longer move, and on a wide window the map of the zone in view beside it (its steps numbered as in the table). The world maps have no tabs anymore: both continents while choosing zones and computing, the continents the guide goes to on its page. The setup is laid out again: the character on one row, play style / dungeons and elites / professions and group side by side, the zones over the whole width, the computing time next to "Generate"; professions are no longer repeated in the advanced settings.
-- Walking memory: the paths around mountains worked out while building routes are saved with each guide (and in the .fgguide files it is shared as) and kept by the app between generations, so they are not searched again: computing a guide again, or another one, builds its starting routes faster (13.5 s to 9.6 s for a 1-60 guide). A memory made on other terrain data is ignored.
-- App: a generation can be stopped or cancelled. "Stop and keep this guide" ends the optimization at once and saves the best guide found so far (shown once a first route exists); "Cancel" goes back to the setup, unchanged, without saving anything. The computing time chosen (10 s, 2 min, 6 min) no longer includes building the first routes, which fills the walking memory (paths around mountains) and takes about ten seconds on a 1-60 guide: it is shown as "Building the starting routes" and the optimization gets its whole time.
-- App: interface pass. Guide page: the route by zone shows dungeon runs on their own row and opens each zone's steps (drawn in yellow on the map), all steps grouped by zone with a color per step type, the route colored from start to end, close level badges merged ("+2"), the map on the guide's continent, readable calculation notes, XP sources as a bar, no more horizontal scrolling on narrow windows. Setup: numbered steps, settings changed from their default marked in the advanced view (reset at the top, export moved there), dungeon states shown as a legend, professions on several columns. Addon tab: save bar always visible with unsaved changes flagged, window size as a slider. Settings: "Browse…" for the WoW folder and unsupported game versions marked. Dates with the month in letters, numbers with the decimal separator of the app language.
-- Addon: the "Next" box becomes "To pick up": the next quests that can be taken now (their prerequisites done, the level reached), with their distance, 10 by default. Close quests can be taken in any order, the guide skips them once in the log. A left-click on a step points the arrow at it until it is done.
-- Addon: the quest tracker shows the next 10 quests of the log to do in the guide's order (setting "Quests shown"), instead of the quests with a step among the next 15.
+Stop or cancel a generation, a new guide page, dungeon quests step by step, a "To pick up" box and a guide mark on the XP bar.
+
+### Generation
+
+- A generation can be stopped or cancelled: "Stop and keep this guide" ends the optimization at once and saves the best guide found so far (once a first route exists); "Cancel" goes back to the setup, unchanged, without saving anything.
+- The computing time chosen (10 s, 2 min, 6 min) no longer includes building the starting routes (about ten seconds on a 1-60 guide): the optimization gets its whole time.
+- Walking memory: the paths around mountains worked out while building routes are kept by the app and saved with each guide (and in the .fgguide files it is shared as), so computing a guide again, or another one, does not search them again (starting routes of a 1-60 guide: 13.5 s to 9.6 s).
+
+### Guide page
+
+- Every step in one table by zone: expand or collapse all, filter, a color per step type, dungeon runs on their own row; on a wide window, the map of the zone in view beside it, its steps numbered as in the table.
+- The guide map shows only the continents the guide goes to, the route colored from start to end, close level badges merged ("+2"), the zone in view drawn on it.
+- Figures easier to read: XP sources as a bar, regular level ticks, calculation notes as a table of the quests left out, no more horizontal scrolling on narrow windows.
+
+### Setup and settings
+
+- The setup is laid out again: the character on one row, play style / dungeons and elites / professions and group side by side, the zones over the whole width (both continents), the computing time next to "Generate".
+- Advanced settings: those changed from their default are marked, "Reset everything to defaults" at the top; professions are no longer repeated there.
+- Addon tab: the save bar stays visible and flags unsaved changes; window size as a slider. Settings: "Browse…" for the World of Warcraft folder, unsupported game versions marked.
+- Dates with the month in letters, numbers with the decimal separator of the app language.
+
+### Dungeons
+
+- The quests done in a run are steps of their own, in the app and the addon ("<quest>: <objectives>", done as the quest progresses), after the run step, which the addon marks done on entering the dungeon (guides computed before keep a single step, done once back out).
+
+### Addon
+
+- The "Next" box becomes "To pick up": the next quests that can be taken now (their prerequisites done, the level reached), with their distance, 10 by default. Close quests can be taken in any order, the guide skips them once in the log. A left-click on a step points the arrow at it until it is done.
+- The quest tracker shows the next 10 quests of the log to do in the guide's order (setting "Quests shown"), instead of the quests with a step among the next 15.
+- A yellow mark on the XP bar shows the XP the guide plans at the current step, and its tooltip how far ahead or behind you are ("Guide mark on the XP bar" in the Addon tab).
+- Grind steps (checkpoints, catching up, planned grinds) count the XP of the quests complete in your log that the guide turns in before the level they aim at.
+
+### Guides
+
+- Before every level, a step to catch up when more than 10% of a level behind the route, at the last place of the level where its mobs live: you no longer go into content made for a higher level.
 - Farm spots are measured: mobs standing in pairs or groups require more power (cautious: no longer taken on as lone mobs), and an objective asking for more kills than its spot has mobs counts the wait for respawns.
-- "Crowded server" becomes a slider (players on the server, from empty to launch): other players share the mobs of small spots, and escorts and events wait longer the busier it is: all of it up to level 10, then less as players spread out (90, 80, 60, then 50 % from level 40). Settings saved with the option on read as a launch.
-- Guides: before every level (not only at checkpoints), a step to catch up when more than 10% of a level behind the route, at the last place of the level where its mobs live: you no longer go into content made for a higher level.
-- Addon: a yellow mark on the XP bar shows the XP the guide plans at the current step, and its tooltip how far ahead or behind you are (a thin bar under the guide when the UI's XP bar is not found; "Guide mark on the XP bar" in the Addon tab).
-- Addon: grind steps (checkpoints, catching up, planned grinds) count the XP of the quests complete in your log that the guide turns in before the level they aim at: no grinding for XP the guide gets you there anyway (quests it turns in later do not count).
-- WoW Forever, Redridge: Tharil'zun and Shadow Magic need Alther's Mill and Blackrock Blockade too (Marshal Marris offered neither after Blackrock Menace alone), so a guide no longer abandons Blackrock Blockade before them.
-- Farming on the way has its own share of each level, apart from pure grinding (still 10%): 20% on Classic Era / Hardcore and TBC, 10% on Forever, which has more quests ("Maximum share of grinding on the way per level" in the advanced settings).
+- "Crowded server" becomes a slider (players on the server, from empty to launch): other players share the mobs of small spots, and escorts and events wait longer the busier it is, less as players spread out with the levels. Settings saved with the option on read as a launch.
+- Farming on the way has its own share of each level, apart from pure grinding (still 10%): 20% on Classic Era / Hardcore and TBC, 10% on Forever ("Maximum share of grinding on the way per level" in the advanced settings).
+
+### Fixes
+
+- WoW Forever, Redridge: Tharil'zun and Shadow Magic need Alther's Mill and Blackrock Blockade too, so a guide no longer abandons Blackrock Blockade before them.
 
 ## 0.3.0 (2026-10-11)
 
