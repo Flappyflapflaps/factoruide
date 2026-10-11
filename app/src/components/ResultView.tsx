@@ -12,6 +12,8 @@ interface Props {
   onRerun: (version: GuideVersion) => void;
   /** Start a new configuration from this one. */
   onEdit: (version: GuideVersion) => void;
+  /** Edit the guide's steps by hand (a new version once saved). */
+  onEditSteps?: (version: GuideVersion) => void;
   /** Show another version of the guide. */
   onOpenVersion?: (n: number) => void;
   /** Options of the game version (race names and factions), when loaded. */
@@ -19,14 +21,14 @@ interface Props {
 }
 
 /** Time difference as "identique", "−3 min" (faster) or "+1h02" (slower). */
-function Delta({ seconds }: { seconds: number }) {
+export function Delta({ seconds }: { seconds: number }) {
   const t = useT();
   if (Math.abs(seconds) < 60) return <span>{t("identique")}</span>;
   return <span className={seconds < 0 ? "better" : "worse"}>{seconds < 0 ? fmtGain(-seconds) : `+${fmtTime(seconds)}`}</span>;
 }
 
 /** A guide version: its figures, its versions, its map and steps, and what to do with it. */
-export function ResultView({ version, onRerun, onEdit, onOpenVersion, options }: Props) {
+export function ResultView({ version, onRerun, onEdit, onEditSteps, onOpenVersion, options }: Props) {
   const t = useT();
   const date = useDate();
   const { meta, outcome } = version;
@@ -76,6 +78,7 @@ export function ResultView({ version, onRerun, onEdit, onOpenVersion, options }:
             <Character race={version.request.race} klass={version.request.class} group={version.request.group} options={options} /> ·{" "}
             <span title={meta.data ? t("Données : {data}", { data: meta.data }) : undefined}>{t("Calculé le {date}", { date: date(meta.created) })}</span>
             {meta.imported && <> · {t("importé")}</>}
+            {meta.edited && <> · {t("modifié à la main")}</>}
             {meta.character && <> · {t("depuis {name}", { name: meta.character })}</>}
           </div>
         </div>
@@ -92,6 +95,11 @@ export function ResultView({ version, onRerun, onEdit, onOpenVersion, options }:
           {t("Relancer le calcul")}
         </button>
         <button onClick={() => onEdit(version)}>{t("Modifier la configuration")}</button>
+        {onEditSteps && (
+          <button onClick={() => onEditSteps(version)} title={t("Déplacer, supprimer ou ajouter des étapes ; le guide est rejoué à chaque modification")}>
+            {t("Modifier les étapes")}
+          </button>
+        )}
         <button
           onClick={() => act(async () => t("Fichier à partager enregistré : {path}", { path: await api.exportVersion(meta.guide, meta.version) }))}
           title={t("Enregistre un fichier .fgguide (configuration et guide) à envoyer aux autres joueurs")}
@@ -121,6 +129,7 @@ export function ResultView({ version, onRerun, onEdit, onOpenVersion, options }:
                       )}
                       {guide?.installed === v.version && <span className="tag installed">{t("installée")}</span>}
                       {v.imported && <span className="tag">{t("importé")}</span>}
+                      {v.edited && <span className="tag">{t("modifiée")}</span>}
                     </td>
                     <td>{date(v.created)}</td>
                     <td>{v.total_time_text}</td>

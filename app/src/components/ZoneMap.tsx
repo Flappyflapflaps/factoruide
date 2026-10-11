@@ -72,11 +72,12 @@ export function ZoneMap({ title, steps, active, onActive }: Props) {
         {image?.id === mapId && <img src={image.src} alt="" />}
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" onMouseLeave={() => onActive(null)}>
           <polyline className="zone-map-path" points={here.map((s) => at(s).join(",")).join(" ")} strokeWidth={r / 3} />
-          {here.map((s) => {
+          {here.map((s, k) => {
             const [x, y] = at(s);
             const on = s.n === active;
             return (
-              <g key={s.n} className={`zone-dot kind-${s.kind}${on ? " active" : ""}`} onMouseEnter={() => onActive(s.n)}>
+              // A step may have several dots (the guide editor's: the lines of a step).
+              <g key={k} className={`zone-dot kind-${s.kind}${on ? " active" : ""}`} onMouseEnter={() => onActive(s.n)}>
                 <title>{`${s.n}. ${s.text}`}</title>
                 <circle cx={x} cy={y} r={on ? r * 1.6 : r} strokeWidth={r / 4} />
                 {(numbered || on) && (

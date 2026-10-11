@@ -48,6 +48,10 @@ pub struct PlanOutcome {
     /// shared with the guide, so that computing it again, or other guides, do not search them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub walks: Option<crate::terrain::WalkMemory>,
+    /// The route the guide was written from, as steps the guide editor changes (empty in guides
+    /// computed before the editor).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub plan: Vec<super::RouteStep>,
 }
 
 impl PlanOutcome {

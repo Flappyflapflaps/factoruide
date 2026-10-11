@@ -2,7 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use fg_route::Route;
-use fg_route::job::{self, Options, Overrides, PlanOutcome, PlanRequest, StartState};
+use fg_route::job::{
+    self, EditCatalog, EditReport, Options, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState,
+};
 use fg_route::model::Names;
 use fg_route::terrain::{WalkMemory, Walks};
 use fg_route::xp::Edition;
@@ -91,6 +93,8 @@ struct AppState {
     /// Walking memory of each edition (paths around the terrain already searched), kept between
     /// generations: filled at the first one with the memories saved with the guides.
     walks: Mutex<HashMap<Edition, Arc<Walks>>>,
+    /// The guide version open in the editor.
+    editor: Mutex<Option<EditSession>>,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -368,6 +372,9 @@ struct VersionMeta {
     /// Received from someone else (imported from a .fgguide file).
     #[serde(default)]
     imported: bool,
+    /// Edited by hand (from the version before it).
+    #[serde(default)]
+    edited: bool,
     /// The character met in game the guide starts from ("Name-Realm").
     #[serde(default)]
     character: Option<String>,
@@ -474,7 +481,7 @@ impl AppState {
         request: &PlanRequest,
         outcome: &PlanOutcome,
         data: Option<String>,
-        imported: bool,
+        (imported, edited): (bool, bool),
         created: u64,
     ) -> CmdResult<VersionMeta> {
         let route = &outcome.route;
@@ -506,6 +513,7 @@ impl AppState {
             quests: route.quests,
             data,
             imported,
+            edited,
             character: request.start.as_ref().map(|s| s.name.clone()),
         };
         let folder = self.guides().join(&id).join(format!("v{version}"));
@@ -571,7 +579,13 @@ fn migrate_results(state: &AppState) {
         .collect();
     found.sort_by_key(|(m, _, _)| m.created);
     for (meta, request, outcome) in &found {
-        let _ = state.add_version(request, outcome, meta.data.clone(), meta.imported, meta.created);
+        let _ = state.add_version(
+            request,
+            outcome,
+            meta.data.clone(),
+            (meta.imported, false),
+            meta.created,
+        );
     }
     let _ = std::fs::rename(&old, state.data_dir.join("results.old"));
 }
@@ -608,16 +622,114 @@ async fn plan_route(app: AppHandle, request: PlanRequest) -> CmdResult<VersionMe
                 err(e)
             }
         })?;
-        let data = conn
-            .query_row("SELECT detail FROM import_run WHERE source = 'questie'", [], |r| {
-                r.get::<_, Option<String>>(0)
-            })
-            .ok()
-            .flatten();
-        state.add_version(&request, &outcome, data, false, now()?)
+        state.add_version(&request, &outcome, data_version(&conn), (false, false), now()?)
     })
     .await
     .map_err(err)?
+}
+
+/// Version of the quest data imported in a database.
+fn data_version(conn: &Connection) -> Option<String> {
+    conn.query_row("SELECT detail FROM import_run WHERE source = 'questie'", [], |r| {
+        r.get::<_, Option<String>>(0)
+    })
+    .ok()
+    .flatten()
+}
+
+// Guide editor -----------------------------------------------------------------------
+//
+// A version opened in the editor is loaded once (character, settings, world); each change of
+// its steps is replayed (`edit_simulate`), nothing is written until `edit_save` adds the edited
+// guide as a new version.
+
+struct EditSession {
+    edition: Edition,
+    request: PlanRequest,
+    notes: Vec<String>,
+    editor: job::Editor,
+}
+
+/// A version opened in the editor.
+#[derive(Serialize)]
+struct EditOpened {
+    steps: Vec<RouteStep>,
+    /// Steps read back from the guide (computed before the editor): its time may differ a little.
+    rebuilt: bool,
+    report: EditReport,
+    catalog: EditCatalog,
+}
+
+/// Open a version in the editor (`locale`: language of the lines and names shown).
+#[tauri::command]
+async fn edit_open(app: AppHandle, guide: String, version: u32, locale: String) -> CmdResult<EditOpened> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let v = state.version(&guide, version)?;
+        let edition = v.request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
+        let conn = open_db(&state.db_path(edition)?)?;
+        let walks = state.walks(edition);
+        let editor = job::Editor::open(&conn, &overrides(edition)?, &v.request, Some(&walks)).map_err(err)?;
+        let names = state.names(&locale)?;
+        let (steps, rebuilt) = editor.steps(&v.outcome);
+        let opened = EditOpened {
+            report: editor.simulate(&steps, &names),
+            catalog: editor.catalog(&names),
+            steps,
+            rebuilt,
+        };
+        *state.editor.lock().unwrap() = Some(EditSession {
+            edition,
+            request: v.request,
+            notes: v.outcome.notes,
+            editor,
+        });
+        Ok(opened)
+    })
+    .await
+    .map_err(err)?
+}
+
+/// Replay the steps of the guide open in the editor.
+#[tauri::command]
+async fn edit_simulate(app: AppHandle, steps: Vec<RouteStep>, locale: String) -> CmdResult<EditReport> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let names = state.names(&locale)?;
+        let session = state.editor.lock().unwrap();
+        let session = session.as_ref().ok_or("no guide open in the editor")?;
+        Ok(session.editor.simulate(&steps, &names))
+    })
+    .await
+    .map_err(err)?
+}
+
+/// Save the edited steps as a new version of the guide (refused while a step is not possible)
+/// and close the editor.
+#[tauri::command]
+async fn edit_save(app: AppHandle, steps: Vec<RouteStep>) -> CmdResult<VersionMeta> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let mut session = state.editor.lock().unwrap();
+        let open = session.as_ref().ok_or("no guide open in the editor")?;
+        let outcome = open.editor.save(&steps, open.notes.clone()).map_err(err)?;
+        let data = data_version(&open_db(&state.db_path(open.edition)?)?);
+        let meta = state.add_version(&open.request, &outcome, data, (false, true), now()?)?;
+        *session = None;
+        Ok(meta)
+    })
+    .await
+    .map_err(err)?
+}
+
+/// Leave the editor without saving.
+#[tauri::command]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn edit_close(state: State<'_, AppState>) {
+    *state.editor.lock().unwrap() = None;
 }
 
 /// End the optimization under way now: `plan_route` saves and returns the best guide so far.
@@ -870,7 +982,7 @@ fn import_guide(state: State<'_, AppState>, content: String) -> CmdResult<Versio
     if let (Some(memory), Some(walks)) = (&shared.outcome.walks, state.walks.lock().unwrap().get(&state.edition())) {
         walks.add(memory.clone());
     }
-    state.add_version(&shared.request, &shared.outcome, data, true, now()?)
+    state.add_version(&shared.request, &shared.outcome, data, (true, false), now()?)
 }
 
 // Characters -------------------------------------------------------------------------
@@ -1039,6 +1151,7 @@ fn main() {
                 data_dir,
                 plan_interrupt: job::Interrupt::default(),
                 walks: Mutex::new(HashMap::default()),
+                editor: Mutex::new(None),
             });
             migrate_guides(&app.state::<AppState>().data_dir);
             migrate_results(&app.state::<AppState>());
@@ -1070,6 +1183,10 @@ fn main() {
             map_index,
             map_image,
             list_characters,
+            edit_open,
+            edit_simulate,
+            edit_save,
+            edit_close,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Factoruide");

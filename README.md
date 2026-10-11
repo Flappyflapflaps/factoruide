@@ -60,6 +60,9 @@ zones to do, the level to reach before moving on from each, and where the XP is.
   one, and you choose the version installed in the addon.
 - The guides learn from the game: the XP and positions the addon records replace the estimates,
   and players can share theirs ("Contribute" page) to improve the quest database for everyone.
+- Rework a guide by hand: move, remove or add steps (a quest, the hearthstone, a flight, mobs to
+  kill), the guide replayed after each change with its new time and the steps that are no longer
+  possible; saved as a new version once every step holds.
 - Share a guide with a friend as a `.fgguide` file; they import it in their app.
 
 ## Getting started

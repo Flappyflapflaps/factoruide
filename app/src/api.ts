@@ -331,6 +331,14 @@ export const api = {
   contributionPreview: () => invoke<ContributionPreview>("contribution_preview"),
   /** Sends the contribution: "accepted" or "duplicate" (rejects with "rate_limited" or the server's message). */
   sendContribution: () => invoke<string>("send_contribution"),
+  /** Opens a version in the guide editor (`locale`: language of the lines and names shown). */
+  editOpen: (guide: string, version: number, locale: string) => invoke<EditOpened>("edit_open", { guide, version, locale }),
+  /** Replays the steps of the guide open in the editor. */
+  editSimulate: (steps: RouteStep[], locale: string) => invoke<EditReport>("edit_simulate", { steps, locale }),
+  /** Saves the edited steps as a new version (rejected while a step is not possible) and closes the editor. */
+  editSave: (steps: RouteStep[]) => invoke<VersionMeta>("edit_save", { steps }),
+  /** Leaves the editor without saving. */
+  editClose: () => invoke<void>("edit_close"),
   onPlanProgress: (fn: (m: string) => void): Promise<UnlistenFn> =>
     listen<string>("plan-progress", (e) => fn(e.payload)),
 };
@@ -361,6 +369,8 @@ export interface VersionMeta {
   data: string | null;
   /** Received from someone else (.fgguide file). */
   imported?: boolean;
+  /** Edited by hand. */
+  edited?: boolean;
   /** The character met in game the guide starts from ("Name-Realm"). */
   character?: string | null;
 }
@@ -410,4 +420,83 @@ export interface ContributionPreview {
   size: number;
   url: string | null;
   last_sent: number | null;
+}
+
+/** A step of a guide's route by game IDs, what the guide editor changes; mirror of `fg_route::job::RouteStep`. */
+export type RouteStep =
+  | { kind: "accept"; quest: number }
+  /** `farm`: kill every normal mob met on the way to it (beyond the farming cap). */
+  | { kind: "objective"; quest: number; objective: number; farm?: boolean }
+  | { kind: "turn_in"; quest: number }
+  /** Learn a flight path (taxi node ID). */
+  | { kind: "flight_master"; node: number }
+  /** Bind the hearthstone (innkeeper ID). */
+  | { kind: "bind"; inn: number }
+  | { kind: "hearth"; recall?: boolean }
+  | { kind: "fly"; from: number; to: number }
+  | { kind: "dungeon"; dungeon: number }
+  /** Kill mobs of the character's level where it stands. */
+  | { kind: "grind"; mobs: number };
+
+/** Mobs killed on the way to a step. */
+export interface Farmed {
+  kills: number;
+  xp: number;
+  seconds: number;
+}
+
+/** What a step of an edited guide did. */
+export interface StepReport {
+  /** done, skipped (nothing to do there) or error (not possible). */
+  status: "done" | "skipped" | "error";
+  /** Why (English, see the editor's REASONS). */
+  reason?: string;
+  start: number;
+  end: number;
+  /** Level after it, and the XP it gave. */
+  level: number;
+  xp: number;
+  /** Lines of the guide it writes; `main`: its own. */
+  lines: { kind: string; text: string; zone?: string; bg?: boolean; map?: { ui_map: number; x: number; y: number } }[];
+  main?: number;
+  farm?: Farmed;
+  /** An objective without `farm`: what killing every mob on the way would give. */
+  farm_all?: Farmed;
+}
+
+/** An edited guide as replayed. */
+export interface EditReport {
+  total_time: number;
+  total_time_text: string;
+  breakdown: Breakdown;
+  steps: StepReport[];
+  errors: number;
+  /** Grinding added at the end to reach the target level (seconds). */
+  final_grind: number;
+  /** Quests taken but never turned in. */
+  unfinished: { id: number; name: string }[];
+}
+
+export interface CatalogPlace {
+  id: number;
+  name: string;
+  zone: string;
+}
+
+/** What can be added to an edited guide. */
+export interface EditCatalog {
+  quests: { id: number; name: string; level: number; min_level: number; zone: string; objectives: string[] }[];
+  inns: CatalogPlace[];
+  nodes: CatalogPlace[];
+  dungeons: { id: number; name: string; min_level: number; max_level: number }[];
+  /** The character learns Astral Recall. */
+  recall: boolean;
+}
+
+export interface EditOpened {
+  steps: RouteStep[];
+  /** Read back from the guide's steps (computed before the editor): the time may differ a little. */
+  rebuilt: boolean;
+  report: EditReport;
+  catalog: EditCatalog;
 }

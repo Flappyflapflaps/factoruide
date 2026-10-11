@@ -188,4 +188,31 @@ impl<'g> Growth<'g> {
         s.spent.grinding += t;
         t
     }
+
+    /// Kill `mobs` mobs of the character's level where it stands, returning the time spent
+    /// (counted as grinding, beyond `grind_cap` in `grind_over`).
+    pub(crate) fn grind_mobs(self, s: &mut State, mobs: u32) -> f64 {
+        let combat = Combat {
+            params: self.params,
+            dungeons: &self.model.dungeons,
+        };
+        let content = xp::content_at(s.pos.continent, s.pos.zone);
+        let mut t = 0.0;
+        for _ in 0..mobs {
+            if s.level >= self.rules().max_level {
+                break;
+            }
+            let each = (self.rules().mob_xp(s.level, s.level, content) * self.params.group_xp_share()) as i64;
+            let time = each as f64 / combat.grind_rate(s.level, s.bonus, &s.pos);
+            if self.grind_budget(s) <= 0 {
+                s.spent.grind_over += time;
+            }
+            t += time;
+            s.grind_used += each;
+            s.spent.grind_xp += self.gain_kills(s, each);
+        }
+        s.time += t;
+        s.spent.grinding += t;
+        t
+    }
 }

@@ -338,6 +338,20 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "grind.mobs",
+        [
+            "Kill {mobs} mobs around (~{minutes} min)",
+            "Tuer {mobs} mobs dans le coin (~{minutes} min)",
+            "{mobs} Mobs in der Umgebung töten (~{minutes} Min.)",
+            "Matar {mobs} monstruos por la zona (~{minutes} min)",
+            "Matar {mobs} monstros na área (~{minutes} min)",
+            "Убить {mobs} мобов поблизости (~{minutes} мин)",
+            "주변 몹 {mobs}마리 처치 (~{minutes}분)",
+            "击杀附近的{mobs}只怪物（约{minutes}分钟）",
+            "擊殺附近的{mobs}隻怪物（約{minutes}分鐘）",
+        ],
+    ),
+    (
         "checkpoint",
         [
             "Checkpoint: be level {level} before going on (grind if needed)",

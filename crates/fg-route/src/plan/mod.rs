@@ -25,6 +25,7 @@ mod alns;
 mod availability;
 mod combat;
 mod construct;
+mod edit;
 mod evaluate;
 mod follow;
 mod growth;
@@ -43,6 +44,7 @@ mod worth;
 
 pub use alns::ALNS_OPS;
 pub use combat::Combat;
+pub use edit::{Edit, Edited, EditedStep, Farmed, Outcome};
 pub use follow::{Followed, Want};
 pub(crate) use on_the_way::segment_dist;
 pub use places::Places;
@@ -57,7 +59,7 @@ use availability::{Availability, blocks, followers};
 use growth::Growth;
 use on_the_way::FarmWalks;
 use state::{Planned, State};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 use step::{CampIndex, camp_index};
@@ -81,6 +83,8 @@ pub struct Planner<'a> {
     flights: RefCell<HashMap<u128, Rc<FlightTable>>>,
     /// Mobs farmed on each walk, by level (see `on_the_way::farm_along`).
     farm_walks: FarmWalks,
+    /// The next walk kills every normal mob met, beyond `farm_cap` (a step of an edited route).
+    farm_all: Cell<bool>,
     mode: Mode,
     /// Quest givers and turn-in NPCs by cell of `camp_radius` (continent, x, y): (quest,
     /// index in its starts or ends, giver?).
@@ -114,6 +118,7 @@ impl<'a> Planner<'a> {
             profile,
             flights: RefCell::new(HashMap::new()),
             farm_walks: RefCell::new(HashMap::new()),
+            farm_all: Cell::new(false),
             mode: Mode::Plan,
             camp: camp_index(model, params.camp_radius),
             blocks,

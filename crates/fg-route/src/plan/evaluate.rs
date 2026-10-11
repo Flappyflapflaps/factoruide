@@ -272,9 +272,12 @@ impl Planner<'_> {
             Kind::Accept => "dungeon quest (dungeons off)",
             Kind::Objective(_) | Kind::TurnIn if !s.accepted[i] => "quest not accepted",
             Kind::Objective(_) | Kind::TurnIn if s.turned[i] => "already turned in",
-            Kind::Objective(_) => "objective already done or in a dungeon",
-            Kind::TurnIn => "objectives not done (dungeon)",
-            _ => "not possible",
+            Kind::Objective(_) => "objective done in a dungeon run",
+            Kind::TurnIn => "objectives not done",
+            Kind::LearnFlight => "flight path already known",
+            Kind::Bind => "hearthstone already bound there",
+            Kind::Hearth => "no such spell",
+            Kind::Dungeon => "dungeon already run or left out",
         }
     }
 }

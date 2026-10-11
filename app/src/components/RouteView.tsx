@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { fmtTime, type Route, type Step } from "../api";
 import { BreakdownBars } from "./BreakdownBars";
 import { LevelChart } from "./LevelChart";
@@ -45,7 +45,18 @@ const SKIP_REASONS: Record<string, string> = {
   "started by a rare drop": "commence par un objet rare",
 };
 
-interface Segment {
+/** What cutting steps into segments needs of a step. */
+export interface SegmentStep {
+  kind: string;
+  zone?: string;
+  target?: { name: string };
+  inside?: boolean;
+  /** Time and level once it is done. */
+  time: number;
+  level: number;
+}
+
+export interface Segment {
   /** Zone, or dungeon name; null: steps done before any place (abandoning quests). */
   zone: string | null;
   dungeon: boolean;
@@ -58,13 +69,13 @@ interface Segment {
   last: number;
 }
 
-const steps = (s: Segment) => s.last - s.first + 1;
+export const steps = (s: Segment) => s.last - s.first + 1;
 
 /** Consecutive steps in the same zone; a dungeon run is a segment of its own. */
-function segments(route: Route): Segment[] {
+export function segments(list: SegmentStep[]): Segment[] {
   const out: Segment[] = [];
   let previousTime = 0;
-  route.steps.forEach((s, i) => {
+  list.forEach((s, i) => {
     const last = out[out.length - 1];
     // The quests done inside a dungeon belong to its run.
     if (s.inside && last?.dungeon) {
@@ -184,8 +195,26 @@ function XpTile({ route }: { route: Route }) {
   );
 }
 
+/**
+ * Before closing a zone from its line stuck at the top (its steps scrolled under it): once
+ * closed, its line is brought back at the top instead of leaving the view further down.
+ */
+export function keepZoneInView(row: HTMLElement) {
+  const scroller = scrollParent(row);
+  const sticky = parseFloat(getComputedStyle(row).scrollMarginTop) || 0;
+  const top = (scroller?.getBoundingClientRect().top ?? 0) + sticky;
+  if (row.getBoundingClientRect().top <= top + 1) requestAnimationFrame(() => row.scrollIntoView({ block: "start" }));
+}
+
+/** After closing every zone: back to the top of the table when it is above the view. */
+export function keepTableInView(table: HTMLElement | null) {
+  if (!table) return;
+  const scroller = scrollParent(table);
+  if (table.getBoundingClientRect().top < (scroller?.getBoundingClientRect().top ?? 0)) requestAnimationFrame(() => table.scrollIntoView({ block: "start" }));
+}
+
 /** The element that scrolls `el` (the app's content area). */
-function scrollParent(el: HTMLElement): HTMLElement | null {
+export function scrollParent(el: HTMLElement): HTMLElement | null {
   for (let p = el.parentElement; p; p = p.parentElement) {
     if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;
   }
@@ -214,7 +243,7 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
   // Wide enough: the zone map beside the table.
   const wide = width >= 1150;
   const b = route.breakdown;
-  const segs = useMemo(() => segments(route), [route]);
+  const segs = useMemo(() => segments(route.steps), [route]);
   const kindLabel = (s: Step) => t(KIND_LABELS[s.kind] ?? s.kind);
   const numbered = (i: number): NumberedStep => ({ ...route.steps[i], n: i + 1 });
   const stepsOf = (s: Segment) => Array.from({ length: steps(s) }, (_, k) => s.first + k);
@@ -238,36 +267,7 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, segs, route]);
   // Beside the table, the map follows the scroll: the zone of the first opened step in view.
-  useEffect(() => {
-    const el = table.current;
-    if (!wide || !el) return;
-    const scroller = scrollParent(el);
-    let frameId = 0;
-    const update = () => {
-      frameId = 0;
-      const lines = el.querySelectorAll<HTMLTableRowElement>("tr.sub-row");
-      if (!lines.length) return;
-      const top = (scroller?.getBoundingClientRect().top ?? 0) + 40;
-      // Rows are in order: the first one ending below the top of the view.
-      let lo = 0;
-      let hi = lines.length - 1;
-      while (lo < hi) {
-        const mid = (lo + hi) >> 1;
-        if (lines[mid].getBoundingClientRect().bottom > top) hi = mid;
-        else lo = mid + 1;
-      }
-      setFocus(Number(lines[lo].dataset.seg));
-    };
-    const onScroll = () => {
-      if (!frameId) frameId = requestAnimationFrame(update);
-    };
-    update();
-    scroller?.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      scroller?.removeEventListener("scroll", onScroll);
-      cancelAnimationFrame(frameId);
-    };
-  }, [wide, open, q]);
+  useFollowScroll(table, wide, "tr.sub-row", setFocus, [open, q]);
   const show = (i: number | null) => setFocus(i);
   const toggle = (i: number) => {
     const next = new Set(open);
@@ -330,6 +330,7 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
           onClick={() => {
             setOpen(new Set());
             show(null);
+            keepTableInView(table.current);
           }}
           disabled={!!q}
         >
@@ -359,7 +360,15 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
           <tbody>
             {rows.map(({ s, i, shown }) => (
               <Fragment key={i}>
-                <tr className={`clickable zone-line${focus === i ? " selected" : ""}`} onClick={() => !q && toggle(i)} aria-expanded={isOpen(i)}>
+                <tr
+                  className={`clickable zone-line${focus === i ? " selected" : ""}`}
+                  onClick={(e) => {
+                    if (q) return;
+                    if (isOpen(i)) keepZoneInView(e.currentTarget);
+                    toggle(i);
+                  }}
+                  aria-expanded={isOpen(i)}
+                >
                   <td className="num">{fmtTime(s.start)}</td>
                   <td className="num">{duration(s.end - s.start)}</td>
                   <td>{s.fromLevel === s.toLevel ? s.fromLevel : `${s.fromLevel} → ${s.toLevel}`}</td>
@@ -411,4 +420,48 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
       </div>
     </div>
   );
+}
+
+/**
+ * Beside a table of steps grouped in segments, the segment whose first opened row (`rows`, with
+ * `data-seg`) is at the top of the view: `onFocus` follows the scroll (only when `active`).
+ */
+export function useFollowScroll(
+  table: RefObject<HTMLTableElement | null>,
+  active: boolean,
+  rows: string,
+  onFocus: (segment: number) => void,
+  deps: unknown[],
+) {
+  useEffect(() => {
+    const el = table.current;
+    if (!active || !el) return;
+    const scroller = scrollParent(el);
+    let frameId = 0;
+    const update = () => {
+      frameId = 0;
+      const lines = el.querySelectorAll<HTMLTableRowElement>(rows);
+      if (!lines.length) return;
+      const top = (scroller?.getBoundingClientRect().top ?? 0) + 40;
+      // Rows are in order: the first one ending below the top of the view.
+      let lo = 0;
+      let hi = lines.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (lines[mid].getBoundingClientRect().bottom > top) hi = mid;
+        else lo = mid + 1;
+      }
+      onFocus(Number(lines[lo].dataset.seg));
+    };
+    const onScroll = () => {
+      if (!frameId) frameId = requestAnimationFrame(update);
+    };
+    update();
+    scroller?.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      scroller?.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(frameId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, rows, ...deps]);
 }

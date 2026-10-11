@@ -2,6 +2,7 @@
 //! app.
 
 mod character;
+mod edit;
 mod notes;
 mod options;
 mod overrides;
@@ -10,6 +11,9 @@ mod request;
 mod routes;
 mod start;
 
+pub use edit::{
+    CatalogDungeon, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef, RouteStep, StepReport,
+};
 pub use options::{NamedId, Options, RaceOption, ZoneOption, options, race_classes};
 pub use overrides::{Overrides, RaceDef};
 pub use race::{optimize, optimize_interruptible};
@@ -125,6 +129,7 @@ pub fn plan_interruptible(
         route.name, route.from_level, route.to_level, route.total_time_text, route.quests
     ));
     Ok(PlanOutcome {
+        plan: edit::route_steps(&planner, &best),
         route,
         notes: prepared.notes,
         walks: walks.map(|_| prepared.world.terrain.memory()),

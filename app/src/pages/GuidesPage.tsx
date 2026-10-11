@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type GuideSummary, type GuideVersion, type Options, type VersionMeta } from "../api";
 import { Character } from "../components/Character";
+import { GuideEditor } from "../components/GuideEditor";
 import { ResultView } from "../components/ResultView";
 import { gameLocale, useDate, useGameName, useLang, useT } from "../i18n";
 
@@ -25,6 +26,8 @@ export function GuidesPage({ options, onRerun, onEdit }: Props) {
   // Column sorted by (none: the saved order), ascending or not.
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean } | null>(null);
   const [open, setOpen] = useState<GuideVersion | null>(null);
+  // The version open in the guide editor.
+  const [editing, setEditing] = useState<GuideVersion | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -79,6 +82,20 @@ export function GuidesPage({ options, onRerun, onEdit }: Props) {
     </th>
   );
 
+  if (editing) {
+    return (
+      <GuideEditor
+        version={editing}
+        onClose={() => setEditing(null)}
+        onSaved={(meta) => {
+          setEditing(null);
+          setMessage(t("Guide modifié enregistré : version {n}", { n: meta.version }));
+          openVersion(meta.guide, meta.version);
+        }}
+      />
+    );
+  }
+
   if (open) {
     return (
       <div>
@@ -86,17 +103,20 @@ export function GuidesPage({ options, onRerun, onEdit }: Props) {
           className="link"
           onClick={() => {
             setOpen(null);
+            setMessage(null);
             load();
           }}
         >
           {t("← Tous les guides")}
         </button>
+        {message && <div className="success">{message}</div>}
         <ResultView
           key={`${open.meta.guide}-${open.meta.version}`}
           version={open}
           options={options}
           onRerun={onRerun}
           onEdit={onEdit}
+          onEditSteps={setEditing}
           onOpenVersion={(n) => openVersion(open.meta.guide, n)}
         />
       </div>

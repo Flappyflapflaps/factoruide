@@ -281,7 +281,7 @@ impl Planner<'_> {
     }
 
     /// Done on the way, or taken/turned in on the spot at an earlier stop.
-    fn already_done(s: &State, stop: Stop) -> bool {
+    pub(crate) fn already_done(s: &State, stop: Stop) -> bool {
         let i = stop.index as usize;
         match stop.kind {
             Kind::Objective(k) => s.objectives[i] & (1 << k) != 0,

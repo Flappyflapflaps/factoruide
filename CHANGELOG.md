@@ -2,6 +2,12 @@
 
 The notes of each version are the message of its tag (`scripts/release.sh`), shown in the app.
 
+## Unreleased
+
+- Guide editor: "Edit the steps" on a guide's page opens its steps as a draft. Steps move (drag and drop, up and down, or cut and place), are removed, or are added: a quest to take (searchable list), to do or to turn in, the hearthstone bound at an inn or used (Astral Recall too), a flight between two flight paths, a flight path to learn, a dungeon run, a number of mobs to kill where the character stands. After each change the guide is replayed as the optimizer counts it: its play time and the difference with the version edited, each step's time, level and XP, what it does on the way (trips, quests taken at hand, training), and the steps that are not possible with the reason (quest not taken yet, prerequisite missing, flight path not known…). A guide with an impossible step cannot be saved; one left incomplete (a quest taken and never turned in, a final grind to reach the target level) can, with a warning. "Save" adds the edited guide as a new version.
+- Guide editor: a "do the quest" step can kill every normal mob met on the way to it, beyond the share of farming each level allows, with the mobs, XP and time it would bring shown before checking it.
+- Guides now keep the route they were written from, so that editing them replays it exactly; guides computed before read their route back from their steps (their time may then differ a little).
+
 ## 0.5.0 (2026-10-11)
 
 The hearthstone used where it saves the most, mage teleports and Astral Recall, objectives done at their best place, timed quests in time, and an addon without blocked-action popups.

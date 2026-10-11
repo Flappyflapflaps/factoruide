@@ -501,7 +501,7 @@ const ZONE_LOOKAHEAD: usize = 3;
 
 impl Planner<'_> {
     /// Total XP earned since level 1, to measure gains across level-ups.
-    fn total_xp(&self, s: &State) -> f64 {
+    pub(super) fn total_xp(&self, s: &State) -> f64 {
         (1..s.level).map(|l| self.rules().to_next_level(l) as f64).sum::<f64>() + s.xp as f64
     }
 

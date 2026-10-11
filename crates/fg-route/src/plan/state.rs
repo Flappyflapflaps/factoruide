@@ -92,6 +92,13 @@ pub enum Event {
         near: Pos,
         zone: i64,
     },
+    /// Mobs of the character's level killed where it stands (a step of an edited route).
+    GrindMobs {
+        mobs: u32,
+        seconds: f64,
+        near: Pos,
+        zone: i64,
+    },
     /// Died on purpose, respawned at the spirit healer near `pos`.
     DeathSkip {
         pos: Pos,

@@ -55,6 +55,12 @@ impl StepWriter<'_> {
                 near,
                 zone,
             } => self.grind(&mut step, *to_level, *seconds, near, *zone),
+            Event::GrindMobs {
+                mobs,
+                seconds,
+                near,
+                zone,
+            } => self.grind_mobs(&mut step, t, *mobs, *seconds, near, *zone),
             Event::DeathSkip { pos, zone } => self.death_skip(&mut step, pos, *zone),
             Event::Hearth { inn, recall } => self.hearth(&mut step, *inn, *recall),
             Event::Teleport { to } => self.teleport(&mut step, *to),
@@ -363,6 +369,19 @@ impl StepWriter<'_> {
             Phrase::new("grind")
                 .arg("level", num(to_level))
                 .arg("minutes", num(minutes)),
+        );
+        self.place(near, Some(zone))
+    }
+
+    /// Mobs to kill where the character stands (a step added by hand): it then has the XP of
+    /// the route there (`xp`, so that the step stays where it is).
+    fn grind_mobs(&self, step: &mut Step, t: &Timed, mobs: u32, seconds: f64, near: &Pos, zone: i64) -> Place {
+        step.kind = StepKind::Grind;
+        step.xp = (t.xp > 0).then_some(t.xp);
+        step.say.push(
+            Phrase::new("grind.mobs")
+                .arg("mobs", num(i64::from(mobs)))
+                .arg("minutes", num((seconds / 60.0).ceil() as i64)),
         );
         self.place(near, Some(zone))
     }

@@ -183,6 +183,15 @@ ten game languages (`templates.rs`), with the names of the database's translatio
 one is missing): the app in its own language, the addon in the one chosen on its page (each guide
 computed once). Objectives in English keep the game's own text.
 
+A guide keeps the route it was written from (`PlanOutcome::plan`: its stops by game IDs). The
+**guide editor** (`job/edit.rs`, `plan/edit.rs`) changes that list by hand: stops moved, removed or
+added, plus steps the optimizer never makes (a flight between two flight paths, a number of mobs to
+kill where the character stands, every mob on the way to an objective). `Planner::edit` replays it
+like `simulate_full`, the same route giving the same time, but checks each step instead of giving
+up on the first impossible one: an impossible step is reported with the reason and left out (the
+guide cannot be saved), a step with nothing left to do (taken at hand earlier, done on the way) is
+skipped. The edited guide is then written from that replay like any other.
+
 A guide file carries its format (`format.rs`). Reading an older one migrates it one format after
 the other; a migration that cannot carry a guide over refuses it (to compute again), and a guide
 of a newer format asks to update the app. Format 1 (before phrases) keeps its texts as they were
