@@ -4,10 +4,11 @@
 use crate::world::{Pos, World};
 use anyhow::Result;
 use rusqlite::Connection;
-use std::collections::{HashMap, HashSet};
+use rustc_hash::FxHashMap;
+use std::collections::HashSet;
 
 /// Spawns of a cell (continent, x, y): position and level.
-type Cells = HashMap<(i64, i64, i64), Vec<(f32, f32, u8)>>;
+type Cells = FxHashMap<(i64, i64, i64), Vec<(f32, f32, u8)>>;
 
 /// Spawns of normal mobs by cell of `FarmMobs::CELL` yards.
 #[derive(Debug, Default)]
@@ -32,7 +33,7 @@ impl FarmMobs {
                AND coalesce(n.npc_flags, 0) = 0 AND coalesce(n.friendly_to, '') IN ('', 'AH')
                AND s.zone_id NOT IN (SELECT ID FROM client_areatable WHERE (Flags_0 & 256) != 0)",
         )?;
-        let mut cells = Cells::new();
+        let mut cells = Cells::default();
         let mut seen = HashSet::new();
         let rows = stmt.query_map([], |r| {
             Ok((

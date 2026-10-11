@@ -59,11 +59,10 @@ use availability::{Availability, blocks, followers};
 use growth::Growth;
 use on_the_way::FarmWalks;
 use state::{Planned, State};
-use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
+use std::cell::Cell;
 use std::rc::Rc;
 use step::{CampIndex, camp_index};
-use travel::{FlightTable, Trips};
+use travel::{FlightTables, Legs, Trips};
 use worth::Worth;
 
 /// What a planner simulates: its own routes, or an imposed route replayed as it is (no grinding
@@ -80,7 +79,9 @@ pub struct Planner<'a> {
     pub params: &'a Params,
     pub profile: &'a Profile,
     /// Flight times and prices between known flight paths, by known set.
-    flights: RefCell<HashMap<u128, Rc<FlightTable>>>,
+    flights: FlightTables,
+    /// Trips already computed (see `travel::Legs`).
+    legs: Legs,
     /// Mobs farmed on each walk, by level (see `on_the_way::farm_along`).
     farm_walks: FarmWalks,
     /// The next walk kills every normal mob met, beyond `farm_cap` (a step of an edited route).
@@ -116,8 +117,9 @@ impl<'a> Planner<'a> {
             world,
             params,
             profile,
-            flights: RefCell::new(HashMap::new()),
-            farm_walks: RefCell::new(HashMap::new()),
+            flights: FlightTables::default(),
+            legs: Legs::default(),
+            farm_walks: FarmWalks::default(),
             farm_all: Cell::new(false),
             mode: Mode::Plan,
             camp: camp_index(model, params.camp_radius),
@@ -274,6 +276,7 @@ impl<'a> Planner<'a> {
             params: self.params,
             model: self.model,
             flights: &self.flights,
+            legs: &self.legs,
         }
     }
 

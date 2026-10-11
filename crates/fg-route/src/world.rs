@@ -3,6 +3,7 @@
 use crate::faction::Faction;
 use anyhow::Result;
 use rusqlite::Connection;
+use rustc_hash::FxHashMap;
 use std::collections::HashMap;
 
 /// A point in world space (yards) on a continent.
@@ -67,7 +68,7 @@ pub struct World {
     /// Walkable passages between zones and the shortest walk between any two of them.
     pub passes: Vec<Pass>,
     pub pass_dist: Vec<Vec<f64>>,
-    pub zone_passes: HashMap<i64, Vec<usize>>,
+    pub zone_passes: FxHashMap<i64, Vec<usize>>,
     /// Terrain too steep to walk: walks go around it.
     pub terrain: crate::terrain::Terrain,
     /// Named places of the zone maps (their exploration overlays): to tell which zone a point
@@ -223,7 +224,7 @@ impl World {
             link_chain: Vec::new(),
             passes: Vec::new(),
             pass_dist: Vec::new(),
-            zone_passes: HashMap::new(),
+            zone_passes: FxHashMap::default(),
             terrain: crate::terrain::Terrain::load(conn)?,
             landmarks: Vec::new(),
         };
@@ -679,10 +680,12 @@ impl World {
             return straight;
         };
         let mut best = self.across(a, b);
+        // Each walk to a passage once (the inner loop would ask them for every passage left).
+        let to_b: Vec<f64> = pb.iter().map(|&j| self.ground(&self.passes[j].pos, b)).collect();
         for &i in pa {
             let da = self.ground(a, &self.passes[i].pos);
-            for &j in pb {
-                let t = da + self.pass_dist[i][j] + self.ground(&self.passes[j].pos, b);
+            for (&j, &db) in pb.iter().zip(&to_b) {
+                let t = da + self.pass_dist[i][j] + db;
                 if t < best {
                     best = t;
                 }

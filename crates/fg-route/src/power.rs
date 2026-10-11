@@ -15,6 +15,7 @@
 //! of the time), so a 10% better character gains one level of power.
 
 use rusqlite::Connection;
+use rustc_hash::FxHashMap;
 use std::collections::HashMap;
 
 /// Fight speed a level of power is worth: ln(1 / 0.9).
@@ -134,7 +135,7 @@ impl SpellWeight {
 
 pub struct PowerModel {
     pub items: Vec<Item>,
-    item_index: HashMap<i64, u16>,
+    item_index: FxHashMap<i64, u16>,
     /// Stat weights by level (share of power a point brings).
     weights: Vec<[f64; STATS]>,
     /// Value of the floor gear by level and slot.

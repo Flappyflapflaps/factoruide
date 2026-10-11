@@ -14,11 +14,12 @@ use crate::world::Pos;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use rusqlite::Connection;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet};
-use std::hash::{BuildHasherDefault, Hasher};
+use std::hash::Hasher;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -36,7 +37,7 @@ const SHARDS: usize = 32;
 
 type Key = (i64, i32, i32, i32, i32);
 
-/// Hash of keys that are already packed integers.
+/// Hash of the terrain data (its fingerprint, saved with the walking memories: must not change).
 #[derive(Default)]
 struct Packed(u64);
 
@@ -59,7 +60,7 @@ impl Hasher for Packed {
 
 /// Answers already given in this thread, by terrain, continent and pair of cells: the planner
 /// asks the same walks millions of times. Negative: the straight line; infinite: not connected.
-type Memo = HashMap<(u32, i64, u64), f32, BuildHasherDefault<Packed>>;
+type Memo = FxHashMap<(u32, i64, u64), f32>;
 thread_local! {
     static MEMO: RefCell<Memo> = RefCell::new(Memo::default());
 }
@@ -286,7 +287,7 @@ pub struct Terrain {
     id: u32,
     /// Hash of the terrain data: tells which data a saved memory belongs to.
     fingerprint: u64,
-    grids: HashMap<i64, Grid>,
+    grids: FxHashMap<i64, Grid>,
     walks: Arc<Walks>,
     /// Paths this terrain asked its memory (or searched), for the memory of its guide.
     used: Vec<Mutex<HashSet<Key>>>,
@@ -297,7 +298,7 @@ impl Terrain {
         let mut terrain = Self {
             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             fingerprint: 0,
-            grids: HashMap::new(),
+            grids: FxHashMap::default(),
             walks: Arc::new(Walks::default()),
             used: (0..SHARDS).map(|_| Mutex::new(HashSet::new())).collect(),
         };
@@ -395,10 +396,12 @@ impl Terrain {
 
     /// Cell (row from the north, column from the west) of a world position.
     fn cell(p: &Pos) -> (i32, i32) {
-        (
-            ((ORIGIN - p.x) / CELL).floor() as i32,
-            ((ORIGIN - p.y) / CELL).floor() as i32,
-        )
+        // `f64::floor` is a call into the C library here: truncation, one less when negative.
+        let floor = |v: f64| {
+            let t = v as i32;
+            if f64::from(t) > v { t - 1 } else { t }
+        };
+        (floor((ORIGIN - p.x) / CELL), floor((ORIGIN - p.y) / CELL))
     }
 
     /// The nearest cell of a large walkable area (the cell itself when in one), else the
@@ -647,6 +650,31 @@ mod tests {
         let straight = on(0, pair);
         assert!(around > straight + 100.0, "walled {around} vs open {straight}");
         assert!((on(1, pair) - around).abs() < 1e-6);
+    }
+
+    /// Points on both sides of a cell border, west and east of the origin, fall in the cell
+    /// `floor` gives.
+    #[test]
+    fn cell_of_a_point() {
+        for v in [
+            -3.5 * CELL,
+            -CELL,
+            -0.25,
+            0.0,
+            0.25,
+            CELL,
+            2.0 * CELL - 1e-9,
+            70.0 * CELL,
+        ] {
+            let p = Pos {
+                continent: 1,
+                x: ORIGIN - v,
+                y: ORIGIN - v,
+                zone: 0,
+            };
+            let expected = ((ORIGIN - p.x) / CELL).floor() as i32;
+            assert_eq!(Terrain::cell(&p), (expected, expected), "{v}");
+        }
     }
 
     #[test]

@@ -6,10 +6,11 @@ use super::types::Guard;
 use crate::world::{Pos, World};
 use anyhow::Result;
 use rusqlite::Connection;
+use rustc_hash::FxHashMap;
 use std::collections::{HashMap, HashSet};
 
 /// Spawns of a cell (continent, x, y): position, level, elite.
-type Cells = HashMap<(i64, i64, i64), Vec<(f32, f32, u8, bool)>>;
+type Cells = FxHashMap<(i64, i64, i64), Vec<(f32, f32, u8, bool)>>;
 
 /// Spawns of mobs hostile to both factions, by cell of `Guards::CELL` yards.
 #[derive(Debug, Default)]
@@ -40,7 +41,7 @@ impl Guards {
              FROM m_spawn s JOIN m_npc n ON n.id = s.entity_id
              WHERE s.entity_type = 'npc' AND s.x >= 0 AND coalesce(n.friendly_to, '') = ''",
         )?;
-        let mut cells = Cells::new();
+        let mut cells = Cells::default();
         let mut mobs: HashMap<(i64, i64, i64), Vec<(f32, f32)>> = HashMap::new();
         let mut seen = HashSet::new();
         let rows = stmt.query_map([], |r| {

@@ -5,14 +5,14 @@ use super::{Mode, Planner};
 use crate::model::{EntityKind, Loc, Model, Objective};
 use crate::world::Pos;
 use crate::xp;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 /// Quest NPCs by cell (continent, x, y): (quest, index in its starts or ends, giver?).
-pub(crate) type CampIndex = HashMap<(i64, i64, i64), Vec<(u32, u8, bool)>>;
+pub(crate) type CampIndex = FxHashMap<(i64, i64, i64), Vec<(u32, u8, bool)>>;
 
 /// Quest givers (NPCs and objects, not items) and turn-in NPCs by cell of `radius`.
 pub(crate) fn camp_index(model: &Model, radius: f64) -> CampIndex {
-    let mut index = CampIndex::new();
+    let mut index = CampIndex::default();
     if radius <= 0.0 {
         return index;
     }

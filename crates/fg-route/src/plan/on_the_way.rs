@@ -7,6 +7,7 @@ use super::state::{Event, Kind, Leg, State, Stop};
 use crate::model::Loc;
 use crate::world::Pos;
 use crate::xp;
+use rustc_hash::FxHashMap;
 use std::rc::Rc;
 
 /// Free quest log slots kept when taking a quest at hand (the route takes others before it).
@@ -18,7 +19,7 @@ pub(crate) const CAMP_AHEAD: u32 = 30;
 pub(crate) type FarmKey = (i64, [u64; 4]);
 
 /// Normal mobs met on each walk, by level: (level, count).
-pub(crate) type FarmWalks = std::cell::RefCell<std::collections::HashMap<FarmKey, Rc<[(u8, u16)]>>>;
+pub(crate) type FarmWalks = std::cell::RefCell<FxHashMap<FarmKey, Rc<[(u8, u16)]>>>;
 
 /// Walks whose farmed mobs are remembered, beyond which the memo starts over.
 const FARM_MEMO: usize = 1 << 20;
