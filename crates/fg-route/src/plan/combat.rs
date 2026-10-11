@@ -80,7 +80,12 @@ impl Combat<'_> {
     /// Lowest level at which the character, with `bonus` levels of power, takes on objective `k`
     /// of quest `q` (0 when it requires nothing).
     pub fn level(self, q: &Quest, k: u8, bonus: f64) -> i64 {
-        let need = self.need(q, &q.objectives[k as usize]);
+        self.level_at(q, &q.objectives[k as usize], bonus)
+    }
+
+    /// The same for objective `o` of `q` at one of its places (`Objective::alts`).
+    pub fn level_at(self, q: &Quest, o: &Objective, bonus: f64) -> i64 {
+        let need = self.need(q, o);
         if need <= 0.0 {
             0
         } else {

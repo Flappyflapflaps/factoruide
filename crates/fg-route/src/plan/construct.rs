@@ -275,7 +275,7 @@ impl Planner<'_> {
         } else {
             self.insert_missing_mandatory(self.settle(route))
         };
-        let route = self.power_first(route);
+        let route = self.rebind(self.power_first(route));
         if std::env::var_os("FG_DEBUG").is_some() {
             for (reason, n) in self.explain_unused(&route) {
                 log(&format!("  unused {reason}: {n}"));

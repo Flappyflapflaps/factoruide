@@ -2,7 +2,7 @@
 //! loot, the vendor to buy from, common loot gathered on the way, or an approximation.
 
 use super::builder::{QuestBuilder, Skip};
-use super::entities::best_cluster;
+use super::entities::{alternatives, best_cluster};
 use super::objectives::QuestContext;
 use super::sources::{SourceKind, count_for};
 use super::types::{EntityKind, Loc, Objective, Spots};
@@ -47,11 +47,24 @@ impl QuestBuilder<'_> {
         let objective = if common {
             Self::common_loot(at(quest.anchor, quest.zone), &text, count, self.params.common_item_time)
         } else if let Some((pos, zone, _)) = best_cluster(&places.objects, Some(&quest.anchor)) {
-            Objective {
+            let loot = |pos: Pos, zone: i64| Objective {
                 uses: count,
                 count,
                 spots: Spots::new(&places.objects, &pos),
-                ..Objective::plain(at(pos, zone), text, 0.0)
+                ..Objective::plain(at(pos, zone), text.clone(), 0.0)
+            };
+            Objective {
+                alts: alternatives(
+                    &places.objects,
+                    &pos,
+                    &quest.anchor,
+                    count,
+                    self.params.objective_alternatives,
+                )
+                .into_iter()
+                .map(|(p, z)| loot(p, z))
+                .collect(),
+                ..loot(pos, zone)
             }
         } else if let Some((pos, zone, _)) = best_cluster(&places.vendors, Some(&quest.anchor)) {
             Objective {
@@ -59,7 +72,22 @@ impl QuestBuilder<'_> {
                 ..Objective::plain(at(pos, zone), format!("Buy {text}"), 10.0)
             }
         } else if let Some((pos, zone, _)) = best_cluster(&places.mobs, Some(&quest.anchor)) {
-            self.farm(quest, target, &places.mob_ids, count, at(pos, zone), text)
+            let farm =
+                |pos: Pos, zone: i64| self.farm(quest, target, &places.mob_ids, count, at(pos, zone), text.clone());
+            let first = farm(pos, zone);
+            Objective {
+                alts: alternatives(
+                    &places.mobs,
+                    &pos,
+                    &quest.anchor,
+                    first.kills,
+                    self.params.objective_alternatives,
+                )
+                .into_iter()
+                .map(|(p, z)| farm(p, z))
+                .collect(),
+                ..first
+            }
         } else if !self.params.allow_elite
             && places
                 .sources

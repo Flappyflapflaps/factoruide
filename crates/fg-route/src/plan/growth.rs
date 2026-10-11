@@ -145,6 +145,22 @@ impl<'g> Growth<'g> {
         }
     }
 
+    /// Time `grind_to` would take to `level`, without grinding.
+    pub(crate) fn grind_time(self, s: &State, level: i64) -> f64 {
+        let combat = Combat {
+            params: self.params,
+            dungeons: &self.model.dungeons,
+        };
+        let mut xp = s.xp;
+        (s.level..level.min(self.rules().max_level))
+            .map(|l| {
+                let need = self.rules().to_next_level(l) - xp;
+                xp = 0;
+                need as f64 / combat.grind_rate(l, s.bonus, &s.pos)
+            })
+            .sum()
+    }
+
     /// Grind mobs until `level`, returning the time spent (what goes beyond `grind_cap` is
     /// counted in `grind_over`).
     pub(crate) fn grind_to(self, s: &mut State, level: i64) -> f64 {

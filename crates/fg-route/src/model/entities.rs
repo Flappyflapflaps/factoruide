@@ -208,3 +208,31 @@ pub(super) fn best_cluster(points: &[(Pos, i64)], near: Option<&Pos>) -> Option<
     }
     best.map(|(_, c, z, n)| (c, z, n))
 }
+
+/// Other groups of points than the one around `first`, where an objective needing `work` kills
+/// or uses can be done too: up to `max` of them, apart from each other, of a few spawns at
+/// least. None for one or two targets (a named mob: it stands at one of its spawns).
+pub(super) fn alternatives(points: &[(Pos, i64)], first: &Pos, near: &Pos, work: f64, max: usize) -> Vec<(Pos, i64)> {
+    /// Places this close to a chosen one are the same place (yards).
+    const APART: f64 = 500.0;
+    const MIN_SPAWNS: usize = 3;
+    if work <= 2.0 || max == 0 {
+        return Vec::new();
+    }
+    let mut left: Vec<(Pos, i64)> = points.iter().filter(|(p, _)| p.dist(first) > APART).copied().collect();
+    let mut out = Vec::new();
+    // A few stray spawns are passed over, a bounded number of times.
+    for _ in 0..8 {
+        let Some((pos, zone, n)) = best_cluster(&left, Some(near)) else {
+            break;
+        };
+        left.retain(|(p, _)| p.dist(&pos) > APART);
+        if n >= MIN_SPAWNS {
+            out.push((pos, zone));
+            if out.len() == max {
+                break;
+            }
+        }
+    }
+    out
+}

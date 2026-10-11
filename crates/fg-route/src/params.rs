@@ -203,6 +203,9 @@ pub struct Params {
     /// is done with it, in part during the kills.
     pub gather_overlap: f64,
     pub gather_radius: f64,
+    /// Other places an objective can be done besides its main one (other groups of its mobs or
+    /// objects): the route goes to the cheapest from where the character is. 0: only the main.
+    pub objective_alternatives: usize,
     /// Gray quests that lead to nothing better are taken and kept like the others (turned in when
     /// passing by); by default they are left out and given up when they go gray.
     pub keep_gray: bool,
@@ -330,6 +333,7 @@ impl Default for Params {
             grind_over_weight: 4.0,
             gather_overlap: 0.4,
             gather_radius: 150.0,
+            objective_alternatives: 2,
             allow_grind: true,
             keep_gray: false,
             flight_weight: 1.0,

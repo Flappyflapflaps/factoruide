@@ -2,6 +2,7 @@
 //! range of the route it changed, or None when it found nothing to change.
 
 use super::Planner;
+use super::hearth::INNS_TRIED;
 use super::state::{Kind, Stop, same_item};
 use rand::Rng;
 use rand::rngs::SmallRng;
@@ -41,6 +42,7 @@ impl Planner<'_> {
             10..=13 => Some(Self::move_block(route, rng)),
             14 | 15 => self.drop_quest_or_visit(route, rng),
             16 => self.add_visit(route, rng),
+            17 => self.rebind_nearby(route, rng),
             20 => self.move_zone_stay(route, rng),
             21 | 22 => self.gather_zone_visits(route, rng),
             _ => self.add_unused_quest(route, rng),
@@ -95,14 +97,14 @@ impl Planner<'_> {
         Some(Change::edited(first, len))
     }
 
-    /// A detour to a flight master, a dungeon run, or the hearthstone bound somewhere.
+    /// A detour to a flight master, a dungeon run, or the hearthstone bound (`rebind_nearby`).
     fn add_visit(&self, route: &mut Vec<Stop>, rng: &mut SmallRng) -> Option<Change> {
         let (index, kind) = match rng.random_range(0..3) {
             0 if !self.world.taxi_nodes.is_empty() => {
                 (rng.random_range(0..self.world.taxi_nodes.len()), Kind::LearnFlight)
             }
             1 if !self.model.dungeons.is_empty() => (rng.random_range(0..self.model.dungeons.len()), Kind::Dungeon),
-            _ => (rng.random_range(0..self.model.inns.len()), Kind::Bind),
+            _ => return self.rebind_nearby(route, rng),
         };
         let stop = Stop {
             index: index as u32,
@@ -113,6 +115,37 @@ impl Planner<'_> {
         }
         let at = self.insert_near(route, &self.places().pos(&self.initial_state(), stop), 0);
         route.insert(at, stop);
+        Some(Change::edited(at, route.len()))
+    }
+
+    /// The hearthstone bound at one of the inns closest to a stop drawn at random, after the stop
+    /// around it closest to the inn; or a bind of the route moved to such an inn.
+    fn rebind_nearby(&self, route: &mut Vec<Stop>, rng: &mut SmallRng) -> Option<Change> {
+        const AROUND: usize = 15;
+        let s0 = self.initial_state();
+        let k = rng.random_range(0..route.len());
+        let inns = self.inns_near(&self.places().pos(&s0, route[k]), INNS_TRIED);
+        let inn = *inns.get(rng.random_range(0..inns.len().max(1)))?;
+        let bind = Stop {
+            index: inn as u32,
+            kind: Kind::Bind,
+        };
+        let (lo, hi) = (k.saturating_sub(AROUND), (k + AROUND).min(route.len()));
+        if let Some(b) = (lo..hi).find(|&b| route[b].kind == Kind::Bind)
+            && rng.random_bool(0.5)
+        {
+            route[b] = bind;
+            return Some(Change::edited(b, route.len()));
+        }
+        let pos = self.model.inns[inn].pos;
+        let at = (lo..hi)
+            .min_by(|&x, &y| {
+                let dx = self.places().pos(&s0, route[x]).dist(&pos);
+                let dy = self.places().pos(&s0, route[y]).dist(&pos);
+                dx.total_cmp(&dy)
+            })
+            .map_or(route.len(), |b| b + 1);
+        route.insert(at, bind);
         Some(Change::edited(at, route.len()))
     }
 

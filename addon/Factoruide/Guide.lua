@@ -1,8 +1,10 @@
 -- Shows the planned route and advances automatically. Two boxes:
---   "To do": the current tasks (steps done at the same place are grouped), with progress
---   "To pick up": the next quests that can be taken now, with their distance, as many as
---   configured (0 hides it): close quests can be taken in any order, the route skips them
---   once in the log.
+--   "To do": the current tasks (steps done at the same place are grouped), with progress, and
+--   the mobs to kill on the way to them, counted.
+--   Under it, in two tabs (shown or hidden from the "To do" bar), as many lines as configured:
+--   "Next": the steps after these; "To pick up": the next quests that can be taken now, with
+--   their distance (close quests can be taken in any order, the route skips them once in the
+--   log).
 -- The native waypoint arrow points at the first unfinished task.
 
 local _, FG = ...
@@ -12,7 +14,14 @@ FG.Guide = Guide
 local fr = GetLocale() == "frFR"
 local L = {
     todo = fr and "À faire" or "To do",
+    next = fr and "Ensuite" or "Next",
     pickup = fr and "À prendre" or "To pick up",
+    nextToggle = fr and "Afficher ou masquer la boîte Ensuite / À prendre"
+        or "Show or hide the Next / To pick up box",
+    farmPlanned = fr and "~%d mobs en chemin" or "~%d mobs on the way",
+    farmProgress = fr and "mobs en chemin %d/%d" or "mobs on the way %d/%d",
+    farmTip = fr and "Mobs à tuer en allant à cette étape (tués depuis qu'elle est en cours)"
+        or "Mobs to kill on the way to this step (killed since it became current)",
     pointHint = fr and "Clic gauche : flèche vers cette étape" or "Left-click: point the arrow at this step",
     level = fr and "Niv." or "Lvl",
     planned = fr and "prévu" or "planned",
@@ -20,8 +29,16 @@ local L = {
         or "No route for this race/class.\nGenerate one with `fg route`.",
     done = fr and "Route terminée !" or "Route finished!",
     yards = fr and "m" or "yd",
-    resync = fr and "Resynchroniser : aller à la première étape pas encore faite"
-        or "Resync: go to the first step not done yet",
+    prevStep = fr and "Étape précédente" or "Previous step",
+    nextStep = fr and "Étape suivante" or "Next step",
+    settings = fr and "Réglages de l'addon" or "Addon settings",
+    resync = fr
+            and "Recommencer : annuler les étapes et quêtes marquées faites à la main, puis aller à la première étape pas encore faite"
+        or "Start over: undo the steps and quests marked done by hand, then go to the first step not done yet",
+    resetConfirm = fr
+            and "Annuler les étapes et quêtes marquées comme faites à la main (%d) et revenir à la première étape pas encore faite ?"
+        or "Undo the steps and quests marked as done by hand (%d) and go back to the first step not done yet?",
+    resetDone = fr and "guide recommencé : marques à la main annulées" or "guide started over: marks by hand undone",
     ahead = fr and "En avance : sauter au palier niveau %d (%d étapes)"
         or "Ahead: skip to the level %d checkpoint (%d steps)",
     aheadTip = fr
@@ -91,7 +108,7 @@ local turninIndex = {} -- quest -> index of its turn-in step
 -- Whether the shown step was already done when we arrived on it (manual navigation): the
 -- guide only moves on when the shown step becomes done.
 local arrivedDone = false
-local todoBox, pickupBox
+local todoBox, nextBox
 local waypointStep
 -- Step picked by hand (left-click on a row): the arrow points at it until it is done.
 local pointed
@@ -301,7 +318,17 @@ end
 
 -- Text -----------------------------------------------------------------------
 
-local function StepLine(step, withProgress)
+--- The mobs to kill on the way to a step: counted while it is the current one.
+local function FarmText(step, index)
+    local farm = state.farm
+    if index == state.step and farm and farm.step == index then
+        local color = farm.kills >= step.fk and "40ff40" or "c080ff"
+        return string.format("  |cff%s" .. L.farmProgress .. "|r", color, math.min(farm.kills, step.fk), step.fk)
+    end
+    return string.format("  |cffc080ff" .. L.farmPlanned .. "|r", step.fk)
+end
+
+local function StepLine(step, withProgress, index)
     local kind = KINDS[step.k] or { color = "ffffff", label = step.k }
     local title = QuestTitle(step)
     local text
@@ -341,6 +368,7 @@ local function StepLine(step, withProgress)
     else
         text = step.t
     end
+    if step.fk then text = text .. FarmText(step, index) end
     return string.format("|cff%s%s|r  %s", kind.color, kind.label, text)
 end
 
@@ -360,7 +388,8 @@ local function CreateBox(name, title, kind)
     box.title:SetPoint("LEFT", box.header, "LEFT", 6, 0)
     box.title:SetText(title)
     box.info = box:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    box.info:SetPoint("RIGHT", box.header, "RIGHT", -70, 0)
+    -- Right of the header, but where the box has its +/- buttons (the box under the guide).
+    box.info:SetPoint("RIGHT", box.header, "RIGHT", kind == "window" and -6 or -40, 0)
     FG.Skin:Style(box, kind, { box.title, box.info })
 
     box.rows = {}
@@ -386,6 +415,7 @@ local function Row(box, i, big)
         if not step then return end
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:AddLine(step.t, 1, 1, 1, true)
+        if step.fk then GameTooltip:AddLine(L.farmTip, 0.75, 0.5, 1, true) end
         GameTooltip:AddLine(L.pointHint, 0.6, 0.6, 0.6, true)
         GameTooltip:AddLine(L.skipHint, 0.6, 0.6, 0.6, true)
         GameTooltip:Show()
@@ -410,6 +440,8 @@ end
 
 local function Layout(box, count, big, footer)
     local h = big and 20 or 16
+    -- During combat a protected box keeps its size (its rows still update): resized after it.
+    local resize = FG.CanLayout(box)
     for i, row in ipairs(box.rows) do
         if i <= count then
             row:ClearAllPoints()
@@ -420,6 +452,7 @@ local function Layout(box, count, big, footer)
             row:Hide()
         end
     end
+    if not resize then return end
     box:SetHeight(24 + count * h + (footer and 16 or 0))
     -- A position saved anchored by the bottom: from now on the box grows downwards.
     if box == todoBox then state.point = FG.PinTopIfNeeded(box) or state.point end
@@ -462,21 +495,55 @@ local function CreateUI()
         self:StopMovingOrSizing()
         state.point = FG.PinTopLeft(self) or state.point
     end)
-    HeaderButton(todoBox, ">", -4, function() Guide:Go(state.step + 1) end)
-    HeaderButton(todoBox, "<", -20, function() Guide:Go(state.step - 1) end)
-    HeaderButton(todoBox, "Interface\\Buttons\\UI-RefreshButton", -36, function() Guide:Resync() end).tooltip = L.resync
-    HeaderButton(todoBox, "*", -52, function() FG:OpenSettings() end)
+    -- The buttons on a bar of their own above the window (its header keeps the step and the
+    -- level): the steps on the left, the box under the guide, start over and settings on the right.
+    local bar = CreateFrame("Frame", nil, todoBox, "BackdropTemplate")
+    bar:SetHeight(22)
+    bar:SetPoint("BOTTOMLEFT", todoBox, "TOPLEFT", 0, 2)
+    bar:SetPoint("BOTTOMRIGHT", todoBox, "TOPRIGHT", 0, 2)
+    FG.Skin:Style(bar, "panel")
+    todoBox.bar = bar
+    local function BarButton(text, tooltip, side, x, onClick)
+        local b = HeaderButton(bar, text, 0, onClick)
+        b:SetSize(18, 18)
+        b:ClearAllPoints()
+        b:SetPoint(side, bar, side, x, 0)
+        b.tooltip = tooltip
+        return b
+    end
+    BarButton("<", L.prevStep, "LEFT", 6, function() Guide:Go(state.step - 1) end)
+    BarButton(">", L.nextStep, "LEFT", 30, function() Guide:Go(state.step + 1) end)
+    BarButton("*", L.settings, "RIGHT", -6, function() FG:OpenSettings() end)
+    BarButton("Interface\\Buttons\\UI-RefreshButton", L.resync, "RIGHT", -30, function() Guide:AskReset() end)
+    -- Shows or hides the box under the guide (Next / To pick up).
+    local toggle = BarButton(
+        "Interface\\Buttons\\UI-MinusButton-Up",
+        L.nextToggle,
+        "RIGHT",
+        -54,
+        function() FG:Save("nextShown", not FG:Get("nextShown")) end
+    )
+    local function ToggleIcon(shown)
+        local icon = shown and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up"
+        toggle:SetNormalTexture(icon)
+        toggle:SetHighlightTexture(icon, "ADD")
+    end
+    ToggleIcon(FG:Get("nextShown"))
+    FG:OnSetting("nextShown", function(shown)
+        ToggleIcon(shown)
+        Guide:Refresh()
+    end)
 
     todoBox.footer = todoBox:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
     todoBox.footer:SetPoint("BOTTOMLEFT", 8, 5)
     todoBox.footer:SetPoint("BOTTOMRIGHT", -8, 5)
     todoBox.footer:SetJustifyH("LEFT")
 
-    -- Above the window, which grows downwards.
+    -- Above the window (which grows downwards) and its bar.
     local ahead = CreateFrame("Button", "FactoruideSkipAhead", todoBox, "UIPanelButtonTemplate")
     ahead:SetHeight(22)
-    ahead:SetPoint("BOTTOMLEFT", todoBox, "TOPLEFT", 0, 2)
-    ahead:SetPoint("BOTTOMRIGHT", todoBox, "TOPRIGHT", 0, 2)
+    ahead:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, 2)
+    ahead:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", 0, 2)
     ahead:SetScript("OnClick", function() Guide:SkipAhead() end)
     ahead:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -488,20 +555,34 @@ local function CreateUI()
     if FG.Skin then FG.Skin:Style(ahead, "button") end
     todoBox.ahead = ahead
 
-    -- Named FactoruideNext: the tracker sits under it by default.
-    pickupBox = CreateBox("FactoruideNext", L.pickup, "panel")
-    pickupBox:SetPoint("TOPLEFT", todoBox, "BOTTOMLEFT", 0, -3)
-    HeaderButton(pickupBox, "+", -4, function() FG:Set("pickupLines", math.min(20, FG:Get("pickupLines") + 1)) end)
-    HeaderButton(pickupBox, "-", -20, function() FG:Set("pickupLines", math.max(0, FG:Get("pickupLines") - 1)) end)
+    -- Named FactoruideNext: the tracker sits under it by default. Two tabs in its header.
+    nextBox = CreateBox("FactoruideNext", "", "panel")
+    nextBox:SetPoint("TOPLEFT", todoBox, "BOTTOMLEFT", 0, -3)
+    HeaderButton(nextBox, "+", -4, function() FG:Set("pickupLines", math.min(20, FG:Get("pickupLines") + 1)) end)
+    HeaderButton(nextBox, "-", -20, function() FG:Set("pickupLines", math.max(0, FG:Get("pickupLines") - 1)) end)
+    nextBox.tabs = {}
+    local x = 4
+    for _, tab in ipairs({ { key = "next", text = L.next }, { key = "pickup", text = L.pickup } }) do
+        local b = CreateFrame("Button", nil, nextBox)
+        b:SetNormalFontObject("GameFontNormalSmall")
+        b:SetText(tab.text)
+        local width = (tonumber(b:GetFontString():GetStringWidth()) or 60) + 10
+        b:SetSize(width, 16)
+        b:SetPoint("TOPLEFT", x, -2)
+        b:SetScript("OnClick", function() FG:Save("nextTab", tab.key) end)
+        x = x + width + 2
+        nextBox.tabs[tab.key] = b
+    end
+    FG:OnSetting("nextTab", function() Guide:Refresh() end)
 
     local function ApplyScale(v)
         todoBox:SetScale(v)
-        pickupBox:SetScale(v)
+        nextBox:SetScale(v)
     end
     ApplyScale(FG:Get("scale"))
     FG:OnSetting("scale", ApplyScale)
     FG:Zoomable(todoBox)
-    FG:Zoomable(pickupBox)
+    FG:Zoomable(nextBox)
     FG:OnSetting("pickupLines", function() Guide:Refresh() end)
     FG:OnSetting("guideShown", function() Guide:Refresh() end)
     FG:OnSetting("waypoints", function(on)
@@ -555,12 +636,17 @@ local function RefreshAhead()
     if c then todoBox.ahead:SetText(string.format(L.ahead, c.lvl, #skip)) end
 end
 
+--- Show or hide a box, unless the game blocks it now (see `FG.CanLayout`).
+local function SetShown(box, shown)
+    if FG.CanLayout(box) then box:SetShown(shown) end
+end
+
 function Guide:Refresh()
     if not todoBox then return end
     local shown = FG:Get("guideShown")
-    todoBox:SetShown(shown)
+    SetShown(todoBox, shown)
     if not shown then
-        pickupBox:Hide()
+        SetShown(nextBox, false)
         if FG.Arrow then FG.Arrow:SetTarget(nil) end
         return
     end
@@ -575,7 +661,7 @@ function Guide:Refresh()
         Layout(todoBox, 1, true, false)
         todoBox.info:SetText("")
         todoBox.footer:SetText("")
-        pickupBox:Hide()
+        SetShown(nextBox, false)
         return
     end
 
@@ -594,7 +680,7 @@ function Guide:Refresh()
         row.icon:SetTexture((KINDS[step.k] or {}).icon)
         row.icon:SetDesaturated(done)
         row.check:SetShown(done)
-        row.text:SetText(StepLine(step, true))
+        row.text:SetText(StepLine(step, true, index))
         row.text:SetAlpha(done and 0.45 or 1)
         if not done and not target then target = step end
     end
@@ -649,27 +735,54 @@ function Guide:Refresh()
     SetWaypoint(target)
     if FG.Arrow then FG.Arrow:SetTarget(target) end
 
-    -- Quests to pick up: in the route's order, with their distance, to take the close ones in
-    -- the order that suits.
+    -- Under the guide, as many lines as configured, in the tab chosen.
     local lines = FG:Get("pickupLines")
-    local pickups = self:Pickups(lines)
-    for i, index in ipairs(pickups) do
-        local step = route.steps[index]
-        local row = Row(pickupBox, i, false)
-        row.index = index
-        row.icon:SetTexture(KINDS.accept.icon)
-        row.icon:SetDesaturated(false)
-        row.check:Hide()
-        local text = (QuestTitle(step) or step.t) .. (step.n and ("  |cff9d9d9d" .. step.n .. "|r") or "")
-        local dist = Distance(step)
-        if dist then
-            text = text .. string.format("  |cff%s%d %s|r", dist < 100 and "ffffff" or "9d9d9d", dist, L.yards)
-        end
-        row.text:SetText("|cffffd100" .. text .. "|r")
+    local tab = FG:Get("nextTab") == "pickup" and "pickup" or "next"
+    for key, b in pairs(nextBox.tabs) do
+        b:GetFontString():SetTextColor(key == tab and 1 or 0.55, key == tab and 0.82 or 0.55, key == tab and 0 or 0.55)
     end
-    Layout(pickupBox, #pickups, false, false)
-    pickupBox.info:SetText(#pickups > 0 and tostring(#pickups) or "")
-    pickupBox:SetShown(lines > 0 and #pickups > 0)
+    local count = 0
+    if tab == "pickup" then
+        -- Quests to pick up: in the route's order, with their distance, to take the close ones
+        -- in the order that suits.
+        local pickups = self:Pickups(lines)
+        for i, index in ipairs(pickups) do
+            local step = route.steps[index]
+            local row = Row(nextBox, i, false)
+            row.index = index
+            row.icon:SetTexture(KINDS.accept.icon)
+            row.icon:SetDesaturated(false)
+            row.check:Hide()
+            local text = (QuestTitle(step) or step.t) .. (step.n and ("  |cff9d9d9d" .. step.n .. "|r") or "")
+            local dist = Distance(step)
+            if dist then
+                text = text .. string.format("  |cff%s%d %s|r", dist < 100 and "ffffff" or "9d9d9d", dist, L.yards)
+            end
+            row.text:SetText("|cffffd100" .. text .. "|r")
+        end
+        count = #pickups
+    else
+        -- The next steps after the current ones, not done yet (nor done along the way).
+        local index = group[#group] + 1
+        local last = index + PICKUP_AHEAD
+        while count < lines and route.steps[index] and index <= last do
+            local step = route.steps[index]
+            if not step.bg and not listed[index] and not IsDone(step, index) then
+                count = count + 1
+                local row = Row(nextBox, count, false)
+                row.index = index
+                row.icon:SetTexture((KINDS[step.k] or {}).icon)
+                row.icon:SetDesaturated(true)
+                row.check:Hide()
+                local plain = StepLine(step, false, index):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+                row.text:SetText("|cffb0b0b0" .. plain .. "|r")
+            end
+            index = index + 1
+        end
+    end
+    Layout(nextBox, count, false, false)
+    nextBox.info:SetText(count > 0 and tostring(count) or "")
+    SetShown(nextBox, FG:Get("nextShown") and lines > 0)
     if FG.XpMarker then FG.XpMarker:Refresh() end
 end
 
@@ -708,6 +821,62 @@ function Guide:Resync()
         SkipDone()
     end
     waypointStep, pointed = nil, nil
+    self:Refresh()
+end
+
+--- The steps and quests marked done by hand (by mistake, or no longer wanted).
+local function HandMarks()
+    local n = 0
+    for _, mark in pairs(state.marks) do
+        if mark == "skip" then n = n + 1 end
+    end
+    for _ in pairs(state.skippedQuests) do
+        n = n + 1
+    end
+    return n
+end
+
+--- Start the guide over from what the game knows: the steps and quests marked done by hand are
+--- no longer, then the first step not done. The visits seen (flight paths, trainers, dungeons)
+--- stay done.
+function Guide:Reset()
+    if not route then return end
+    for index, mark in pairs(state.marks) do
+        if mark == "skip" then state.marks[index] = nil end
+    end
+    wipe(state.skippedQuests)
+    state.farm = nil
+    FG:Print(L.resetDone)
+    self:Resync()
+end
+
+StaticPopupDialogs["FACTORUIDE_RESET"] = {
+    text = L.resetConfirm,
+    button1 = YES,
+    button2 = NO,
+    OnAccept = function() Guide:Reset() end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+}
+
+--- The guide's start-over button: asks first when steps or quests were marked by hand.
+function Guide:AskReset()
+    local n = route and HandMarks() or 0
+    if n > 0 then
+        StaticPopup_Show("FACTORUIDE_RESET", n)
+    else
+        self:Resync()
+    end
+end
+
+--- A mob killed by the character (or its pet): counted for the current step when it has mobs to
+--- kill on the way to it.
+function Guide:CountKill()
+    local step = route and state and route.steps[state.step]
+    if not step or not step.fk then return end
+    if not state.farm or state.farm.step ~= state.step then state.farm = { step = state.step, kills = 0 } end
+    state.farm.kills = state.farm.kills + 1
     self:Refresh()
 end
 
@@ -829,8 +998,18 @@ local function TrackInstance()
         state.marks[index] = true
     end
 end
+-- The boxes' size and visibility held during combat (see `FG.CanLayout`).
+FG:On("PLAYER_REGEN_ENABLED", function() Guide:Refresh() end)
 FG:On("PLAYER_ENTERING_WORLD", TrackInstance)
 FG:On("ZONE_CHANGED_NEW_AREA", TrackInstance)
+
+-- Kills by the character or its pet, for the mobs on the way. The PARTY_KILL event, not the combat
+-- log: registering COMBAT_LOG_EVENT_UNFILTERED is forbidden to addons on recent clients.
+FG:On("PARTY_KILL", function(attackerGUID, targetGUID)
+    local source, dest = FG.Readable(attackerGUID), FG.Readable(targetGUID)
+    if not dest or not dest:find("^Creature") then return end
+    if source == UnitGUID("player") or source == UnitGUID("pet") then Guide:CountKill() end
+end)
 
 for _, event in ipairs({
     "QUEST_ACCEPTED",
@@ -860,6 +1039,8 @@ function Guide:Command(cmd, arg)
         self:Go(tonumber(arg) or state.step)
     elseif cmd == "skip" then
         self:SkipCommand(arg)
+    elseif cmd == "restart" then
+        self:Reset()
     elseif cmd == "lines" then
         FG:Set("pickupLines", tonumber(arg) or FG:Get("pickupLines"))
     elseif cmd == "time" then

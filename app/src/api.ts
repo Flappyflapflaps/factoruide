@@ -71,6 +71,7 @@ export interface Params {
   grind_over_weight: number;
   gather_overlap: number;
   gather_radius: number;
+  objective_alternatives: number;
   flight_weight: number;
   gold_weight: number;
   zone_change_weight: number;
@@ -211,6 +212,8 @@ export interface Step {
   bg?: boolean;
   /** A quest done inside the dungeon of the run step before it. */
   inside?: boolean;
+  /** Mobs to kill on the way to the step (farming on the way). */
+  farm?: number;
   text: string;
   target?: { kind: string; id: number; name: string };
   zone?: string;

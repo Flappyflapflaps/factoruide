@@ -60,6 +60,7 @@ export const sections: Section[] = [
       { key: "grind_kill_time", kind: "number", label: "Temps par mob en farm", unit: "s", min: 10, max: 90, step: 1 },
       { key: "object_time", kind: "number", label: "Temps par objet à ramasser", unit: "s", min: 2, max: 60, step: 1 },
       { key: "gather_overlap", kind: "number", label: "Récolte entre deux kills", help: "Part du temps d'un kill (repos, recherche du mob suivant) pendant laquelle on ramasse les objets de quête autour : une quête de récolte au milieu des mobs d'une autre quête se fait en même temps. 0 = l'une après l'autre.", unit: "%", scale: 0.01, min: 0, max: 80, step: 5 },
+      { key: "objective_alternatives", kind: "number", label: "Autres endroits par objectif", help: "Quand les mobs ou objets d'un objectif sont à plusieurs endroits, jusqu'à N autres groupes sont envisagés : le guide va au moins coûteux selon d'où il vient, où il va ensuite et la difficulté des mobs sur place. 0 = seulement l'endroit principal.", min: 0, max: 4, step: 1 },
       { key: "gather_radius", kind: "number", label: "Récolte et kills regroupés jusqu'à", help: "Distance entre une zone de récolte et une zone de mobs de quêtes en cours pour les faire ensemble.", unit: "m", min: 0, max: 400, step: 25 },
       { key: "stop_overhead", kind: "number", label: "Temps par étape (dialogue, loot)", unit: "s", min: 0, max: 60, step: 1 },
       { key: "default_drop_chance", kind: "number", label: "Taux de drop par défaut", help: "Quand le vrai taux n'est pas connu.", min: 0.05, max: 1, step: 0.05 },

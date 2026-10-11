@@ -67,6 +67,9 @@ pub fn to_lua(routes: &[Route]) -> String {
             if s.inside {
                 fields.push("di = true".into());
             }
+            if let Some(n) = s.farm {
+                fields.push(format!("fk = {n}"));
+            }
             if !s.alt.is_empty() {
                 fields.push(format!(
                     "alt = {{ {} }}",

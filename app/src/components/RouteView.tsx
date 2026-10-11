@@ -388,6 +388,7 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
                         <td>
                           <span className="step-n">{k + 1}</span> <span className={`kind kind-${x.kind}`}>{kindLabel(x)}</span> {x.text}
                           {x.bg && <span className="along"> {t("en chemin")}</span>}
+                          {x.farm ? <span className="along"> {t("(tuer ~{n} mobs en chemin)", { n: x.farm })}</span> : null}
                         </td>
                         <td className="num coords">{x.map ? `${x.map.x.toFixed(1)}, ${x.map.y.toFixed(1)}` : ""}</td>
                       </tr>

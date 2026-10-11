@@ -51,6 +51,23 @@ end
 --- (the buttons of its header stay under the mouse); returns the point to save, nil when the
 --- frame has no position yet. The game re-anchors a dragged frame to its closest corner or
 --- edge, which can be the bottom.
+--- Whether a frame can be moved, resized or shown now. A secure button hanging on it (a quest
+--- item button), or on a frame anchored to it, makes it protected: during combat the game blocks
+--- these changes ("blocked from an action only available to the Blizzard UI"), so they wait for
+--- the end of the fight.
+function FG.CanLayout(frame) return not (InCombatLockdown() and frame:IsProtected()) end
+
+-- Name the function the game refused to us (the popup does not), once each, with where it came from.
+local blocked = {}
+for _, event in ipairs({ "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN" }) do
+    FG:On(event, function(addon, func)
+        if addon ~= addonName or blocked[func] then return end
+        blocked[func] = true
+        FG:Print("%s: %s", event, tostring(func))
+        if debugstack then print(debugstack(2, 6, 0)) end
+    end)
+end
+
 function FG.PinTopLeft(frame)
     local left, top = frame:GetLeft(), frame:GetTop()
     if not left or not top then return nil end
@@ -164,7 +181,7 @@ SlashCmdList.FACTORUIDE = function(msg)
         FG.Profile:Save()
     else
         FG:Print(
-            "/fg config | guide | next | prev | step <n> | skip [id] | lines <n> | route [name] | macro | waypoint | scale [size] | status | reset | profile | debug"
+            "/fg config | guide | next | prev | step <n> | skip [id] | restart | lines <n> | route [name] | macro | waypoint | scale [size] | status | reset | profile | debug"
         )
     end
 end

@@ -26,7 +26,7 @@ const OPTIONS: { title: string; options: Option[] }[] = [
           { value: "dark", label: "Sombre" },
         ],
       },
-      { key: "pickupLines", kind: "number", label: "Quêtes de la boîte « À prendre »", help: "Les prochaines quêtes que vous pouvez prendre maintenant, avec leur distance : prenez les plus proches dans l'ordre qui vous arrange. 0 la masque.", default: 10, min: 0, max: 20, step: 1 },
+      { key: "pickupLines", kind: "number", label: "Lignes de la boîte sous le guide", help: "Deux onglets : « Ensuite », les étapes suivantes, et « À prendre », les quêtes que vous pouvez prendre maintenant avec leur distance (prenez les plus proches dans l'ordre qui vous arrange). Le bouton +/- de la barre du guide l'affiche ou la masque ; 0 la masque.", default: 10, min: 0, max: 20, step: 1 },
       { key: "scale", kind: "number", label: "Taille des fenêtres", default: 1, min: 0.6, max: 1.6, step: 0.05, percent: true },
       { key: "lockFrames", kind: "bool", label: "Verrouiller les fenêtres", default: false },
       { key: "waypoints", kind: "bool", label: "Flèche vers l'étape en cours", help: "Waypoint natif du jeu.", default: true },
@@ -39,7 +39,7 @@ const OPTIONS: { title: string; options: Option[] }[] = [
     options: [
       { key: "trackerShown", kind: "bool", label: "Afficher le suivi des quêtes Factoruide", help: "Quêtes en cours triées selon le guide, objectifs, à rendre, objets de quête.", default: true },
       { key: "replaceTracker", kind: "bool", label: "Masquer le suivi de quêtes de Blizzard", default: true },
-      { key: "trackerQuests", kind: "number", label: "Quêtes affichées", help: "Les prochaines quêtes du journal à faire, dans l'ordre du guide.", default: 10, min: 1, max: 35, step: 1 },
+      { key: "trackerQuests", kind: "number", label: "Quêtes affichées", help: "Les prochaines quêtes du journal à faire, dans l'ordre du guide.", default: 8, min: 1, max: 35, step: 1 },
       { key: "trackerAll", kind: "bool", label: "Afficher tout le journal", help: "Sinon, seulement les quêtes du journal que le guide fait encore.", default: false },
       { key: "professionsShown", kind: "bool", label: "Afficher la progression des métiers", help: "Compétence actuelle face au palier prévu pour votre niveau.", default: true },
     ],

@@ -2,7 +2,7 @@
 
 use super::state::{Event, Kind, State, Stop, Timed};
 use super::{Mode, Planner};
-use crate::model::{EntityKind, Loc, Model};
+use crate::model::{EntityKind, Loc, Model, Objective};
 use crate::world::Pos;
 use crate::xp;
 use std::collections::HashMap;
@@ -217,10 +217,12 @@ impl Planner<'_> {
         if Self::already_done(s, stop) {
             return;
         }
-        self.grind_to_gate(s, stop, &mut record);
-        let loc = self.arrive(s, stop, &mut record);
+        // Chosen once, before grinding to it: the place the stop is gated by is the one gone to.
+        let spot = self.spot_of(s, stop);
+        self.grind_to_gate(s, stop, spot, &mut record);
+        let loc = self.arrive(s, stop, spot, &mut record);
         if !(stop.kind == Kind::TurnIn && Self::failed_in_time(s, stop.index, &mut record)) {
-            let picked = self.do_stop(s, stop, &mut record);
+            let picked = self.do_stop(s, stop, spot, &mut record);
             record(s, Event::Stop { stop, loc });
             if let Some(item) = picked {
                 record(
@@ -251,6 +253,11 @@ impl Planner<'_> {
     /// quests are better): the quest's own, or the one to fight through the camp around its
     /// giver or turn-in. Quests taken or turned in at hand need it too (`while_here`).
     pub(crate) fn gate_level(&self, s: &State, stop: Stop) -> i64 {
+        self.gate_level_at(s, stop, self.spot_of(s, stop))
+    }
+
+    /// The same with the objective's place already chosen (`spot`).
+    fn gate_level_at(&self, s: &State, stop: Stop, spot: Option<&Objective>) -> i64 {
         let i = stop.index as usize;
         match stop.kind {
             Kind::Accept => {
@@ -258,14 +265,24 @@ impl Planner<'_> {
                 q.min_level.max(self.combat().guard_level(&q.start_guard, s.bonus))
             }
             Kind::TurnIn => self.combat().guard_level(&self.quest(stop.index).end_guard, s.bonus),
-            Kind::Objective(k) => self.combat().level(self.quest(stop.index), k, s.bonus),
+            Kind::Objective(k) => self.combat().level_at(
+                self.quest(stop.index),
+                spot.unwrap_or(&self.quest(stop.index).objectives[k as usize]),
+                s.bonus,
+            ),
             Kind::Dungeon => self.model.dungeons[i].min_level,
             _ => 0,
         }
     }
 
-    fn grind_to_gate(&self, s: &mut State, stop: Stop, record: &mut impl FnMut(&State, Event)) {
-        let gate = self.gate_level(s, stop);
+    fn grind_to_gate(
+        &self,
+        s: &mut State,
+        stop: Stop,
+        spot: Option<&Objective>,
+        record: &mut impl FnMut(&State, Event),
+    ) {
+        let gate = self.gate_level_at(s, stop, spot);
         if gate <= s.level || self.mode == Mode::Replay {
             return;
         }
@@ -284,8 +301,14 @@ impl Planner<'_> {
     }
 
     /// Travel to the stop, picking up a flight path close to it on the way.
-    fn arrive(&self, s: &mut State, stop: Stop, record: &mut impl FnMut(&State, Event)) -> Loc {
-        let loc = self.places().loc(s, stop);
+    fn arrive(
+        &self,
+        s: &mut State,
+        stop: Stop,
+        spot: Option<&Objective>,
+        record: &mut impl FnMut(&State, Event),
+    ) -> Loc {
+        let loc = spot.map_or_else(|| self.places().loc(s, stop), |o| o.loc.clone());
         self.go(s, &loc.pos, loc.zone, record);
         s.time += self.params.stop_overhead;
         s.spent.overhead += self.params.stop_overhead;
@@ -310,11 +333,20 @@ impl Planner<'_> {
     }
 
     /// What the stop itself does. Returns the reward item picked on a turn-in.
-    fn do_stop(&self, s: &mut State, stop: Stop, record: &mut impl FnMut(&State, Event)) -> Option<i64> {
+    fn do_stop(
+        &self,
+        s: &mut State,
+        stop: Stop,
+        spot: Option<&Objective>,
+        record: &mut impl FnMut(&State, Event),
+    ) -> Option<i64> {
         let i = stop.index as usize;
         match stop.kind {
             Kind::Accept => self.accept(s, stop.index),
-            Kind::Objective(k) => self.complete_objective(s, stop.index, k, record),
+            Kind::Objective(k) => {
+                let o = spot.unwrap_or(&self.quest(stop.index).objectives[k as usize]);
+                self.complete_objective(s, stop.index, k, o, record);
+            }
             Kind::TurnIn => return self.turn_in(s, stop.index),
             Kind::LearnFlight => {
                 s.known |= 1u128 << i;
@@ -332,14 +364,21 @@ impl Planner<'_> {
     /// Kill or use what the mobs and objects met on the way left to do, and with it the
     /// complementary objectives of the log close by: objects gathered between the kills, while
     /// resting and looking for the next mob (`gather_overlap`), or mobs killed among the objects.
-    fn complete_objective(&self, s: &mut State, quest: u32, k: u8, record: &mut impl FnMut(&State, Event)) {
+    fn complete_objective(
+        &self,
+        s: &mut State,
+        quest: u32,
+        k: u8,
+        here: &Objective,
+        record: &mut impl FnMut(&State, Event),
+    ) {
         if s.objectives[quest as usize] & (1 << k) != 0 {
             return;
         }
-        let partners = self.gathered_with(s, quest, k);
-        let (mut kills, mut gathers) = self.objective_work(s, quest, k);
+        let partners = self.gathered_with(s, quest, k, here);
+        let (mut kills, mut gathers) = self.objective_work(s, quest, k, here);
         for (q, ok) in partners {
-            let o = &self.quest(q).objectives[ok as usize];
+            let o = self.quest(q).objectives[ok as usize].nearest(&here.loc.pos);
             let total = if o.kills > 0.0 { o.kills } else { o.uses };
             let done = s
                 .along
@@ -347,7 +386,7 @@ impl Planner<'_> {
                 .find(|&&(i, j, _)| i == q && j == ok)
                 .map_or(0.0, |&(_, _, done)| done);
             let left = (total - done).max(0.0);
-            let (k_work, g_work) = self.objective_work(s, q, ok);
+            let (k_work, g_work) = self.objective_work(s, q, ok, o);
             kills += k_work;
             gathers += g_work;
             record(
@@ -367,9 +406,8 @@ impl Planner<'_> {
 
     /// Objectives of the log done together with objective `k` of `quest`: gathering ones close to
     /// a kill objective, kill ones close to a gathering objective.
-    fn gathered_with(&self, s: &State, quest: u32, k: u8) -> Vec<(u32, u8)> {
-        let o = &self.quest(quest).objectives[k as usize];
-        let gathering = |o: &crate::model::Objective| o.kills <= 0.0 && o.uses > 0.0;
+    fn gathered_with(&self, s: &State, quest: u32, k: u8, o: &Objective) -> Vec<(u32, u8)> {
+        let gathering = |o: &Objective| o.kills <= 0.0 && o.uses > 0.0;
         if self.params.gather_overlap <= 0.0 || o.dungeon.is_some() || (o.kills <= 0.0 && !gathering(o)) {
             return Vec::new();
         }
@@ -377,7 +415,7 @@ impl Planner<'_> {
         s.along
             .iter()
             .filter(|&&(q, ok, _)| {
-                let other = &self.quest(q).objectives[ok as usize];
+                let other = self.quest(q).objectives[ok as usize].nearest(&o.loc.pos);
                 // Done together only when the character could do it on its own stop: its mobs,
                 // or the guards around its objects (`Combat::need`).
                 (q, ok) != (quest, k)
@@ -394,11 +432,10 @@ impl Planner<'_> {
             .collect()
     }
 
-    /// Do what objective `k` of `quest` still needs, returning the time of its kills and the
-    /// rest (objects, fixed extra time).
-    fn objective_work(&self, s: &mut State, quest: u32, k: u8) -> (f64, f64) {
+    /// Do what objective `k` of `quest` still needs at place `o` (one of its `alts` or itself),
+    /// returning the time of its kills and the rest (objects, fixed extra time).
+    fn objective_work(&self, s: &mut State, quest: u32, k: u8, o: &Objective) -> (f64, f64) {
         let i = quest as usize;
-        let o = &self.quest(quest).objectives[k as usize];
         let done = match s.along.iter().position(|&(q, ok, _)| q == quest && ok == k) {
             Some(n) => s.along.swap_remove(n).2,
             None => 0.0,

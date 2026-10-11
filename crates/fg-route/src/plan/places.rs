@@ -12,8 +12,9 @@ pub struct Places<'p> {
 }
 
 impl Places<'_> {
-    /// Where a stop takes place: the closest quest giver/turn-in NPC, the objective area,
-    /// the flight master or the innkeeper.
+    /// Where a stop takes place: the closest quest giver/turn-in NPC, objective area (where it
+    /// is done in several: `Planner::spot` chooses when doing it), the flight master or the
+    /// innkeeper.
     pub(crate) fn loc(&self, s: &State, stop: Stop) -> Loc {
         let pick = |locs: &[Loc]| {
             locs.iter()
@@ -25,6 +26,7 @@ impl Places<'_> {
             Kind::Accept => pick(&self.model.quests[stop.index as usize].starts),
             Kind::TurnIn => pick(&self.model.quests[stop.index as usize].ends),
             Kind::Objective(k) => self.model.quests[stop.index as usize].objectives[k as usize]
+                .nearest(&s.pos)
                 .loc
                 .clone(),
             Kind::LearnFlight => {
@@ -53,7 +55,12 @@ impl Places<'_> {
         match stop.kind {
             Kind::Accept => nearest(&self.model.quests[stop.index as usize].starts),
             Kind::TurnIn => nearest(&self.model.quests[stop.index as usize].ends),
-            Kind::Objective(k) => self.model.quests[stop.index as usize].objectives[k as usize].loc.pos,
+            Kind::Objective(k) => {
+                self.model.quests[stop.index as usize].objectives[k as usize]
+                    .nearest(&s.pos)
+                    .loc
+                    .pos
+            }
             Kind::LearnFlight => self.world.taxi_nodes[stop.index as usize].pos,
             Kind::Bind => self.model.inns[stop.index as usize].pos,
             Kind::Dungeon => self.model.dungeons[stop.index as usize].entrance.pos,

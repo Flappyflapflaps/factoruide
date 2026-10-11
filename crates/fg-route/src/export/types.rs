@@ -199,6 +199,9 @@ pub struct Step {
     /// Grind steps: XP to have in `level` before going on (none: reach `level`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub xp: Option<i64>,
+    /// Mobs to kill on the way to the step (farming on the way): the addon counts them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub farm: Option<u32>,
     pub level: i64,
     pub time: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]

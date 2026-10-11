@@ -1,6 +1,6 @@
 -- Settings come from the Factoruide app (generated Config.lua). In game, a few UI
--- tweaks (+/- on the "To pick up" box) only last for the session; the window size is saved (it
--- follows the screen, the same for every character).
+-- tweaks (+/- on the box under the guide) only last for the session; the window size, the tab of
+-- that box and whether it is shown are saved (the same for every character).
 
 local _, FG = ...
 
@@ -8,6 +8,9 @@ FG.defaults = {
     guideShown = true,
     uiTheme = "auto",
     pickupLines = 10,
+    -- Box under the guide: its tab ("next" steps or quests to "pickup") and whether it is shown.
+    nextTab = "next",
+    nextShown = true,
     lockFrames = false,
     scale = 1.0,
     waypoints = true,
@@ -21,7 +24,7 @@ FG.defaults = {
     trainUseful = true,
     trackerShown = true,
     replaceTracker = true,
-    trackerQuests = 10,
+    trackerQuests = 8,
     trackerAll = false,
     professionsShown = true,
     targetMacro = true,
@@ -49,7 +52,7 @@ local session = {}
 local listeners = {}
 
 -- Settings changed in game and kept (FactoruideDB.ui), over the app's.
-local SAVED = { scale = true }
+local SAVED = { scale = true, nextTab = true, nextShown = true }
 
 function FG:Get(key)
     local v = session[key]

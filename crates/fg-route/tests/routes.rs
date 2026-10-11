@@ -416,6 +416,7 @@ fn gathering_next_to_kills_overlaps_them() {
                 points: vec![point],
             }),
             guard: Guard::default(),
+            alts: vec![],
         }];
     }
     p.model.initial.accepted = vec![0, 1];
@@ -503,6 +504,38 @@ fn quest_given_up_opens_no_follow_up() {
         "Fire Hardened Mail is given up"
     );
     assert!(planner(&p).simulate(&route, None).is_none(), "given up, it does not");
+}
+
+/// No mob is farmed on a walk through a capital: what the sources know nothing of there is a
+/// passer-by, a pet or a dungeon's mob put at its door; outside, the mobs met are.
+#[test]
+fn no_farming_in_capitals() {
+    let p = orc_warlock();
+    let at = |zone, x, y| p.world.to_world(zone, x, y).unwrap();
+    // Stormwind: Old Town to the Dwarven District, wide.
+    let city = p.model.farm.along(&at(1519, 72.3, 47.7), &at(1519, 62.4, 34.2), 200.0);
+    assert!(city.is_empty(), "{city:?}");
+    // Elwynn Forest, around Goldshire.
+    let forest = p.model.farm.along(&at(12, 40.0, 60.0), &at(12, 50.0, 75.0), 200.0);
+    assert!(!forest.is_empty(), "no mob met around Goldshire");
+}
+
+/// The mobs farmed on the way to a step are a count of their own (the addon counts the kills),
+/// not words of its text.
+#[test]
+fn mobs_on_the_way_are_counted_apart() {
+    let p = orc_warlock();
+    let planner = planner(p);
+    let route = planner.construct(|_| {});
+    let guide = fg_route::export::build(&planner, &p.profile, &route);
+    let farmed: Vec<_> = guide.steps.iter().filter(|s| s.farm.is_some()).collect();
+    assert!(!farmed.is_empty(), "no mobs farmed on the way");
+    assert!(
+        farmed.iter().all(|s| !s.text.contains("on the way)")),
+        "{}",
+        farmed[0].text
+    );
+    assert!(fg_route::export::to_lua(std::slice::from_ref(&guide)).contains(", fk = "));
 }
 
 /// A dungeon run is a step that takes the player in, then a step per quest of the route done
@@ -748,6 +781,27 @@ fn hearthstone_flight_paths_and_log_of_a_character_met_in_game() {
     );
 }
 
+/// The hearthstone is bound anew as the route moves on (more than one inn over 30 levels), each
+/// bind worth it: the route without them takes longer.
+#[test]
+fn hearthstone_follows_the_route() {
+    let p = human_warrior();
+    let planner = planner(p);
+    let route = planner.construct(|_| {});
+    let inns: Vec<&str> = route
+        .iter()
+        .filter(|s| s.kind == Kind::Bind)
+        .map(|s| p.world.zone_name(p.model.inns[s.index as usize].zone))
+        .collect();
+    assert!(inns.len() >= 2, "bound at {inns:?}");
+    let without: Vec<Stop> = route.iter().filter(|s| s.kind != Kind::Bind).copied().collect();
+    let (with, without) = (planner.simulate(&route, None), planner.simulate(&without, None));
+    assert!(
+        with < without,
+        "{with:?} with the binds, {without:?} without ({inns:?})"
+    );
+}
+
 /// Training starts from the spells the character learned: the first rank it lacks.
 #[test]
 fn last_training_from_the_spells_learned() {
@@ -874,6 +928,7 @@ fn wait_of_a_crowded_target_is_paid_on_the_way() {
             points: vec![point],
         }),
         guard: Guard::default(),
+        alts: vec![],
     }];
     p.model.initial.accepted = vec![0];
     let fighting = |p: &Prepared| {
@@ -888,6 +943,61 @@ fn wait_of_a_crowded_target_is_paid_on_the_way() {
         (on_the_way - at_its_stop).abs() < 1.0,
         "{at_its_stop} s at its stop, {on_the_way} s on the way"
     );
+}
+
+/// Kill `kills` mobs of `mob_level` `dx` yards east of the start.
+fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Objective {
+    let mut loc = p.model.start.clone();
+    loc.pos.x += dx;
+    Objective {
+        loc,
+        text: format!("kill x{kills} at {dx} yd"),
+        kills,
+        mob_level,
+        uses: 0.0,
+        extra: 0.0,
+        dungeon: None,
+        elite: false,
+        count: kills,
+        mobs: vec![],
+        pull: 1.0,
+        spawns: 0,
+        pack: 1.0,
+        spots: None,
+        guard: Guard::default(),
+        alts: vec![],
+    }
+}
+
+/// Where the objective is done: east of the start by how many yards.
+fn done_at(p: &Prepared) -> f64 {
+    let mut trace = Vec::new();
+    planner(p)
+        .simulate_full(&[Stop::quest(0, Kind::Objective(0))], Some(&mut trace))
+        .unwrap();
+    let loc = trace
+        .iter()
+        .find_map(|t| match &t.event {
+            Event::Stop { loc, .. } => Some(loc.pos.x),
+            _ => None,
+        })
+        .unwrap();
+    (loc - p.model.start.pos.x).round()
+}
+
+/// Mobs living in several places: the objective is done at the closest one, unless its mobs are
+/// too strong there (the levels to grind first cost more than the walk to the other).
+#[test]
+fn objective_is_done_at_its_best_place() {
+    let mut p = quests_at_start(1);
+    p.model.initial.accepted = vec![0];
+    let mut far = kills_east_of_start(&p, 900.0, 8.0, 1);
+    far.alts = vec![kills_east_of_start(&p, 100.0, 8.0, 1)];
+    p.model.quests[0].objectives = vec![far.clone()];
+    assert_eq!(done_at(&p), 100.0, "the closest place");
+    far.alts = vec![kills_east_of_start(&p, 100.0, 8.0, 12)];
+    p.model.quests[0].objectives = vec![far];
+    assert_eq!(done_at(&p), 900.0, "the weaker mobs, further away");
 }
 
 /// In a group, the class quests required of each class are required, not only the
@@ -976,6 +1086,7 @@ fn object_gathered_between_kills_waits_for_its_guards() {
                 points: vec![point],
             }),
             guard,
+            alts: vec![],
         }];
     }
     p.model.initial.accepted = vec![0, 1];

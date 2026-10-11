@@ -172,6 +172,11 @@ impl Planner<'_> {
             route = early;
             run = self.run(&route).expect("power_first keeps the route valid");
         }
+        let rebound = self.rebind(route.clone());
+        if rebound != route {
+            route = rebound;
+            run = self.run(&route).expect("rebind keeps the route valid");
+        }
         if let Some(pruned) = self.drop_unfinished(&route, run.total) {
             route = pruned;
             run = self.run(&route).expect("pruned route was valid");

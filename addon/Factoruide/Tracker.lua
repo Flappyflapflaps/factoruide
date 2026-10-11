@@ -1,11 +1,13 @@
 -- Quest tracker replacing Blizzard's: the next quests of the log to do in the route's order
 -- (as many as configured), objectives with progress, "turn in" with the NPC, quest item
--- buttons. Blizzard's tracker is hidden while
--- `replaceTracker` is on (deferred after combat when the frame is protected, like Questie).
+-- buttons. Blizzard's tracker (QuestWatchFrame on Classic, ObjectiveTrackerFrame later) is hidden
+-- while `replaceTracker` is on (deferred after combat when the frame is protected, like Questie).
 
 local _, FG = ...
 local Tracker = {}
 FG.Tracker = Tracker
+--- Quest IDs shown at the last refresh, in order.
+Tracker.shown = {}
 
 local fr = GetLocale() == "frFR"
 local L = {
@@ -47,29 +49,50 @@ local regenFrame
 
 -- Blizzard tracker ------------------------------------------------------------
 
+--- Blizzard's quest trackers of this client.
+local function BlizzardTrackers()
+    local out = {}
+    for _, tracker in ipairs({ ObjectiveTrackerFrame, QuestWatchFrame }) do
+        if tracker then table.insert(out, tracker) end
+    end
+    return out
+end
+
 local function ApplyBlizzardVisibility()
-    local tracker = ObjectiveTrackerFrame
-    if not tracker then return end
     local hide = FG:Get("replaceTracker")
-    if InCombatLockdown() and (not hide or tracker:IsProtected()) then
-        regenFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-        return
+    for _, tracker in ipairs(BlizzardTrackers()) do
+        if InCombatLockdown() and (not hide or tracker:IsProtected()) then
+            regenFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+            return
+        end
     end
     regenFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
-    if hide then
-        tracker:Hide()
-    elseif tracker.Update then
-        tracker:Update()
+    for _, tracker in ipairs(BlizzardTrackers()) do
+        if tracker == QuestWatchFrame then
+            -- Laid out by the game with its other frames: hiding it from an addon taints that
+            -- layout (blocked actions later in combat). Made invisible instead.
+            tracker:SetAlpha(hide and 0 or 1)
+            tracker:EnableMouse(not hide)
+        elseif hide then
+            tracker:Hide()
+        elseif tracker.Update then
+            tracker:Update()
+        end
     end
 end
 
 local function HookBlizzard()
     regenFrame = regenFrame or CreateFrame("Frame")
     regenFrame:SetScript("OnEvent", ApplyBlizzardVisibility)
-    if ObjectiveTrackerFrame and not blizzardHooked then
-        ObjectiveTrackerFrame:HookScript("OnShow", function()
-            if FG:Get("replaceTracker") then ApplyBlizzardVisibility() end
-        end)
+    if not blizzardHooked then
+        -- Opening the quest log shows them again.
+        for _, tracker in ipairs(BlizzardTrackers()) do
+            if tracker ~= QuestWatchFrame then
+                tracker:HookScript("OnShow", function()
+                    if FG:Get("replaceTracker") then ApplyBlizzardVisibility() end
+                end)
+            end
+        end
         blizzardHooked = true
     end
     ApplyBlizzardVisibility()
@@ -77,35 +100,44 @@ end
 
 -- Data -------------------------------------------------------------------------
 
---- Quests of the log, with the index of their next route step (for sorting).
+--- Quests in progress, with the index of their next route step (for sorting).
 local function CollectQuests()
-    local quests = {}
+    local quests, seen = {}, {}
     local nextStep = FG.Guide and FG.Guide.NextStepByQuest and FG.Guide:NextStepByQuest() or {}
     -- Only the quests being done: their next step is still ahead in the route (or done along
     -- the way); the first ones are kept.
     local current = FG.Guide and FG.Guide.CurrentStep and FG.Guide:CurrentStep() or 1
-    local all = FG:Get("trackerAll")
     local function inProgress(step) return step and (step.bg or step.index >= current) end
-    for i = 1, C_QuestLog.GetNumQuestLogEntries() do
-        local info = C_QuestLog.GetInfo(i)
-        if
-            info
-            and not info.isHeader
-            and not info.isHidden
-            and info.questID
-            and (all or inProgress(nextStep[info.questID]))
-        then
-            local q = info.questID
-            table.insert(quests, {
-                id = q,
-                index = i,
-                title = info.title,
-                level = info.level,
-                complete = C_QuestLog.IsComplete(q),
-                failed = C_QuestLog.IsFailed and C_QuestLog.IsFailed(q),
-                objectives = C_QuestLog.GetQuestObjectives(q) or {},
-                step = nextStep[q],
-            })
+    local function add(q, logIndex)
+        if seen[q] then return end
+        seen[q] = true
+        -- The log's line (level, quest item) when it is listed: not under a collapsed header.
+        logIndex = logIndex or (C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(q))
+        local info = logIndex and C_QuestLog.GetInfo(logIndex)
+        if info and info.questID ~= q then
+            info, logIndex = nil, nil
+        end
+        table.insert(quests, {
+            id = q,
+            index = logIndex,
+            title = info and info.title or C_QuestLog.GetTitleForQuestID(q) or ("#" .. q),
+            level = info and info.level,
+            complete = C_QuestLog.IsComplete(q),
+            failed = C_QuestLog.IsFailed and C_QuestLog.IsFailed(q),
+            objectives = C_QuestLog.GetQuestObjectives(q) or {},
+            step = nextStep[q],
+        })
+    end
+    -- The route's quests in the log, from the route: the same list whatever the quest log
+    -- window shows (headers collapsed or expanded while it is open).
+    for q, step in pairs(nextStep) do
+        if inProgress(step) and C_QuestLog.IsOnQuest(q) then add(q) end
+    end
+    -- The others, from the log, when the whole log is shown.
+    if FG:Get("trackerAll") then
+        for i = 1, C_QuestLog.GetNumQuestLogEntries() do
+            local info = C_QuestLog.GetInfo(i)
+            if info and not info.isHeader and not info.isHidden and info.questID then add(info.questID, i) end
         end
     end
     table.sort(quests, function(a, b)
@@ -216,8 +248,11 @@ end
 function Tracker:Refresh()
     dirty = false
     if not frame then return end
+    -- During combat, a tracker holding quest item buttons (secure) keeps its size and visibility;
+    -- its lines still update (see `FG.CanLayout`, refreshed again after the fight).
+    local resize = FG.CanLayout(frame)
     local shown = FG:Get("trackerShown")
-    frame:SetShown(shown)
+    if resize then frame:SetShown(shown) end
     if not shown then return end
 
     local quests = CollectQuests()
@@ -280,17 +315,23 @@ function Tracker:Refresh()
     end
 
     if #quests == 0 then add("|cff9d9d9d" .. L.empty .. "|r") end
+    Tracker.shown = {}
     for _, q in ipairs(quests) do
         if used >= max then break end
         used = used + 1
+        table.insert(Tracker.shown, q.id)
         local color = q.step and DifficultyColor(q.id) or "9d9d9d"
         local suffix = ""
         if not q.step then suffix = "  |cff777777(" .. L.offRoute .. ")|r" end
         if q.step and q.step.bg then suffix = "  |cff40c0ff(" .. L.alongTheWay .. ")|r" end
-        local line = add(string.format("|cff%s[%d] %s|r%s", color, q.level or 0, q.title, suffix), q.id)
+        local level = q.level and string.format("[%d] ", q.level) or ""
+        add(string.format("|cff%s%s%s|r%s", color, level, q.title, suffix), q.id)
 
         -- Usable quest item, re-assigned only out of combat (secure button).
-        local link, icon = GetQuestLogSpecialItemInfo(q.index)
+        local link, icon
+        if q.index then
+            link, icon = GetQuestLogSpecialItemInfo(q.index)
+        end
         if link and itemIndex < MAX_BUTTONS then
             itemIndex = itemIndex + 1
             local b = ItemButton(itemIndex)
@@ -328,6 +369,7 @@ function Tracker:Refresh()
             buttons[i]:Hide()
         end
     end
+    if not resize then return end
     frame:SetHeight(24 + n * 16)
     -- A position saved anchored by the bottom: from now on the tracker grows downwards.
     local pinned = FG.PinTopIfNeeded(frame)

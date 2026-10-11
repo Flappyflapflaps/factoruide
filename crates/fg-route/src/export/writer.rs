@@ -74,10 +74,9 @@ impl StepWriter<'_> {
         step
     }
 
-    /// The mobs farmed on the way to a step, at the end of its text.
+    /// The mobs farmed on the way to a step: counted by the addon, shown apart from its text.
     pub(super) fn add_farm(step: &mut Step, kills: u32) {
-        let key = if kills > 1 { "suffix.farm" } else { "suffix.farm1" };
-        step.say.push(Phrase::new(key).arg("n", num(i64::from(kills))));
+        step.farm = Some(kills);
     }
 
     /// A checkpoint: the guide goes on from the level (and XP) the route has there, grinding
@@ -118,6 +117,7 @@ impl StepWriter<'_> {
             route_xp: None,
             spells: Vec::new(),
             xp: (xp > 0).then_some(xp),
+            farm: None,
             level,
             keep: true,
             ..at.clone()
@@ -155,6 +155,7 @@ impl StepWriter<'_> {
             text: String::new(),
             say: vec![say],
             xp: (xp > 0).then_some(xp),
+            farm: None,
             level,
             zone: at.zone.clone(),
             zone_id: at.zone_id,
@@ -216,6 +217,7 @@ impl StepWriter<'_> {
             route_xp: None,
             spells: Vec::new(),
             xp: None,
+            farm: None,
             level: t.level,
             time: t.time.round(),
             power: power.map(|_| (t.power * 10.0).round() / 10.0),
@@ -570,7 +572,8 @@ impl StepWriter<'_> {
                 }
             }
             Kind::Objective(k) => {
-                Self::objective(step, &q.objectives[k as usize], k);
+                // At the place the route went to (one of its alternatives).
+                Self::objective(step, q.objectives[k as usize].nearest(&loc.pos), k);
                 // Already announced on the way: here is where it is finished.
                 step.bg = self.background.contains(&(stop.index, k)) && !self.announced.contains(&n);
             }

@@ -129,6 +129,9 @@ UnitGUID = function(u)
     if u == "npc" then return "Creature-0-1-2-3-658-0000" end
     return "Player-1-2"
 end
+StaticPopupDialogs = {}
+StaticPopup_Show = record("StaticPopup_Show")
+YES, NO = "Yes", "No"
 UnitOnTaxi = function() return false end
 UnitIsPlayer = function() return false end
 UnitExists = function() return false end
@@ -846,3 +849,91 @@ fire("QUEST_ACCEPT_CONFIRM", "Friend", "Shared Escort")
 assert(not calls.ConfirmAcceptQuest, "a shared escort is not confirmed")
 GetQuestID = questID
 print("guide quests only ok")
+
+-- Mobs on the way: the kills of the character (or its pet) counted for the current step.
+FG.Routes["farm-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = { { k = "grind", t = "Grind", lvl = 60, fk = 3 } },
+}
+SlashCmdList.FACTORUIDE("route farm-test")
+local function kill(source, dest) fire("PARTY_KILL", source, dest) end
+kill("Player-1-2", "Creature-0-1-2-3-299-0000")
+kill("Player-1-2", "Creature-0-1-2-3-299-0001")
+kill("Player-9-9", "Creature-0-1-2-3-299-0002") -- someone else's
+kill("Player-1-2", "Player-3-4") -- not a mob
+assert(char.guide.farm and char.guide.farm.step == 1 and char.guide.farm.kills == 2, "two mobs on the way counted")
+print("farm on the way ok")
+
+-- Start over: asks when steps or quests were marked by hand, then undoes them.
+SlashCmdList.FACTORUIDE("route skip-test")
+char.guide.skippedQuests[5004] = true
+char.guide.marks[1] = "skip"
+calls.StaticPopup_Show = nil
+FG.Guide:AskReset()
+assert(calls.StaticPopup_Show and calls.StaticPopup_Show[1] == "FACTORUIDE_RESET", "asked first")
+FG.Guide:Reset()
+for q in pairs(char.guide.skippedQuests) do
+    error("quest still marked by hand: " .. q)
+end
+for _, mark in pairs(char.guide.marks) do
+    assert(mark ~= "skip", "no step marked by hand left")
+end
+calls.StaticPopup_Show = nil
+FG.Guide:AskReset()
+assert(not calls.StaticPopup_Show, "nothing to undo: no question")
+print("start over ok")
+
+-- The box under the guide: its tab and whether it is shown, kept.
+FG:Save("nextTab", "pickup")
+FG:Save("nextShown", false)
+assert(FG:Get("nextTab") == "pickup" and FactoruideDB.ui.nextTab == "pickup", "tab kept")
+assert(FG:Get("nextShown") == false, "box hidden")
+FG.Guide:Refresh()
+FG:Save("nextShown", nil)
+FG:Save("nextTab", nil)
+assert(FG:Get("nextTab") == "next" and FG:Get("nextShown") == true, "defaults back")
+print("next box ok")
+
+-- The tracker lists the guide's quests in progress even when the quest log lists none
+-- (headers collapsed in the quest log window).
+FG.Routes["tracker-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "accept", t = "Accept Logged", q = 7101, lvl = 1 },
+        { k = "turnin", t = "Turn in Logged", q = 7101, lvl = 1 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+SlashCmdList.FACTORUIDE("route tracker-test")
+onQuest[7101] = true
+local entries = C_QuestLog.GetNumQuestLogEntries
+C_QuestLog.GetNumQuestLogEntries = function() return 0 end
+FG.Tracker:Refresh()
+assert(FG.Tracker.shown[1] == 7101, "guide quest listed without the log")
+C_QuestLog.GetNumQuestLogEntries = entries
+onQuest[7101] = nil
+print("tracker from the guide ok")
+
+-- During combat, a box made protected by a secure button hanging on it (a quest item button)
+-- keeps its size: the game would block the change. Resized after the fight.
+local box = FG.Guide:Box()
+local resized = false
+box.SetHeight = function() resized = true end
+box.IsProtected = function() return true end
+InCombatLockdown = function() return true end
+FG.Guide:Refresh()
+assert(not resized, "a protected box resized during combat")
+InCombatLockdown = function() return false end
+fire("PLAYER_REGEN_ENABLED")
+assert(resized, "resized after the fight")
+print("combat layout ok")

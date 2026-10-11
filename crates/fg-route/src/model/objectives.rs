@@ -2,7 +2,7 @@
 //! object, get an item, explore an area), inside a dungeon, or won in battlegrounds.
 
 use super::builder::{QuestBuilder, Skip};
-use super::entities::best_cluster;
+use super::entities::{alternatives, best_cluster};
 use super::givers::Givers;
 use super::sources::{ObjectiveKind, QuestRow, SourceKind, asks_for_work, count_for, on_reachable, parse_requirements};
 use super::types::{EntityKind, Guard, Loc, Objective, Spots};
@@ -44,6 +44,7 @@ impl Objective {
             pack: 1.0,
             spots: None,
             guard: Guard::default(),
+            alts: vec![],
         }
     }
 }
@@ -65,6 +66,19 @@ impl QuestBuilder<'_> {
                 objs.push(o);
             }
         }
+        self.measure(r, &mut objs);
+        for o in &mut objs {
+            // Elites elsewhere do not replace normal mobs when elites are left out.
+            let elite = o.elite || self.params.allow_elite;
+            o.alts.retain(|a| elite || !a.elite);
+            self.measure(r, &mut o.alts);
+        }
+        self.add_dungeon_givers(r, &mut objs);
+        Ok(objs)
+    }
+
+    /// What the place of each objective holds: elites per pull, guards, spot and crowd.
+    fn measure(&self, r: &QuestRow, objs: &mut [Objective]) {
         for o in objs.iter_mut().filter(|o| o.elite) {
             o.pull = self.sources.elites.pull(o.mobs.iter().map(|(id, _)| *id));
         }
@@ -73,9 +87,7 @@ impl QuestBuilder<'_> {
         for o in objs.iter_mut().filter(|o| o.kills <= 0.0 && o.dungeon.is_none()) {
             o.guard = self.sources.guards.around(&o.loc.pos);
         }
-        self.spots_and_crowd(r, &mut objs);
-        self.add_dungeon_givers(r, &mut objs);
-        Ok(objs)
+        self.spots_and_crowd(r, objs);
     }
 
     fn context<'r>(&self, r: &'r QuestRow, givers: &Givers) -> QuestContext<'r> {
@@ -234,7 +246,7 @@ impl QuestBuilder<'_> {
         let (pos, zone, _) = best_cluster(&points, Some(&quest.anchor))
             .or(quest.approx)
             .ok_or("objective mob location unknown")?;
-        let loc = Loc {
+        let loc = |pos: Pos, zone: i64| Loc {
             pos,
             zone,
             kind: EntityKind::Npc,
@@ -243,7 +255,7 @@ impl QuestBuilder<'_> {
         };
         if friendly {
             return Ok(Objective::plain(
-                loc,
+                loc(pos, zone),
                 text.unwrap_or_else(|| format!("Talk to {name}")),
                 20.0,
             ));
@@ -254,8 +266,8 @@ impl QuestBuilder<'_> {
         } else {
             &ids[..1]
         };
-        Ok(Objective {
-            text: text.unwrap_or_else(|| format!("Kill {name} x{kills}")),
+        let at = |pos: Pos, zone: i64| Objective {
+            text: text.clone().unwrap_or_else(|| format!("Kill {name} x{kills}")),
             kills,
             mob_level: entities.npc_level(target),
             elite,
@@ -265,7 +277,14 @@ impl QuestBuilder<'_> {
                 .map(|id| (*id, entities.name(EntityKind::Npc, *id)))
                 .collect(),
             spots: if elite { None } else { Spots::new(&points, &pos) },
-            ..Objective::plain(loc, String::new(), 0.0)
+            ..Objective::plain(loc(pos, zone), String::new(), 0.0)
+        };
+        Ok(Objective {
+            alts: alternatives(&points, &pos, &quest.anchor, kills, self.params.objective_alternatives)
+                .into_iter()
+                .map(|(p, z)| at(p, z))
+                .collect(),
+            ..at(pos, zone)
         })
     }
 
@@ -283,18 +302,28 @@ impl QuestBuilder<'_> {
             .ok_or("objective object location unknown")?;
         let name = entities.name(EntityKind::Object, target);
         let uses = amount.unwrap_or_else(|| count_for(&quest.requirements, &name, 1.0));
-        let loc = Loc {
-            pos,
-            zone,
-            kind: EntityKind::Object,
-            id: target,
-            name: name.clone(),
+        let text = text.unwrap_or_else(|| format!("Use {name}"));
+        let at = |pos: Pos, zone: i64| {
+            let loc = Loc {
+                pos,
+                zone,
+                kind: EntityKind::Object,
+                id: target,
+                name: name.clone(),
+            };
+            Objective {
+                uses,
+                count: uses,
+                spots: Spots::new(&points, &pos),
+                ..Objective::plain(loc, text.clone(), 0.0)
+            }
         };
         Ok(Objective {
-            uses,
-            count: uses,
-            spots: Spots::new(&points, &pos),
-            ..Objective::plain(loc, text.unwrap_or_else(|| format!("Use {name}")), 0.0)
+            alts: alternatives(&points, &pos, &quest.anchor, uses, self.params.objective_alternatives)
+                .into_iter()
+                .map(|(p, z)| at(p, z))
+                .collect(),
+            ..at(pos, zone)
         })
     }
 

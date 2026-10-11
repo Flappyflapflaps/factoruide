@@ -21,13 +21,16 @@ impl FarmMobs {
     const SAME: f64 = 10.0;
 
     /// Normal mobs (not elite or rare, no gossip, vendor or quest flag) that are not of a faction:
-    /// hostile to both, or neutral beasts.
+    /// hostile to both, or neutral beasts. None in the capitals (the game's flag 0x100): what the
+    /// sources know nothing of there is a passer-by (Theramore Emissary in Stormwind), a pet
+    /// (the warlock trainers' demons) or a dungeon's mob put at its door (the Stockade's).
     pub(super) fn load(conn: &Connection, world: &World) -> Result<Self> {
         let mut stmt = conn.prepare(
             "SELECT s.zone_id, s.x, s.y, coalesce(n.min_level, 1), coalesce(n.max_level, n.min_level, 1)
              FROM m_spawn s JOIN m_npc n ON n.id = s.entity_id
              WHERE s.entity_type = 'npc' AND s.x >= 0 AND coalesce(n.rank, 0) = 0
-               AND coalesce(n.npc_flags, 0) = 0 AND coalesce(n.friendly_to, '') IN ('', 'AH')",
+               AND coalesce(n.npc_flags, 0) = 0 AND coalesce(n.friendly_to, '') IN ('', 'AH')
+               AND s.zone_id NOT IN (SELECT ID FROM client_areatable WHERE (Flags_0 & 256) != 0)",
         )?;
         let mut cells = Cells::new();
         let mut seen = HashSet::new();

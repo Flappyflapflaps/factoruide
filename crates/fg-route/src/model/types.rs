@@ -123,6 +123,25 @@ pub struct Objective {
     pub pack: f64,
     /// Hostile mobs around where it is done.
     pub guard: Guard,
+    /// The other places it can be done (other groups of its mobs or objects), each with what
+    /// changes there: the mobs, their level and packs, the guards, the wait for respawns. The
+    /// planner goes to the best one from where the character is (`Planner::spot`).
+    pub alts: Vec<Objective>,
+}
+
+impl Objective {
+    /// Its places: itself, then its `alts`.
+    pub fn places(&self) -> impl Iterator<Item = &Self> {
+        std::iter::once(self).chain(&self.alts)
+    }
+
+    /// The place closest to `pos` (as the crow flies).
+    #[must_use]
+    pub fn nearest(&self, pos: &Pos) -> &Self {
+        self.places()
+            .min_by(|a, b| pos.dist(&a.loc.pos).total_cmp(&pos.dist(&b.loc.pos)))
+            .unwrap_or(self)
+    }
 }
 
 /// Hostile mobs standing around a place (see `Guards`): the strongest level among them, how

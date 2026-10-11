@@ -8,7 +8,7 @@
 //! Services (calculations, each one need):
 //! - `combat`: kill times, the power an objective requires, mob XP, grinding;
 //! - `travel` (`Trips`): the fastest way between two places;
-//! - `places`: where each stop takes place;
+//! - `places`: where each stop takes place, `spot`: the place of an objective done in several;
 //! - `availability`: what the character can do now;
 //! - `growth`: XP, rewards, power, professions;
 //! - `worth`: whether a quest is worth its trip.
@@ -16,7 +16,7 @@
 //! Orchestrators (they call the services in order):
 //! - `step`: doing one stop, `on_the_way`: what happens while moving;
 //! - `evaluate`: replaying a whole route (its time and score);
-//! - `construct`, `regions`: building a first route;
+//! - `construct`, `regions`: building a first route, `hearth`: where the hearthstone is bound;
 //! - `search` with `moves`, `acceptance`, `alns`: improving it;
 //! - `follow`: replaying an imposed route; `report`: explaining a route.
 
@@ -28,12 +28,14 @@ mod construct;
 mod evaluate;
 mod follow;
 mod growth;
+mod hearth;
 mod moves;
 mod on_the_way;
 mod places;
 mod regions;
 mod report;
 mod search;
+mod spot;
 mod state;
 mod step;
 mod travel;
