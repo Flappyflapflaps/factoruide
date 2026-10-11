@@ -56,7 +56,8 @@ impl StepWriter<'_> {
                 zone,
             } => self.grind(&mut step, *to_level, *seconds, near, *zone),
             Event::DeathSkip { pos, zone } => self.death_skip(&mut step, pos, *zone),
-            Event::Hearth { inn } => self.hearth(&mut step, *inn),
+            Event::Hearth { inn, recall } => self.hearth(&mut step, *inn, *recall),
+            Event::Teleport { to } => self.teleport(&mut step, *to),
             Event::Train { trainer, since } => self.train(&mut step, *trainer, *since, t.level),
             Event::Stop { stop, loc } if !stop.is_quest() => self.visit(&mut step, *stop, loc),
             Event::Stop { stop, loc } => self.quest_stop(&mut step, n, *stop, loc),
@@ -376,7 +377,8 @@ impl StepWriter<'_> {
         self.place(pos, Some(zone))
     }
 
-    fn hearth(&self, step: &mut Step, inn: usize) -> Place {
+    /// The hearthstone, or Astral Recall (`recall`), to the inn it is bound to.
+    fn hearth(&self, step: &mut Step, inn: usize, recall: bool) -> Place {
         let inn = &self.planner.model.inns[inn];
         let world = self.planner.world;
         let zone_name = world.zone_name(inn.zone);
@@ -387,11 +389,12 @@ impl StepWriter<'_> {
             .and_then(|n| world.taxi_nodes[n].name.split(',').next())
             .or_else(|| world.place_name(&inn.pos));
         step.kind = StepKind::Hearth;
+        let key = if recall { "recall" } else { "hearth" };
         step.say.push(match town {
-            Some(town) if town != zone_name => Phrase::new("hearth.town")
+            Some(town) if town != zone_name => Phrase::new(if recall { "recall.town" } else { "hearth.town" })
                 .arg("town", Arg::Text(town.to_owned()))
                 .arg("zone", self.zone(inn.zone)),
-            _ => Phrase::new("hearth").arg("zone", self.zone(inn.zone)),
+            _ => Phrase::new(key).arg("zone", self.zone(inn.zone)),
         });
         step.target = Some(Target {
             kind: TargetKind::Npc,
@@ -399,6 +402,15 @@ impl StepWriter<'_> {
             name: inn.name.clone(),
         });
         self.place(&inn.pos, Some(inn.zone))
+    }
+
+    /// A class teleport to a capital (a mage's "Teleport: Stormwind").
+    fn teleport(&self, step: &mut Step, to: usize) -> Place {
+        let tp = &self.planner.model.teleports[to];
+        step.kind = StepKind::Teleport;
+        step.say
+            .push(Phrase::new("teleport").arg("zone", self.zone(tp.to.zone)));
+        self.place(&tp.to.pos, Some(tp.to.zone))
     }
 
     /// Class training: the spells learned since the last visit.
@@ -582,7 +594,7 @@ impl StepWriter<'_> {
                 step.reward_xp = Some(self.planner.growth().quest_reward(q, step.level));
                 step.say.push(Phrase::new("turnin").arg("quest", quest).arg("who", who));
             }
-            Kind::LearnFlight | Kind::Bind | Kind::Dungeon => unreachable!(),
+            Kind::LearnFlight | Kind::Bind | Kind::Dungeon | Kind::Hearth => unreachable!(),
         }
         self.place(&loc.pos, Some(loc.zone))
     }

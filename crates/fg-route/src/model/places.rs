@@ -1,7 +1,8 @@
-//! The NPCs a route visits besides quests: class trainers, innkeepers.
+//! The NPCs a route visits besides quests: class trainers, innkeepers; and the class spells
+//! that travel: teleports to the capitals, a second hearthstone.
 
 use super::entities::Entities;
-use super::types::{EntityKind, Loc, Profile};
+use super::types::{EntityKind, Loc, Profile, Teleport};
 use crate::world::World;
 use anyhow::Result;
 use rusqlite::Connection;
@@ -12,6 +13,8 @@ pub(super) struct Places {
     /// Where the hearthstone of a new character takes it: its starting place (not an inn, it
     /// cannot be bound there).
     pub(super) start_inn: usize,
+    pub(super) teleports: Vec<Teleport>,
+    pub(super) recall: Option<i64>,
 }
 
 impl Places {
@@ -33,12 +36,62 @@ impl Places {
         // Trials, not the closest inn as the crow flies) until it is bound at an inn.
         inns.push(start.clone());
         let start_inn = inns.len() - 1;
+        let trainers = finder.with_subname(&format!("{} Trainer", profile.class_name))?;
+        let spells = class_spells(conn, profile.class_id)?;
+        // Where a teleport lands: the class trainer of that city, else its inn (the character's
+        // capitals only: the others have none friendly to it).
+        let in_city = |locs: &[Loc], city: &str| {
+            locs.iter()
+                .find(|l| {
+                    let zone = world.zone_name(l.zone);
+                    zone == city || zone.strip_prefix(city).is_some_and(|rest| rest.starts_with(' '))
+                })
+                .cloned()
+        };
+        let teleports = spells
+            .iter()
+            .filter_map(|(name, level)| {
+                let city = name.strip_prefix("Teleport: ")?;
+                let to = in_city(&trainers, city).or_else(|| in_city(&inns[..start_inn], city))?;
+                Some(Teleport {
+                    name: name.clone(),
+                    level: *level,
+                    to,
+                })
+            })
+            .collect();
+        let recall = spells
+            .iter()
+            .find(|(name, _)| name == "Astral Recall")
+            .map(|(_, level)| *level);
         Ok(Self {
-            trainers: finder.with_subname(&format!("{} Trainer", profile.class_name))?,
+            trainers,
             inns,
             start_inn,
+            teleports,
+            recall,
         })
     }
+}
+
+/// The class's spells that travel ("Teleport: Stormwind", "Astral Recall") and the level they
+/// are learned at; none without the class spell data.
+fn class_spells(conn: &Connection, class_id: i64) -> Result<Vec<(String, i64)>> {
+    let known: i64 = conn.query_row(
+        "SELECT count(*) FROM sqlite_master WHERE name = 'm_class_spell'",
+        [],
+        |r| r.get(0),
+    )?;
+    if known == 0 {
+        return Ok(Vec::new());
+    }
+    let mut stmt = conn.prepare(
+        "SELECT name, min(level) FROM m_class_spell
+         WHERE class_id = ?1 AND (name LIKE 'Teleport: %' OR name = 'Astral Recall')
+         GROUP BY name",
+    )?;
+    let rows = stmt.query_map([class_id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
 struct NpcFinder<'a> {

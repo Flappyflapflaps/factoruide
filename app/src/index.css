@@ -790,6 +790,7 @@ h3 {
 .kind-fly,
 .kind-link,
 .kind-hearth,
+.kind-teleport,
 .kind-flight_master {
   --kind: var(--cat-7);
 }

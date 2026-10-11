@@ -174,6 +174,7 @@ impl<'a> Planner<'a> {
             known: init.known,
             bind: init.bind.unwrap_or(self.model.start_inn),
             hearth_ready: 0.0,
+            recall_ready: 0.0,
             trained: init.trained.unwrap_or(level).min(level),
             dungeons: 0,
             accepted: vec![false; n],

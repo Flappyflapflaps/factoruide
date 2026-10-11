@@ -100,7 +100,12 @@ fn quest(p: &Prepared, id: i64) -> Option<u32> {
 /// Level 1 human warrior with only `n` quests of its own: taken and turned in at the start NPC,
 /// nothing to do, no XP (each test sets what it checks). Nothing done on the way.
 fn quests_at_start(n: usize) -> Prepared {
-    let mut p = prepare("human", "warrior", 2, &[]);
+    quests_at_start_as("human", "warrior", n)
+}
+
+/// `quests_at_start` for another race and class.
+fn quests_at_start_as(race: &str, class: &str, n: usize) -> Prepared {
+    let mut p = prepare(race, class, 2, &[]);
     let here = p.model.start.clone();
     let template = p.model.quests[0].clone();
     p.model.quests = (0..n)
@@ -559,8 +564,10 @@ fn dungeon_quests_are_steps_of_their_own() {
         let before = &steps[i - 1];
         assert!(
             before.kind == StepKind::Dungeon || before.inside,
-            "{} not after a run",
-            s.text
+            "{} not after a run ({:?} {})",
+            s.text,
+            before.kind,
+            before.text
         );
         assert_eq!(s.kind, StepKind::Objective);
         let q = s.quest.unwrap();
@@ -800,6 +807,75 @@ fn hearthstone_follows_the_route() {
         with < without,
         "{with:?} with the binds, {without:?} without ({inns:?})"
     );
+}
+
+/// An objective `dx` yards east of the start, finished by killing one level 1 mob.
+fn one_kill_east_of_start(p: &Prepared, dx: f64) -> Objective {
+    kills_east_of_start(p, dx, 1.0, 1)
+}
+
+/// Back to town twice within the hour: the hearthstone is kept for the longer trip (from the
+/// farther objective), not used on the first trip it would shorten.
+#[test]
+fn hearthstone_is_kept_for_the_longer_trip_back() {
+    let mut p = quests_at_start(2);
+    p.model.quests[0].objectives = vec![one_kill_east_of_start(&p, 1500.0)];
+    p.model.quests[1].objectives = vec![one_kill_east_of_start(&p, 3000.0)];
+    p.model.initial.accepted = vec![0, 1];
+    let route = vec![
+        Stop::quest(0, Kind::Objective(0)),
+        Stop::quest(0, Kind::TurnIn),
+        Stop::quest(1, Kind::Objective(0)),
+        Stop::quest(1, Kind::TurnIn),
+    ];
+    let planner = planner(&p);
+    let placed = planner.place_hearths(route.clone());
+    let at = placed.iter().position(|s| s.kind == Kind::Hearth);
+    assert_eq!(at, Some(3), "{placed:?}");
+    assert!(planner.simulate(&placed, None) < planner.simulate(&route, None));
+}
+
+/// A mage trained in its teleports goes to a capital with one rather than across the world.
+#[test]
+fn mage_teleports_to_a_capital() {
+    let mut p = quests_at_start_as("human", "mage", 1);
+    let names: Vec<(&str, i64)> = p.model.teleports.iter().map(|t| (t.name.as_str(), t.level)).collect();
+    assert!(names.contains(&("Teleport: Ironforge", 20)), "{names:?}");
+    assert!(!names.iter().any(|(n, _)| n.contains("Orgrimmar")), "{names:?}");
+    let ironforge = p
+        .model
+        .teleports
+        .iter()
+        .find(|t| t.name == "Teleport: Ironforge")
+        .unwrap()
+        .to
+        .clone();
+    let mut o = one_kill_east_of_start(&p, 0.0);
+    o.loc = ironforge;
+    p.model.quests[0].objectives = vec![o];
+    p.model.initial.accepted = vec![0];
+    (p.profile.from_level, p.profile.to_level, p.model.initial.trained) = (25, 30, Some(25));
+    let route = [Stop::quest(0, Kind::Objective(0))];
+    let mut trace = Vec::new();
+    let with = planner(&p).simulate_full(&route, Some(&mut trace)).unwrap().1;
+    assert!(trace.iter().any(|t| matches!(t.event, Event::Teleport { .. })));
+    p.model.teleports.clear();
+    let without = planner(&p).simulate_full(&route, None).unwrap().1;
+    let travel = |b: &fg_route::plan::Breakdown| b.travel + b.flights;
+    assert!(
+        travel(&with) * 3.0 < travel(&without),
+        "{:.0} s of travel with the teleport, {:.0} s without",
+        travel(&with),
+        travel(&without)
+    );
+}
+
+/// A shaman has a second hearthstone from level 30.
+#[test]
+fn shaman_has_astral_recall() {
+    let p = quests_at_start_as("orc", "shaman", 0);
+    assert_eq!(p.model.recall, Some(30));
+    assert!(p.model.teleports.is_empty());
 }
 
 /// Training starts from the spells the character learned: the first rank it lacks.

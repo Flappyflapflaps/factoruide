@@ -88,6 +88,8 @@ export const sections: Section[] = [
       { key: "flight_learn_radius", kind: "number", label: "Détour max pour apprendre un point de vol", unit: "m", min: 0, max: 1500, step: 50 },
       { key: "hearth_cooldown", kind: "number", label: "Recharge de la pierre de foyer", unit: "min", scale: 60, min: 0, max: 60, step: 5 },
       { key: "hearth_cast", kind: "number", label: "Incantation de la pierre", unit: "s", min: 0, max: 20, step: 1 },
+      { key: "recall_cooldown", kind: "number", label: "Recharge du Rappel astral (chaman)", help: "Deuxième pierre de foyer du chaman, apprise au niveau 30.", unit: "min", scale: 60, min: 0, max: 60, step: 5 },
+      { key: "teleport_cast", kind: "number", label: "Incantation des téléportations", help: "Téléportations du mage vers les capitales, et Rappel astral du chaman.", unit: "s", min: 0, max: 20, step: 1 },
       { key: "gold_weight", kind: "number", label: "Économiser l'or des vols", help: "Temps que vaut une pièce d'or dépensée en vols (0 = vols gratuits). 60 min (défaut) divise par 2 l'or dépensé et regroupe les quêtes par zone sans rallonger la route.", unit: "min", scale: 60, min: 0, max: 240, step: 10 },
       { key: "zone_change_weight", kind: "number", label: "Coût d'un changement de zone", help: "Temps compté en plus du trajet à chaque changement de zone : regroupe les quêtes par zone au lieu d'aller chercher quelques quêtes loin. 4 min par défaut.", unit: "min", scale: 60, min: 0, max: 15, step: 1 },
       { key: "flight_weight", kind: "number", label: "Poids des vols", help: "1 (défaut) = seul leur temps compte ; plus haut = marche ou réordonne la route plutôt que prendre un vol qui fait gagner peu de temps.", min: 1, max: 5, step: 0.25 },

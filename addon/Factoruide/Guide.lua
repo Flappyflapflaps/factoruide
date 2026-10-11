@@ -80,6 +80,11 @@ local KINDS = {
         color = "40c0ff",
         label = fr and "Pierre de foyer" or "Hearthstone",
     },
+    teleport = {
+        icon = "Interface\\Icons\\Spell_Arcane_TeleportStormWind",
+        color = "40c0ff",
+        label = fr and "Téléportation" or "Teleport",
+    },
     bind = { icon = "Interface\\GossipFrame\\BinderGossipIcon", color = "40c0ff", label = fr and "Auberge" or "Inn" },
     dungeon = { icon = "Interface\\Icons\\INV_Misc_Key_10", color = "ff4040", label = fr and "Donjon" or "Dungeon" },
     profession = {
@@ -241,6 +246,10 @@ function IsDone(step, index)
     elseif step.k == "hearth" then
         local d = Distance(step)
         return d ~= nil and d < 100
+    elseif step.k == "teleport" then
+        -- Placed at the class trainer of the city, a little off where the spell lands.
+        local d = Distance(step)
+        return d ~= nil and d < 300
     elseif step.k == "link" then
         local nextStep = route.steps[(index or state.step) + 1]
         return nextStep and nextStep.m and C_Map.GetBestMapForUnit("player") == nextStep.m or false
@@ -318,14 +327,16 @@ end
 
 -- Text -----------------------------------------------------------------------
 
---- The mobs to kill on the way to a step: counted while it is the current one.
-local function FarmText(step, index)
+--- The mobs to kill on the way to a step (a line of its own), and whether that many are killed:
+--- counted while it is the current step, else only planned.
+local function FarmLine(step, index)
     local farm = state.farm
     if index == state.step and farm and farm.step == index then
-        local color = farm.kills >= step.fk and "40ff40" or "c080ff"
-        return string.format("  |cff%s" .. L.farmProgress .. "|r", color, math.min(farm.kills, step.fk), step.fk)
+        local done = farm.kills >= step.fk
+        local text = string.format(L.farmProgress, math.min(farm.kills, step.fk), step.fk)
+        return string.format("|cff%s%s|r", done and "40ff40" or "c080ff", text), done
     end
-    return string.format("  |cffc080ff" .. L.farmPlanned .. "|r", step.fk)
+    return string.format("|cffc080ff" .. L.farmPlanned .. "|r", step.fk), false
 end
 
 local function StepLine(step, withProgress, index)
@@ -368,7 +379,6 @@ local function StepLine(step, withProgress, index)
     else
         text = step.t
     end
-    if step.fk then text = text .. FarmText(step, index) end
     return string.format("|cff%s%s|r  %s", kind.color, kind.label, text)
 end
 
@@ -670,8 +680,22 @@ function Guide:Refresh()
     local todo = {}
     local rows = 0
     local listed = {}
+    -- The mobs to kill on the way to a step: a line of their own before it.
+    local function AddFarmRow(index)
+        local step = route.steps[index]
+        local text, done = FarmLine(step, index)
+        rows = rows + 1
+        local row = Row(todoBox, rows, true)
+        row.index = index
+        row.icon:SetTexture(KINDS.grind.icon)
+        row.icon:SetDesaturated(done)
+        row.check:SetShown(done)
+        row.text:SetText(text)
+        row.text:SetAlpha(done and 0.45 or 1)
+    end
     local function AddRow(index, done)
         local step = route.steps[index]
+        if step.fk and not done then AddFarmRow(index) end
         listed[index] = true
         if not done then table.insert(todo, step) end
         rows = rows + 1
@@ -1075,6 +1099,12 @@ function Guide:Route() return route end
 
 --- Saved per-character guide state (also holds the tracker position).
 function Guide:State() return state end
+
+--- The steps of the current tasks (indexes in the route), none without a route.
+function Guide:CurrentSteps()
+    if not route or not state or not route.steps[state.step] then return nil end
+    return CurrentGroup()
+end
 
 --- For each quest, its next step in the route from the current position: { index, k, n }.
 function Guide:NextStepByQuest()

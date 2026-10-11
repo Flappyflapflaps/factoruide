@@ -53,6 +53,8 @@ export interface Params {
   min_efficiency: number;
   hearth_cooldown: number;
   hearth_cast: number;
+  recall_cooldown: number;
+  teleport_cast: number;
   train_every: number;
   train_radius: number;
   train_max_delay: number;

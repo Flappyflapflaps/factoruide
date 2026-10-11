@@ -1,5 +1,5 @@
 //! The fastest way between two places: walking, boats and zeppelins, flights between known
-//! flight paths, the hearthstone when it is ready and saves enough.
+//! flight paths, class teleports.
 
 use super::state::{Leg, State, Via};
 use crate::model::Model;
@@ -83,16 +83,24 @@ impl Trips<'_> {
         best
     }
 
-    /// Fastest trip from the current position, using the hearthstone when ready and faster.
+    /// Fastest trip from the current position, a class teleport first when learned (trained at
+    /// its level) and faster. The hearthstone is a stop of its own (`Kind::Hearth`).
     pub(crate) fn fastest(&self, s: &State, b: &Pos) -> (f64, Via) {
         let (t, leg) = self.leg(&s.pos, b, s.level, s.known);
-        let mut best = (t, Via { hearth: false, leg });
-        if s.time >= s.hearth_ready {
-            let inn = &self.model.inns[s.bind].pos;
-            let (t, leg) = self.leg(inn, b, s.level, s.known);
-            let t = t + self.params.hearth_cast;
-            if self.params.hearth_worth(best.0, t) {
-                best = (t, Via { hearth: true, leg });
+        let mut best = (t, Via { teleport: None, leg });
+        for (i, tp) in self.model.teleports.iter().enumerate() {
+            // Not before it is learned, nor when it cannot be faster: landing on another
+            // continent, or farther than the trip as the crow flies at flight speed.
+            if tp.level > s.trained
+                || tp.to.pos.continent != b.continent
+                || self.params.teleport_cast + tp.to.pos.dist(b) / self.params.flight_speed >= best.0
+            {
+                continue;
+            }
+            let (t, leg) = self.leg(&tp.to.pos, b, s.level, s.known);
+            let t = t + self.params.teleport_cast;
+            if t < best.0 {
+                best = (t, Via { teleport: Some(i), leg });
             }
         }
         best

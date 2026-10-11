@@ -154,6 +154,10 @@ pub struct Params {
     pub hearth_cast: f64,
     /// The hearthstone is worth its hour of cooldown only when it saves at least this (seconds).
     pub hearth_min_saving: f64,
+    /// Cooldown of the shaman's Astral Recall (a second hearthstone), and the cast of the class
+    /// teleports (a mage's "Teleport: Stormwind").
+    pub recall_cooldown: f64,
+    pub teleport_cast: f64,
     /// New class spells every `train_every` levels; a trainer within `train_radius` is visited on
     /// the way, otherwise a dedicated trip is made once training is `train_max_delay` levels late.
     pub train_every: i64,
@@ -315,6 +319,8 @@ impl Default for Params {
             hearth_cooldown: 3600.0,
             hearth_cast: 10.0,
             hearth_min_saving: 180.0,
+            recall_cooldown: 900.0,
+            teleport_cast: 10.0,
             train_every: 2,
             train_radius: 300.0,
             train_max_delay: 1,

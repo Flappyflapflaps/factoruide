@@ -30,14 +30,18 @@ CreateFrame = function()
     return f
 end
 CreateVector2D = function(x, y)
-    return { GetXY = function() return x, y end }
+    return {
+        GetXY = function() return x, y end,
+    }
 end
 MinimalSliderWithSteppersMixin = { Label = {} }
 local settingsRegistered = 0
 Settings = {
     VarType = { Boolean = "boolean", Number = "number" },
     RegisterVerticalLayoutCategory = function()
-        return { GetID = function() return 1 end }
+        return {
+            GetID = function() return 1 end,
+        }
     end,
     RegisterProxySetting = function()
         settingsRegistered = settingsRegistered + 1
@@ -79,7 +83,9 @@ ObjectiveTrackerFrame = {
 }
 GetQuestLogSpecialItemInfo = function() return nil end
 GetDifficultyColor = function() return { r = 1, g = 0.8, b = 0 } end
-C_PlayerInfo = { GetContentDifficultyQuestForPlayer = function() return 1 end }
+C_PlayerInfo = {
+    GetContentDifficultyQuestForPlayer = function() return 1 end,
+}
 GameTooltip = { SetOwner = function() end, SetHyperlink = function() end, Show = function() end, Hide = function() end }
 UIParent = {}
 print = print
@@ -156,7 +162,9 @@ C_Map = {
     GetBestMapForUnit = function() return 1426 end,
     GetMapInfo = function(m) return { mapID = m, mapType = m == 1415 and 2 or 3, parentMapID = 1415 } end,
     GetPlayerMapPosition = function()
-        return { GetXY = function() return 0.2993, 0.712 end }
+        return {
+            GetXY = function() return 0.2993, 0.712 end,
+        }
     end,
     CanSetUserWaypointOnMap = function() return true end,
     SetUserWaypoint = function(p) waypoint = p end,
@@ -166,7 +174,9 @@ C_Map = {
         return 0, CreateVector2D(x * 1000, y * 1000)
     end,
 }
-UiMapPoint = { CreateFromCoordinates = function(m, x, y) return { m = m, x = x, y = y } end }
+UiMapPoint = {
+    CreateFromCoordinates = function(m, x, y) return { m = m, x = x, y = y } end,
+}
 C_SuperTrack = { SetSuperTrackedUserWaypoint = function() end }
 C_QuestLog = {
     GetAllCompletedQuestIDs = function() return {} end,
@@ -580,6 +590,28 @@ end
 assert(taken == 3, "flight to the step's node taken")
 print("auto fly ok")
 
+-- Teleport: done once the character is there (around the city's class trainer).
+FG.Routes["teleport-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "teleport", t = "Teleport to Ironforge", m = 1426, x = 80, y = 20, lvl = 20 },
+        { k = "teleport", t = "Teleport to Ironforge", m = 1426, x = 30.1, y = 71.3, lvl = 20 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+SlashCmdList.FACTORUIDE("route teleport-test")
+fire("QUEST_LOG_UPDATE")
+assert(char.guide.step == 1, "far from it: not there yet, step " .. char.guide.step)
+char.guide.step = 2
+fire("QUEST_LOG_UPDATE")
+assert(char.guide.step == 3, "arrived, step " .. char.guide.step)
+print("teleport ok")
+
 -- Group sync: a member's progress shows next to the objective.
 Ambiguate = function(name) return (name:gsub("%-.*", "")) end
 for _, f in ipairs(frames) do
@@ -778,6 +810,11 @@ UnitXP = function() return 100 end
 assert(FG.XpMarker:Line():find("50"), "50 xp behind: " .. FG.XpMarker:Line())
 UnitXP = function() return 350 end
 assert(FG.XpMarker:Line():find("200"), "200 xp ahead: " .. FG.XpMarker:Line())
+local span = FG.XpMarker:SpanLine()
+assert(
+    span and span:find("150", 1, true) and span:find("250", 1, true),
+    "current tasks from 150 to 250: " .. tostring(span)
+)
 playerLevel = 1
 assert(FG.XpMarker:Line():find("3"), "two levels behind: the planned level")
 FG.XpMarker:Refresh()
@@ -867,6 +904,10 @@ kill("Player-1-2", "Creature-0-1-2-3-299-0001")
 kill("Player-9-9", "Creature-0-1-2-3-299-0002") -- someone else's
 kill("Player-1-2", "Player-3-4") -- not a mob
 assert(char.guide.farm and char.guide.farm.step == 1 and char.guide.farm.kills == 2, "two mobs on the way counted")
+local rows = FG.Guide:Box().rows
+local farmLine, stepLine = rows[1].text:GetText(), rows[2].text:GetText()
+assert(farmLine:find("2/3", 1, true), "a line of its own with the count: " .. farmLine)
+assert(not stepLine:find("2/3", 1, true) and stepLine:find("Grind", 1, true), "the step's line apart: " .. stepLine)
 print("farm on the way ok")
 
 -- Start over: asks when steps or quests were marked by hand, then undoes them.

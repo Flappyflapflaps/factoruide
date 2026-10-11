@@ -165,7 +165,7 @@ impl Planner<'_> {
         }
         if self.availability().objectives_done(s, i) {
             let stop = Stop::quest(i, Kind::TurnIn);
-            return self.near_group(s, stop, group).then_some(stop);
+            return (self.near_group(s, stop, group) && self.gate_level(s, stop) <= s.level).then_some(stop);
         }
         let q = self.quest(i);
         q.objectives.iter().enumerate().find_map(|(k, o)| {
@@ -183,8 +183,8 @@ impl Planner<'_> {
             .iter()
             .copied()
             .filter(|&i| {
-                let q = self.quest(i);
-                q.min_level <= s.level
+                // Its level, and the camp around its giver (`gate_level`).
+                self.gate_level(s, Stop::quest(i, Kind::Accept)) <= s.level
                     && self.availability().can_accept(s, i)
                     && self.worth().worth_it(s, i, s.level, 0.0)
                     && (!groups.travel[i as usize] || self.travel_destination_ok(s, groups, i))
@@ -261,7 +261,10 @@ impl Planner<'_> {
                 }
                 if self.availability().objectives_done(s, i) {
                     let stop = Stop::quest(i, Kind::TurnIn);
-                    if groups.of_quest[iu] == g || self.near_group(s, stop, group) {
+                    // Not among mobs too strong yet (`gate_level`): later, from another group.
+                    if (groups.of_quest[iu] == g || self.near_group(s, stop, group))
+                        && self.gate_level(s, stop) <= s.level
+                    {
                         consider(stop, 0.7, s);
                     }
                 } else {
@@ -335,16 +338,18 @@ impl Planner<'_> {
             // Not better than grinding: grind to the next unlock instead.
             let best = best.filter(|(_, sc)| *sc >= 0.6 * self.combat().grind_rate(s.level, s.bonus, &s.pos));
             let Some((g, score)) = best else {
-                // Nothing to do at this level anywhere: grind to the next unlock.
+                // Nothing to do at this level anywhere: grind to the next unlock, the level the
+                // quest requires (`gate_level`: also the camp around its giver).
+                let gate = |i: u32| self.gate_level(&s, Stop::quest(i, Kind::Accept));
                 let next = (0..self.model.quests.len() as u32)
-                    .filter(|&i| self.availability().can_accept(&s, i) && self.quest(i).min_level > s.level)
+                    .filter(|&i| self.availability().can_accept(&s, i) && gate(i) > s.level)
                     .filter(|&i| {
                         self.trips()
                             .fastest(&s, &self.places().pos(&s, Stop::quest(i, Kind::Accept)))
                             .0
                             .is_finite()
                     })
-                    .min_by_key(|&i| self.quest(i).min_level);
+                    .min_by_key(|&i| gate(i));
                 match next {
                     Some(i) => {
                         let stop = Stop::quest(i, Kind::Accept);

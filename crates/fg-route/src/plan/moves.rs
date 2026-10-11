@@ -43,6 +43,7 @@ impl Planner<'_> {
             14 | 15 => self.drop_quest_or_visit(route, rng),
             16 => self.add_visit(route, rng),
             17 => self.rebind_nearby(route, rng),
+            18 => Some(self.move_hearth(route, rng)),
             20 => self.move_zone_stay(route, rng),
             21 | 22 => self.gather_zone_visits(route, rng),
             _ => self.add_unused_quest(route, rng),
@@ -84,7 +85,13 @@ impl Planner<'_> {
     /// its follow-ups impossible), or a visit. Class quests stay.
     fn drop_quest_or_visit(&self, route: &mut Vec<Stop>, rng: &mut SmallRng) -> Option<Change> {
         let len = route.len();
-        let pick = route[rng.random_range(0..len)];
+        let at = rng.random_range(0..len);
+        let pick = route[at];
+        // A hearthstone stop alone: the others are other trips.
+        if pick.kind == Kind::Hearth {
+            route.remove(at);
+            return Some(Change::edited(at, len));
+        }
         if !pick.is_quest() {
             let first = route.iter().position(|&s| same_item(s, pick)).unwrap();
             route.retain(|&s| !same_item(s, pick));
@@ -147,6 +154,40 @@ impl Planner<'_> {
             .map_or(route.len(), |b| b + 1);
         route.insert(at, bind);
         Some(Change::edited(at, route.len()))
+    }
+
+    /// The hearthstone (or Astral Recall) used elsewhere: a use moved a few stops, or to the
+    /// end of a stay in a zone (back to town once its quests are done), or a new one there.
+    fn move_hearth(&self, route: &mut Vec<Stop>, rng: &mut SmallRng) -> Change {
+        let len = route.len();
+        let used: Vec<usize> = (0..len).filter(|&i| route[i].kind == Kind::Hearth).collect();
+        let stays = self.stays(route);
+        let stay_end = |rng: &mut SmallRng| stays[rng.random_range(0..stays.len())].1 + 1;
+        if used.is_empty() || rng.random_bool(0.3) {
+            let recall = self.model.recall.is_some() && rng.random_bool(0.5);
+            let at = if rng.random_bool(0.5) {
+                stay_end(rng)
+            } else {
+                rng.random_range(0..=len)
+            };
+            route.insert(
+                at.min(len),
+                Stop {
+                    index: u32::from(recall),
+                    kind: Kind::Hearth,
+                },
+            );
+            return Change::edited(at.min(len), len + 1);
+        }
+        let from = used[rng.random_range(0..used.len())];
+        let stop = route.remove(from);
+        let to = if rng.random_bool(0.5) {
+            stay_end(rng).min(route.len())
+        } else {
+            rng.random_range(from.saturating_sub(10)..=(from + 10).min(route.len()))
+        };
+        route.insert(to, stop);
+        Change::moved(from.min(to), from.max(to))
     }
 
     /// An unused quest inserted next to the stops closest to its places.

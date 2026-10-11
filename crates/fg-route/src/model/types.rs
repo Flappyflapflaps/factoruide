@@ -253,6 +253,11 @@ pub struct Model {
     pub inns: Vec<Loc>,
     /// Where the hearthstone takes a new character: its starting place (not an inn to bind).
     pub start_inn: usize,
+    /// Class spells taking the character to a capital (mage teleports).
+    pub teleports: Vec<Teleport>,
+    /// Level at which the character learns a second hearthstone with a cooldown of its own (the
+    /// shaman's Astral Recall, `Params::recall_cooldown`).
+    pub recall: Option<i64>,
     /// Quests left out, with the reason (for reports and debugging).
     pub skipped: Vec<(i64, String, String)>,
     pub initial: Initial,
@@ -271,6 +276,15 @@ pub struct Model {
     pub rewards: Vec<(Vec<u16>, Vec<u16>)>,
     /// Items each dungeon's bosses drop, with the chance the character gets each.
     pub dungeon_loot: Vec<Vec<(u16, f64)>>,
+}
+
+/// A class spell taking the character to a city (a mage's "Teleport: Stormwind"): learned at the
+/// trainer from `level`, it lands at `to` (the class trainer there, else the inn).
+#[derive(Debug, Clone)]
+pub struct Teleport {
+    pub name: String,
+    pub level: i64,
+    pub to: Loc,
 }
 
 /// An area that gives XP the first time the character enters it.

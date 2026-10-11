@@ -118,7 +118,8 @@ impl Planner<'_> {
             // Zone exhausted: move on to the closest quest worth doing on its own, wherever it is.
             if !found.get() {
                 for i in 0..n {
-                    if self.quest(i).min_level <= s.level
+                    // Its level, and the camp around its giver (`gate_level`).
+                    if self.gate_level(&s, Stop::quest(i, Kind::Accept)) <= s.level
                         && self.availability().can_accept(&s, i)
                         && self.worth().worth_it(&s, i, s.level, 0.0)
                     {
@@ -146,11 +147,12 @@ impl Planner<'_> {
                                 ));
                             }
                         }
-                    } else if self.availability().can_accept(&s, i)
-                        && q.min_level > s.level
-                        && (q.mandatory || self.worth().worth_it(&s, i, q.min_level, 0.0))
-                    {
-                        options.push((q.min_level, Stop::quest(i, Kind::Accept)));
+                    } else if self.availability().can_accept(&s, i) {
+                        let accept = Stop::quest(i, Kind::Accept);
+                        let gate = self.gate_level(&s, accept);
+                        if gate > s.level && (q.mandatory || self.worth().worth_it(&s, i, gate, 0.0)) {
+                            options.push((gate, accept));
+                        }
                     }
                 }
                 options.sort_by_key(|(lvl, _)| *lvl);
@@ -275,7 +277,7 @@ impl Planner<'_> {
         } else {
             self.insert_missing_mandatory(self.settle(route))
         };
-        let route = self.rebind(self.power_first(route));
+        let route = self.place_hearths(self.rebind(self.place_hearths(self.power_first(route))));
         if std::env::var_os("FG_DEBUG").is_some() {
             for (reason, n) in self.explain_unused(&route) {
                 log(&format!("  unused {reason}: {n}"));

@@ -217,6 +217,13 @@ impl Planner<'_> {
         if Self::already_done(s, stop) {
             return;
         }
+        if stop.kind == Kind::Hearth {
+            if self.hearth(s, stop.index == 1, &mut record) {
+                self.while_here(s, &mut record);
+                self.train(s, &mut record);
+            }
+            return;
+        }
         // Chosen once, before grinding to it: the place the stop is gated by is the one gone to.
         let spot = self.spot_of(s, stop);
         self.grind_to_gate(s, stop, spot, &mut record);
@@ -236,6 +243,41 @@ impl Planner<'_> {
         }
         self.while_here(s, &mut record);
         self.train(s, &mut record);
+    }
+
+    /// Back to the inn the hearthstone is bound to, with the hearthstone or Astral Recall
+    /// (`recall`), when it is learned and ready. Returns whether it was.
+    pub(crate) fn hearth(&self, s: &mut State, recall: bool, record: &mut impl FnMut(&State, Event)) -> bool {
+        let (ready, cooldown, cast) = if recall {
+            match self.model.recall {
+                Some(level) if level <= s.trained => {
+                    (s.recall_ready, self.params.recall_cooldown, self.params.teleport_cast)
+                }
+                _ => return false,
+            }
+        } else {
+            (s.hearth_ready, self.params.hearth_cooldown, self.params.hearth_cast)
+        };
+        if s.time < ready {
+            return false;
+        }
+        record(s, Event::Hearth { inn: s.bind, recall });
+        s.time += cast;
+        s.spent.travel += cast;
+        s.spent.hearths += 1;
+        let ready = s.time - cast + cooldown;
+        if recall {
+            s.recall_ready = ready;
+        } else {
+            s.hearth_ready = ready;
+        }
+        let inn = &self.model.inns[s.bind];
+        s.pos = inn.pos;
+        if inn.zone != s.zone {
+            s.spent.zone_changes += 1;
+        }
+        s.zone = inn.zone;
+        true
     }
 
     /// Done on the way, or taken/turned in on the spot at an earlier stop.
@@ -356,6 +398,7 @@ impl Planner<'_> {
                 s.bind = i;
                 s.time += 10.0;
             }
+            Kind::Hearth => {}
             Kind::Dungeon => self.run_dungeon(s, i),
         }
         None

@@ -25,7 +25,7 @@ pub use guard::Guards;
 pub use names::Names;
 pub use types::{
     Dungeon, DungeonDef, EntityKind, ExploreArea, Guard, Initial, Loc, Model, Objective, ProfessionPlan, Profile,
-    Quest, Spots, race_bit,
+    Quest, Spots, Teleport, race_bit,
 };
 
 use crate::params::Params;
@@ -76,6 +76,8 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         trainers: places.trainers,
         inns: places.inns,
         start_inn: places.start_inn,
+        teleports: places.teleports,
+        recall: places.recall,
         skipped,
         initial: Initial::default(),
         names: Names::load(conn, profile.locale.as_deref().unwrap_or("enUS"))?,

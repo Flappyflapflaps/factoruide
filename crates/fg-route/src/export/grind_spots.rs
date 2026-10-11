@@ -60,6 +60,11 @@ pub(super) fn place(writer: &StepWriter<'_>, guide: &mut Guide<'_>) {
             let step = writer.checkpoint(&guide.steps[k], level, level - 1, xp);
             guide.insert(k + 1, step, xp);
         } else {
+            // Before the run when the level is reached inside a dungeon.
+            let mut at = at;
+            while at > 1 && guide.steps[at].inside {
+                at -= 1;
+            }
             let step = writer.checkpoint(&guide.steps[at - 1], level, level, 0);
             guide.insert(at, step, 0);
             guide.checkpoints[n].step = at;
@@ -135,10 +140,14 @@ fn move_grinds(writer: &StepWriter<'_>, guide: &mut Guide<'_>) {
 }
 
 /// Last step of `floor..at` still at `level` where mobs of that level live (not a flight, a
-/// boat or the hearthstone: the character is no longer where they start).
+/// boat, the hearthstone or a teleport: the character is no longer where they start; nor a
+/// dungeon run or a quest done in it before another: the run's steps stay together).
 fn spot(writer: &StepWriter<'_>, steps: &[Step], floor: usize, at: usize, level: i64) -> Option<usize> {
     (floor..at).rev().take_while(|&k| steps[k].level == level).find(|&k| {
-        !matches!(steps[k].kind, StepKind::Fly | StepKind::Link | StepKind::Hearth)
+        !matches!(
+            steps[k].kind,
+            StepKind::Fly | StepKind::Link | StepKind::Hearth | StepKind::Teleport
+        ) && !steps.get(k + 1).is_some_and(|s| s.inside)
             && grindable(writer, &steps[k], level)
     })
 }

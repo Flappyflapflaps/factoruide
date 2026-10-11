@@ -1,4 +1,4 @@
-//! What happens while the character moves: the trip itself (hearthstone, flight, boat), the
+//! What happens while the character moves: the trip itself (teleport, flight, boat), the
 //! areas discovered, the mobs and objects of the log met on the way, and what it does while
 //! there (quests turned in and taken around a stop).
 
@@ -53,13 +53,11 @@ impl Planner<'_> {
         };
         let mut left = t;
         let mut from = start;
-        if via.hearth {
-            s.hearth_ready = s.time + self.params.hearth_cooldown;
-            s.spent.hearths += 1;
-            record(s, Event::Hearth { inn: s.bind });
-            spend(s, self.params.hearth_cast);
-            left -= self.params.hearth_cast;
-            from = self.model.inns[s.bind].pos;
+        if let Some(to) = via.teleport {
+            record(s, Event::Teleport { to });
+            spend(s, self.params.teleport_cast);
+            left -= self.params.teleport_cast;
+            from = self.model.teleports[to].to.pos;
         }
         let boarding = match via.leg {
             Leg::Fly(a, _) => Some(self.world.taxi_nodes[a].pos),
@@ -84,9 +82,9 @@ impl Planner<'_> {
         }
         spend(s, left);
         // Areas discovered: around the arrival, and along a walk inside the zone.
-        let from = (matches!(via.leg, Leg::Walk) && !via.hearth && s.zone == zone).then_some(s.pos);
+        let from = (matches!(via.leg, Leg::Walk) && via.teleport.is_none() && s.zone == zone).then_some(s.pos);
         self.explore(s, from, target, zone);
-        if matches!(via.leg, Leg::Walk) && !via.hearth {
+        if matches!(via.leg, Leg::Walk) && via.teleport.is_none() {
             self.kill_along(s, &start, target, record);
             self.farm_along(s, &start, target, record);
         }

@@ -13,6 +13,9 @@ pub enum Kind {
     LearnFlight,
     /// Bind the hearthstone (`Stop::index` is the inn).
     Bind,
+    /// Back to the inn the hearthstone is bound to: the hearthstone (`Stop::index` 0) or the
+    /// shaman's Astral Recall (1). Nothing when it is not ready yet, or not learned.
+    Hearth,
     /// Run a dungeon with a group (`Stop::index` is the dungeon).
     Dungeon,
 }
@@ -44,7 +47,8 @@ pub(crate) enum Leg {
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Via {
-    pub(crate) hearth: bool,
+    /// A class teleport first (index in `Model::teleports`).
+    pub(crate) teleport: Option<usize>,
     pub(crate) leg: Leg,
 }
 
@@ -53,6 +57,12 @@ pub(crate) struct Via {
 pub enum Event {
     Hearth {
         inn: usize,
+        /// Astral Recall rather than the hearthstone.
+        recall: bool,
+    },
+    /// A class teleport (index in `Model::teleports`).
+    Teleport {
+        to: usize,
     },
     Fly {
         from: usize,
@@ -133,6 +143,7 @@ pub(crate) struct State {
     pub(crate) known: u128,
     pub(crate) bind: usize,
     pub(crate) hearth_ready: f64,
+    pub(crate) recall_ready: f64,
     pub(crate) trained: i64,
     pub(crate) dungeons: u128,
     pub(crate) accepted: Vec<bool>,

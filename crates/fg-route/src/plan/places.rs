@@ -5,6 +5,9 @@ use super::state::{Kind, State, Stop};
 use crate::model::{EntityKind, Loc, Model};
 use crate::world::{Pos, World};
 
+/// Zone of a hearthstone stop (`Places::zone`): none.
+const HEARTH_ZONE: i64 = -1;
+
 #[derive(Clone, Copy)]
 pub struct Places<'p> {
     pub(crate) model: &'p Model,
@@ -40,6 +43,7 @@ impl Places<'_> {
                 }
             }
             Kind::Bind => self.model.inns[stop.index as usize].clone(),
+            Kind::Hearth => self.model.inns[s.bind].clone(),
             Kind::Dungeon => self.model.dungeons[stop.index as usize].entrance.clone(),
         }
     }
@@ -63,6 +67,7 @@ impl Places<'_> {
             }
             Kind::LearnFlight => self.world.taxi_nodes[stop.index as usize].pos,
             Kind::Bind => self.model.inns[stop.index as usize].pos,
+            Kind::Hearth => self.model.inns[s.bind].pos,
             Kind::Dungeon => self.model.dungeons[stop.index as usize].entrance.pos,
         }
     }
@@ -75,6 +80,8 @@ impl Places<'_> {
             Kind::TurnIn => self.model.quests[i].ends[0].zone,
             Kind::LearnFlight => self.world.taxi_nodes[i].pos.zone,
             Kind::Bind => self.model.inns[i].zone,
+            // Not a place of its own (the bound inn): a stay by itself.
+            Kind::Hearth => HEARTH_ZONE,
             Kind::Dungeon => self.model.dungeons[i].entrance.zone,
         }
     }
@@ -89,6 +96,7 @@ impl Places<'_> {
             Kind::TurnIn => self.model.quests[i].ends[0].pos,
             Kind::LearnFlight => self.world.taxi_nodes[i].pos,
             Kind::Bind => self.model.inns[i].pos,
+            Kind::Hearth => self.model.inns[self.model.start_inn].pos,
             Kind::Dungeon => self.model.dungeons[i].entrance.pos,
         }
     }
@@ -96,7 +104,9 @@ impl Places<'_> {
     /// The route as a light polyline: [continent, x, y] points, nearby points merged.
     pub fn polyline(&self, route: &[Stop], max_points: usize) -> Vec<[f64; 3]> {
         let mut out: Vec<[f64; 3]> = Vec::new();
-        for s in route {
+        // The inn a hearthstone goes to depends on the binds before: the line jumps to the stop
+        // after it instead.
+        for s in route.iter().filter(|s| s.kind != Kind::Hearth) {
             let p = self.usual_pos(s);
             let pt = [
                 p.continent as f64,

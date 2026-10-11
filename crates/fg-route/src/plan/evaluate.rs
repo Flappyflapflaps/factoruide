@@ -195,6 +195,8 @@ impl Planner<'_> {
                     && s.bind == old.bind
                     && s.hearth_ready <= s.time
                     && old.hearth_ready <= old.time
+                    && s.recall_ready <= s.time
+                    && old.recall_ready <= old.time
                     && s.trained == old.trained
                     && s.dungeons == old.dungeons
                     && s.abandon_check == old.abandon_check

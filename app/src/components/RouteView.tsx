@@ -17,6 +17,7 @@ const KIND_LABELS: Record<string, string> = {
   grind: "Farmer",
   train: "Entraîneur",
   hearth: "Pierre de foyer",
+  teleport: "Téléportation",
   bind: "Auberge",
   dungeon: "Donjon",
   profession: "Métier",

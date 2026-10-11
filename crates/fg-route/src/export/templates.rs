@@ -422,6 +422,48 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "recall",
+        [
+            "Astral Recall to {zone}",
+            "Rappel astral vers {zone}",
+            "Astraler Rückruf nach {zone}",
+            "Regreso astral a {zone}",
+            "Retorno Astral para {zone}",
+            "Астральное возвращение: {zone}",
+            "영혼의 귀환: {zone}",
+            "星界传送返回{zone}",
+            "星界傳送返回{zone}",
+        ],
+    ),
+    (
+        "recall.town",
+        [
+            "Astral Recall to {town} ({zone})",
+            "Rappel astral vers {town} ({zone})",
+            "Astraler Rückruf nach {town} ({zone})",
+            "Regreso astral a {town} ({zone})",
+            "Retorno Astral para {town} ({zone})",
+            "Астральное возвращение: {town} ({zone})",
+            "영혼의 귀환: {town} ({zone})",
+            "星界传送返回{town}（{zone}）",
+            "星界傳送返回{town}（{zone}）",
+        ],
+    ),
+    (
+        "teleport",
+        [
+            "Teleport to {zone}",
+            "Téléportation vers {zone}",
+            "Teleportieren nach {zone}",
+            "Teletransporte a {zone}",
+            "Teleportar para {zone}",
+            "Телепортация: {zone}",
+            "순간이동: {zone}",
+            "传送到{zone}",
+            "傳送到{zone}",
+        ],
+    ),
+    (
         "train",
         [
             "Train new spells with {who}",

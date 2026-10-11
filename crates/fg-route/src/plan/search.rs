@@ -172,7 +172,7 @@ impl Planner<'_> {
             route = early;
             run = self.run(&route).expect("power_first keeps the route valid");
         }
-        let rebound = self.rebind(route.clone());
+        let rebound = self.place_hearths(self.rebind(route.clone()));
         if rebound != route {
             route = rebound;
             run = self.run(&route).expect("rebind keeps the route valid");
