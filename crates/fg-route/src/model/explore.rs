@@ -4,14 +4,15 @@ use super::types::ExploreArea;
 use crate::world::World;
 use anyhow::Result;
 use rusqlite::Connection;
-use std::collections::{HashMap, HashSet};
+use rustc_hash::FxHashMap;
+use std::collections::HashSet;
 
 /// Explorable areas: one per map exploration overlay area, at the overlay's center.
 #[expect(
     clippy::type_complexity,
     reason = "private loader whose parts are destructured by its only caller"
 )]
-pub(super) fn load_explore(conn: &Connection, world: &World) -> Result<(Vec<ExploreArea>, HashMap<i64, Vec<usize>>)> {
+pub(super) fn load_explore(conn: &Connection, world: &World) -> Result<(Vec<ExploreArea>, FxHashMap<i64, Vec<usize>>)> {
     let mut stmt = conn.prepare(
         "SELECT t.ID, a.AreaID, t.ExplorationLevel,
                 (o.OffsetX + o.TextureWidth / 2.0) * 100.0 / l.LayerWidth,
@@ -43,7 +44,7 @@ pub(super) fn load_explore(conn: &Connection, world: &World) -> Result<(Vec<Expl
             areas.push(ExploreArea { pos, zone, level });
         }
     }
-    let mut by_zone: HashMap<i64, Vec<usize>> = HashMap::new();
+    let mut by_zone: FxHashMap<i64, Vec<usize>> = FxHashMap::default();
     for (i, a) in areas.iter().enumerate() {
         by_zone.entry(a.zone).or_default().push(i);
     }

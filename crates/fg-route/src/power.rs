@@ -544,17 +544,25 @@ impl PowerModel {
 
     /// Power the gear brings over the floor gear, in levels.
     pub fn gear_bonus(&self, gear: &Gear, level: i64) -> f64 {
+        self.bonus_of(&self.slot_values(gear, level), level)
+    }
+
+    /// Expected value of each slot.
+    fn slot_values(&self, gear: &Gear, level: i64) -> [f64; SLOTS] {
+        std::array::from_fn(|slot| self.slot_value(gear, slot, level))
+    }
+
+    /// `gear_bonus` from the values of the slots (`slot_values`).
+    fn bonus_of(&self, values: &[f64; SLOTS], level: i64) -> f64 {
         let floor = &self.floor[(level.max(0) as usize).min(self.floor.len() - 1)];
         let mut gain = 0.0;
-        for (slot, f) in floor.iter().enumerate().take(MAIN_HAND) {
-            gain += (self.slot_value(gear, slot, level) - f).max(0.0);
+        for (v, f) in values.iter().zip(floor).take(MAIN_HAND) {
+            gain += (v - f).max(0.0);
         }
-        let weapons = self
-            .slot_value(gear, TWO_HAND, level)
-            .max(self.slot_value(gear, MAIN_HAND, level) + self.slot_value(gear, OFF_HAND, level));
+        let weapons = values[TWO_HAND].max(values[MAIN_HAND] + values[OFF_HAND]);
         let floor_weapons = floor[TWO_HAND].max(floor[MAIN_HAND] + floor[OFF_HAND]);
         gain += (weapons - floor_weapons).max(0.0);
-        gain += (self.slot_value(gear, RANGED, level) - floor[RANGED]).max(0.0);
+        gain += (values[RANGED] - floor[RANGED]).max(0.0);
         (1.0 + gain).ln() / LEVEL_LN
     }
 
@@ -573,11 +581,16 @@ impl PowerModel {
     fn gain_of(&self, gear: &Gear, i: usize, chance: f64, level: i64) -> (f64, usize) {
         let mut best = (0.0, usize::MAX);
         let level = level.max(self.items[i].required_level);
-        let before = self.gear_bonus(gear, level);
+        // Wearing it changes one slot: only that slot's value is computed again.
+        let mut values = self.slot_values(gear, level);
+        let before = self.bonus_of(&values, level);
         for &slot in self.slots_of(i) {
             let mut g = *gear;
             put(&mut g, slot, i, chance, |k| self.value_in(k, level, slot));
-            let gain = self.gear_bonus(&g, level) - before;
+            let held = values[slot];
+            values[slot] = self.slot_value(&g, slot, level);
+            let gain = self.bonus_of(&values, level) - before;
+            values[slot] = held;
             if gain > best.0 + 1e-9 {
                 best = (gain, slot);
             }

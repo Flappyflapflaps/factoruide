@@ -299,7 +299,30 @@ impl Planner<'_> {
                     let Some(cell) = self.camp.get(&(here.continent, cx + dx, cy + dy)) else {
                         continue;
                     };
-                    for &(i, at, start) in cell {
+                    // The cheap tests first: the NPC at hand, nearer than the best so far, a
+                    // quest the route plans; the quest itself is read last.
+                    for &(i, at, start, x, y) in cell {
+                        let npc = Pos { x, y, ..here };
+                        let at_hand = here.dist(&npc) <= radius;
+                        if !at_hand {
+                            continue;
+                        }
+                        // Nearest to where we are, turn-ins first at the same distance (they
+                        // unlock follow-ups).
+                        let d = s.pos.dist(&npc) + if start { 0.1 } else { 0.0 };
+                        let nearer = best.as_ref().is_none_or(|b| d < b.0);
+                        if !nearer {
+                            continue;
+                        }
+                        let iu = i as usize;
+                        let planned = if start {
+                            s.planned.flags[iu] & 1 != 0 && s.planned.accept_at[iu] <= s.at + CAMP_AHEAD
+                        } else {
+                            s.planned.flags[iu] & 2 != 0 && s.accepted[iu] && !s.turned[iu]
+                        };
+                        if !planned {
+                            continue;
+                        }
                         let q = self.quest(i);
                         let (loc, kind) = if start {
                             (&q.starts[at as usize], Kind::Accept)
@@ -311,14 +334,11 @@ impl Planner<'_> {
                         // for the quests it takes before it, do not block a quest it takes
                         // later (an exclusive one, the breadcrumb to this one). Nor go where the
                         // route would not yet: its level, a camp to fight through (`gate_level`).
-                        let at_level = self.gate_level(s, Stop::quest(i, kind)) <= s.level;
+                        let at_level = || self.gate_level(s, Stop::quest(i, kind)) <= s.level;
                         let wanted = if start {
-                            s.planned.flags[i as usize] & 1 != 0
-                                && s.planned.accept_at[i as usize] <= s.at + CAMP_AHEAD
-                                && at_level
-                                && s.log + 1 + CAMP_LOG_MARGIN <= self.params.quest_log_size
+                            s.log + 1 + CAMP_LOG_MARGIN <= self.params.quest_log_size
                                 && self.availability().can_accept(s, i)
-                                && !self.blocks[i as usize].iter().any(|&y| {
+                                && !self.blocks[iu].iter().any(|&y| {
                                     s.planned.flags[y as usize] & 1 != 0
                                         && !s.accepted[y as usize]
                                         && !s.turned[y as usize]
@@ -326,17 +346,11 @@ impl Planner<'_> {
                                 && q.objectives
                                     .iter()
                                     .all(|o| o.dungeon.is_none_or(|d| self.availability().dungeon_allowed(d)))
+                                && at_level()
                         } else {
-                            s.planned.flags[i as usize] & 2 != 0
-                                && s.accepted[i as usize]
-                                && !s.turned[i as usize]
-                                && self.availability().objectives_done(s, i)
-                                && at_level
+                            self.availability().objectives_done(s, i) && at_level()
                         };
-                        // Nearest to where we are, turn-ins first at the same distance (they
-                        // unlock follow-ups).
-                        let d = s.pos.dist(&loc.pos) + if start { 0.1 } else { 0.0 };
-                        if wanted && here.dist(&loc.pos) <= radius && best.as_ref().is_none_or(|b| d < b.0) {
+                        if wanted {
                             best = Some((d, Stop::quest(i, kind), loc));
                         }
                     }

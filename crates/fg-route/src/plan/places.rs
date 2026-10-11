@@ -21,8 +21,10 @@ impl Places<'_> {
     pub(crate) fn loc(&self, s: &State, stop: Stop) -> Loc {
         let pick = |locs: &[Loc]| {
             locs.iter()
-                .min_by(|a, b| s.pos.dist(&a.pos).total_cmp(&s.pos.dist(&b.pos)))
+                .map(|l| (l, s.pos.dist(&l.pos)))
+                .min_by(|a, b| a.1.total_cmp(&b.1))
                 .unwrap()
+                .0
                 .clone()
         };
         match stop.kind {
@@ -52,9 +54,10 @@ impl Places<'_> {
     pub(crate) fn pos(&self, s: &State, stop: Stop) -> Pos {
         let nearest = |locs: &[Loc]| {
             locs.iter()
-                .map(|l| l.pos)
-                .min_by(|a, b| s.pos.dist(a).total_cmp(&s.pos.dist(b)))
+                .map(|l| (l.pos, s.pos.dist(&l.pos)))
+                .min_by(|a, b| a.1.total_cmp(&b.1))
                 .unwrap()
+                .0
         };
         match stop.kind {
             Kind::Accept => nearest(&self.model.quests[stop.index as usize].starts),

@@ -15,13 +15,50 @@ pub(crate) type FlightTable = (Vec<Vec<f64>>, Vec<Vec<f64>>);
 /// Flight tables by set of known flight paths, computed once each.
 pub(crate) type FlightTables = RefCell<FxHashMap<u128, Rc<FlightTable>>>;
 
-/// A point as a key: continent, coordinates (bits), zone.
-type PosKey = (i64, u64, u64, i64);
+/// A point as a key: continent (16 bits), zone (32 bits) and a flag in one word, then the bits
+/// of its coordinates.
+type PosKey = [u64; 3];
 
-/// Trips already computed (from, to, mounted, known flight paths): a replay asks the same trips
-/// again and again. Emptied when it grows past `LEGS_MAX`.
-pub(crate) type Legs = RefCell<FxHashMap<(PosKey, PosKey, bool, u128), (f64, Leg)>>;
-const LEGS_MAX: usize = 1 << 18;
+/// Trips already computed (from with mounted or not, to, known flight paths): a replay asks the
+/// same trips again and again. 80 bytes a trip; emptied when full.
+pub(crate) type Legs = RefCell<FxHashMap<(PosKey, PosKey, u128), (f64, Hop)>>;
+/// What a table of 2^18 buckets holds (7/8 of them): it never grows past them.
+const LEGS_MAX: usize = (1 << 18) / 8 * 7;
+
+/// A `Leg` as remembered (flight path and link indexes on 16 bits).
+#[derive(Clone, Copy)]
+pub(crate) enum Hop {
+    Walk,
+    Fly(u16, u16),
+    Link(u16, u16),
+}
+
+impl Hop {
+    fn of(leg: Leg) -> Option<Self> {
+        let pair = |a: usize, b: usize| Some((u16::try_from(a).ok()?, u16::try_from(b).ok()?));
+        Some(match leg {
+            Leg::Walk => Self::Walk,
+            Leg::Fly(a, b) => pair(a, b).map(|(a, b)| Self::Fly(a, b))?,
+            Leg::Link(a, b) => pair(a, b).map(|(a, b)| Self::Link(a, b))?,
+        })
+    }
+
+    fn leg(self) -> Leg {
+        match self {
+            Self::Walk => Leg::Walk,
+            Self::Fly(a, b) => Leg::Fly(a.into(), b.into()),
+            Self::Link(a, b) => Leg::Link(a.into(), b.into()),
+        }
+    }
+}
+
+/// The key of point `p` (None when its continent or zone does not fit: not remembered).
+fn pos_key(p: &Pos, flag: bool) -> Option<PosKey> {
+    let continent = u16::try_from(p.continent).ok()?;
+    let zone = u32::try_from(p.zone).ok()?;
+    let head = (u64::from(continent) << 33) | (u64::from(zone) << 1) | u64::from(flag);
+    Some([head, p.x.to_bits(), p.y.to_bits()])
+}
 
 #[derive(Clone, Copy)]
 pub(crate) struct Trips<'t> {
@@ -39,18 +76,23 @@ impl Trips<'_> {
 
     /// Fastest trip from `from` to `b` without the hearthstone.
     pub(crate) fn leg(&self, from: &Pos, b: &Pos, level: i64, known: u128) -> (f64, Leg) {
-        let key = |p: &Pos| (p.continent, p.x.to_bits(), p.y.to_bits(), p.zone);
         // The level only matters through the speed: mounted or not.
-        let key = (key(from), key(b), level >= self.params.mount_level, known);
-        if let Some(&leg) = self.legs.borrow().get(&key) {
-            return leg;
+        let mounted = level >= self.params.mount_level;
+        let (Some(a), Some(z)) = (pos_key(from, mounted), pos_key(b, false)) else {
+            return self.compute_leg(from, b, level, known);
+        };
+        let key = (a, z, known);
+        if let Some(&(t, hop)) = self.legs.borrow().get(&key) {
+            return (t, hop.leg());
         }
         let leg = self.compute_leg(from, b, level, known);
-        let mut legs = self.legs.borrow_mut();
-        if legs.len() >= LEGS_MAX {
-            legs.clear();
+        if let Some(hop) = Hop::of(leg.1) {
+            let mut legs = self.legs.borrow_mut();
+            if legs.len() >= LEGS_MAX {
+                legs.clear();
+            }
+            legs.insert(key, (leg.0, hop));
         }
-        legs.insert(key, leg);
         leg
     }
 
@@ -158,5 +200,26 @@ impl Trips<'_> {
             .entry(known)
             .or_insert_with(|| Rc::new(self.world.flights(known)))
             .clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Points that differ only by their zone, or by being reached mounted, have their own key.
+    #[test]
+    fn keys_tell_points_apart() {
+        let p = Pos {
+            continent: 1,
+            x: 10.0,
+            y: 20.0,
+            zone: 14,
+        };
+        let key = |p: &Pos, flag| pos_key(p, flag).unwrap();
+        assert_ne!(key(&p, false), key(&Pos { zone: 15, ..p }, false));
+        assert_ne!(key(&p, false), key(&Pos { continent: 0, ..p }, false));
+        assert_ne!(key(&p, false), key(&p, true));
+        assert!(pos_key(&Pos { zone: -1, ..p }, false).is_none());
     }
 }

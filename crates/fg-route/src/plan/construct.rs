@@ -437,18 +437,19 @@ impl Planner<'_> {
             }
         };
         let giver = quest.starts[0].pos;
+        // Each distance once (the first of the nearest, as `min_by` keeps).
         let at = (0..=route.len())
             .filter(|&p| (lo..=hi).contains(&level(levels, p)))
-            .min_by(|&a, &b| {
-                let d = |p: usize| {
-                    if p == 0 {
-                        f64::INFINITY
-                    } else {
-                        self.places().pos(&s0, route[p - 1]).dist(&giver)
-                    }
+            .map(|p| {
+                let d = if p == 0 {
+                    f64::INFINITY
+                } else {
+                    self.places().pos(&s0, route[p - 1]).dist(&giver)
                 };
-                d(a).total_cmp(&d(b))
-            });
+                (p, d)
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(p, _)| p);
         let Some(mut at) = at else {
             let first = self.insert_quest(route, q);
             // Keep levels aligned (approximate: copy the neighbour's level).
@@ -471,13 +472,9 @@ impl Planner<'_> {
         let nearest = |route: &Vec<Stop>, pos: &Pos, from: usize| {
             let (a, b) = window(from, route);
             (a..b)
-                .min_by(|&x, &y| {
-                    self.places()
-                        .pos(&s0, route[x])
-                        .dist(pos)
-                        .total_cmp(&self.places().pos(&s0, route[y]).dist(pos))
-                })
-                .map_or(from, |i| i + 1)
+                .map(|x| (x, self.places().pos(&s0, route[x]).dist(pos)))
+                .min_by(|x, y| x.1.total_cmp(&y.1))
+                .map_or(from, |(i, _)| i + 1)
         };
         for k in 0..quest.objectives.len() {
             at = nearest(route, &quest.objectives[k].loc.pos, at + 1).max(at + 1);

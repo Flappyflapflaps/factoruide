@@ -7,8 +7,9 @@ use crate::world::Pos;
 use crate::xp;
 use rustc_hash::FxHashMap;
 
-/// Quest NPCs by cell (continent, x, y): (quest, index in its starts or ends, giver?).
-pub(crate) type CampIndex = FxHashMap<(i64, i64, i64), Vec<(u32, u8, bool)>>;
+/// Quest NPCs by cell (continent, x, y): (quest, index in its starts or ends, giver?, and the
+/// NPC's x, y, to tell the ones at hand without reading the quest).
+pub(crate) type CampIndex = FxHashMap<(i64, i64, i64), Vec<(u32, u8, bool, f64, f64)>>;
 
 /// Quest givers (NPCs and objects, not items) and turn-in NPCs by cell of `radius`.
 pub(crate) fn camp_index(model: &Model, radius: f64) -> CampIndex {
@@ -28,13 +29,13 @@ pub(crate) fn camp_index(model: &Model, radius: f64) -> CampIndex {
             index
                 .entry(cell(&loc.pos))
                 .or_default()
-                .push((i as u32, at as u8, true));
+                .push((i as u32, at as u8, true, loc.pos.x, loc.pos.y));
         }
         for (at, loc) in q.ends.iter().enumerate() {
             index
                 .entry(cell(&loc.pos))
                 .or_default()
-                .push((i as u32, at as u8, false));
+                .push((i as u32, at as u8, false, loc.pos.x, loc.pos.y));
         }
     }
     index

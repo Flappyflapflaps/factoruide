@@ -278,9 +278,12 @@ impl World {
 
     /// Nearest flight master node index within `radius` yards.
     pub fn taxi_near(&self, p: &Pos, radius: f64) -> Option<usize> {
+        // Asked at every stop: the nodes farther than `radius` along x or y are left out
+        // without the distance (never shorter than either).
         self.taxi_nodes
             .iter()
             .enumerate()
+            .filter(|(_, n)| (n.pos.x - p.x).abs() <= radius && (n.pos.y - p.y).abs() <= radius)
             .map(|(i, n)| (i, n.pos.dist(p)))
             .filter(|(_, d)| *d <= radius)
             .min_by(|a, b| a.1.total_cmp(&b.1))

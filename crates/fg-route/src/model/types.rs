@@ -2,6 +2,7 @@
 
 use super::names::Names;
 use crate::world::Pos;
+use rustc_hash::FxHashMap;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
@@ -139,8 +140,9 @@ impl Objective {
     #[must_use]
     pub fn nearest(&self, pos: &Pos) -> &Self {
         self.places()
-            .min_by(|a, b| pos.dist(&a.loc.pos).total_cmp(&pos.dist(&b.loc.pos)))
-            .unwrap_or(self)
+            .map(|o| (o, pos.dist(&o.loc.pos)))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map_or(self, |(o, _)| o)
     }
 }
 
@@ -266,7 +268,7 @@ pub struct Model {
     /// Areas that give XP when discovered.
     pub explore: Vec<ExploreArea>,
     /// Indexes into `explore` by zone.
-    pub explore_by_zone: HashMap<i64, Vec<usize>>,
+    pub explore_by_zone: FxHashMap<i64, Vec<usize>>,
     /// Normal mobs anyone can farm: on the way (see `Params::farm_on_way`), and where the
     /// guide sends the character to grind.
     pub farm: super::FarmMobs,
