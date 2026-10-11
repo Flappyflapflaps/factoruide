@@ -621,18 +621,105 @@ h3 {
   font-size: 12px;
   color: var(--text-secondary);
 }
-.table tr.zone-row td {
-  padding-top: 14px;
+.route-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.route-toolbar .search {
+  margin: 0;
+  flex: 1;
+}
+.route-toolbar button {
+  white-space: nowrap;
+}
+/* The table over the whole width; wide enough, the zone map beside it (a quarter). */
+.route-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.route-layout.wide {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr);
+}
+.route-table {
+  table-layout: fixed;
+}
+.route-table col.c-time {
+  width: 64px;
+}
+.route-table col.c-level {
+  width: 84px;
+}
+.route-table col.c-last {
+  width: 96px;
+}
+.route-table td {
+  overflow-wrap: anywhere;
+}
+.table tr.sub-row.active td {
+  background: var(--surface-2);
+}
+.step-n {
+  display: inline-block;
+  min-width: 2.2em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.zone-panel {
+  position: sticky;
+  top: 0;
+}
+.zone-map {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.zone-map-title {
   font-weight: 600;
-  color: var(--text-primary);
-  border-bottom-color: var(--border);
 }
-.route-zones,
-.route-steps {
-  max-width: 1100px;
+.zone-map-frame {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1b1710;
 }
-.route-zones th:nth-child(4) {
-  width: 50%;
+.zone-map-frame img,
+.zone-map-frame svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.zone-map-path {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-linejoin: round;
+  stroke-dasharray: 2 2;
+}
+/* Its color: the step type's (the .kind-* rules below). */
+.zone-dot {
+  --kind: var(--text-muted);
+  cursor: default;
+}
+.zone-dot circle {
+  fill: var(--kind);
+  stroke: #111;
+}
+.zone-dot text {
+  fill: #fff;
+  font-weight: 700;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.6);
+  stroke-width: 2px;
+}
+.zone-dot.active circle {
+  stroke: #fff;
 }
 .table th button.sort {
   background: none;
@@ -1042,16 +1129,42 @@ button.big {
 .config-bar h2 {
   margin: 0 0 4px;
 }
+/* Character over the whole width, three columns of options, the zone map over the whole width. */
 .config-simple {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.character-grid {
   display: grid;
-  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) repeat(2, minmax(0, 1fr)) repeat(2, minmax(0, 0.7fr));
+  gap: 0 10px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .character-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.config-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   align-items: start;
 }
-@media (max-width: 1000px) {
-  .config-simple {
-    grid-template-columns: 1fr;
+@media (max-width: 1100px) {
+  .config-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+.run-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+.run-box .field {
+  margin: 0;
+  min-width: 330px;
 }
 .config-advanced {
   columns: 3 320px;
@@ -1142,6 +1255,7 @@ button.big {
 }
 .segmented button small {
   display: block;
+  color: inherit;
   font-size: 11px;
   font-weight: 400;
   opacity: 0.8;
@@ -1237,7 +1351,7 @@ button.big {
   flex-direction: column;
   gap: 6px;
 }
-.map-tabs {
+.map-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -1255,10 +1369,6 @@ button.big {
   width: 60px;
   height: 6px;
   border-radius: 3px;
-}
-.map-tabs button.active {
-  border-color: var(--accent);
-  color: var(--text-primary);
 }
 .map-hover {
   margin-left: auto;

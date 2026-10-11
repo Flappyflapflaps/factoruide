@@ -4,7 +4,7 @@ import { Character } from "./Character";
 import { fmtGain } from "./OptimizeProgress";
 import { RouteView } from "./RouteView";
 import { useDate, useT } from "../i18n";
-import { WorldMap, routeMarkers, type ContinentView, type WorldPoint } from "./WorldMap";
+import { WorldMap, routeMarkers, type WorldPoint } from "./WorldMap";
 
 interface Props {
   version: GuideVersion;
@@ -35,11 +35,8 @@ export function ResultView({ version, onRerun, onEdit, onOpenVersion, options }:
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const line = useMemo(() => route.steps.filter((s) => s.world).map((s) => s.world as WorldPoint), [route]);
-  // The continent the guide stays on, both when it goes to several.
-  const [continent, setContinent] = useState<ContinentView>(() => {
-    const used = new Set(line.map((p) => p[0]));
-    return used.size === 1 ? [...used][0] : "both";
-  });
+  // The continents the guide goes to.
+  const continents = useMemo(() => [...new Set(line.map((p) => p[0]))], [line]);
   // Steps of the zone opened in the route table, drawn over the route.
   const [highlight, setHighlight] = useState<WorldPoint[] | null>(null);
 
@@ -156,7 +153,7 @@ export function ResultView({ version, onRerun, onEdit, onOpenVersion, options }:
       <section className="panel">
         <h3>{t("Carte du guide")}</h3>
         <p className="muted">{t("Les pastilles indiquent le niveau en arrivant dans chaque grande étape (survolez pour la zone).")}</p>
-        <WorldMap continent={continent} onContinent={setContinent} route={line} markers={markers} highlight={highlight ?? undefined} height={560} />
+        <WorldMap continents={continents.length ? continents : undefined} route={line} markers={markers} highlight={highlight ?? undefined} height={560} />
       </section>
       <RouteView
         route={route}
@@ -168,12 +165,7 @@ export function ResultView({ version, onRerun, onEdit, onOpenVersion, options }:
             </>
           )
         }
-        onHighlight={(points) => {
-          setHighlight(points);
-          // The continent of the opened zone, when another one is shown alone.
-          const map = points?.[0]?.[0];
-          if (map != null && continent !== "both" && continent !== map) setContinent(map);
-        }}
+        onHighlight={setHighlight}
       />
     </div>
   );

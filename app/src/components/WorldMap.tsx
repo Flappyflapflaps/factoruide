@@ -11,12 +11,10 @@ export interface MapMarker {
   title?: string;
 }
 
-export type ContinentView = number | "both";
-
 interface Props {
-  /** Game map shown: 0 Eastern Kingdoms, 1 Kalimdor, or both side by side. */
-  continent: ContinentView;
-  onContinent?: (continent: ContinentView) => void;
+  /** Continents shown side by side (game maps: 1 Kalimdor, 0 Eastern Kingdoms, 530 Outland),
+   * west to east; all those of the game version when unset. */
+  continents?: number[];
   route?: WorldPoint[];
   markers?: MapMarker[];
   /** Zone states by game zone (AreaTable ID). */
@@ -32,8 +30,10 @@ interface Props {
 
 let indexPromise: Promise<MapInfo[]> | null = null;
 const images = new Map<number, Promise<string>>();
-const loadIndex = () => (indexPromise ??= api.mapIndex());
-const loadImage = (id: number) => {
+/** Every map of the game version (loaded once). */
+export const loadIndex = () => (indexPromise ??= api.mapIndex());
+/** A map image (loaded once). */
+export const loadImage = (id: number) => {
   let p = images.get(id);
   if (!p) {
     p = api.mapImage(id);
@@ -48,12 +48,8 @@ export function clearMapCache() {
   images.clear();
 }
 
-/** Continents (game maps) shown as tabs, west to east, when the game version has them. */
-const CONTINENTS: { map: number; label: string }[] = [
-  { map: 1, label: "Kalimdor" },
-  { map: 0, label: "Royaumes de l'Est" },
-  { map: 530, label: "Outreterre" },
-];
+/** Continents (game maps), west to east. */
+const CONTINENTS = [1, 0, 530];
 
 /** Projects world coordinates (x north, y west) on a map image of `info`. */
 function projector(info: MapInfo) {
@@ -87,7 +83,7 @@ const RAMP_CSS = `linear-gradient(90deg, ${[0, 1 / 3, 2 / 3, 1].map(rampColor).j
 /** Route pieces colored along the ramp. */
 const CHUNKS = 8;
 
-export function WorldMap({ continent, onContinent, route, markers, highlight, zoneStates, onZoneClick, live, height = 520 }: Props) {
+export function WorldMap({ continents, route, markers, highlight, zoneStates, onZoneClick, live, height = 520 }: Props) {
   const t = useT();
   const areaName = useAreaName();
   const [index, setIndex] = useState<MapInfo[] | null>(null);
@@ -124,19 +120,21 @@ export function WorldMap({ continent, onContinent, route, markers, highlight, zo
     loadIndex().then(setIndex).catch((e) => setError(String(e)));
   }, []);
 
-  // Continent maps shown, Kalimdor on the left (west) when both.
+  // Continent maps shown, west to east.
+  const shown = (continents ?? CONTINENTS).join(",");
   const panels = useMemo<Panel[]>(() => {
     if (!index) return [];
     const base = (map: number) =>
       index.filter((m) => m.kind === 2 && m.bounds?.map === map).sort((a, b) => b.width - a.width)[0];
-    const maps = (continent === "both" ? CONTINENTS.map((c) => base(c.map)) : [base(continent)]).filter(Boolean);
+    const wanted = shown.split(",").map(Number);
+    const maps = CONTINENTS.filter((c) => wanted.includes(c)).map(base).filter(Boolean);
     let dx = 0;
     return maps.map((info) => {
       const p = { info, dx, project: projector(info) };
       dx += info.width;
       return p;
     });
-  }, [index, continent]);
+  }, [index, shown]);
   const key = panels.map((p) => p.info.id).join("+");
 
   useEffect(() => {
@@ -230,12 +228,6 @@ export function WorldMap({ continent, onContinent, route, markers, highlight, zo
   const { pieces, jumps, crossings } = trace(route ?? [], CHUNKS);
   const path = pieces.join("");
   const lit = highlight?.length ? trace(highlight, 1).pieces[0] : "";
-  // Tabs: the continents of this game version, then all of them side by side.
-  const available = CONTINENTS.filter((c) => (index ?? []).some((m) => m.kind === 2 && m.bounds?.map === c.map));
-  const TABS: { view: ContinentView; label: string }[] = [
-    ...available.map((c) => ({ view: c.map as ContinentView, label: c.label })),
-    { view: "both", label: available.length > 2 ? "Tous" : "Les deux" },
-  ];
   const k = 1 / view.scale; // keep strokes and labels readable when zoomed
   const s = panels.length > 2 ? 2.2 : panels.length > 1 ? 1.6 : 1; // maps side by side are drawn smaller
   // Markers too close to be read apart are drawn as one: the first level and how many more
@@ -253,13 +245,7 @@ export function WorldMap({ continent, onContinent, route, markers, highlight, zo
 
   return (
     <div className="world-map">
-      <div className="map-tabs" role="tablist">
-        {onContinent &&
-          TABS.map((tab) => (
-            <button key={String(tab.view)} role="tab" aria-selected={tab.view === continent} className={tab.view === continent ? "active" : ""} onClick={() => onContinent(tab.view)}>
-              {t(tab.label)}
-            </button>
-          ))}
+      <div className="map-bar">
         {path && (
           <span className="route-legend" aria-hidden>
             {t("début")} <i style={{ background: RAMP_CSS }} /> {t("fin")}

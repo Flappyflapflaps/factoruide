@@ -6,7 +6,7 @@ import { CharacterPicker } from "./CharacterPicker";
 import { DungeonPicker } from "./DungeonPicker";
 import { ParamField } from "./ParamField";
 import { ProfessionPicker } from "./ProfessionPicker";
-import { WorldMap, type ContinentView, type ZoneState } from "./WorldMap";
+import { WorldMap, type ZoneState } from "./WorldMap";
 import { ZonePicker } from "./ZonePicker";
 import { useGameName, useT } from "../i18n";
 
@@ -160,15 +160,6 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
     setPrevClassQuestsInputs(classQuestsInputs);
     if (!initial?.required_class_quests || initial.class !== klass) setClassQuests(options.class_quests[className] ?? []);
   }
-  const faction = options.races.find((r) => r.key === race)?.faction;
-  const factionContinent: ContinentView = faction === "Horde" ? 1 : 0;
-  const [continent, setContinent] = useState<ContinentView>(factionContinent);
-  const [prevFaction, setPrevFaction] = useState(faction);
-  if (faction !== prevFaction) {
-    setPrevFaction(faction);
-    setContinent(factionContinent);
-  }
-
   const set = (key: keyof Params, value: Params[keyof Params]) => setParams((p) => ({ ...p, [key]: value }));
   const factions = useMemo(() => [...new Set(options.races.map((r) => r.faction))], [options.races]);
 
@@ -222,7 +213,14 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
             </button>
           </div>
         </div>
-        <div className="actions">
+        {/* The last choice before launching: how long to compute. */}
+        <div className="run-box" title={t("Plus le calcul est long, plus le guide est court.")}>
+          <Segmented
+            label={t("Temps de calcul")}
+            choices={budgets.map((b) => ({ label: t(b.label), value: b.ms }))}
+            value={params.time_limit_ms}
+            onChange={(ms) => set("time_limit_ms", ms)}
+          />
           <button
             className="primary big"
             onClick={() => {
@@ -240,11 +238,11 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
 
       {view === "simple" ? (
         <div className="config-simple">
-          <div className="config-col">
-            <section className="panel">
-              <h3>{t("Personnage")}</h3>
+          <section className="panel">
+            <h3>{t("Personnage")}</h3>
+            <div className="character-grid">
               <CharacterPicker characters={characters} start={start} onPick={pickCharacter} />
-              <label className={`field${nameMissing ? " invalid" : ""}`}>
+              <label className={`field guide-name${nameMissing ? " invalid" : ""}`}>
                 <span>
                   {t("Nom du guide")} <em className="required">*</em>
                 </span>
@@ -258,164 +256,160 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
                 />
                 {nameMissing && <small className="field-error">{t("Donnez un nom au guide pour le retrouver et le partager.")}</small>}
               </label>
-              <div className="row">
-                <label className="field grow">
-                  <span>{t("Race")}</span>
-                  <select value={race} disabled={!!start} onChange={(e) => setRace(e.target.value)}>
-                    {factions.map((f) => (
-                      <optgroup key={f} label={gameName(f)}>
-                        {options.races
-                          .filter((r) => r.faction === f)
-                          .map((r) => (
-                            <option key={r.key} value={r.key}>
-                              {gameName(r.name)}
-                            </option>
-                          ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </label>
-                <label className="field grow">
-                  <span>{t("Classe")}</span>
-                  <select value={klass} disabled={!!start} onChange={(e) => setKlass(e.target.value)}>
-                    {raceClasses.map((c) => (
-                      <option key={c.key} value={c.key}>
-                        {gameName(c.name)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="row">
-                <label className="field grow">
-                  <span>{t("Du niveau")}</span>
-                  <input type="number" min={1} max={options.max_level - 1} value={fromLevel} disabled={!!start} onChange={(e) => setFromLevel(Number(e.target.value))} />
-                </label>
-                <label className="field grow">
-                  <span>{t("Au niveau")}</span>
-                  <input type="number" min={2} max={options.max_level} value={toLevel} onChange={(e) => setToLevel(Number(e.target.value))} />
-                </label>
-              </div>
-            </section>
+              <label className="field">
+                <span>{t("Race")}</span>
+                <select value={race} disabled={!!start} onChange={(e) => setRace(e.target.value)}>
+                  {factions.map((f) => (
+                    <optgroup key={f} label={gameName(f)}>
+                      {options.races
+                        .filter((r) => r.faction === f)
+                        .map((r) => (
+                          <option key={r.key} value={r.key}>
+                            {gameName(r.name)}
+                          </option>
+                        ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>{t("Classe")}</span>
+                <select value={klass} disabled={!!start} onChange={(e) => setKlass(e.target.value)}>
+                  {raceClasses.map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {gameName(c.name)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>{t("Du niveau")}</span>
+                <input type="number" min={1} max={options.max_level - 1} value={fromLevel} disabled={!!start} onChange={(e) => setFromLevel(Number(e.target.value))} />
+              </label>
+              <label className="field">
+                <span>{t("Au niveau")}</span>
+                <input type="number" min={2} max={options.max_level} value={toLevel} onChange={(e) => setToLevel(Number(e.target.value))} />
+              </label>
+            </div>
+          </section>
 
-            <section className="panel">
-              <h3>{t("Façon de jouer")}</h3>
-              <Segmented
-                label={t("Rythme de jeu")}
-                choices={presets.map((p) => ({ label: t(p.label), value: p.label }))}
-                value={pace}
-                onChange={(label) => setParams((cur) => ({ ...cur, ...presets.find((p) => p.label === label)!.values }))}
-              />
-              <Segmented
-                label={t("Profil de progression")}
-                choices={PROGRESSION.map((p) => ({ label: t(p.label), value: p.value }))}
-                value={params.progression}
-                onChange={(v) => set("progression", v)}
-                help={PROGRESSION.filter((p) => p.value === params.progression).map((p) => t(p.help))[0]}
-              />
-              <Toggle
-                label={t("Farm autorisé")}
-                help={t("Sans farm, le guide va chercher plus de quêtes, quitte à être plus long. Il ne farme que s'il ne reste aucune quête.")}
-                checked={params.allow_grind}
-                onChange={(v) => set("allow_grind", v)}
-              />
-              <Toggle
-                label={t("Farmer en chemin")}
-                help={t("Les mobs croisés à pied sont tués au passage. Ce farm remplace le farm pur et reste limité à {n} % de chaque niveau (réglable dans les réglages avancés).", { n: Math.round(params.farm_cap * 100) })}
-                checked={params.farm_on_way}
-                onChange={(v) => set("farm_on_way", v)}
-              />
-              <Level
-                label={t("Monde sur le serveur")}
-                help={t("D'autres joueurs farment les mêmes mobs et objets, et attendent leur tour pour les escortes et les événements : le guide compte l'attente aux petits spots et les évite quand d'autres quêtes rapportent plus.")}
-                value={params.crowded}
-                words={CROWD_WORDS}
-                onChange={(v) => set("crowded", v)}
-              />
-              <Toggle
-                label={t("Faire les donjons rentables en groupe")}
-                help={t("Un donjon est fait, avec ses quêtes, quand il fait gagner du temps.")}
-                checked={params.dungeons}
-                onChange={(v) => set("dungeons", v)}
-              />
-              <DungeonPicker
-                dungeons={options.dungeons}
-                forced={params.forced_dungeons}
-                excluded={params.excluded_dungeons}
-                onChange={(forced, excluded) => {
-                  set("forced_dungeons", forced);
-                  set("excluded_dungeons", excluded);
-                }}
-              />
-              <Toggle
-                label={t("Quêtes élites (groupe)")}
-                help={t("Quêtes dont les objectifs sont des mobs élites hors donjon.")}
-                checked={params.allow_elite}
-                onChange={(v) => set("allow_elite", v)}
-              />
-            </section>
+          <div className="config-columns">
+            <div className="config-col">
+              <section className="panel">
+                <h3>{t("Façon de jouer")}</h3>
+                <Segmented
+                  label={t("Rythme de jeu")}
+                  choices={presets.map((p) => ({ label: t(p.label), value: p.label }))}
+                  value={pace}
+                  onChange={(label) => setParams((cur) => ({ ...cur, ...presets.find((p) => p.label === label)!.values }))}
+                />
+                <Segmented
+                  label={t("Profil de progression")}
+                  choices={PROGRESSION.map((p) => ({ label: t(p.label), value: p.value }))}
+                  value={params.progression}
+                  onChange={(v) => set("progression", v)}
+                  help={PROGRESSION.filter((p) => p.value === params.progression).map((p) => t(p.help))[0]}
+                />
+                <Toggle
+                  label={t("Farm autorisé")}
+                  help={t("Sans farm, le guide va chercher plus de quêtes, quitte à être plus long. Il ne farme que s'il ne reste aucune quête.")}
+                  checked={params.allow_grind}
+                  onChange={(v) => set("allow_grind", v)}
+                />
+                <Toggle
+                  label={t("Farmer en chemin")}
+                  help={t("Les mobs croisés à pied sont tués au passage. Ce farm remplace le farm pur et reste limité à {n} % de chaque niveau (réglable dans les réglages avancés).", { n: Math.round(params.farm_cap * 100) })}
+                  checked={params.farm_on_way}
+                  onChange={(v) => set("farm_on_way", v)}
+                />
+                <Level
+                  label={t("Monde sur le serveur")}
+                  help={t("D'autres joueurs farment les mêmes mobs et objets, et attendent leur tour pour les escortes et les événements : le guide compte l'attente aux petits spots et les évite quand d'autres quêtes rapportent plus.")}
+                  value={params.crowded}
+                  words={CROWD_WORDS}
+                  onChange={(v) => set("crowded", v)}
+                />
+              </section>
+            </div>
 
-            <section className="panel">
-              <h3>{t("Groupe")}</h3>
-              <p className="muted">
-                {group.length === 0
-                  ? t("Seul. Ajoutez les joueurs qui montent avec vous : combats plus rapides, XP des mobs partagée, quêtes de classe de chacun.")
-                  : t("{n} joueurs : combats plus rapides, XP des mobs partagée, quêtes de classe de chacun.", { n: group.length + 1 })}
-              </p>
-              <div className="companions">
-                <div className="companion me">
-                  <span className="muted">{t("Vous")}</span>
-                  <ClassName klass={klass} />
-                </div>
-                {group.map((c, i) => (
-                  <div className="companion" key={i}>
-                    <select aria-label={t("Classe du joueur {n}", { n: i + 2 })} value={c} onChange={(e) => setGroup(group.map((g, j) => (j === i ? e.target.value : g)))}>
-                      {factionClasses.map((o) => (
-                        <option key={o.key} value={o.key}>
-                          {gameName(o.name)}
-                        </option>
-                      ))}
-                    </select>
-                    <button className="link" aria-label={t("Retirer")} title={t("Retirer")} onClick={() => setGroup(group.filter((_, j) => j !== i))}>
-                      ✕
-                    </button>
+            <div className="config-col">
+              <section className="panel">
+                <h3>{t("Donjons et élites")}</h3>
+                <Toggle
+                  label={t("Faire les donjons rentables en groupe")}
+                  help={t("Un donjon est fait, avec ses quêtes, quand il fait gagner du temps.")}
+                  checked={params.dungeons}
+                  onChange={(v) => set("dungeons", v)}
+                />
+                <DungeonPicker
+                  dungeons={options.dungeons}
+                  forced={params.forced_dungeons}
+                  excluded={params.excluded_dungeons}
+                  onChange={(forced, excluded) => {
+                    set("forced_dungeons", forced);
+                    set("excluded_dungeons", excluded);
+                  }}
+                />
+                <Toggle
+                  label={t("Quêtes élites (groupe)")}
+                  help={t("Quêtes dont les objectifs sont des mobs élites hors donjon.")}
+                  checked={params.allow_elite}
+                  onChange={(v) => set("allow_elite", v)}
+                />
+              </section>
+            </div>
+
+            <div className="config-col">
+              <section className="panel">
+                <h3>{t("Métiers")}</h3>
+                <p className="muted">{t("Pas de temps ni d'étapes dans le guide : l'addon indique si vous êtes en avance ou en retard sur la courbe, et les quêtes du métier sont proposées (facultatives).")}</p>
+                <ProfessionPicker goals={professions} onChange={setProfessions} />
+              </section>
+
+              <section className="panel">
+                <h3>{t("Groupe")}</h3>
+                <p className="muted">
+                  {group.length === 0
+                    ? t("Seul. Ajoutez les joueurs qui montent avec vous : combats plus rapides, XP des mobs partagée, quêtes de classe de chacun.")
+                    : t("{n} joueurs : combats plus rapides, XP des mobs partagée, quêtes de classe de chacun.", { n: group.length + 1 })}
+                </p>
+                <div className="companions">
+                  <div className="companion me">
+                    <span className="muted">{t("Vous")}</span>
+                    <ClassName klass={klass} />
                   </div>
-                ))}
-                {group.length < 4 && (
-                  <button className="companion add" onClick={addCompanion}>
-                    + {t("Ajouter un joueur")}
-                  </button>
-                )}
-              </div>
-            </section>
-
-            <section className="panel">
-              <h3>{t("Calcul")}</h3>
-              <Segmented
-                label={t("Temps de calcul")}
-                choices={budgets.map((b) => ({ label: t(b.label), value: b.ms }))}
-                value={params.time_limit_ms}
-                onChange={(ms) => set("time_limit_ms", ms)}
-              />
-              <small className="muted">{t("Plus le calcul est long, plus le guide est court.")}</small>
-            </section>
+                  {group.map((c, i) => (
+                    <div className="companion" key={i}>
+                      <select aria-label={t("Classe du joueur {n}", { n: i + 2 })} value={c} onChange={(e) => setGroup(group.map((g, j) => (j === i ? e.target.value : g)))}>
+                        {factionClasses.map((o) => (
+                          <option key={o.key} value={o.key}>
+                            {gameName(o.name)}
+                          </option>
+                        ))}
+                      </select>
+                      <button className="link" aria-label={t("Retirer")} title={t("Retirer")} onClick={() => setGroup(group.filter((_, j) => j !== i))}>
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                  {group.length < 4 && (
+                    <button className="companion add" onClick={addCompanion}>
+                      + {t("Ajouter un joueur")}
+                    </button>
+                  )}
+                </div>
+              </section>
+            </div>
           </div>
 
-          <div className="config-col">
-            <section className="panel">
-              <h3>{t("Zones")}</h3>
-              <WorldMap continent={continent} onContinent={setContinent} zoneStates={zoneStates} onZoneClick={cycleZone} height={560} />
-              <div className="row zone-pickers">
-                <ZonePicker label={t("★ Privilégiées")} zones={options.zones} selected={params.preferred_zones} onChange={(ids) => set("preferred_zones", ids)} />
-                <ZonePicker label={t("✕ Exclues")} zones={options.zones} selected={params.excluded_zones} onChange={(ids) => set("excluded_zones", ids)} />
-              </div>
-            </section>
-            <section className="panel">
-              <h3>{t("Métiers")}</h3>
-              <p className="muted">{t("Pas de temps ni d'étapes dans le guide : l'addon indique si vous êtes en avance ou en retard sur la courbe, et les quêtes du métier sont proposées (facultatives).")}</p>
-              <ProfessionPicker goals={professions} onChange={setProfessions} />
-            </section>
-          </div>
+          <section className="panel">
+            <h3>{t("Zones")}</h3>
+            <WorldMap zoneStates={zoneStates} onZoneClick={cycleZone} height={560} />
+            <div className="row zone-pickers">
+              <ZonePicker label={t("★ Privilégiées")} zones={options.zones} selected={params.preferred_zones} onChange={(ids) => set("preferred_zones", ids)} />
+              <ZonePicker label={t("✕ Exclues")} zones={options.zones} selected={params.excluded_zones} onChange={(ids) => set("excluded_zones", ids)} />
+            </div>
+          </section>
         </div>
       ) : (
         <>
@@ -481,11 +475,6 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
                 ))}
             </section>
           ))}
-
-          <section className="panel">
-            <h3>{t("Métiers")}</h3>
-            <ProfessionPicker goals={professions} onChange={setProfessions} />
-          </section>
 
         </div>
         </>

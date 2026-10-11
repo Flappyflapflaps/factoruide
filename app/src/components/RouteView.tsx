@@ -1,9 +1,11 @@
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { fmtTime, type Route, type Step } from "../api";
 import { BreakdownBars } from "./BreakdownBars";
 import { LevelChart } from "./LevelChart";
 import { useT } from "../i18n";
+import { useWidth } from "./useWidth";
 import type { WorldPoint } from "./WorldMap";
+import { ZoneMap, type NumberedStep } from "./ZoneMap";
 
 const KIND_LABELS: Record<string, string> = {
   accept: "Prendre",
@@ -173,6 +175,14 @@ function XpTile({ route }: { route: Route }) {
   );
 }
 
+/** The element that scrolls `el` (the app's content area). */
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;
+  }
+  return null;
+}
+
 interface Props {
   route: Route;
   notes?: string[];
@@ -185,31 +195,83 @@ interface Props {
 export function RouteView({ route, notes, compare, onHighlight }: Props) {
   const t = useT();
   const [filter, setFilter] = useState("");
-  const [tab, setTab] = useState<"zones" | "steps">("zones");
-  const [open, setOpen] = useState<number | null>(null);
+  // Zones opened, the one shown on the maps (the opened zone whose steps are in view), and the
+  // step pointed at.
+  const [open, setOpen] = useState<Set<number>>(new Set());
+  const [focus, setFocus] = useState<number | null>(null);
+  const [active, setActive] = useState<number | null>(null);
+  const [frame, width] = useWidth(1000);
+  const table = useRef<HTMLTableElement>(null);
+  // Wide enough: the zone map beside the table.
+  const wide = width >= 1150;
   const b = route.breakdown;
   const segs = useMemo(() => segments(route), [route]);
   const kindLabel = (s: Step) => t(KIND_LABELS[s.kind] ?? s.kind);
-  const shown = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    let zone: string | undefined;
-    return route.steps
-      .map((s, i) => {
-        zone = s.zone ?? zone;
-        return { ...s, zone, n: i + 1, start: i > 0 ? route.steps[i - 1].time : 0 };
-      })
-      .filter((s) => !q || s.text.toLowerCase().includes(q) || (s.zone ?? "").toLowerCase().includes(q) || kindLabel(s).toLowerCase().includes(q));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route, filter, t]);
+  const numbered = (i: number): NumberedStep => ({ ...route.steps[i], n: i + 1 });
+  const stepsOf = (s: Segment) => Array.from({ length: steps(s) }, (_, k) => s.first + k);
+  // Filtered: the zones with matching steps, opened on them (all their steps when the zone matches).
+  const q = filter.trim().toLowerCase();
+  const rows = segs
+    .map((s, i) => {
+      const all = stepsOf(s);
+      if (!q || (s.zone ?? "").toLowerCase().includes(q)) return { s, i, shown: all };
+      const x = (k: number) => route.steps[k];
+      return { s, i, shown: all.filter((k) => x(k).text.toLowerCase().includes(q) || kindLabel(x(k)).toLowerCase().includes(q)) };
+    })
+    .filter((r) => !q || r.shown.length > 0);
+  const isOpen = (i: number) => (q ? true : open.has(i));
   const flights = route.steps.filter((s) => s.kind === "fly").length;
 
+  // The zone shown is drawn over the guide map too.
+  useEffect(() => {
+    const s = focus !== null ? segs[focus] : null;
+    onHighlight?.(s ? route.steps.slice(s.first, s.last + 1).flatMap((x) => (x.world ? [x.world as WorldPoint] : [])) : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, segs, route]);
+  // Beside the table, the map follows the scroll: the zone of the first opened step in view.
+  useEffect(() => {
+    const el = table.current;
+    if (!wide || !el) return;
+    const scroller = scrollParent(el);
+    let frameId = 0;
+    const update = () => {
+      frameId = 0;
+      const lines = el.querySelectorAll<HTMLTableRowElement>("tr.sub-row");
+      if (!lines.length) return;
+      const top = (scroller?.getBoundingClientRect().top ?? 0) + 40;
+      // Rows are in order: the first one ending below the top of the view.
+      let lo = 0;
+      let hi = lines.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (lines[mid].getBoundingClientRect().bottom > top) hi = mid;
+        else lo = mid + 1;
+      }
+      setFocus(Number(lines[lo].dataset.seg));
+    };
+    const onScroll = () => {
+      if (!frameId) frameId = requestAnimationFrame(update);
+    };
+    update();
+    scroller?.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      scroller?.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(frameId);
+    };
+  }, [wide, open, q]);
+  const show = (i: number | null) => setFocus(i);
   const toggle = (i: number) => {
-    const next = open === i ? null : i;
+    const next = new Set(open);
+    if (next.delete(i)) {
+      if (focus === i) show(null);
+    } else {
+      next.add(i);
+      show(i);
+    }
     setOpen(next);
-    const s = segs[i];
-    onHighlight?.(next === null ? null : route.steps.slice(s.first, s.last + 1).flatMap((x) => (x.world ? [x.world as WorldPoint] : [])));
   };
   const duration = (seconds: number) => (seconds >= 30 ? fmtTime(seconds) : "");
+  const focused = focus !== null ? segs[focus] : null;
 
   return (
     <div className="route-view">
@@ -250,17 +312,32 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
 
       {notes && notes.length > 0 && <Notes notes={notes} />}
 
-      <div className="view-tabs" role="tablist">
-        <button role="tab" aria-selected={tab === "zones"} className={tab === "zones" ? "active" : ""} onClick={() => setTab("zones")}>
-          {t("Parcours par zone")}
+      <div className="route-toolbar">
+        <input className="search" placeholder={t("Filtrer (quête, zone, type…)")} value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <button onClick={() => setOpen(new Set(segs.map((_, i) => i)))} disabled={!!q}>
+          {t("Tout déplier")}
         </button>
-        <button role="tab" aria-selected={tab === "steps"} className={tab === "steps" ? "active" : ""} onClick={() => setTab("steps")}>
-          {t("Toutes les étapes")}
+        <button
+          onClick={() => {
+            setOpen(new Set());
+            show(null);
+          }}
+          disabled={!!q}
+        >
+          {t("Tout replier")}
         </button>
       </div>
 
-      {tab === "zones" ? (
-        <table className="table route-zones">
+      <div className={`route-layout${wide ? " wide" : ""}`} ref={frame}>
+        {/* Fixed columns: opening a zone does not move them. */}
+        <table className="table route-table" ref={table}>
+          <colgroup>
+            <col className="c-time" />
+            <col className="c-time" />
+            <col className="c-level" />
+            <col />
+            <col className="c-last" />
+          </colgroup>
           <thead>
             <tr>
               <th className="num">{t("Début")}</th>
@@ -271,79 +348,57 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
             </tr>
           </thead>
           <tbody>
-            {segs.map((s, i) => (
+            {rows.map(({ s, i, shown }) => (
               <Fragment key={i}>
-                <tr className={`clickable${open === i ? " selected" : ""}`} onClick={() => toggle(i)} aria-expanded={open === i}>
+                <tr className={`clickable zone-line${focus === i ? " selected" : ""}`} onClick={() => !q && toggle(i)} aria-expanded={isOpen(i)}>
                   <td className="num">{fmtTime(s.start)}</td>
                   <td className="num">{duration(s.end - s.start)}</td>
                   <td>{s.fromLevel === s.toLevel ? s.fromLevel : `${s.fromLevel} → ${s.toLevel}`}</td>
                   <td>
                     <span className="disclosure" aria-hidden>
-                      {open === i ? "▾" : "▸"}
+                      {isOpen(i) ? "▾" : "▸"}
                     </span>{" "}
                     {s.dungeon && <span className="kind kind-dungeon">{t("Donjon")}</span>} {s.zone ?? <em className="muted">{t("Préparation")}</em>}
                   </td>
                   <td className="num">{steps(s)}</td>
                 </tr>
-                {open === i &&
-                  route.steps.slice(s.first, s.last + 1).map((x, j) => (
-                    <tr key={`${i}-${j}`} className="sub-row">
-                      <td className="num">{fmtTime(x.time)}</td>
-                      <td />
-                      <td>{x.level}</td>
-                      <td colSpan={2}>
-                        <span className={`kind kind-${x.kind}`}>{kindLabel(x)}</span> {x.text}
-                        {x.bg && <span className="along"> {t("en chemin")}</span>}
-                      </td>
-                    </tr>
-                  ))}
+                {isOpen(i) &&
+                  shown.map((k) => {
+                    const x = route.steps[k];
+                    const begin = k > 0 ? route.steps[k - 1].time : 0;
+                    return (
+                      <tr
+                        key={k}
+                        data-seg={i}
+                        className={`sub-row${active === k + 1 ? " active" : ""}`}
+                        onMouseEnter={() => setActive(k + 1)}
+                        onMouseLeave={() => setActive(null)}
+                      >
+                        <td className="num">{fmtTime(begin)}</td>
+                        <td className={`num${x.time - begin >= 1800 ? " long" : ""}`}>{duration(x.time - begin)}</td>
+                        <td>{x.level}</td>
+                        <td>
+                          <span className="step-n">{k + 1}</span> <span className={`kind kind-${x.kind}`}>{kindLabel(x)}</span> {x.text}
+                          {x.bg && <span className="along"> {t("en chemin")}</span>}
+                        </td>
+                        <td className="num coords">{x.map ? `${x.map.x.toFixed(1)}, ${x.map.y.toFixed(1)}` : ""}</td>
+                      </tr>
+                    );
+                  })}
               </Fragment>
             ))}
           </tbody>
         </table>
-      ) : (
-        <>
-          <input className="search" placeholder={t("Filtrer (quête, zone, type…)")} value={filter} onChange={(e) => setFilter(e.target.value)} />
-          <table className="table route-steps">
-            <thead>
-              <tr>
-                <th className="num">#</th>
-                <th className="num">{t("Début")}</th>
-                <th className="num">{t("Durée")}</th>
-                <th className="num">{t("Niv.")}</th>
-                <th>{t("Type")}</th>
-                <th>{t("Étape")}</th>
-                <th>{t("Coords")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.slice(0, 2000).map((s, i, all) => (
-                <Fragment key={s.n}>
-                  {(i === 0 || all[i - 1].zone !== s.zone) && (
-                    <tr className="zone-row">
-                      <td colSpan={7}>{s.zone ?? t("Préparation")}</td>
-                    </tr>
-                  )}
-                  <tr>
-                    <td className="num muted">{s.n}</td>
-                    <td className="num">{fmtTime(s.start)}</td>
-                    <td className={`num${s.time - s.start >= 1800 ? " long" : ""}`}>{duration(s.time - s.start)}</td>
-                    <td className="num">{s.level}</td>
-                    <td>
-                      <span className={`kind kind-${s.kind}`}>{kindLabel(s)}</span>
-                    </td>
-                    <td>
-                      {s.text}
-                      {s.bg && <span className="along"> {t("en chemin")}</span>}
-                    </td>
-                    <td className="coords">{s.map ? `${s.map.x.toFixed(1)}, ${s.map.y.toFixed(1)}` : ""}</td>
-                  </tr>
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
+        {wide && (
+          <aside className="zone-panel">
+            {focused ? (
+              <ZoneMap title={focused.zone ?? t("Préparation")} steps={stepsOf(focused).map(numbered)} active={active} onActive={setActive} />
+            ) : (
+              <p className="muted">{t("Ouvrez une zone pour voir ses étapes sur sa carte.")}</p>
+            )}
+          </aside>
+        )}
+      </div>
     </div>
   );
 }

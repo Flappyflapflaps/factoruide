@@ -3,7 +3,7 @@ import { fmtTime } from "../api";
 import type { OptimizeState, RaceSeries } from "./OptimizeProgress";
 import { RaceChart } from "./RaceChart";
 import { useT } from "../i18n";
-import { WorldMap, type ContinentView, type WorldPoint } from "./WorldMap";
+import { WorldMap, type WorldPoint } from "./WorldMap";
 
 /** A number of seconds shown as h:mm, sliding smoothly to new values. */
 function AnimatedTime({ value }: { value: number }) {
@@ -65,7 +65,6 @@ interface Props {
 
 export function RunView({ state, series, colors, route, log, onStop, onCancel, interrupting }: Props) {
   const t = useT();
-  const [continent, setContinent] = useState<ContinentView>("both");
   const [showLog, setShowLog] = useState(false);
 
   const optimizing = state?.phase === "optimize";
@@ -100,7 +99,7 @@ export function RunView({ state, series, colors, route, log, onStop, onCancel, i
         <RaceChart state={state} series={series} colors={colors} />
       </div>
       <div className="panel">
-        <WorldMap continent={continent} onContinent={setContinent} route={route} live height={520} />
+        <WorldMap route={route} live height={520} />
       </div>
       <button className="link" onClick={() => setShowLog(!showLog)}>
         {showLog ? t("Masquer le journal") : t("Afficher le journal")}
