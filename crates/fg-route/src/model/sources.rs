@@ -216,11 +216,18 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
         |r| r.get(0),
     )?;
     let observed = if has_observed { "coalesce(xp_observed, 0)" } else { "0" };
+    // Nor time limits.
+    let has_limit: bool = conn.query_row(
+        "SELECT count(*) > 0 FROM pragma_table_info('m_quest') WHERE name = 'time_limit'",
+        [],
+        |r| r.get(0),
+    )?;
+    let limit = if has_limit { "time_limit" } else { "NULL" };
     let mut stmt = conn.prepare(&format!(
         "SELECT id, coalesce(name, ''), level, min_level, coalesce(xp, 0), zone_or_sort, races_mask, classes_mask,
                 special_flags, required_skill_id, required_min_rep_faction, required_spell, breadcrumb_for,
                 requirements, source_item_id, json_extract(extra, '$.required_source_items'), {observed},
-                required_skill_value, reputation_reward, sources, quest_flags
+                required_skill_value, reputation_reward, sources, quest_flags, {limit}
          FROM m_quest WHERE status = 'available'"
     ))?;
     let rows = stmt.query_map([], |r| {
@@ -246,6 +253,7 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
             reputation: r.get(18)?,
             sources: r.get(19)?,
             flags: r.get(20)?,
+            time_limit: r.get(21)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -441,6 +449,8 @@ pub(super) struct QuestRow {
     pub(super) sources: Option<String>,
     /// QuestFlags (2: an escort or an event).
     pub(super) flags: Option<i64>,
+    /// Seconds from taking the quest to finish it (timed quests).
+    pub(super) time_limit: Option<i64>,
 }
 
 impl QuestRow {

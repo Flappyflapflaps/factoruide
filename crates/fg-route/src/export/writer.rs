@@ -553,6 +553,10 @@ impl StepWriter<'_> {
                     "accept"
                 };
                 step.say.push(Phrase::new(key).arg("quest", quest).arg("who", who));
+                if let Some(limit) = q.time_limit {
+                    step.say
+                        .push(Phrase::new("suffix.timed").arg("minutes", num((limit / 60.0).round() as i64)));
+                }
                 // Profession quest: optional, the addon skips it without the skill.
                 if let Some((p, value)) = q.skill {
                     let plan = &self.planner.model.professions[p];

@@ -544,6 +544,40 @@ fn dungeon_quests_are_steps_of_their_own() {
     assert!(fg_route::export::to_lua(std::slice::from_ref(&guide)).contains("di = true"));
 }
 
+/// A timed quest reached after its time has failed: the guide gives it up instead of turning it
+/// in (no reward); in time, it is turned in.
+#[test]
+fn late_timed_quest_is_given_up() {
+    let mut p = prepare("human", "warrior", 30, &["progression=cautious"]);
+    (p.profile.from_level, p.profile.to_level) = (22, 30);
+    let i = p
+        .model
+        .quests
+        .iter()
+        .position(|q| q.id == 1699)
+        .expect("The Rethban Gauntlet");
+    assert_eq!(p.model.quests[i].time_limit, Some(3600.0), "its limit, from the data");
+    let objectives = p.model.quests[i].objectives.len() as u8;
+    let mut route = vec![Stop::quest(i as u32, Kind::Accept)];
+    route.extend((0..objectives).map(|k| Stop::quest(i as u32, Kind::Objective(k))));
+    route.push(Stop::quest(i as u32, Kind::TurnIn));
+    for (limit, turned_in) in [(Some(1.0), false), (Some(36_000.0), true), (None, true)] {
+        p.model.quests[i].time_limit = limit;
+        let mut trace = Vec::new();
+        let (_, spent) = planner(&p)
+            .simulate_full(&route, Some(&mut trace))
+            .expect("a valid route");
+        let given_up = trace
+            .iter()
+            .any(|t| matches!(t.event, Event::Abandon { quest } if quest == i));
+        let turned = trace
+            .iter()
+            .any(|t| matches!(t.event, Event::Stop { stop, .. } if stop.kind == Kind::TurnIn));
+        assert_eq!((turned, given_up), (turned_in, !turned_in), "limit {limit:?}");
+        assert_eq!(spent.quest_xp > 0, turned_in, "reward with limit {limit:?}");
+    }
+}
+
 /// Dungeon mobs keep their level: a character far above them gets no XP from the run (they used
 /// to follow the character's level).
 #[test]

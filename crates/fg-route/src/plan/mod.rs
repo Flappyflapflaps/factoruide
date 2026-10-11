@@ -178,6 +178,7 @@ impl<'a> Planner<'a> {
             turned: vec![false; n],
             dropped: Vec::new(),
             objectives: vec![0; n],
+            timers: Vec::new(),
             along: Vec::new(),
             planned: Rc::new(Planned::default()),
             at: 0,

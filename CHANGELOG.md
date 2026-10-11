@@ -6,6 +6,7 @@ The notes of each version are the message of its tag (`scripts/release.sh`), sho
 
 - WoW Forever: quest givers and turn-ins no longer have Wowhead positions that every other source, and the game, contradict (old or event places, a few to twenty map units off: Furen Longbeard, Lakeshire's NPCs, 179 NPCs in all): the arrow no longer points at a spot where the NPC is not.
 - WoW Forever: the quests new to Forever keep the prerequisites the data was missing (59 prerequisites on 41 quests): The Shamed Lieutenant after A Friend of the Family, Remember That I Love You (2/2) after its first part, the Moonbrook chain in order… A guide no longer sends you to a quest you cannot take yet.
+- Timed quests (The Rethban Gauntlet, Mist, The Affray…) keep to their time limit: the guide turns them in within three quarters of it (a margin for its estimates), says so when taking them ("timed: turn it in within 60 min"), and a route that would be late gives the quest up instead, without its reward, so the optimizer keeps the routes in time. TBC uses the limits of the quests it shares with Classic.
 - Addon: with "Only the guide's quests", a quest is accepted automatically only while the guide still takes it: no longer the quests it abandons (they were taken again when talking to their giver), nor those marked done by hand or left behind, nor escorts shared by the group.
 
 ## 0.4.0 (2026-10-11)

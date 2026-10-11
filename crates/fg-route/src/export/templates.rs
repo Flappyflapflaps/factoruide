@@ -156,6 +156,20 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "suffix.timed",
+        [
+            "(timed: turn it in within {minutes} min)",
+            "(chronométrée : à rendre en moins de {minutes} min)",
+            "(zeitlich begrenzt: innerhalb von {minutes} Min. abgeben)",
+            "(con tiempo: entrégala en menos de {minutes} min)",
+            "(cronometrada: entregue em até {minutes} min)",
+            "(на время: сдать за {minutes} мин)",
+            "(시간 제한: {minutes}분 안에 완료)",
+            "（限时：{minutes}分钟内交付）",
+            "（限時：{minutes}分鐘內交付）",
+        ],
+    ),
+    (
         "suffix.optional",
         [
             "(optional: {profession} {skill})",

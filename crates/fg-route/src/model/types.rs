@@ -193,6 +193,8 @@ pub struct Quest {
     pub xp: i64,
     /// `xp` was received in game (without level penalty), not taken from Classic data.
     pub xp_observed: bool,
+    /// Timed quest: seconds from taking it to turn it in, else it fails.
+    pub time_limit: Option<f64>,
     pub starts: Vec<Loc>,
     pub ends: Vec<Loc>,
     pub objectives: Vec<Objective>,

@@ -141,6 +141,8 @@ pub(crate) struct State {
     /// Quests given up (`Event::Abandon`): never turned in, so they open no follow-up.
     pub(crate) dropped: Vec<u32>,
     pub(crate) objectives: Vec<u32>,
+    /// Timed quests of the log: (quest, time by which the route must turn it in).
+    pub(crate) timers: Vec<(u32, f64)>,
     /// Objectives of the log whose mobs can be killed on the way to other stops, with the
     /// kills already done: (quest, objective, kills).
     pub(crate) along: Vec<(u32, u8, f64)>,

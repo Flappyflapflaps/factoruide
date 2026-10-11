@@ -40,6 +40,10 @@ pub(crate) fn camp_index(model: &Model, radius: f64) -> CampIndex {
     index
 }
 
+/// Share of a timed quest's limit the route may use from taking it to turning it in: the rest
+/// is a margin for the time estimates.
+const TIMED_SHARE: f64 = 0.75;
+
 impl Planner<'_> {
     /// Class training: on the way when a trainer is close, or a dedicated trip when late.
     /// With class spell data, training is due when the spells the trainer sells make fights
@@ -127,6 +131,7 @@ impl Planner<'_> {
                 });
             if hopeless {
                 s.along.retain(|&(q, _, _)| q as usize != i);
+                s.timers.retain(|&(q, _)| q as usize != i);
                 s.accepted[i] = false;
                 s.turned[i] = true;
                 s.dropped.push(i as u32);
@@ -154,6 +159,9 @@ impl Planner<'_> {
         }
         s.accepted[i as usize] = true;
         s.log += 1;
+        if let Some(limit) = q.time_limit {
+            s.timers.push((i, s.time + limit * TIMED_SHARE));
+        }
         self.open_along(s, i);
     }
 
@@ -161,6 +169,7 @@ impl Planner<'_> {
     /// picked among the choices.
     pub(crate) fn turn_in(&self, s: &mut State, i: u32) -> Option<i64> {
         let q = self.quest(i);
+        s.timers.retain(|&(q, _)| q != i);
         s.turned[i as usize] = true;
         s.log -= 1;
         s.along.retain(|&(q, _, _)| q != i);
@@ -184,6 +193,23 @@ impl Planner<'_> {
         picked.map(|item| p.items[item as usize].id)
     }
 
+    /// A timed quest reached after its time (see `TIMED_SHARE`) has failed: given up instead of
+    /// turned in (no reward, no follow-up), which the optimizer avoids. Returns whether it did.
+    pub(crate) fn failed_in_time(s: &mut State, i: u32, record: &mut impl FnMut(&State, Event)) -> bool {
+        if !s.timers.iter().any(|&(q, deadline)| q == i && s.time > deadline) {
+            return false;
+        }
+        s.timers.retain(|&(q, _)| q != i);
+        s.along.retain(|&(q, _, _)| q != i);
+        s.accepted[i as usize] = false;
+        s.turned[i as usize] = true;
+        s.dropped.push(i);
+        s.log = s.log.saturating_sub(1);
+        s.time += 2.0;
+        record(s, Event::Abandon { quest: i as usize });
+        true
+    }
+
     /// Apply a stop (assumed valid). Records events when `trace` is given.
     pub(crate) fn apply(&self, s: &mut State, stop: Stop, mut trace: Option<&mut Vec<Timed>>) {
         let mut record = recorder(&mut trace);
@@ -193,16 +219,18 @@ impl Planner<'_> {
         }
         self.grind_to_gate(s, stop, &mut record);
         let loc = self.arrive(s, stop, &mut record);
-        let picked = self.do_stop(s, stop, &mut record);
-        record(s, Event::Stop { stop, loc });
-        if let Some(item) = picked {
-            record(
-                s,
-                Event::Reward {
-                    quest: stop.index as usize,
-                    item,
-                },
-            );
+        if !(stop.kind == Kind::TurnIn && Self::failed_in_time(s, stop.index, &mut record)) {
+            let picked = self.do_stop(s, stop, &mut record);
+            record(s, Event::Stop { stop, loc });
+            if let Some(item) = picked {
+                record(
+                    s,
+                    Event::Reward {
+                        quest: stop.index as usize,
+                        item,
+                    },
+                );
+            }
         }
         self.while_here(s, &mut record);
         self.train(s, &mut record);
