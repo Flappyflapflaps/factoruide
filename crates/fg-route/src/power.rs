@@ -138,6 +138,9 @@ pub struct PowerModel {
     item_index: FxHashMap<i64, u16>,
     /// Stat weights by level (share of power a point brings).
     weights: Vec<[f64; STATS]>,
+    /// Value of each item at each level of `weights` (`value_in` before its level and slot
+    /// tests), item by item: the replays ask it at every reward and loot.
+    values: Vec<f64>,
     /// Value of the floor gear by level and slot.
     floor: Vec<[f64; SLOTS]>,
     dual_wield: bool,
@@ -409,11 +412,20 @@ impl PowerModel {
             items.push(item);
         }
         let dual_wield = matches!(class, 4);
+        let values = items
+            .iter()
+            .flat_map(|item| {
+                weights
+                    .iter()
+                    .map(|w| item.stats.iter().zip(w).map(|(s, w)| f64::from(*s) * w).sum::<f64>())
+            })
+            .collect();
         let item_index = items.iter().enumerate().map(|(i, it)| (it.id, i as u16)).collect();
         let mut model = Self {
             items,
             item_index,
             weights,
+            values,
             floor: vec![[0.0; SLOTS]; top],
             dual_wield,
             families: Vec::new(),
@@ -517,8 +529,9 @@ impl PowerModel {
         if level < item.required_level || level < item.wear_level {
             return 0.0;
         }
-        let w = &self.weights[(level.max(0) as usize).min(self.weights.len() - 1)];
-        let mut v: f64 = item.stats.iter().zip(w).map(|(s, w)| f64::from(*s) * w).sum();
+        let l = (level.max(0) as usize).min(self.weights.len() - 1);
+        let w = &self.weights[l];
+        let mut v = self.values[i * self.weights.len() + l];
         if slot == OFF_HAND && item.stats[DPS] > 0.0 {
             // Off-hand weapons hit for half.
             v -= 0.5 * f64::from(item.stats[DPS]) * w[DPS];

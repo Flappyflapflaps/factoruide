@@ -103,6 +103,11 @@ pub struct Planner<'a> {
     blocked_by: Vec<Vec<u32>>,
     /// Quests that need each quest done first (the rest of its chain, one step at a time).
     followers: Vec<Vec<u32>>,
+    /// The objectives inside each dungeon: (quest, objective).
+    in_dungeon: Vec<Vec<(u32, u8)>>,
+    /// Where each stop takes place seen from the start (`Places::pos` from the initial state),
+    /// by quest: accept, turn-in, then its objectives. The insertions ask it all the time.
+    from_start: Vec<Vec<Pos>>,
     /// Check every incremental evaluation of the search against a full replay (`verified`, or
     /// the FG_VERIFY environment variable).
     verify: bool,
@@ -124,7 +129,15 @@ impl<'a> Planner<'a> {
                 blocked_by[y as usize].push(x as u32);
             }
         }
-        Self {
+        let mut in_dungeon = vec![Vec::new(); model.dungeons.len()];
+        for (i, q) in model.quests.iter().enumerate() {
+            for (k, o) in q.objectives.iter().enumerate() {
+                if let Some(d) = o.dungeon {
+                    in_dungeon[d].push((i as u32, k as u8));
+                }
+            }
+        }
+        let mut planner = Self {
             model,
             world,
             params,
@@ -139,9 +152,33 @@ impl<'a> Planner<'a> {
             blocks,
             blocked_by,
             followers: followers(model),
+            in_dungeon,
+            from_start: Vec::new(),
             verify: std::env::var_os("FG_VERIFY").is_some(),
             abort: None,
             explicit: false,
+        };
+        let s0 = planner.initial_state();
+        let places = planner.places();
+        planner.from_start = (0..model.quests.len() as u32)
+            .map(|i| {
+                let kinds = [Kind::Accept, Kind::TurnIn]
+                    .into_iter()
+                    .chain((0..model.quests[i as usize].objectives.len()).map(|k| Kind::Objective(k as u8)));
+                kinds.map(|kind| places.pos(&s0, Stop::quest(i, kind))).collect()
+            })
+            .collect();
+        planner
+    }
+
+    /// `Places::pos` from the initial state, without computing it again for a quest stop.
+    pub(crate) fn pos_from_start(&self, s0: &State, stop: Stop) -> Pos {
+        let at = |k: usize| self.from_start[stop.index as usize][k];
+        match stop.kind {
+            Kind::Accept => at(0),
+            Kind::TurnIn => at(1),
+            Kind::Objective(k) => at(2 + k as usize),
+            _ => self.places().pos(s0, stop),
         }
     }
 

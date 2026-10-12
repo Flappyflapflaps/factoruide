@@ -17,8 +17,7 @@ use rusqlite::Connection;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::cell::RefCell;
-use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::hash::Hasher;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
@@ -34,6 +33,8 @@ const LARGE_AREA: u32 = 2000;
 /// The path is searched in the box around both ends, this much larger (cells), then larger.
 const MARGINS: [i32; 2] = [60, 240];
 const SHARDS: usize = 32;
+/// Buckets of the path search's open cells: more than the largest rise of an estimate (28).
+const BUCKETS: usize = 32;
 
 type Key = (i64, i32, i32, i32, i32);
 
@@ -548,10 +549,18 @@ impl Terrain {
             let (dr, dc) = ((r - b.0).unsigned_abs(), (c - b.1).unsigned_abs());
             10 * dr.max(dc) + 4 * dr.min(dc)
         };
-        let mut open = BinaryHeap::new();
+        // Open cells by estimate, in a ring of buckets: the heuristic is consistent, so a step
+        // raises the estimate by 0 to 28 and the first time the goal comes out is the shortest.
+        let mut open: [Vec<(u32, i32, i32)>; BUCKETS] = std::array::from_fn(|_| Vec::new());
+        let (mut f, mut queued) = (h(a.0, a.1), 1usize);
         best[index(a.0, a.1)] = 0;
-        open.push(Reverse((h(a.0, a.1), 0u32, a.0, a.1)));
-        while let Some(Reverse((_, g, r, c))) = open.pop() {
+        open[f as usize % BUCKETS].push((0, a.0, a.1));
+        while queued > 0 {
+            let Some((g, r, c)) = open[f as usize % BUCKETS].pop() else {
+                f += 1;
+                continue;
+            };
+            queued -= 1;
             if (r, c) == b {
                 return Some(f64::from(g) / 10.0 * CELL);
             }
@@ -572,7 +581,8 @@ impl Terrain {
                 let k = index(nr, nc);
                 if ng < best[k] {
                     best[k] = ng;
-                    open.push(Reverse((ng + h(nr, nc), ng, nr, nc)));
+                    open[(ng + h(nr, nc)) as usize % BUCKETS].push((ng, nr, nc));
+                    queued += 1;
                 }
             }
         }

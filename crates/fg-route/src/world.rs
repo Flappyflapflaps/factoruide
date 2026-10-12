@@ -69,6 +69,8 @@ pub struct World {
     pub passes: Vec<Pass>,
     pub pass_dist: Vec<Vec<f64>>,
     pub zone_passes: FxHashMap<i64, Vec<usize>>,
+    /// Flight master nodes by x (`taxi_near`).
+    taxi_by_x: Vec<(f64, usize)>,
     /// Terrain too steep to walk: walks go around it.
     pub terrain: crate::terrain::Terrain,
     /// Named places of the zone maps (their exploration overlays): to tell which zone a point
@@ -225,6 +227,7 @@ impl World {
             passes: Vec::new(),
             pass_dist: Vec::new(),
             zone_passes: FxHashMap::default(),
+            taxi_by_x: Vec::new(),
             terrain: crate::terrain::Terrain::load(conn)?,
             landmarks: Vec::new(),
         };
@@ -233,6 +236,8 @@ impl World {
             let p = world.taxi_nodes[i].pos;
             world.taxi_nodes[i].pos.zone = world.zone_at(&p).unwrap_or(0);
         }
+        world.taxi_by_x = world.taxi_nodes.iter().enumerate().map(|(i, n)| (n.pos.x, i)).collect();
+        world.taxi_by_x.sort_by(|a, b| a.0.total_cmp(&b.0));
         Ok(world)
     }
 
@@ -278,16 +283,24 @@ impl World {
 
     /// Nearest flight master node index within `radius` yards.
     pub fn taxi_near(&self, p: &Pos, radius: f64) -> Option<usize> {
-        // Asked at every stop: the nodes farther than `radius` along x or y are left out
-        // without the distance (never shorter than either).
-        self.taxi_nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, n)| (n.pos.x - p.x).abs() <= radius && (n.pos.y - p.y).abs() <= radius)
-            .map(|(i, n)| (i, n.pos.dist(p)))
-            .filter(|(_, d)| *d <= radius)
-            .min_by(|a, b| a.1.total_cmp(&b.1))
-            .map(|(i, _)| i)
+        // Asked at every stop: only the nodes about as far along x are looked at (a yard more
+        // than `radius`, the exact test below), the first of the nearest kept.
+        let from = self.taxi_by_x.partition_point(|n| n.0 < p.x - radius - 1.0);
+        let mut best: Option<(f64, usize)> = None;
+        for &(x, i) in &self.taxi_by_x[from..] {
+            if x > p.x + radius + 1.0 {
+                break;
+            }
+            let n = &self.taxi_nodes[i];
+            if (n.pos.x - p.x).abs() > radius || (n.pos.y - p.y).abs() > radius {
+                continue;
+            }
+            let d = n.pos.dist(p);
+            if d <= radius && best.is_none_or(|b| d.total_cmp(&b.0).then(i.cmp(&b.1)).is_lt()) {
+                best = Some((d, i));
+            }
+        }
+        best.map(|(_, i)| i)
     }
 }
 

@@ -124,10 +124,7 @@ impl Planner<'_> {
             return;
         }
         s.abandon_check = (s.level, s.dungeons);
-        for i in 0..self.model.quests.len() {
-            if !s.accepted[i] || s.turned[i] {
-                continue;
-            }
+        for i in s.accepted.and_not(&s.turned) {
             let q = &self.model.quests[i];
             let hopeless = self.availability().gray_dead_end(s, q, i as u32)
                 || q.objectives.iter().enumerate().any(|(k, o)| {
@@ -493,13 +490,10 @@ impl Planner<'_> {
                 self.growth().refresh_power(s);
             }
         }
-        for (qi, q) in self.model.quests.iter().enumerate() {
+        for &(qi, k) in &self.in_dungeon[i] {
+            let qi = qi as usize;
             if s.accepted[qi] && !s.turned[qi] {
-                for (k, o) in q.objectives.iter().enumerate() {
-                    if o.dungeon == Some(i) {
-                        s.objectives[qi] |= 1 << k;
-                    }
-                }
+                s.objectives[qi] |= 1 << k;
             }
         }
     }

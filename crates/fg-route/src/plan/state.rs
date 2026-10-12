@@ -170,6 +170,19 @@ impl Flags {
             self.0[i / 64] &= !(1 << (i % 64));
         }
     }
+
+    /// The flags set here and not in `other`, in order.
+    pub(crate) fn and_not(&self, other: &Self) -> Vec<usize> {
+        let mut out = Vec::new();
+        for (w, (a, b)) in self.0.iter().zip(&other.0).enumerate() {
+            let mut bits = a & !b;
+            while bits != 0 {
+                out.push(w * 64 + bits.trailing_zeros() as usize);
+                bits &= bits - 1;
+            }
+        }
+        out
+    }
 }
 
 impl std::ops::Index<usize> for Flags {

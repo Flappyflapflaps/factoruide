@@ -114,11 +114,15 @@ impl Planner<'_> {
             return;
         };
         let r = self.params.explore_radius;
+        // Areas out of the box of the segment grown by `r` (and a yard) are farther than `r`.
+        let a = from.unwrap_or(*to);
+        let (x0, x1) = (a.x.min(to.x) - r - 1.0, a.x.max(to.x) + r + 1.0);
+        let (y0, y1) = (a.y.min(to.y) - r - 1.0, a.y.max(to.y) + r + 1.0);
         for &i in areas {
-            if s.explored[i] {
+            let c = &self.model.explore[i].pos;
+            if c.x < x0 || c.x > x1 || c.y < y0 || c.y > y1 || s.explored[i] {
                 continue;
             }
-            let c = &self.model.explore[i].pos;
             let d = match from {
                 Some(a) => segment_dist(c, &a, to),
                 None => c.dist(to),

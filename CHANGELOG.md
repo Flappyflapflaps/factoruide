@@ -2,6 +2,10 @@
 
 The notes of each version are the message of its tag (`scripts/release.sh`), shown in the app.
 
+## Unreleased
+
+- Faster optimization again: the paths around the terrain are searched about twice as fast, and replaying a route does less work at each stop (flight masters nearby, areas discovered, dungeon runs, quests given up, gear values, where to insert a quest). Building the first routes takes about half the time, and the optimizer tries about 20 % more changes in the same time. For the same work the routes are exactly the same as before.
+
 ## 0.6.0 (2026-10-12)
 
 The guide editor: a computed guide's steps moved, removed or added by hand, each one doing one thing, the guide replayed after each change. A much faster optimizer, and a new guide in two steps.

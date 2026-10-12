@@ -362,13 +362,11 @@ impl Planner<'_> {
     /// Index right after the stop closest to `pos`, not before `after`.
     pub(crate) fn insert_near(&self, route: &[Stop], pos: &Pos, after: usize) -> usize {
         let s = self.initial_state();
+        // Each distance once (the first of the nearest, as `min_by` keeps).
         (after..route.len())
-            .min_by(|&a, &b| {
-                let da = self.places().pos(&s, route[a]).dist(pos);
-                let db = self.places().pos(&s, route[b]).dist(pos);
-                da.total_cmp(&db)
-            })
-            .map_or(route.len(), |i| i + 1)
+            .map(|i| (i, self.pos_from_start(&s, route[i]).dist(pos)))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map_or(route.len(), |(i, _)| i + 1)
     }
 
     /// Insert all the stops of quest `q`, each after the stop closest to its place. Returns the
@@ -444,7 +442,7 @@ impl Planner<'_> {
                 let d = if p == 0 {
                     f64::INFINITY
                 } else {
-                    self.places().pos(&s0, route[p - 1]).dist(&giver)
+                    self.pos_from_start(&s0, route[p - 1]).dist(&giver)
                 };
                 (p, d)
             })
@@ -472,7 +470,7 @@ impl Planner<'_> {
         let nearest = |route: &Vec<Stop>, pos: &Pos, from: usize| {
             let (a, b) = window(from, route);
             (a..b)
-                .map(|x| (x, self.places().pos(&s0, route[x]).dist(pos)))
+                .map(|x| (x, self.pos_from_start(&s0, route[x]).dist(pos)))
                 .min_by(|x, y| x.1.total_cmp(&y.1))
                 .map_or(from, |(i, _)| i + 1)
         };
