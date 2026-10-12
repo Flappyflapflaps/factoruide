@@ -207,6 +207,10 @@ pub(crate) struct State {
     /// with several places is done at the one on the way to it (`Planner::spot`). Set before
     /// each stop, not part of what the state carries on.
     pub(crate) next: Option<Pos>,
+    /// Just off a flight step of an edited guide (`Edit::Fly`): the walk to the next stop ends
+    /// the flight's trip, as when a trip takes a flight by itself (counted as flying, no mob
+    /// farmed, the zone changed on arriving).
+    pub(crate) landed: bool,
     /// Quests the route accepts (bit 1) and turns in (bit 2): taken and turned in on the spot
     /// when their NPC is at hand.
     pub(crate) planned: Rc<Planned>,

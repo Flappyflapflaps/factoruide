@@ -83,7 +83,9 @@ impl Planner<'_> {
             s.time += detour;
             s.spent.travel += detour;
         } else if late {
-            // Nearest trainer by travel time (it may be worth a flight or the hearthstone).
+            // Nearest trainer by travel time (it may be worth a flight or the hearthstone; a
+            // trip of the simulation's own, it flies even when the route's flights are steps).
+            self.side_trip.set(true);
             let (k, trainer) = self
                 .model
                 .trainers
@@ -95,6 +97,7 @@ impl Planner<'_> {
                 .unwrap();
             let (pos, zone) = (trainer.pos, trainer.zone);
             self.go(s, &pos, zone, record);
+            self.side_trip.set(false);
             i = k;
         } else {
             return;
@@ -222,6 +225,7 @@ impl Planner<'_> {
             s.together = Together::default();
         }
         if stop.kind == Kind::Hearth {
+            s.landed = false;
             if self.hearth(s, stop.index == 1, &mut record) {
                 self.while_here(s, &mut record);
                 self.train(s, &mut record);

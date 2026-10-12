@@ -40,8 +40,20 @@ impl Planner<'_> {
     /// Move to `target`, recording how.
     pub(crate) fn go(&self, s: &mut State, target: &Pos, zone: i64, record: &mut impl FnMut(&State, Event)) {
         let start = s.pos;
-        let (t, via) = self.trips().fastest(s, target);
-        let flying = matches!(via.leg, Leg::Fly(..));
+        // Off a flight step: the end of its trip, on foot.
+        let landed = std::mem::take(&mut s.landed);
+        let (t, via) = if landed {
+            (
+                self.trips().walk(&s.pos, target, s.level),
+                super::state::Via {
+                    teleport: None,
+                    leg: Leg::Walk,
+                },
+            )
+        } else {
+            self.trips().fastest(s, target)
+        };
+        let flying = landed || matches!(via.leg, Leg::Fly(..));
         // Events are recorded when they happen (casting the hearthstone, boarding), so that
         // each step of the guide holds the time up to the next one.
         let spend = |s: &mut State, seconds: f64| {
@@ -83,9 +95,10 @@ impl Planner<'_> {
         }
         spend(s, left);
         // Areas discovered: around the arrival, and along a walk inside the zone.
-        let from = (matches!(via.leg, Leg::Walk) && via.teleport.is_none() && s.zone == zone).then_some(s.pos);
+        let walking = matches!(via.leg, Leg::Walk) && via.teleport.is_none() && !landed;
+        let from = (walking && s.zone == zone).then_some(s.pos);
         self.explore(s, from, target, zone);
-        if matches!(via.leg, Leg::Walk) && via.teleport.is_none() {
+        if walking {
             self.farm_along(s, &start, target, record);
         }
         s.pos = *target;

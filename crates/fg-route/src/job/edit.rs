@@ -273,19 +273,70 @@ impl Editor {
         Ok(Self { prepared })
     }
 
+    /// The planner of the edited guides: its trips take no flight by themselves, the flights
+    /// are steps of their own (`with_flights`).
     fn planner(&self) -> Planner<'_> {
         let p = &self.prepared;
-        Planner::new(&p.model, &p.world, &p.params, &p.profile)
+        Planner::new(&p.model, &p.world, &p.params, &p.profile).with_explicit_flights()
     }
 
     /// The route of a computed guide as steps to edit, and whether it was rebuilt from the
     /// guide's steps (a guide computed before the editor: its time may differ a little).
     pub fn steps(&self, outcome: &PlanOutcome) -> (Vec<RouteStep>, bool) {
-        if outcome.plan.is_empty() {
+        let (steps, rebuilt) = if outcome.plan.is_empty() {
             (self.read_guide(&outcome.route), true)
         } else {
             (outcome.plan.clone(), false)
+        };
+        (self.with_flights(steps), rebuilt)
+    }
+
+    /// `steps` with a flight step before each step its trip flew to (as the optimizer's trips
+    /// take flights by themselves): each flight can then be moved or removed.
+    fn with_flights(&self, steps: Vec<RouteStep>) -> Vec<RouteStep> {
+        let p = &self.prepared;
+        let planner = Planner::new(&p.model, &p.world, &p.params, &p.profile);
+        let resolved: Vec<Option<Edit>> = steps.iter().map(|s| s.resolve(&planner).ok()).collect();
+        let edits: Vec<Edit> = resolved.iter().flatten().copied().collect();
+        let edited = planner.edit(&edits);
+        let node = |n: usize| self.prepared.world.taxi_nodes[n].id;
+        // The flight of each step's trip: the last one before its own action with no training
+        // between them (a flight to the trainer stays in the training, a trip of its own); none
+        // after a class teleport (it stays in the trip).
+        let mut flights = edited.steps.iter().zip(&edits).map(|(step, edit)| {
+            let events = &edited.trace[step.events.clone()];
+            let Edit::Stop { stop, .. } = edit else {
+                return None;
+            };
+            let own = events
+                .iter()
+                .position(|t| matches!(&t.event, Event::Stop { stop: done, .. } if done == stop))?;
+            let before = &events[..own];
+            let fly = before.iter().rposition(|t| matches!(t.event, Event::Fly { .. }))?;
+            let after = &before[fly..];
+            if after.iter().any(|t| matches!(t.event, Event::Train { .. }))
+                || before.iter().any(|t| matches!(t.event, Event::Teleport { .. }))
+            {
+                return None;
+            }
+            match before[fly].event {
+                Event::Fly { from, to } => Some(RouteStep::Fly {
+                    from: node(from),
+                    to: node(to),
+                }),
+                _ => None,
+            }
+        });
+        let mut out = Vec::with_capacity(steps.len());
+        for (step, resolved) in steps.into_iter().zip(&resolved) {
+            if resolved.is_some()
+                && let Some(Some(fly)) = flights.next()
+            {
+                out.push(fly);
+            }
+            out.push(step);
         }
+        out
     }
 
     /// The route's steps read back from a guide's: quest stops (an objective where it is

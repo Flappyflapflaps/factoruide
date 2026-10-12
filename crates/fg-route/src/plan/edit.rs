@@ -251,8 +251,12 @@ impl Planner<'_> {
         let nodes = &self.world.taxi_nodes;
         let mut trace = Some(trace);
         let mut record = recorder(&mut trace);
+        // As a trip taking the flight by itself: the walk to the flight master and the flight
+        // count as flying, the walk on to the next stop ends it (`State::landed`).
         let (start, end) = (nodes[from].pos, nodes[to].pos);
-        self.go(s, &start, self.world.zone_at(&start).unwrap_or(start.zone), &mut record);
+        let walk = self.trips().walk(&s.pos, &start, s.level);
+        s.time += walk;
+        s.spent.flights += walk;
         record(s, Event::Fly { from, to });
         let seconds = time + self.params.flight_overhead;
         s.time += seconds;
@@ -260,14 +264,8 @@ impl Planner<'_> {
         if price.is_finite() {
             s.spent.flight_cost += price as i64;
         }
-        let zone = self.world.zone_at(&end).unwrap_or(end.zone);
         s.pos = end;
-        if zone != s.zone {
-            s.spent.zone_changes += 1;
-        }
-        s.zone = zone;
-        self.while_here(s, &mut record);
-        self.train(s, &mut record);
+        s.landed = true;
         Outcome::Done
     }
 }

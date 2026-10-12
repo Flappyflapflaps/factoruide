@@ -67,6 +67,8 @@ pub(crate) struct Trips<'t> {
     pub(crate) model: &'t Model,
     pub(crate) flights: &'t FlightTables,
     pub(crate) legs: &'t Legs,
+    /// No flight taken by a trip itself (see `Planner::with_explicit_flights`).
+    pub(crate) explicit_flights: bool,
 }
 
 impl Trips<'_> {
@@ -119,7 +121,7 @@ impl Trips<'_> {
                 }
             }
         }
-        if known.count_ones() < 2 {
+        if known.count_ones() < 2 || self.explicit_flights {
             return best;
         }
         let flights = self.flight_table(known);

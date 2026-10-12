@@ -33,11 +33,15 @@ fn overrides() -> Overrides {
 }
 
 fn request() -> PlanRequest {
+    request_to(10)
+}
+
+fn request_to(to_level: i64) -> PlanRequest {
     PlanRequest {
         race: "orc".into(),
         class: "warlock".into(),
         from_level: 1,
-        to_level: 10,
+        to_level,
         name: None,
         params: Some(
             overrides()
@@ -99,6 +103,46 @@ fn each_step_does_only_its_own_action() {
             .filter(|l| matches!(l.kind, StepKind::Accept | StepKind::Objective | StepKind::TurnIn))
             .count();
         assert!(actions <= 1, "step {k} does {actions} quest actions: {:?}", step.lines);
+    }
+}
+
+/// The flights a guide's trips took become steps of their own when it is edited: replayed
+/// unchanged it keeps its time, and no step flies on top of doing something else.
+#[test]
+fn flights_are_steps_of_their_own() {
+    use fg_route::export::StepKind;
+    let conn = database();
+    let interrupt = job::Interrupt::default();
+    interrupt.stop();
+    let request = request_to(25);
+    let guide = job::plan_interruptible(&conn, &overrides(), &request, &|_| {}, &interrupt, None).unwrap();
+    let editor = Editor::open(&conn, &overrides(), &request, None).unwrap();
+    let names = Names::load(&conn, "enUS").unwrap();
+    let (steps, _) = editor.steps(&guide);
+    let flights = steps.iter().filter(|s| matches!(s, RouteStep::Fly { .. })).count();
+    assert!(flights > 0, "a guide to 25 flies");
+    let report = editor.simulate(&steps, &names);
+    assert_eq!(report.errors, 0);
+    assert!(
+        (report.total_time - guide.route.total_time).abs() < 1.0,
+        "{} replayed, {} computed",
+        report.total_time,
+        guide.route.total_time
+    );
+    for (k, step) in report.steps.iter().enumerate() {
+        let kinds: Vec<StepKind> = step.lines.iter().map(|l| l.kind).collect();
+        let actions = kinds
+            .iter()
+            .filter(|k| matches!(k, StepKind::Accept | StepKind::Objective | StepKind::TurnIn))
+            .count();
+        // A flight within a step is the trip to the class trainer (training is not a step).
+        let fly_to_train = kinds
+            .iter()
+            .enumerate()
+            .filter(|(_, k)| **k == StepKind::Fly)
+            .all(|(i, _)| kinds[i..].contains(&StepKind::Train));
+        let alone = kinds == [StepKind::Fly];
+        assert!(actions <= 1 && (alone || fly_to_train), "step {k}: {kinds:?}");
     }
 }
 

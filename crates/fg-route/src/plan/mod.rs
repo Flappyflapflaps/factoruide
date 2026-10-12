@@ -108,6 +108,11 @@ pub struct Planner<'a> {
     verify: bool,
     /// Tells the construction to give up (`abortable`).
     abort: Option<&'a dyn Fn() -> bool>,
+    /// Trips never take a flight by themselves: the flights are steps of the route (`Edit::Fly`,
+    /// the guide editor), so that each one can be moved or removed.
+    explicit_flights: bool,
+    /// A trip of the simulation's own (to the class trainer): it may fly even then.
+    side_trip: Cell<bool>,
 }
 
 impl<'a> Planner<'a> {
@@ -136,6 +141,8 @@ impl<'a> Planner<'a> {
             followers: followers(model),
             verify: std::env::var_os("FG_VERIFY").is_some(),
             abort: None,
+            explicit_flights: false,
+            side_trip: Cell::new(false),
         }
     }
 
@@ -152,6 +159,15 @@ impl<'a> Planner<'a> {
     /// Whether the construction must give up (see `abortable`).
     pub fn aborted(&self) -> bool {
         self.abort.is_some_and(|abort| abort())
+    }
+
+    /// The same planner whose trips take no flight by themselves (`explicit_flights`).
+    #[must_use]
+    pub fn with_explicit_flights(self) -> Self {
+        Self {
+            explicit_flights: true,
+            ..self
+        }
     }
 
     /// The same planner checking each incremental evaluation of its search against a full
@@ -200,6 +216,7 @@ impl<'a> Planner<'a> {
             started: Vec::new(),
             together: state::Together::default(),
             next: None,
+            landed: false,
             planned: Rc::new(Planned::default()),
             at: 0,
             class_bonus: 0.0,
@@ -285,6 +302,7 @@ impl<'a> Planner<'a> {
             model: self.model,
             flights: &self.flights,
             legs: &self.legs,
+            explicit_flights: self.explicit_flights && !self.side_trip.get(),
         }
     }
 
