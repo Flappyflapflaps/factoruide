@@ -1104,27 +1104,33 @@ fn map_image(state: State<'_, AppState>, id: i64) -> CmdResult<String> {
     ))
 }
 
-/// WebKitGTK renders a blank window under WSLg (no usable GPU for DMA-BUF/EGL):
-/// fall back to its software paths when running inside WSL.
+/// WebKitGTK renders a blank window under WSLg (no usable GPU for DMA-BUF/EGL),
+/// and its DMA-BUF renderer dies with "Error 71 (Protocol error)" on Wayland with
+/// the NVIDIA driver: fall back to its software paths in those cases.
 #[expect(
     unsafe_code,
     reason = "set_var is unsafe in edition 2024; this runs before any thread is spawned"
 )]
-fn wsl_rendering_workaround() {
+fn linux_rendering_workaround() {
     let in_wsl = std::fs::read_to_string("/proc/version").is_ok_and(|v| v.to_lowercase().contains("microsoft"));
-    if in_wsl {
-        for var in ["WEBKIT_DISABLE_DMABUF_RENDERER", "WEBKIT_DISABLE_COMPOSITING_MODE"] {
-            if std::env::var_os(var).is_none() {
-                // SAFETY: called at startup, before any other thread exists.
-                unsafe { std::env::set_var(var, "1") };
-            }
+    let vars: &[&str] = if in_wsl {
+        &["WEBKIT_DISABLE_DMABUF_RENDERER", "WEBKIT_DISABLE_COMPOSITING_MODE"]
+    } else if Path::new("/proc/driver/nvidia").exists() {
+        &["WEBKIT_DISABLE_DMABUF_RENDERER"]
+    } else {
+        &[]
+    };
+    for var in vars {
+        if std::env::var_os(var).is_none() {
+            // SAFETY: called at startup, before any other thread exists.
+            unsafe { std::env::set_var(var, "1") };
         }
     }
 }
 
 fn main() {
     if cfg!(target_os = "linux") {
-        wsl_rendering_workaround();
+        linux_rendering_workaround();
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
