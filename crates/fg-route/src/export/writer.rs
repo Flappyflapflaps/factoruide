@@ -17,8 +17,6 @@ pub(super) struct StepWriter<'a> {
     pub(super) route: &'a [Stop],
     /// Objectives done along the way while doing other quests.
     pub(super) background: HashSet<(u32, u8)>,
-    /// Objective stops already announced on the way (indexes in the trace).
-    pub(super) announced: HashSet<usize>,
 }
 
 /// A number as a sentence argument.
@@ -39,12 +37,11 @@ fn entity(loc: &Loc) -> Arg {
 }
 
 impl StepWriter<'_> {
-    /// The step of event `n` of the trace.
-    pub(super) fn step(&self, n: usize, t: &Timed) -> Step {
+    /// The step of an event of the trace.
+    pub(super) fn step(&self, t: &Timed) -> Step {
         let mut step = self.blank(t);
         let place = match &t.event {
             Event::Reward { .. } | Event::Farm { .. } => None,
-            Event::Along { quest, objective, .. } => self.along(&mut step, *quest, *objective),
             Event::Abandon { quest } => self.abandon(&mut step, *quest),
             Event::Fly { from, to } => self.fly(&mut step, *from, *to),
             Event::Link { first, last } => self.link(&mut step, *first, *last),
@@ -66,7 +63,7 @@ impl StepWriter<'_> {
             Event::Teleport { to } => self.teleport(&mut step, *to),
             Event::Train { trainer, since } => self.train(&mut step, *trainer, *since, t.level),
             Event::Stop { stop, loc } if !stop.is_quest() => self.visit(&mut step, *stop, loc),
-            Event::Stop { stop, loc } => self.quest_stop(&mut step, n, *stop, loc),
+            Event::Stop { stop, loc } => self.quest_stop(&mut step, *stop, loc),
         };
         if let Some((m, p)) = place {
             step.zone = Some(self.planner.world.zone_name(m.zone).to_owned());
@@ -275,18 +272,6 @@ impl StepWriter<'_> {
             if counted { phrase.arg("n", num(n)) } else { phrase }
         };
         step.say.push(say);
-    }
-
-    /// Mobs met on the way to the next stop: tracked without stopping the guide.
-    fn along(&self, step: &mut Step, quest: usize, objective: u8) -> Place {
-        let q = &self.planner.model.quests[quest];
-        let o = &q.objectives[objective as usize];
-        step.quest = Some(q.id);
-        step.quest_name = Some(q.name.clone());
-        step.target = Some(Self::target(&o.loc));
-        Self::objective(step, o, objective);
-        step.bg = true;
-        self.place(&o.loc.pos, Some(o.loc.zone))
     }
 
     /// A quest of the character's log the guide does not take: abandoned at its start (it would
@@ -561,7 +546,7 @@ impl StepWriter<'_> {
     }
 
     /// Accept, objective or turn-in of a quest.
-    fn quest_stop(&self, step: &mut Step, n: usize, stop: Stop, loc: &Loc) -> Place {
+    fn quest_stop(&self, step: &mut Step, stop: Stop, loc: &Loc) -> Place {
         let q = &self.planner.model.quests[stop.index as usize];
         step.quest = Some(q.id);
         step.quest_name = Some(q.name.clone());
@@ -605,8 +590,7 @@ impl StepWriter<'_> {
             Kind::Objective(k) => {
                 // At the place the route went to (one of its alternatives).
                 Self::objective(step, q.objectives[k as usize].nearest(&loc.pos), k);
-                // Already announced on the way: here is where it is finished.
-                step.bg = self.background.contains(&(stop.index, k)) && !self.announced.contains(&n);
+                step.bg = self.background.contains(&(stop.index, k));
             }
             Kind::TurnIn => {
                 step.kind = StepKind::TurnIn;

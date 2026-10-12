@@ -127,9 +127,16 @@ fn move_grinds(writer: &StepWriter<'_>, guide: &mut Guide<'_>) {
         };
         let gained = total(grind.level, guide.xps[i]) - total(level, guide.xps[i - 1]);
         let (to, xp) = split(total(guide.steps[k].level, guide.xps[k]) + gained);
-        let minutes = ((grind.time - before.time) / 60.0).ceil();
-        let step = writer.grind_before(grind, &guide.steps[k], to, xp, minutes);
+        // Step times are when each ends: the grind ends its length after step `k`, the steps it
+        // now comes before end that much later.
+        let length = grind.time - before.time;
+        let minutes = (length / 60.0).ceil();
+        let mut step = writer.grind_before(grind, &guide.steps[k], to, xp, minutes);
+        step.time = guide.steps[k].time + length;
         guide.remove(i);
+        for later in &mut guide.steps[k + 1..i] {
+            later.time += length;
+        }
         guide.insert(k + 1, step, xp);
         // The steps it now comes before have that XP too (above their level when it crosses one).
         for x in &mut guide.xps[k + 2..=i] {

@@ -23,12 +23,17 @@ struct Search {
     operators: Operators,
     started: Instant,
     budget: Duration,
+    /// Tries after which the search ends (0: its time, `budget`).
+    max_tries: u64,
     tries: u64,
     wins: u64,
 }
 
 impl Search {
     fn progress(&self) -> f64 {
+        if self.max_tries > 0 {
+            return self.tries as f64 / self.max_tries as f64;
+        }
         self.started.elapsed().as_secs_f64() / self.budget.as_secs_f64().max(1e-9)
     }
 }
@@ -73,10 +78,18 @@ impl Planner<'_> {
             operators: Operators::new(),
             started: Instant::now(),
             budget,
+            max_tries: self.params.search_tries,
             tries: 0,
             wins: 0,
         };
-        while search.started.elapsed() < budget && search.route.len() > 2 && keep_going() {
+        let more = |search: &Search| {
+            if search.max_tries > 0 {
+                search.tries < search.max_tries
+            } else {
+                search.started.elapsed() < budget
+            }
+        };
+        while more(&search) && search.route.len() > 2 && keep_going() {
             search.tries += 1;
             self.try_a_move(&mut search, &on_best);
         }
@@ -103,7 +116,7 @@ impl Planner<'_> {
             self.ruin_recreate(&mut candidate, &search.run, op, &mut search.rng)
                 .map(|(first, last, reordered)| Change { first, last, reordered })
         } else {
-            self.random_move(&mut candidate, &mut search.rng)
+            self.random_move(&mut candidate, &search.run, &mut search.rng)
         };
         let Some(change) = change else { return };
         let Some(cost) = self.evaluate_change(&search.run, &candidate, change) else {

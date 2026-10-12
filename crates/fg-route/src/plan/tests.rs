@@ -1,10 +1,9 @@
 //! Small routes built on the Classic database: the incremental evaluation of a changed route
-//! gives the cost of its full replay, objectives done partly on the way.
+//! gives the cost of its full replay, objectives started and done together.
 
-use super::{Event, Kind, Planner, Stop};
+use super::{Kind, Planner, Stop};
 use crate::job::{self, Overrides, PlanRequest, Prepared};
-use crate::model::{Guard, Initial, Objective, Spots};
-use crate::world::Pos;
+use crate::model::{Guard, Initial, Objective};
 use crate::xp::Edition;
 use rusqlite::Connection;
 use std::path::PathBuf;
@@ -70,12 +69,7 @@ fn quests_at_start(n: usize) -> Prepared {
     p.model.trainers.clear();
     p.model.explore.clear();
     p.model.explore_by_zone.clear();
-    (
-        p.params.camp_radius,
-        p.params.along_corridor,
-        p.params.farm_on_way,
-        p.params.flight_learn_radius,
-    ) = (0.0, 0.0, false, 0.0);
+    (p.params.camp_radius, p.params.farm_on_way, p.params.flight_learn_radius) = (0.0, false, 0.0);
     p
 }
 
@@ -163,18 +157,16 @@ fn quests_at_hand_are_looked_for_where_the_stop_went() {
     );
 }
 
-/// An objective whose places need different kills (drop rates): what was killed on the way at
-/// one counts as its share of the objective at the other. 10 items: 2 kills where it takes 20
-/// (50 %) leave 90 % of the objective, 9 kills where it takes 10.
+/// An objective started before the route (a character met in game) whose places need different
+/// kills (drop rates): its share done counts at the other place. 10 items, 10 % done where it
+/// takes 20 kills, leave 9 kills where it takes 10.
 #[test]
-fn progress_on_the_way_is_a_share_of_the_objective() {
+fn objective_started_counts_its_share_at_another_place() {
     let mut p = quests_at_start(1);
     p.profile.to_level = 10;
-    p.params.along_corridor = 10.0;
     p.world.terrain = crate::terrain::Terrain::default();
     let mut loc = p.model.start.clone();
     loc.pos.x += 100.0;
-    let (x, y) = (loc.pos.x, loc.pos.y);
     let mut objective = Objective {
         loc: loc.clone(),
         text: "Gather 10 items".into(),
@@ -189,37 +181,20 @@ fn progress_on_the_way_is_a_share_of_the_objective() {
         pull: 1.0,
         spawns: 20,
         pack: 1.0,
-        spots: Some(Spots {
-            continent: loc.pos.continent,
-            min: (x - 20.0, y),
-            max: (x + 20.0, y),
-            points: vec![(x - 20.0, y), (x + 20.0, y)],
-        }),
+        spots: None,
         guard: Guard::default(),
         alts: vec![],
     };
     let mut other = objective.clone();
-    (other.loc.pos.x, other.kills, other.spots) = (x + 200.0, 10.0, None);
+    (other.loc.pos.x, other.kills) = (loc.pos.x + 200.0, 10.0);
     objective.alts = vec![other];
     p.model.quests[0].objectives = vec![objective];
     p.model.initial.accepted = vec![0];
+    p.model.initial.progress = vec![(0, 0, 0.1)];
     let planner = planner(&p);
     let mut s = planner.initial_state();
-    // A walk past both spawns of the first place.
-    let start = s.pos;
-    planner.kill_along(
-        &mut s,
-        &start,
-        &Pos {
-            x: start.x + 140.0,
-            ..start
-        },
-        &mut |_, _| {},
-    );
-    assert!((s.along[0].2 - 0.1).abs() < 1e-9, "share done {}", s.along[0].2);
-    // At the other place.
-    let xp = s.spent.mob_xp;
     s.pos.x += 300.0;
+    let xp = s.spent.mob_xp;
     planner.apply(&mut s, Stop::quest(0, Kind::Objective(0)), None);
     let each = planner.combat().mob_xp(1, &p.model.quests[0].objectives[0].alts[0]);
     let kills = (s.spent.mob_xp - xp) as f64 / each;
@@ -227,62 +202,55 @@ fn progress_on_the_way_is_a_share_of_the_objective() {
     assert_eq!(s.objectives[0], 1);
 }
 
-/// Objects met on the way at a place guarded by mobs far above the character are left there, as
-/// on their own stop: the place's guards count, not those of the objective's main place (safe,
-/// far away).
+/// Objects gathered right after the kills of another quest at the same place take part of the
+/// kills' time (`gather_overlap`); with another stop between them, nothing is saved: each stop
+/// stands on its own, what is done together comes from the route's order.
 #[test]
-fn objects_met_on_the_way_keep_their_place_guards() {
-    let mut p = quests_at_start(2);
-    p.params.along_corridor = 10.0;
+fn gathering_next_to_kills_saves_time_when_consecutive() {
+    let mut p = quests_at_start(3);
+    // Not reached by the kills: every stop is done.
+    p.profile.to_level = 10;
     p.world.terrain = crate::terrain::Terrain::default();
-    let at = |dx: f64| {
-        let mut l = p.model.start.clone();
-        l.pos.x += dx;
-        l
-    };
-    let (safe, guarded, giver) = (at(10_000.0), at(50.0), at(100.0));
-    let mut objective = Objective {
-        loc: safe.clone(),
-        text: "Gather one object".into(),
-        kills: 0.0,
-        mob_level: 0,
-        uses: 1.0,
+    let mut camp = p.model.start.clone();
+    camp.pos.x += 100.0;
+    let kills = Objective {
+        loc: camp.clone(),
+        text: "Kill 10 mobs".into(),
+        kills: 10.0,
+        mob_level: 1,
+        uses: 0.0,
         extra: 0.0,
         dungeon: None,
         elite: false,
-        count: 1.0,
+        count: 10.0,
         mobs: vec![],
         pull: 1.0,
-        spawns: 2,
+        spawns: 10,
         pack: 1.0,
-        spots: Some(Spots {
-            continent: safe.pos.continent,
-            min: (guarded.pos.x, safe.pos.y),
-            max: (safe.pos.x, safe.pos.y),
-            points: vec![(safe.pos.x, safe.pos.y), (guarded.pos.x, guarded.pos.y)],
-        }),
+        spots: None,
         guard: Guard::default(),
         alts: vec![],
     };
-    let mut other = objective.clone();
-    other.loc = guarded;
-    other.guard = Guard {
-        level: 25,
-        count: 3,
-        elite: false,
+    let mut gather = Objective {
+        text: "Gather 8 objects".into(),
+        kills: 0.0,
+        uses: 8.0,
+        count: 8.0,
+        ..kills.clone()
     };
-    objective.alts = vec![other];
-    p.model.quests[0].objectives = vec![objective];
-    // On the way to the giver of quest 1, past the guarded place.
-    p.model.quests[1].starts = vec![giver];
-    p.model.initial.accepted = vec![0];
+    gather.loc.pos.x += 50.0;
+    p.model.quests[0].objectives = vec![kills];
+    p.model.quests[1].objectives = vec![gather];
+    p.model.initial.accepted = vec![0, 1];
     let planner = planner(&p);
-    let mut trace = Vec::new();
-    planner
-        .simulate(&[Stop::quest(1, Kind::Accept)], Some(&mut trace))
-        .unwrap();
-    assert!(
-        !trace.iter().any(|t| matches!(t.event, Event::Along { quest: 0, .. })),
-        "objects taken at the guarded place"
-    );
+    let fighting = |route: &[Stop]| planner.simulate_full(route, None).unwrap().1.fighting;
+    let (kill, gather) = (Stop::quest(0, Kind::Objective(0)), Stop::quest(1, Kind::Objective(0)));
+    let (k, g) = (fighting(&[kill]), fighting(&[gather]));
+    let saved = g.min(k * p.params.gather_overlap);
+    assert!(saved > 1.0);
+    assert!((fighting(&[kill, gather]) - (k + g - saved)).abs() < 1e-6);
+    assert!((fighting(&[gather, kill]) - (k + g - saved)).abs() < 1e-6);
+    // Another stop between them (a quest taken at the start).
+    let apart = fighting(&[kill, Stop::quest(2, Kind::Accept), gather]);
+    assert!((apart - (k + g)).abs() < 1e-6, "{apart} with a stop between");
 }

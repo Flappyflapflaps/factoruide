@@ -84,6 +84,24 @@ fn unedited_guide_keeps_its_time() {
     assert_eq!(report.total_time, guide().route.total_time);
 }
 
+/// Each step of a guide does its own quest action and no other (no quest taken or turned in at
+/// another one's NPC, no objective finished on the way or with another): each one can be moved
+/// or removed apart.
+#[test]
+fn each_step_does_only_its_own_action() {
+    use fg_route::export::StepKind;
+    let (editor, names) = editor();
+    let report = editor.simulate(&guide().plan, &names);
+    for (k, step) in report.steps.iter().enumerate() {
+        let actions = step
+            .lines
+            .iter()
+            .filter(|l| matches!(l.kind, StepKind::Accept | StepKind::Objective | StepKind::TurnIn))
+            .count();
+        assert!(actions <= 1, "step {k} does {actions} quest actions: {:?}", step.lines);
+    }
+}
+
 /// A turn-in moved before its quest is taken is not possible: reported there, and the guide
 /// cannot be saved.
 #[test]

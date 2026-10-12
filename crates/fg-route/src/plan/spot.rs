@@ -1,9 +1,9 @@
 //! Where an objective is done when its mobs or objects live in several places (`Objective::alts`):
-//! the place that costs the least between where the character is and the quest's turn-in, counting
+//! the place that costs the least between where the character is and where it goes next, counting
 //! the trips, the work there (the level of its mobs, the wait for respawns) and the levels to grind
-//! first when its mobs or the guards around are too strong. The turn-in, not the next stop of the
-//! route: the choice stays the same wherever the stop is in the route (a route built stop by stop
-//! is replayed as it was built).
+//! first when its mobs or the guards around are too strong. Where it goes next: the route's next
+//! stop when the route is known (`State::next`, a replay: its places come out on the way between
+//! two stops), else the quest's turn-in (a route being built stop by stop).
 
 use super::Planner;
 use super::state::{Kind, State, Stop};
@@ -23,11 +23,15 @@ impl Planner<'_> {
             if there >= best.0 {
                 continue;
             }
-            let after = q
-                .ends
-                .iter()
-                .map(|e| self.trips().leg(&place.loc.pos, &e.pos, s.level, s.known).0)
-                .fold(f64::INFINITY, f64::min);
+            // On to the route's next stop when it is known, else to the quest's turn-in.
+            let after = match &s.next {
+                Some(next) => self.trips().leg(&place.loc.pos, next, s.level, s.known).0,
+                None => q
+                    .ends
+                    .iter()
+                    .map(|e| self.trips().leg(&place.loc.pos, &e.pos, s.level, s.known).0)
+                    .fold(f64::INFINITY, f64::min),
+            };
             let cost = there + after + self.trips().fastest(s, &place.loc.pos).0;
             if cost < best.0 {
                 best = (cost, place);

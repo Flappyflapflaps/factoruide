@@ -70,6 +70,7 @@ impl Planner<'_> {
                 return None;
             }
             s.at = k as u32;
+            s.next = self.next_pos(&s, route, k);
             self.apply(&mut s, stop, trace.as_deref_mut());
             if !s.time.is_finite() {
                 return None;
@@ -104,6 +105,7 @@ impl Planner<'_> {
                 return None;
             }
             s.at = k as u32;
+            s.next = self.next_pos(&s, route, k);
             self.apply(&mut s, stop, None);
             if !s.time.is_finite() {
                 return None;
@@ -182,6 +184,8 @@ impl Planner<'_> {
     /// When `same_set` (stops `a..=b` were only reordered) and the state after `b` matches the
     /// old one, the rest of the route is unchanged: only the time difference is added.
     pub(crate) fn evaluate(&self, run: &Run, candidate: &[Stop], a: usize, b: usize, same_set: bool) -> Option<f64> {
+        // The stop before `a` too: where it does an objective depends on the next stop.
+        let a = a.saturating_sub(1);
         // Positions of the accepts change even when the stops are only reordered.
         let planned = self.planned(candidate);
         let start = self.replanned_from(run, &planned, a);
@@ -199,6 +203,7 @@ impl Planner<'_> {
                 return None;
             }
             s.at = k as u32;
+            s.next = self.next_pos(&s, candidate, k);
             self.apply(&mut s, candidate[k], None);
             if !s.time.is_finite() {
                 return None;
@@ -225,13 +230,14 @@ impl Planner<'_> {
                     && s.turned == old.turned
                     && s.dropped == old.dropped
                     && s.objectives == old.objectives
-                    && s.along == old.along
+                    && s.started == old.started
                     && s.powers == old.powers
                     && s.gear == old.gear
                     && s.explored == old.explored
                     && s.grind_used == old.grind_used
                     && s.farm_used == old.farm_used
                     && Self::same_timers(&s, old)
+                    && s.together == old.together
                 {
                     let extra = self.weights(&s.spent) - self.weights(&old.spent);
                     return Some(run.total + s.time - old.time + extra);
@@ -239,6 +245,11 @@ impl Planner<'_> {
             }
         }
         Some(self.finish(&mut s, None))
+    }
+
+    /// Where stop `k` of `route` is followed: the next stop's place (see `State::next`).
+    pub(crate) fn next_pos(&self, s: &State, route: &[Stop], k: usize) -> Option<Pos> {
+        route.get(k + 1).map(|&next| self.places().pos(s, next))
     }
 
     /// Whether the timed quests of both states have the same time left (the rest of the route is
@@ -280,6 +291,7 @@ impl Planner<'_> {
                 return Some((n, format!("{label}: {reason}")));
             }
             s.at = n as u32;
+            s.next = self.next_pos(&s, route, n);
             self.apply(&mut s, stop, None);
             if !s.time.is_finite() {
                 let loc = self.places().loc(&s, stop);

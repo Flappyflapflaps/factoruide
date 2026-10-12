@@ -35,7 +35,6 @@ export interface Params {
   pull_levels: number;
   quest_log_size: number;
   flight_learn_radius: number;
-  along_corridor: number;
   farm_on_way: boolean;
   farm_corridor: number;
   farm_below: number;

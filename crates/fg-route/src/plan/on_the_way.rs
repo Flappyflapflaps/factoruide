@@ -15,9 +15,6 @@ pub(crate) const CAMP_LOG_MARGIN: usize = 2;
 /// Quests taken at hand: those the route takes within this many stops anyway.
 pub(crate) const CAMP_AHEAD: u32 = 30;
 
-/// Places of an objective counted apart on the way (`kill_along`).
-const PLACES: usize = 8;
-
 /// A walk: continent and the bits of its ends' coordinates.
 pub(crate) type FarmKey = (i64, [u64; 4]);
 
@@ -89,7 +86,6 @@ impl Planner<'_> {
         let from = (matches!(via.leg, Leg::Walk) && via.teleport.is_none() && s.zone == zone).then_some(s.pos);
         self.explore(s, from, target, zone);
         if matches!(via.leg, Leg::Walk) && via.teleport.is_none() {
-            self.kill_along(s, &start, target, record);
             self.farm_along(s, &start, target, record);
         }
         s.pos = *target;
@@ -120,132 +116,6 @@ impl Planner<'_> {
                 s.spent.explore_xp += xp;
                 self.growth().gain(s, xp);
             }
-        }
-    }
-
-    /// The objectives of quest `i`, just accepted, that can be done on the way.
-    pub(crate) fn open_along(&self, s: &mut State, i: u32) {
-        for (k, o) in self.quest(i).objectives.iter().enumerate() {
-            if o.spots.is_some()
-                && (o.kills > 0.0 || o.uses > 0.0)
-                && o.dungeon.is_none()
-                && s.objectives[i as usize] & (1 << k) == 0
-            {
-                s.along.push((i, k as u8, 0.0));
-            }
-        }
-    }
-
-    /// On a walk from `a` to `b`, kill the mobs and loot the objects of the log's objectives met
-    /// on the way: those within `along_corridor` of the path, up to what the objective still
-    /// needs (weapons lying around the valley are picked up while doing the other quests).
-    pub(crate) fn kill_along(&self, s: &mut State, a: &Pos, b: &Pos, record: &mut impl FnMut(&State, Event)) {
-        let corridor = self.params.along_corridor;
-        if corridor <= 0.0 || s.along.is_empty() || a.continent != b.continent {
-            return;
-        }
-        let lo = (a.x.min(b.x) - corridor, a.y.min(b.y) - corridor);
-        let hi = (a.x.max(b.x) + corridor, a.y.max(b.y) + corridor);
-        let mut n = 0;
-        while n < s.along.len() {
-            let (qi, k, done) = s.along[n];
-            let o = &self.quest(qi).objectives[k as usize];
-            let Some(spots) = &o.spots else {
-                n += 1;
-                continue;
-            };
-            let apart = spots.continent != a.continent
-                || spots.max.0 < lo.0
-                || spots.min.0 > hi.0
-                || spots.max.1 < lo.1
-                || spots.min.1 > hi.1;
-            if apart {
-                n += 1;
-                continue;
-            }
-            // The places the character can take on (as on their own stop): none, nothing to count.
-            let reach = self.params.reach(s.level, s.bonus);
-            let mut open = [false; PLACES];
-            for (at, place) in o.places().take(PLACES).enumerate() {
-                open[at] = self.combat().need(self.quest(qi), place) <= reach;
-            }
-            if !open.contains(&true) {
-                n += 1;
-                continue;
-            }
-            // The spawns met, each at the nearest of the objective's places: its mobs, drop rate
-            // and guards are that place's. At most 1 + `objective_alternatives` places (up to 4
-            // in the app); spawns nearest to a place beyond `PLACES` are left out.
-            let mut met = [0.0_f64; PLACES];
-            for &(x, y) in &spots.points {
-                // Out of the walk's box (grown by the corridor, and a hair for the rounding): no
-                // closer than the corridor, the distance is not needed.
-                if x < lo.0 - 1e-6 || x > hi.0 + 1e-6 || y < lo.1 - 1e-6 || y > hi.1 + 1e-6 {
-                    continue;
-                }
-                let p = Pos {
-                    continent: a.continent,
-                    x,
-                    y,
-                    zone: 0,
-                };
-                if segment_dist(&p, a, b) <= corridor
-                    && let Some((at, _)) = o
-                        .places()
-                        .enumerate()
-                        .map(|(at, place)| (at, p.dist(&place.loc.pos)))
-                        .min_by(|x, y| x.1.total_cmp(&y.1))
-                    && at < PLACES
-                {
-                    met[at] += 1.0;
-                }
-            }
-            // Each open place's kills (or uses) are worth their share of the objective, up to
-            // what is left.
-            let (mut left, mut kills, mut work, mut mob_xp) = (1.0 - done, 0.0, 0.0, 0.0);
-            for ((place, &m), &open) in o.places().zip(&met).zip(&open) {
-                let total = if place.kills > 0.0 { place.kills } else { place.uses };
-                if !open || m <= 0.0 || total <= 0.0 || left <= 0.0 {
-                    continue;
-                }
-                let here = m.min(total * left);
-                // Its fixed time (the wait of a crowded server) is paid by share of the targets.
-                let wait = place.extra * here / total;
-                if place.kills > 0.0 {
-                    work += here * self.combat().kill_time(s.level, s.bonus, place) + wait;
-                    mob_xp += here * self.combat().mob_xp(s.level, place);
-                } else {
-                    work += here * self.params.object_time + wait;
-                }
-                left -= here / total;
-                kills += here;
-            }
-            if kills < 1.0 {
-                n += 1;
-                continue;
-            }
-            s.time += work;
-            s.spent.fighting += work;
-            if mob_xp > 0.0 {
-                s.spent.mob_xp += self.growth().gain_kills(s, mob_xp as i64);
-            }
-            let finished = left <= 1e-9;
-            if finished {
-                s.objectives[qi as usize] |= 1 << k;
-                s.along.swap_remove(n);
-            } else {
-                s.along[n].2 = 1.0 - left;
-                n += 1;
-            }
-            record(
-                s,
-                Event::Along {
-                    quest: qi as usize,
-                    objective: k,
-                    kills,
-                    finished,
-                },
-            );
         }
     }
 

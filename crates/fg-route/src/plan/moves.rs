@@ -2,8 +2,10 @@
 //! range of the route it changed, or None when it found nothing to change.
 
 use super::Planner;
+use super::evaluate::Run;
 use super::hearth::INNS_TRIED;
 use super::state::{Kind, Stop, same_item};
+use crate::world::Pos;
 use rand::Rng;
 use rand::rngs::SmallRng;
 
@@ -36,8 +38,8 @@ impl Change {
 
 impl Planner<'_> {
     /// One of the small moves, drawn at random.
-    pub(crate) fn random_move(&self, route: &mut Vec<Stop>, rng: &mut SmallRng) -> Option<Change> {
-        match rng.random_range(0..23) {
+    pub(crate) fn random_move(&self, route: &mut Vec<Stop>, run: &Run, rng: &mut SmallRng) -> Option<Change> {
+        match rng.random_range(0..25) {
             0..=9 => Some(Self::move_one_stop(route, rng)),
             10..=13 => Some(Self::move_block(route, rng)),
             14 | 15 => self.drop_quest_or_visit(route, rng),
@@ -46,6 +48,7 @@ impl Planner<'_> {
             18 => Some(self.move_hearth(route, rng)),
             20 => self.move_zone_stay(route, rng),
             21 | 22 => self.gather_zone_visits(route, rng),
+            23 | 24 => self.relocate_objective(route, run, rng),
             _ => self.add_unused_quest(route, rng),
         }
     }
@@ -62,6 +65,60 @@ impl Planner<'_> {
         };
         route.insert(j, stop);
         Change::moved(i.min(j), i.max(j))
+    }
+
+    /// An objective stop moved where it makes the shortest detour, between its quest's accept and
+    /// turn-in: between two consecutive stops whose way passes by one of its places, or next to
+    /// a stop done there (its mobs killed on the way, the objects gathered among another quest's
+    /// mobs, as stops of their own). The places come from the current run.
+    fn relocate_objective(&self, route: &mut Vec<Stop>, run: &Run, rng: &mut SmallRng) -> Option<Change> {
+        let i = rng.random_range(0..route.len());
+        let stop = route[i];
+        let Kind::Objective(k) = stop.kind else {
+            return None;
+        };
+        let o = &self.quest(stop.index).objectives[k as usize];
+        let same = |s: &Stop, kind: Kind| s.index == stop.index && s.kind == kind;
+        let from = route[..i]
+            .iter()
+            .rposition(|s| same(s, Kind::Accept))
+            .map_or(0, |a| a + 1);
+        let to = route[i + 1..]
+            .iter()
+            .position(|s| same(s, Kind::TurnIn))
+            .map_or(route.len(), |t| i + 1 + t);
+        // Where the character is after stop `j`, the stop moved aside.
+        let after = |j: usize| run.states.get(j + 1).map(|s| s.pos);
+        let detour = |a: &Pos, b: &Pos| {
+            o.places()
+                .map(|p| a.dist(&p.loc.pos) + p.loc.pos.dist(b))
+                .fold(f64::INFINITY, f64::min)
+                - a.dist(b)
+        };
+        // The stop goes between `j` and the next stop but itself (`j` = from - 1: first).
+        let mut best: Option<(f64, usize)> = None;
+        for j in from.saturating_sub(1)..to {
+            if j == i {
+                continue;
+            }
+            let next = if j + 1 == i { i + 1 } else { j + 1 };
+            let (Some(a), Some(b)) = (after(j), after(next)) else {
+                continue;
+            };
+            let d = detour(&a, &b);
+            if d.is_finite() && best.is_none_or(|(x, _)| d < x) {
+                best = Some((d, j));
+            }
+        }
+        let (_, j) = best?;
+        // Inserted after stop `j` (one index less once the stop is out, when after it).
+        let at = if j < i { j + 1 } else { j };
+        if at == i {
+            return None;
+        }
+        route.remove(i);
+        route.insert(at, stop);
+        Some(Change::moved(i.min(at), i.max(at)))
     }
 
     /// A block of consecutive stops moved together (keeps local batches together).

@@ -193,7 +193,7 @@ pub struct StepReport {
     pub end: f64,
     pub level: i64,
     pub xp: i64,
-    /// Lines of the guide it writes (the trip, quests taken at hand, training...), and which is
+    /// Lines of the guide it writes (the trip, training, a flight path learned...), and which is
     /// its own.
     pub lines: Vec<Line>,
     #[serde(skip_serializing_if = "Option::is_none")]

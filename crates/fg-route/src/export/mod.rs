@@ -1,6 +1,5 @@
 //! Turn a planned route into a guide: steps for humans (JSON) and for the addon (Lua).
 
-mod along;
 mod checkpoints;
 pub mod format;
 mod grind_spots;
@@ -81,12 +80,10 @@ pub fn build_traced(
     total: f64,
     breakdown: Breakdown,
 ) -> Route {
-    let (hidden, announced) = along::hidden_along(trace);
     let writer = StepWriter {
         planner,
         route,
         background: planner.background_objectives(route),
-        announced,
     };
     let mut steps = Vec::new();
     // XP the route has after each step (in its level).
@@ -106,15 +103,12 @@ pub fn build_traced(
         }
     }
     let mut farmed = 0;
-    for (n, t) in trace.iter().enumerate() {
-        if hidden.contains(&n) {
-            continue;
-        }
+    for t in trace {
         match &t.event {
             Event::Reward { quest, item } => writer.add_reward(&mut steps, *quest, *item),
             Event::Farm { kills, .. } => farmed += kills,
             _ => {
-                let mut step = writer.step(n, t);
+                let mut step = writer.step(t);
                 if farmed > 0 {
                     StepWriter::add_farm(&mut step, farmed);
                     farmed = 0;
@@ -171,23 +165,20 @@ pub fn build_traced(
 
 /// The line of the guide each event of a replayed route writes, in the language of `names`
 /// (for the guide editor). None for the events without a line of their own: a reward picked,
-/// mobs farmed on the way, mobs of an objective met on the way shown at its own step.
+/// mobs farmed on the way.
 pub fn event_steps(planner: &Planner<'_>, route: &[Stop], trace: &[Timed], names: &Names) -> Vec<Option<Step>> {
-    let (hidden, announced) = along::hidden_along(trace);
     let writer = StepWriter {
         planner,
         route,
         background: planner.background_objectives(route),
-        announced,
     };
     trace
         .iter()
-        .enumerate()
-        .map(|(n, t)| {
-            if hidden.contains(&n) || matches!(t.event, Event::Reward { .. } | Event::Farm { .. }) {
+        .map(|t| {
+            if matches!(t.event, Event::Reward { .. } | Event::Farm { .. }) {
                 return None;
             }
-            let mut step = writer.step(n, t);
+            let mut step = writer.step(t);
             step.text = phrase::render_all(&step.say, names);
             if let (Some(id), Some(zone)) = (step.zone_id, &step.zone) {
                 step.zone = Some(names.get("zone", id, zone).to_owned());

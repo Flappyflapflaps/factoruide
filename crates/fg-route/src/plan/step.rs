@@ -1,6 +1,6 @@
 //! Doing one stop of a route: accept, objectives (and the mobs met on the way), turn-in, visits, what is done while there.
 
-use super::state::{Event, Kind, State, Stop, Timed};
+use super::state::{Event, Kind, State, Stop, Timed, Together};
 use super::{Mode, Planner};
 use crate::model::{EntityKind, Loc, Model, Objective};
 use crate::world::Pos;
@@ -131,7 +131,7 @@ impl Planner<'_> {
                         })
                 });
             if hopeless {
-                s.along.retain(|&(q, _, _)| q as usize != i);
+                s.started.retain(|&(q, _, _)| q as usize != i);
                 s.timers.retain(|&(q, _)| q as usize != i);
                 s.accepted.set(i, false);
                 s.turned.set(i, true);
@@ -163,7 +163,6 @@ impl Planner<'_> {
         if let Some(limit) = q.time_limit {
             s.timers.push((i, s.time + limit * TIMED_SHARE));
         }
-        self.open_along(s, i);
     }
 
     /// Turn in quest `i`, wearing its reward items when they are upgrades. Returns the item
@@ -173,7 +172,7 @@ impl Planner<'_> {
         s.timers.retain(|&(q, _)| q != i);
         s.turned.set(i as usize, true);
         s.log -= 1;
-        s.along.retain(|&(q, _, _)| q != i);
+        s.started.retain(|&(q, _, _)| q != i);
         let reward = self.growth().quest_reward(q, s.level);
         s.spent.quest_xp += reward;
         self.growth().gain(s, reward);
@@ -201,7 +200,7 @@ impl Planner<'_> {
             return false;
         }
         s.timers.retain(|&(q, _)| q != i);
-        s.along.retain(|&(q, _, _)| q != i);
+        s.started.retain(|&(q, _, _)| q != i);
         s.accepted.set(i as usize, false);
         s.turned.set(i as usize, true);
         s.dropped.push(i);
@@ -218,6 +217,10 @@ impl Planner<'_> {
         if Self::already_done(s, stop) {
             return;
         }
+        // Done together: objective stops one after the other only.
+        if !matches!(stop.kind, Kind::Objective(_)) {
+            s.together = Together::default();
+        }
         if stop.kind == Kind::Hearth {
             if self.hearth(s, stop.index == 1, &mut record) {
                 self.while_here(s, &mut record);
@@ -230,7 +233,7 @@ impl Planner<'_> {
         self.grind_to_gate(s, stop, spot, &mut record);
         let loc = self.arrive(s, stop, spot, &mut record);
         if !(stop.kind == Kind::TurnIn && Self::failed_in_time(s, stop.index, &mut record)) {
-            let picked = self.do_stop(s, stop, spot, &mut record);
+            let picked = self.do_stop(s, stop, spot);
             record(s, Event::Stop { stop, loc });
             if let Some(item) = picked {
                 record(
@@ -376,19 +379,13 @@ impl Planner<'_> {
     }
 
     /// What the stop itself does. Returns the reward item picked on a turn-in.
-    fn do_stop(
-        &self,
-        s: &mut State,
-        stop: Stop,
-        spot: Option<&Objective>,
-        record: &mut impl FnMut(&State, Event),
-    ) -> Option<i64> {
+    fn do_stop(&self, s: &mut State, stop: Stop, spot: Option<&Objective>) -> Option<i64> {
         let i = stop.index as usize;
         match stop.kind {
             Kind::Accept => self.accept(s, stop.index),
             Kind::Objective(k) => {
                 let o = spot.unwrap_or(&self.quest(stop.index).objectives[k as usize]);
-                self.complete_objective(s, stop.index, k, o, record);
+                self.complete_objective(s, stop.index, k, o);
             }
             Kind::TurnIn => return self.turn_in(s, stop.index),
             Kind::LearnFlight => {
@@ -405,85 +402,48 @@ impl Planner<'_> {
         None
     }
 
-    /// Kill or use what the mobs and objects met on the way left to do, and with it the
-    /// complementary objectives of the log close by: objects gathered between the kills, while
-    /// resting and looking for the next mob (`gather_overlap`), or mobs killed among the objects.
-    fn complete_objective(
-        &self,
-        s: &mut State,
-        quest: u32,
-        k: u8,
-        here: &Objective,
-        record: &mut impl FnMut(&State, Event),
-    ) {
+    /// Kill or use what objective `k` of `quest` still needs at place `here`. Objects gathered
+    /// among the mobs of an objective done just before (or mobs killed among the objects), close
+    /// by, take part of the time (`Together`).
+    fn complete_objective(&self, s: &mut State, quest: u32, k: u8, here: &Objective) {
         if s.objectives[quest as usize] & (1 << k) != 0 {
             return;
         }
-        let partners = self.gathered_with(s, quest, k, here);
-        let (mut kills, mut gathers) = self.objective_work(s, quest, k, here);
-        for (q, ok) in partners {
-            let o = self.quest(q).objectives[ok as usize].nearest(&here.loc.pos);
-            let total = if o.kills > 0.0 { o.kills } else { o.uses };
-            let done = s
-                .along
-                .iter()
-                .find(|&&(i, j, _)| i == q && j == ok)
-                .map_or(0.0, |&(_, _, done)| done);
-            let left = (total * (1.0 - done)).max(0.0);
-            let (k_work, g_work) = self.objective_work(s, q, ok, o);
-            kills += k_work;
-            gathers += g_work;
-            record(
-                s,
-                Event::Along {
-                    quest: q as usize,
-                    objective: ok,
-                    kills: left,
-                    finished: true,
-                },
-            );
-        }
-        let saved = gathers.min(kills * self.params.gather_overlap);
-        s.time -= saved;
-        s.spent.fighting -= saved;
+        let (kills, gathers) = self.objective_work(s, quest, k, here);
+        self.together(s, here, kills, gathers);
     }
 
-    /// Objectives of the log done together with objective `k` of `quest`: gathering ones close to
-    /// a kill objective, kill ones close to a gathering objective.
-    fn gathered_with(&self, s: &State, quest: u32, k: u8, o: &Objective) -> Vec<(u32, u8)> {
-        let gathering = |o: &Objective| o.kills <= 0.0 && o.uses > 0.0;
-        if self.params.gather_overlap <= 0.0 || o.dungeon.is_some() || (o.kills <= 0.0 && !gathering(o)) {
-            return Vec::new();
+    /// Add an objective done at `here` (`kills`, `gathers`: the time of each) to the objectives
+    /// done just before close by, and take off the time that saves (the same for the whole as when
+    /// done in one stop: gathering during `gather_overlap` of the kills).
+    fn together(&self, s: &mut State, here: &Objective, kills: f64, gathers: f64) {
+        let near = s.together.at.is_some_and(|at| {
+            at.continent == here.loc.pos.continent && at.dist(&here.loc.pos) <= self.params.gather_radius
+        });
+        if !near || here.dungeon.is_some() {
+            s.together = Together {
+                at: (here.dungeon.is_none()).then_some(here.loc.pos),
+                ..Together::default()
+            };
         }
-        let reach = self.params.reach(s.level, s.bonus);
-        s.along
-            .iter()
-            .filter(|&&(q, ok, _)| {
-                let other = self.quest(q).objectives[ok as usize].nearest(&o.loc.pos);
-                // Done together only when the character could do it on its own stop: its mobs,
-                // or the guards around its objects (`Combat::need`).
-                (q, ok) != (quest, k)
-                    && other.loc.pos.continent == o.loc.pos.continent
-                    && other.loc.pos.dist(&o.loc.pos) <= self.params.gather_radius
-                    && if o.kills > 0.0 {
-                        gathering(other)
-                    } else {
-                        other.kills > 0.0
-                    }
-                    && self.combat().need(self.quest(q), other) <= reach
-            })
-            .map(|&(q, ok, _)| (q, ok))
-            .collect()
+        let t = &mut s.together;
+        t.kills += kills;
+        t.gathers += gathers;
+        let saved = t.gathers.min(t.kills * self.params.gather_overlap).max(0.0);
+        let more = saved - t.saved;
+        t.saved = saved;
+        s.time -= more;
+        s.spent.fighting -= more;
     }
 
     /// Do what objective `k` of `quest` still needs at place `o` (one of its `alts` or itself),
     /// returning the time of its kills and the rest (objects, fixed extra time).
     fn objective_work(&self, s: &mut State, quest: u32, k: u8, o: &Objective) -> (f64, f64) {
         let i = quest as usize;
-        // The share done on the way, whatever the place: this place's kills (or uses) are left
-        // for the rest.
-        let done = match s.along.iter().position(|&(q, ok, _)| q == quest && ok == k) {
-            Some(n) => s.along.swap_remove(n).2,
+        // The share done before the route (a character met in game), whatever the place: this
+        // place's kills (or uses) are left for the rest.
+        let done = match s.started.iter().position(|&(q, ok, _)| q == quest && ok == k) {
+            Some(n) => s.started.swap_remove(n).2,
             None => 0.0,
         };
         let left = (1.0 - done).max(0.0);
@@ -492,7 +452,7 @@ impl Planner<'_> {
         } else {
             (0.0, o.uses * left)
         };
-        // The fixed time too, by share of the targets left (those met on the way paid theirs).
+        // The fixed time too, by share of the targets left.
         let kill_work = kills * self.combat().kill_time(s.level, s.bonus, o);
         let other = uses * self.params.object_time + o.extra * left;
         s.time += kill_work + other;

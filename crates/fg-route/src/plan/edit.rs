@@ -96,7 +96,16 @@ impl Planner<'_> {
         let mut route = Vec::new();
         let mut steps = Vec::with_capacity(edits.len());
         let mut at = 0;
-        for edit in edits {
+        // The next stop of each step (an objective is done at its place on the way to it).
+        let nexts: Vec<Option<Stop>> = (0..edits.len())
+            .map(|e| {
+                edits[e + 1..].iter().find_map(|x| match x {
+                    Edit::Stop { stop, .. } => Some(*stop),
+                    _ => None,
+                })
+            })
+            .collect();
+        for (e, edit) in edits.iter().enumerate() {
             let (start, xp, first) = (s.time, self.total_xp(&s), trace.len());
             let farm_xp = s.spent.farm_xp;
             let mut farm_all = None;
@@ -106,6 +115,7 @@ impl Planner<'_> {
                 match *edit {
                     Edit::Stop { stop, farm } => {
                         s.at = at;
+                        s.next = nexts[e].map(|next| self.places().pos(&s, next));
                         if !farm && let Kind::Objective(_) = stop.kind {
                             farm_all = self.farm_all_estimate(&s, stop);
                         }

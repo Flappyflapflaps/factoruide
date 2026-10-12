@@ -196,7 +196,9 @@ impl<'a> Planner<'a> {
             dropped: Vec::new(),
             objectives: vec![0; n],
             timers: Vec::new(),
-            along: Vec::new(),
+            started: Vec::new(),
+            together: state::Together::default(),
+            next: None,
             planned: Rc::new(Planned::default()),
             at: 0,
             class_bonus: 0.0,
@@ -222,13 +224,12 @@ impl<'a> Planner<'a> {
                 for &(_, k, _) in init.progress.iter().filter(|p| p.0 == i && p.2 >= 1.0) {
                     s.objectives[i] |= 1 << k;
                 }
-                self.open_along(&mut s, i as u32);
             }
         }
-        // Objectives started: their share so far counts as done on the way.
+        // Objectives started: their share so far is done when the route gets to them.
         for &(q, k, share) in &init.progress {
-            if let Some(entry) = s.along.iter_mut().find(|e| e.0 as usize == q && e.1 == k) {
-                entry.2 = share;
+            if s.accepted[q] && share > 0.0 && share < 1.0 {
+                s.started.push((q as u32, k, share));
             }
         }
         if let Some(power) = &self.model.power {

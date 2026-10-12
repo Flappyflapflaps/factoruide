@@ -54,9 +54,6 @@ pub struct Params {
     pub quest_log_size: usize,
     /// Distance at which a flight master is picked up on the way.
     pub flight_learn_radius: f64,
-    /// Mobs of the quests in the log within this distance of a walk are killed on the way
-    /// (0: never).
-    pub along_corridor: f64,
     /// Kill the normal mobs met on every walk, not only those of the log's quests (as guides
     /// ask): those within `farm_corridor` of the path, from `farm_below` levels under the
     /// character to `farm_above` over it (lower ones give little XP, higher ones are slow and
@@ -204,8 +201,8 @@ pub struct Params {
     pub farm_cap: f64,
     pub grind_over_weight: f64,
     /// Share of a kill (resting, looking for the next mob) during which quest objects close by
-    /// are gathered: a gathering objective within `gather_radius` of a kill objective of the log
-    /// is done with it, in part during the kills.
+    /// are gathered: a gathering objective stop right before or after a kill objective stop,
+    /// within `gather_radius`, is done in part during the kills (see `plan::state::Together`).
     pub gather_overlap: f64,
     pub gather_radius: f64,
     /// Other places an objective can be done besides its main one (other groups of its mobs or
@@ -236,6 +233,10 @@ pub struct Params {
     /// Parallel searches (different seeds), the best one wins.
     pub threads: usize,
     pub seed: u64,
+    /// Each search stops after this many tries instead of at the end of its time (0: time),
+    /// its annealing following the tries: with no race (`qualify_share` 0), a run gives the same
+    /// routes whatever the machine, to compare planner changes without noise.
+    pub search_tries: u64,
     /// Players leveling together (1 = solo, up to 5). Set from the request's group.
     pub group_size: i64,
     /// Damage each extra group member adds, as a share of one player's.
@@ -274,7 +275,6 @@ impl Default for Params {
             pack_power: None,
             quest_log_size: 40,
             flight_learn_radius: 300.0,
-            along_corridor: 40.0,
             farm_on_way: true,
             farm_corridor: 25.0,
             farm_below: 3,
@@ -355,6 +355,7 @@ impl Default for Params {
             time_limit_ms: 120_000,
             threads: std::thread::available_parallelism().map_or(4, |n| n.get().min(8)),
             seed: 42,
+            search_tries: 0,
             group_size: 1,
             group_kill_speed: 0.8,
             group_shared_drops: true,

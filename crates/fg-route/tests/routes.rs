@@ -128,16 +128,11 @@ fn quests_at_start_as(race: &str, class: &str, n: usize) -> Prepared {
     p.model.trainers.clear();
     p.model.explore.clear();
     p.model.explore_by_zone.clear();
-    (
-        p.params.camp_radius,
-        p.params.along_corridor,
-        p.params.farm_on_way,
-        p.params.flight_learn_radius,
-    ) = (0.0, 0.0, false, 0.0);
+    (p.params.camp_radius, p.params.farm_on_way, p.params.flight_learn_radius) = (0.0, false, 0.0);
     p
 }
 
-/// Mobs killed on the way to an objective finish it: arriving there does not kill them again.
+/// An objective's mobs are killed once, at its stop.
 #[test]
 fn objective_finished_on_the_way_is_not_done_twice() {
     let p = orc_warlock();
@@ -1000,53 +995,6 @@ fn quest_at_hand_waits_for_its_camp() {
     assert_eq!(at_hand, own_stop);
 }
 
-/// The fixed time of an objective (the wait of a crowded server) is paid even when its mobs
-/// are met on the way: done there or at its stop, it takes as long (the wait was lost).
-#[test]
-fn wait_of_a_crowded_target_is_paid_on_the_way() {
-    let mut p = quests_at_start(1);
-    let here = p.model.start.pos;
-    let mut loc = p.model.start.clone();
-    loc.pos.x += 50.0;
-    let point = (here.x + 25.0, here.y);
-    p.model.quests[0].objectives = vec![Objective {
-        loc,
-        text: "crowded target".into(),
-        kills: 1.0,
-        mob_level: 1,
-        uses: 0.0,
-        extra: 900.0,
-        dungeon: None,
-        elite: false,
-        count: 1.0,
-        mobs: vec![],
-        pull: 1.0,
-        spawns: 0,
-        pack: 1.0,
-        spots: Some(Spots {
-            continent: here.continent,
-            min: point,
-            max: point,
-            points: vec![point],
-        }),
-        guard: Guard::default(),
-        alts: vec![],
-    }];
-    p.model.initial.accepted = vec![0];
-    let fighting = |p: &Prepared| {
-        let route = [Stop::quest(0, Kind::Objective(0))];
-        planner(p).simulate_full(&route, None).unwrap().1.fighting
-    };
-    let at_its_stop = fighting(&p);
-    assert!(at_its_stop > 900.0);
-    p.params.along_corridor = 35.0;
-    let on_the_way = fighting(&p);
-    assert!(
-        (on_the_way - at_its_stop).abs() < 1.0,
-        "{at_its_stop} s at its stop, {on_the_way} s on the way"
-    );
-}
-
 /// Kill `kills` mobs of `mob_level` `dx` yards east of the start.
 fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Objective {
     let mut loc = p.model.start.clone();
@@ -1144,70 +1092,6 @@ fn pet_quest_moves_early_within_its_slack() {
     p.params.class_power_slack = 0.0;
     let strict = cost(&p);
     assert!(strict <= 0.5, "{strict} s without slack");
-}
-
-/// An object gathered between the kills of another objective needs what its own stop needs:
-/// guarded by three level 25 mobs, it is not picked up at level 1 next to an easy fight (it was).
-#[test]
-fn object_gathered_between_kills_waits_for_its_guards() {
-    let mut p = quests_at_start(2);
-    for (i, kills, uses, guard) in [
-        (0, 1.0, 0.0, Guard::default()),
-        (
-            1,
-            0.0,
-            1.0,
-            Guard {
-                level: 25,
-                count: 3,
-                elite: false,
-            },
-        ),
-    ] {
-        let mut loc = p.model.start.clone();
-        loc.pos.x += 80.0 * i as f64;
-        let point = (loc.pos.x, loc.pos.y);
-        p.model.quests[i].objectives = vec![Objective {
-            loc: loc.clone(),
-            text: format!("objective {i}"),
-            kills,
-            mob_level: 1,
-            uses,
-            extra: 0.0,
-            dungeon: None,
-            elite: false,
-            count: 1.0,
-            mobs: vec![],
-            pull: 1.0,
-            spawns: 0,
-            pack: 1.0,
-            spots: Some(Spots {
-                continent: loc.pos.continent,
-                min: point,
-                max: point,
-                points: vec![point],
-            }),
-            guard,
-            alts: vec![],
-        }];
-    }
-    p.model.initial.accepted = vec![0, 1];
-    assert!(p.params.gather_overlap > 0.0);
-    let mut trace = Vec::new();
-    planner(&p)
-        .simulate_full(&[Stop::quest(0, Kind::Objective(0))], Some(&mut trace))
-        .unwrap();
-    assert!(
-        !trace.iter().any(|t| matches!(
-            t.event,
-            Event::Along {
-                quest: 1,
-                finished: true,
-                ..
-            }
-        )),
-        "the guarded object was gathered at level 1"
-    );
 }
 
 /// A companion of a class the character's race cannot play is of a race that can: a human

@@ -44,9 +44,16 @@ level:
   worth it, how fast mobs die, how much XP they give.
 - **On the way**: class training when the new spells are worth it, flight paths picked up nearby,
   dungeon runs, the normal mobs met on foot (`farm_on_way`, mobs near the character's level, up to
-  `farm_cap` of each level: 20% on Classic and TBC, 10% on Forever, which has more quests), quest
-  objects among another quest's mobs gathered between kills (`gather_overlap`). Professions add no time: only their quests are planned, once the
-  skill curve reaches them (optional in the guide).
+  `farm_cap` of each level: 20% on Classic and TBC, 10% on Forever, which has more quests).
+  Professions add no time: only their quests are planned, once the skill curve reaches them
+  (optional in the guide).
+- **Every action is a step**: each take, objective and turn-in of a quest is a stop of the route,
+  done at that stop and nowhere else (no quest taken in passing at another stop, no objective
+  finished on the way), so that each one can be moved or removed in the guide editor. What doing
+  things together saves is counted between consecutive stops: a gathering stop right before or
+  after a kill stop at the same place is partly done during the kills (`gather_overlap`,
+  `plan::state::Together`), and an objective with several places is done at the one on the way
+  to the route's next stop (`Planner::spot`).
 - **Rules of the game**: prerequisites, exclusive quests and the quest log size are respected; a
   route breaking them is invalid.
 - **When quests run out**, the simulation grinds mobs of the character's level up to the next
@@ -151,6 +158,8 @@ The route is then improved by a **local search** (`Planner::improve`) for the ti
 gives to the calculation. At each step a change is tried and the new route is simulated:
 
 - move one stop, mostly near its current place;
+- move an objective stop where it makes the shortest detour between its quest's take and turn-in
+  (between two stops whose way passes by one of its places, or next to a stop done there);
 - move a block of consecutive stops, or a whole stay in a zone, earlier or later;
 - drop a quest or a visit (class quests stay);
 - insert a quest not yet in the route next to the stops closest to its places;
@@ -189,8 +198,7 @@ added, plus steps the optimizer never makes (a flight between two flight paths, 
 kill where the character stands, every mob on the way to an objective). `Planner::edit` replays it
 like `simulate_full`, the same route giving the same time, but checks each step instead of giving
 up on the first impossible one: an impossible step is reported with the reason and left out (the
-guide cannot be saved), a step with nothing left to do (taken at hand earlier, done on the way) is
-skipped. The edited guide is then written from that replay like any other.
+guide cannot be saved), a step with nothing left to do (done before) is skipped. The edited guide is then written from that replay like any other.
 
 A guide file carries its format (`format.rs`). Reading an older one migrates it one format after
 the other; a migration that cannot carry a guide over refuses it (to compute again), and a guide

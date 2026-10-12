@@ -117,13 +117,6 @@ pub enum Event {
         kills: u32,
         seconds: f64,
     },
-    /// Mobs of an objective killed on the way to the next stop (`finished`: it is done).
-    Along {
-        quest: usize,
-        objective: u8,
-        kills: f64,
-        finished: bool,
-    },
 }
 
 #[derive(Debug, Clone)]
@@ -136,6 +129,18 @@ pub struct Timed {
     /// of it its gear brings (levels).
     pub power: f64,
     pub gear: f64,
+}
+
+/// Objective stops done one after the other within `gather_radius` of the first one: objects
+/// gathered between the kills (resting, looking for the next mob) take `gather_overlap` of the
+/// kills' time. Their place, the time of their kills and gatherings, and what that saved. Only
+/// consecutive stops: the route says what is done together, each stop can be moved apart.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub(crate) struct Together {
+    pub(crate) at: Option<Pos>,
+    pub(crate) kills: f64,
+    pub(crate) gathers: f64,
+    pub(crate) saved: f64,
 }
 
 /// A flag per quest (or per area), a bit each: a state is kept before every stop of a route.
@@ -192,10 +197,16 @@ pub(crate) struct State {
     pub(crate) objectives: Vec<u8>,
     /// Timed quests of the log: (quest, time by which the route must turn it in).
     pub(crate) timers: Vec<(u32, f64)>,
-    /// Objectives of the log whose mobs can be killed on the way to other stops, with the share
-    /// of the objective already done (0 to 1): (quest, objective, share). A share, not kills:
-    /// the places of an objective may need different kills (their drop rates differ).
-    pub(crate) along: Vec<(u32, u8, f64)>,
+    /// Objectives started before the route (a character met in game), with the share already
+    /// done (0 to 1): (quest, objective, share). A share, not kills: the places of an objective
+    /// may need different kills (their drop rates differ).
+    pub(crate) started: Vec<(u32, u8, f64)>,
+    /// The objective stops done one after the other at the same place (see `Together`).
+    pub(crate) together: Together,
+    /// The place of the route's next stop, when the route is known (a replay): an objective
+    /// with several places is done at the one on the way to it (`Planner::spot`). Set before
+    /// each stop, not part of what the state carries on.
+    pub(crate) next: Option<Pos>,
     /// Quests the route accepts (bit 1) and turns in (bit 2): taken and turned in on the spot
     /// when their NPC is at hand.
     pub(crate) planned: Rc<Planned>,
