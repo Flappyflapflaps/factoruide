@@ -44,14 +44,15 @@ pub fn optimize_interruptible(planner: &Planner<'_>, progress: Progress<'_>, int
     // takes seconds on a long guide and is not part of the optimization time chosen.
     let results = std::thread::scope(|scope| {
         scope.spawn(|| live.watch(&searcher));
+        // The watcher ends with the searches, also when one panics: the scope waits for it
+        // before passing the panic on, the job would hang.
+        let _done = Done(&live.done);
         let finalists = if plan.race {
             qualify(&searcher, &plan)
         } else {
             (0..plan.threads).map(|k| (k, None)).collect()
         };
-        let results = final_round(&searcher, &plan, finalists);
-        live.done.store(true, Ordering::Relaxed);
-        results
+        final_round(&searcher, &plan, finalists)
     });
     live.report();
     if !interrupt.cancelled() {
@@ -62,6 +63,15 @@ pub fn optimize_interruptible(planner: &Planner<'_>, progress: Progress<'_>, int
         .min_by(|a, b| a.0.total_cmp(&b.0))
         .map(|(_, r)| r)
         .unwrap_or_default()
+}
+
+/// Sets its flag when dropped, unwinding included.
+struct Done<'a>(&'a AtomicBool);
+
+impl Drop for Done<'_> {
+    fn drop(&mut self) {
+        self.0.store(true, Ordering::Relaxed);
+    }
 }
 
 /// How the time is shared: candidates, threads, qualification and whole budget.

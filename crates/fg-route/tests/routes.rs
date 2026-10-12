@@ -286,6 +286,32 @@ fn job_saves_its_walks() {
     assert_eq!(again.walks.map(|m| m.len()), Some(memory.len()));
 }
 
+/// A search that panics ends the job with its panic instead of hanging it: the thread reporting
+/// the progress stops with the searches (the app then shows the error).
+#[test]
+fn panicking_search_ends_the_job() {
+    let (sent, received) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let request = request(
+            "orc",
+            "warlock",
+            12,
+            &["time_limit_ms=2000", "qualify_share=0", "threads=1"],
+        );
+        // The search's first message, from its own thread.
+        let progress = |m: &str| assert!(!m.starts_with("start:"), "search failed");
+        let interrupt = job::Interrupt::default();
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            job::plan_interruptible(&database(), &overrides(), &request, &progress, &interrupt, None)
+        }));
+        let _ = sent.send(outcome.is_err());
+    });
+    let panicked = received
+        .recv_timeout(std::time::Duration::from_secs(300))
+        .expect("the job hung after its search panicked");
+    assert!(panicked);
+}
+
 /// A cancelled job fails with `Cancelled` instead of returning a route (the app saves nothing).
 #[test]
 fn cancelled_job_returns_no_route() {
