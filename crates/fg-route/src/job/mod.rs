@@ -113,6 +113,8 @@ pub fn plan_interruptible(
     if interrupt.cancelled() {
         return Err(Cancelled.into());
     }
+    // Objectives at the same place one after the other, done at once.
+    let best = planner.route_together(best);
     let route = export::build(&planner, &prepared.profile, &best);
     for missing in planner.missing_class_quests(&best) {
         prepared.notes.push(format!("class quest not planned: {missing}"));

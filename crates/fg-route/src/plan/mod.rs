@@ -39,6 +39,7 @@ mod search;
 mod spot;
 mod state;
 mod step;
+mod together;
 mod travel;
 mod worth;
 

@@ -171,7 +171,10 @@ Only the part of the route from the change on is simulated again. A better route
 one is sometimes accepted early on (simulated annealing, late acceptance), because moving a whole
 zone earlier only pays once the rest of the route follows. The changes that succeed more often
 are tried more often. At the end, quests taken but never turned in are removed when that costs
-nothing.
+nothing. Last, on the route kept (and on a guide saved from the editor), objective stops done at
+the same place are brought next to each other when that makes the route no worse
+(`plan/together.rs`): the addon shows the steps at one place together, so that the player does
+them at once.
 
 ### Parallel race
 

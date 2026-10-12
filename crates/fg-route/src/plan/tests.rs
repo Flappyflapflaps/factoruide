@@ -207,14 +207,30 @@ fn objective_started_counts_its_share_at_another_place() {
 /// stands on its own, what is done together comes from the route's order.
 #[test]
 fn gathering_next_to_kills_saves_time_when_consecutive() {
+    let p = camp_of_two_objectives();
+    let planner = planner(&p);
+    let fighting = |route: &[Stop]| planner.simulate_full(route, None).unwrap().1.fighting;
+    let (kill, gather) = (Stop::quest(0, Kind::Objective(0)), Stop::quest(1, Kind::Objective(0)));
+    let (k, g) = (fighting(&[kill]), fighting(&[gather]));
+    let saved = g.min(k * p.params.gather_overlap);
+    assert!(saved > 1.0);
+    assert!((fighting(&[kill, gather]) - (k + g - saved)).abs() < 1e-6);
+    assert!((fighting(&[gather, kill]) - (k + g - saved)).abs() < 1e-6);
+    // Another stop between them (a quest taken at the start).
+    let apart = fighting(&[kill, Stop::quest(2, Kind::Accept), gather]);
+    assert!((apart - (k + g)).abs() < 1e-6, "{apart} with a stop between");
+}
+
+/// Kill and gathering objectives at a camp 100 yards east of the start, for quests 0 and 1 (in
+/// the log), and a third quest given at the start.
+fn camp_of_two_objectives() -> Prepared {
     let mut p = quests_at_start(3);
-    // Not reached by the kills: every stop is done.
     p.profile.to_level = 10;
     p.world.terrain = crate::terrain::Terrain::default();
     let mut camp = p.model.start.clone();
     camp.pos.x += 100.0;
     let kills = Objective {
-        loc: camp.clone(),
+        loc: camp,
         text: "Kill 10 mobs".into(),
         kills: 10.0,
         mob_level: 1,
@@ -242,15 +258,42 @@ fn gathering_next_to_kills_saves_time_when_consecutive() {
     p.model.quests[0].objectives = vec![kills];
     p.model.quests[1].objectives = vec![gather];
     p.model.initial.accepted = vec![0, 1];
+    p
+}
+
+/// The last pass brings objectives done at the same place next to each other (the guide then
+/// shows them together): the gathering among the kills saves its share.
+#[test]
+fn objectives_at_one_place_are_brought_together() {
+    let p = camp_of_two_objectives();
     let planner = planner(&p);
-    let fighting = |route: &[Stop]| planner.simulate_full(route, None).unwrap().1.fighting;
     let (kill, gather) = (Stop::quest(0, Kind::Objective(0)), Stop::quest(1, Kind::Objective(0)));
-    let (k, g) = (fighting(&[kill]), fighting(&[gather]));
-    let saved = g.min(k * p.params.gather_overlap);
-    assert!(saved > 1.0);
-    assert!((fighting(&[kill, gather]) - (k + g - saved)).abs() < 1e-6);
-    assert!((fighting(&[gather, kill]) - (k + g - saved)).abs() < 1e-6);
-    // Another stop between them (a quest taken at the start).
-    let apart = fighting(&[kill, Stop::quest(2, Kind::Accept), gather]);
-    assert!((apart - (k + g)).abs() < 1e-6, "{apart} with a stop between");
+    let accept = Stop::quest(2, Kind::Accept);
+    let apart = vec![kill, accept, gather];
+    let together = planner.route_together(apart.clone());
+    assert_eq!(together, vec![kill, gather, accept]);
+    let fighting = |route: &[Stop]| planner.simulate_full(route, None).unwrap().1.fighting;
+    assert!(fighting(&together) < fighting(&apart) - 1.0);
+}
+
+/// A move that would make the route worse is not kept.
+#[test]
+fn bringing_together_never_makes_it_worse() {
+    let p = camp_of_two_objectives();
+    let planner = planner(&p);
+    let (kill, gather) = (Stop::quest(0, Kind::Objective(0)), Stop::quest(1, Kind::Objective(0)));
+    let apart = vec![kill, Stop::quest(2, Kind::Accept), gather];
+    let places = vec![
+        Some(p.model.quests[0].objectives[0].loc.pos),
+        None,
+        Some(p.model.quests[1].objectives[0].loc.pos),
+    ];
+    // Any order but this one scores worse.
+    let kept = planner.bring_together(
+        apart.clone(),
+        |s| Some(*s),
+        places,
+        |r| Some(if r == apart.as_slice() { 0.0 } else { 1.0 }),
+    );
+    assert_eq!(kept, apart);
 }

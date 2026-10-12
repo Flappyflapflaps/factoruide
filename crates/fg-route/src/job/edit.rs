@@ -445,6 +445,37 @@ impl Editor {
         if edited.errors() > 0 {
             bail!("{} steps of the guide are not possible", edited.errors());
         }
+        // Objectives at the same place one after the other, done at once, when that is no worse.
+        let places = edited
+            .steps
+            .iter()
+            .zip(&edits)
+            .map(|(step, edit)| match edit {
+                Edit::Stop { stop, .. } if matches!(stop.kind, Kind::Objective(_)) => {
+                    edited.trace[step.events.clone()].iter().find_map(|t| match &t.event {
+                        Event::Stop { stop: done, loc } if done == stop => Some(loc.pos),
+                        _ => None,
+                    })
+                }
+                _ => None,
+            })
+            .collect();
+        let items: Vec<(RouteStep, Edit)> = steps.iter().cloned().zip(edits).collect();
+        let together = planner.bring_together(
+            items,
+            |(_, edit)| match edit {
+                Edit::Stop { stop, .. } => Some(*stop),
+                _ => None,
+            },
+            places,
+            |items| {
+                let edits: Vec<Edit> = items.iter().map(|(_, edit)| *edit).collect();
+                let edited = planner.edit(&edits);
+                (edited.errors() == 0).then_some(edited.score)
+            },
+        );
+        let (steps, edits): (Vec<RouteStep>, Vec<Edit>) = together.into_iter().unzip();
+        let edited = planner.edit(&edits);
         let total = edited.breakdown.total;
         let route = export::build_traced(
             &planner,
@@ -458,7 +489,7 @@ impl Editor {
             route,
             notes,
             walks: Some(self.prepared.world.terrain.memory()),
-            plan: steps.to_vec(),
+            plan: steps,
         })
     }
 
