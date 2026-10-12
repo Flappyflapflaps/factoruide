@@ -132,6 +132,7 @@ pub fn plan_interruptible(
     ));
     Ok(PlanOutcome {
         plan: edit::route_steps(&planner, &best),
+        explicit: true,
         route,
         notes: prepared.notes,
         walks: walks.map(|_| prepared.world.terrain.memory()),

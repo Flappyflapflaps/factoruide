@@ -52,45 +52,105 @@ pub enum RouteStep {
     Dungeon {
         dungeon: i64,
     },
+    /// Boats, zeppelins or trams: board `first`, leave `last` (the same when direct).
+    Link {
+        first: LinkRef,
+        last: LinkRef,
+    },
+    /// Cast a class teleport (its spell name).
+    Teleport {
+        spell: String,
+    },
+    /// Learn the class spells at a trainer (its NPC ID).
+    Train {
+        trainer: i64,
+    },
+    /// Give up a quest of the log.
+    Abandon {
+        quest: i64,
+    },
     /// Kill mobs of the character's level where it stands.
     Grind {
         mobs: u32,
     },
+    /// Kill mobs of the character's level where it stands up to a level.
+    GrindTo {
+        level: i64,
+    },
 }
 
-/// The steps of a route found by the optimizer.
+/// A transport link one way: its name and the zone it leads to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LinkRef {
+    pub name: String,
+    pub to: i64,
+}
+
+/// The steps of a route found by the optimizer: each thing its simulation did, a step.
 pub(super) fn route_steps(planner: &Planner<'_>, route: &[Stop]) -> Vec<RouteStep> {
-    let (model, world) = (planner.model, planner.world);
-    route
-        .iter()
-        .map(|stop| {
-            let i = stop.index as usize;
-            match stop.kind {
-                Kind::Accept => RouteStep::Accept {
-                    quest: model.quests[i].id,
-                },
-                Kind::Objective(objective) => RouteStep::Objective {
-                    quest: model.quests[i].id,
-                    objective,
-                    farm: false,
-                },
-                Kind::TurnIn => RouteStep::TurnIn {
-                    quest: model.quests[i].id,
-                },
-                Kind::LearnFlight => RouteStep::FlightMaster {
-                    node: world.taxi_nodes[i].id,
-                },
-                Kind::Bind => RouteStep::Bind { inn: model.inns[i].id },
-                Kind::Hearth => RouteStep::Hearth { recall: i == 1 },
-                Kind::Dungeon => RouteStep::Dungeon {
-                    dungeon: model.dungeons[i].area,
-                },
-            }
-        })
+    let edits: Vec<Edit> = route.iter().map(|&stop| Edit::Stop { stop, farm: false }).collect();
+    planner
+        .expand(&edits)
+        .into_iter()
+        .map(|edit| RouteStep::of(edit, planner))
         .collect()
 }
 
 impl RouteStep {
+    /// The step of a planner's edit, by game IDs.
+    fn of(edit: Edit, planner: &Planner<'_>) -> Self {
+        let (model, world) = (planner.model, planner.world);
+        let link = |i: usize| LinkRef {
+            name: world.links[i].name.clone(),
+            to: world.links[i].to_zone,
+        };
+        match edit {
+            Edit::Stop { stop, farm } => {
+                let i = stop.index as usize;
+                match stop.kind {
+                    Kind::Accept => Self::Accept {
+                        quest: model.quests[i].id,
+                    },
+                    Kind::Objective(objective) => Self::Objective {
+                        quest: model.quests[i].id,
+                        objective,
+                        farm,
+                    },
+                    Kind::TurnIn => Self::TurnIn {
+                        quest: model.quests[i].id,
+                    },
+                    Kind::LearnFlight => Self::FlightMaster {
+                        node: world.taxi_nodes[i].id,
+                    },
+                    Kind::Bind => Self::Bind { inn: model.inns[i].id },
+                    Kind::Hearth => Self::Hearth { recall: i == 1 },
+                    Kind::Dungeon => Self::Dungeon {
+                        dungeon: model.dungeons[i].area,
+                    },
+                }
+            }
+            Edit::Fly { from, to } => Self::Fly {
+                from: world.taxi_nodes[from].id,
+                to: world.taxi_nodes[to].id,
+            },
+            Edit::Link { first, last } => Self::Link {
+                first: link(first),
+                last: link(last),
+            },
+            Edit::Teleport { to } => Self::Teleport {
+                spell: model.teleports[to].name.clone(),
+            },
+            Edit::Train { trainer } => Self::Train {
+                trainer: model.trainers[trainer].id,
+            },
+            Edit::Abandon { quest } => Self::Abandon {
+                quest: model.quests[quest as usize].id,
+            },
+            Edit::Grind { mobs } => Self::Grind { mobs },
+            Edit::GrindTo { level } => Self::GrindTo { level },
+        }
+    }
+
     /// The step for the planner, or why it cannot be one (not in this character's data).
     fn resolve(&self, planner: &Planner<'_>) -> Result<Edit, &'static str> {
         let (model, world) = (planner.model, planner.world);
@@ -105,6 +165,13 @@ impl RouteStep {
         let stop = |index: u32, kind: Kind| Edit::Stop {
             stop: Stop { index, kind },
             farm: false,
+        };
+        let link = |l: &LinkRef| {
+            world
+                .links
+                .iter()
+                .position(|x| x.name == l.name && x.to_zone == l.to)
+                .ok_or("unknown crossing")
         };
         Ok(match *self {
             Self::Accept { quest: id } => stop(quest(id)?, Kind::Accept),
@@ -149,7 +216,27 @@ impl RouteStep {
                     .ok_or("unknown dungeon")?;
                 stop(i as u32, Kind::Dungeon)
             }
+            Self::Link { ref first, ref last } => Edit::Link {
+                first: link(first)?,
+                last: link(last)?,
+            },
+            Self::Teleport { ref spell } => Edit::Teleport {
+                to: model
+                    .teleports
+                    .iter()
+                    .position(|t| t.name == *spell)
+                    .ok_or("teleport not learned")?,
+            },
+            Self::Train { trainer } => Edit::Train {
+                trainer: model
+                    .trainers
+                    .iter()
+                    .position(|t| t.id == trainer)
+                    .ok_or("unknown trainer")?,
+            },
+            Self::Abandon { quest: id } => Edit::Abandon { quest: quest(id)? },
             Self::Grind { mobs } => Edit::Grind { mobs },
+            Self::GrindTo { level } => Edit::GrindTo { level },
         })
     }
 }
@@ -193,11 +280,9 @@ pub struct StepReport {
     pub end: f64,
     pub level: i64,
     pub xp: i64,
-    /// Lines of the guide it writes (the trip, training, a flight path learned...), and which is
-    /// its own.
-    pub lines: Vec<Line>,
+    /// The line of the guide it writes (none when skipped or not possible).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub main: Option<usize>,
+    pub line: Option<Line>,
     /// Mobs farmed on the way to it, and for an objective without `farm`, what killing every mob
     /// on the way would give.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -220,11 +305,13 @@ pub struct Line {
     pub map: Option<MapPointOut>,
 }
 
-/// What can be added to a guide: the character's quests, inns, flight paths and dungeons.
+/// What can be added to a guide: the character's quests, inns, class trainers, flight paths and
+/// dungeons.
 #[derive(Debug, Clone, Serialize)]
 pub struct EditCatalog {
     pub quests: Vec<CatalogQuest>,
     pub inns: Vec<CatalogPlace>,
+    pub trainers: Vec<CatalogPlace>,
     pub nodes: Vec<CatalogPlace>,
     pub dungeons: Vec<CatalogDungeon>,
     /// The character learns Astral Recall (a second hearthstone).
@@ -273,70 +360,37 @@ impl Editor {
         Ok(Self { prepared })
     }
 
-    /// The planner of the edited guides: its trips take no flight by themselves, the flights
-    /// are steps of their own (`with_flights`).
+    /// The planner of the edited guides: it does only what the steps say (`Planner::explicit`).
     fn planner(&self) -> Planner<'_> {
         let p = &self.prepared;
-        Planner::new(&p.model, &p.world, &p.params, &p.profile).with_explicit_flights()
+        Planner::new(&p.model, &p.world, &p.params, &p.profile).explicit()
     }
 
     /// The route of a computed guide as steps to edit, and whether it was rebuilt from the
     /// guide's steps (a guide computed before the editor: its time may differ a little).
     pub fn steps(&self, outcome: &PlanOutcome) -> (Vec<RouteStep>, bool) {
+        if outcome.explicit {
+            return (outcome.plan.clone(), false);
+        }
         let (steps, rebuilt) = if outcome.plan.is_empty() {
             (self.read_guide(&outcome.route), true)
         } else {
             (outcome.plan.clone(), false)
         };
-        (self.with_flights(steps), rebuilt)
+        (self.expand(&steps), rebuilt)
     }
 
-    /// `steps` with a flight step before each step its trip flew to (as the optimizer's trips
-    /// take flights by themselves): each flight can then be moved or removed.
-    fn with_flights(&self, steps: Vec<RouteStep>) -> Vec<RouteStep> {
+    /// Steps of a guide saved before each thing done was a step (the route's stops, and its
+    /// flights): replayed as the optimizer does, each thing its simulation did becomes a step.
+    fn expand(&self, steps: &[RouteStep]) -> Vec<RouteStep> {
         let p = &self.prepared;
         let planner = Planner::new(&p.model, &p.world, &p.params, &p.profile);
-        let resolved: Vec<Option<Edit>> = steps.iter().map(|s| s.resolve(&planner).ok()).collect();
-        let edits: Vec<Edit> = resolved.iter().flatten().copied().collect();
-        let edited = planner.edit(&edits);
-        let node = |n: usize| self.prepared.world.taxi_nodes[n].id;
-        // The flight of each step's trip: the last one before its own action with no training
-        // between them (a flight to the trainer stays in the training, a trip of its own); none
-        // after a class teleport (it stays in the trip).
-        let mut flights = edited.steps.iter().zip(&edits).map(|(step, edit)| {
-            let events = &edited.trace[step.events.clone()];
-            let Edit::Stop { stop, .. } = edit else {
-                return None;
-            };
-            let own = events
-                .iter()
-                .position(|t| matches!(&t.event, Event::Stop { stop: done, .. } if done == stop))?;
-            let before = &events[..own];
-            let fly = before.iter().rposition(|t| matches!(t.event, Event::Fly { .. }))?;
-            let after = &before[fly..];
-            if after.iter().any(|t| matches!(t.event, Event::Train { .. }))
-                || before.iter().any(|t| matches!(t.event, Event::Teleport { .. }))
-            {
-                return None;
-            }
-            match before[fly].event {
-                Event::Fly { from, to } => Some(RouteStep::Fly {
-                    from: node(from),
-                    to: node(to),
-                }),
-                _ => None,
-            }
-        });
-        let mut out = Vec::with_capacity(steps.len());
-        for (step, resolved) in steps.into_iter().zip(&resolved) {
-            if resolved.is_some()
-                && let Some(Some(fly)) = flights.next()
-            {
-                out.push(fly);
-            }
-            out.push(step);
-        }
-        out
+        let edits: Vec<Edit> = steps.iter().filter_map(|s| s.resolve(&planner).ok()).collect();
+        planner
+            .expand(&edits)
+            .into_iter()
+            .map(|edit| RouteStep::of(edit, &planner))
+            .collect()
     }
 
     /// The route's steps read back from a guide's: quest stops (an objective where it is
@@ -406,7 +460,7 @@ impl Editor {
         let edits: Vec<Edit> = resolved.iter().filter_map(|r| r.ok()).collect();
         let edited = planner.edit(&edits);
         let lines = export::event_steps(&planner, &edited.route, &edited.trace, names);
-        let mut done = edited.steps.iter().zip(&edits);
+        let mut done = edited.steps.iter();
         let mut time = 0.0;
         let reports = resolved
             .iter()
@@ -419,29 +473,20 @@ impl Editor {
                         end: time,
                         level: 0,
                         xp: 0,
-                        lines: Vec::new(),
-                        main: None,
+                        line: None,
                         farm: None,
                         farm_all: None,
                     };
                 }
-                let (step, edit) = done.next().expect("a replayed step per resolved one");
+                let step = done.next().expect("a replayed step per resolved one");
                 time = step.end;
-                let mut main = None;
-                let mut own = Vec::new();
-                for n in step.events.clone() {
-                    let Some(line) = &lines[n] else { continue };
-                    if main.is_none() && is_own(*edit, &edited.trace[n].event) {
-                        main = Some(own.len());
-                    }
-                    own.push(Line {
-                        kind: line.kind,
-                        text: line.text.clone(),
-                        zone: line.zone.clone(),
-                        bg: line.bg,
-                        map: line.map.clone(),
-                    });
-                }
+                let line = step.event.and_then(|n| lines[n].as_ref()).map(|line| Line {
+                    kind: line.kind,
+                    text: line.text.clone(),
+                    zone: line.zone.clone(),
+                    bg: line.bg,
+                    map: line.map.clone(),
+                });
                 let (status, reason) = match step.outcome {
                     Outcome::Done => ("done", None),
                     Outcome::Skipped(why) => ("skipped", Some(why)),
@@ -454,8 +499,7 @@ impl Editor {
                     end: step.end,
                     level: step.level,
                     xp: step.xp,
-                    lines: own,
-                    main,
+                    line,
                     farm: step.farm,
                     farm_all: step.farm_all,
                 }
@@ -501,15 +545,16 @@ impl Editor {
             .steps
             .iter()
             .zip(&edits)
-            .map(|(step, edit)| match edit {
-                Edit::Stop { stop, .. } if matches!(stop.kind, Kind::Objective(_)) => {
-                    edited.trace[step.events.clone()].iter().find_map(|t| match &t.event {
-                        Event::Stop { stop: done, loc } if done == stop => Some(loc.pos),
-                        _ => None,
-                    })
-                }
-                _ => None,
-            })
+            .map(
+                |(step, edit)| match (edit, step.event.map(|n| &edited.trace[n].event)) {
+                    (Edit::Stop { stop, .. }, Some(Event::Stop { loc, .. }))
+                        if matches!(stop.kind, Kind::Objective(_)) =>
+                    {
+                        Some(loc.pos)
+                    }
+                    _ => None,
+                },
+            )
             .collect();
         let items: Vec<(RouteStep, Edit)> = steps.iter().cloned().zip(edits).collect();
         let together = planner.bring_together(
@@ -541,6 +586,7 @@ impl Editor {
             notes,
             walks: Some(self.prepared.world.terrain.memory()),
             plan: steps,
+            explicit: true,
         })
     }
 
@@ -561,6 +607,16 @@ impl Editor {
             })
             .collect();
         inns.sort_by(|a, b| a.zone.cmp(&b.zone).then_with(|| a.name.cmp(&b.name)));
+        let mut trainers: Vec<CatalogPlace> = model
+            .trainers
+            .iter()
+            .map(|l| CatalogPlace {
+                id: l.id,
+                name: names.get("npc", l.id, &l.name).to_owned(),
+                zone: zone(l.zone),
+            })
+            .collect();
+        trainers.sort_by(|a, b| a.zone.cmp(&b.zone).then_with(|| a.name.cmp(&b.name)));
         let mut nodes: Vec<CatalogPlace> = world
             .taxi_nodes
             .iter()
@@ -598,6 +654,7 @@ impl Editor {
         EditCatalog {
             quests,
             inns,
+            trainers,
             nodes,
             dungeons: model
                 .dungeons
@@ -611,16 +668,5 @@ impl Editor {
                 .collect(),
             recall: model.recall.is_some(),
         }
-    }
-}
-
-/// Whether an event is the step's own (not the trip to it nor what is done while there).
-fn is_own(edit: Edit, event: &Event) -> bool {
-    match (edit, event) {
-        (Edit::Stop { stop, .. }, Event::Stop { stop: done, .. }) => *done == stop,
-        (Edit::Stop { stop, .. }, Event::Hearth { .. }) => stop.kind == Kind::Hearth,
-        (Edit::Fly { from, to }, Event::Fly { from: a, to: b }) => (from, to) == (*a, *b),
-        (Edit::Grind { .. }, Event::GrindMobs { .. }) => true,
-        _ => false,
     }
 }

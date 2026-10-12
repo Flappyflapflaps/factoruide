@@ -3,7 +3,7 @@ import { api, fmtTime, type EditCatalog, type EditOpened, type EditReport, type 
 import { gameLocale, useLang, useT } from "../i18n";
 import { NumberInput } from "./NumberInput";
 import { Delta } from "./ResultView";
-import { keepTableInView, keepZoneInView, segments, steps as steps_, useFollowScroll, type Segment } from "./RouteView";
+import { keepTableInView, keepZoneInView, segments, steps as steps_, useFollowPointer, type Segment } from "./RouteView";
 import { useWidth } from "./useWidth";
 import { ZoneMap, type NumberedStep } from "./ZoneMap";
 
@@ -45,6 +45,14 @@ const REASONS: Record<string, string> = {
   "flight path not known": "point de vol de départ pas encore connu",
   "destination not known": "point de vol d'arrivée pas encore connu",
   "no flight between them": "aucun vol entre ces points",
+  "no such crossing": "aucune traversée entre ces deux transports",
+  "unknown crossing": "transport inconnu",
+  "teleport not learned": "téléportation pas encore apprise",
+  "unknown trainer": "entraîneur inconnu",
+  "nothing to learn": "rien de nouveau à apprendre",
+  "level reached": "niveau déjà atteint",
+  "quest not in the log": "quête pas dans le journal",
+  "quest time limit passed": "temps limite de la quête dépassé",
 };
 
 /** Step type of the guide (its color, see .kind-*) and label of each step kind. */
@@ -57,10 +65,15 @@ const KINDS: Record<RouteStep["kind"], { css: string; label: string }> = {
   hearth: { css: "hearth", label: "Pierre de foyer" },
   fly: { css: "fly", label: "Vol" },
   dungeon: { css: "dungeon", label: "Donjon" },
+  link: { css: "link", label: "Transport" },
+  teleport: { css: "teleport", label: "Téléportation" },
+  train: { css: "train", label: "Entraîneur" },
+  abandon: { css: "abandon", label: "Abandonner" },
   grind: { css: "grind", label: "Farmer" },
+  grind_to: { css: "grind", label: "Farmer" },
 };
 
-type AddKind = "accept" | "objective" | "turn_in" | "bind" | "hearth" | "fly" | "flight_master" | "grind" | "dungeon";
+type AddKind = "accept" | "objective" | "turn_in" | "bind" | "hearth" | "fly" | "flight_master" | "train" | "abandon" | "grind" | "dungeon";
 
 const ADD_KINDS: { kind: AddKind; label: string }[] = [
   { kind: "accept", label: "Prendre une quête" },
@@ -70,6 +83,8 @@ const ADD_KINDS: { kind: AddKind; label: string }[] = [
   { kind: "hearth", label: "Pierre de foyer" },
   { kind: "fly", label: "Prendre un vol" },
   { kind: "flight_master", label: "Apprendre un point de vol" },
+  { kind: "train", label: "S'entraîner" },
+  { kind: "abandon", label: "Abandonner une quête" },
   { kind: "grind", label: "Farmer" },
   { kind: "dungeon", label: "Donjon" },
 ];
@@ -210,13 +225,13 @@ export function GuideEditor({ version, onClose, onSaved }: Props) {
   const changed = history.length > 0 && !(steps.length === opened?.steps.length && steps.every((s, i) => sameStep(s, opened.steps[i])));
   const catalog = opened?.catalog;
   const names = useNames(catalog);
-  // Consecutive steps in the same zone (where each step's own line, else its last one, is).
+  // Consecutive steps in the same zone (where each step's line is).
   const segs = useMemo(() => {
     let last = { time: 0, level: version.outcome.route.from_level };
     return segments(
       items.map((x) => {
         const r = reports.get(x.key);
-        const line = r && (r.main != null ? r.lines[r.main] : r.lines[r.lines.length - 1]);
+        const line = r?.line;
         if (r && r.status !== "error") last = { time: r.end, level: r.level };
         const dungeon = x.step.kind === "dungeon" ? names.dungeons.get(x.step.dungeon)?.name : undefined;
         return { kind: x.step.kind, zone: line?.zone, target: dungeon ? { name: dungeon } : undefined, ...last };
@@ -230,8 +245,8 @@ export function GuideEditor({ version, onClose, onSaved }: Props) {
     });
     return out;
   }, [segs]);
-  // Beside the table, the map follows the scroll: the zone of the first opened step in view.
-  useFollowScroll(table, wide, "tr.edit-row", setFocus, [open, filter, items]);
+  // Beside the table, the map shows the zone under the pointer, else the first opened one in view.
+  useFollowPointer(table, wide, "tr.edit-row", setFocus, [open, filter, items]);
 
   if (error && !opened) {
     return (
@@ -250,8 +265,7 @@ export function GuideEditor({ version, onClose, onSaved }: Props) {
   const matches = (x: Item) => {
     if (!q) return true;
     const r = reports.get(x.key);
-    const main = r?.main != null ? r.lines[r.main].text : label(x.step);
-    return main.toLowerCase().includes(q) || (r?.lines.some((l) => (l.zone ?? "").toLowerCase().includes(q)) ?? false);
+    return (r?.line?.text ?? label(x.step)).toLowerCase().includes(q) || (r?.line?.zone ?? "").toLowerCase().includes(q);
   };
   const isOpen = (s: Segment) => !!q || items.slice(s.first, s.last + 1).some((x) => open.has(x.key));
   const toggle = (k: number) => {
@@ -307,12 +321,13 @@ export function GuideEditor({ version, onClose, onSaved }: Props) {
       </td>
     </tr>
   );
-  // The focused segment's steps on its zone map: every line of each step that has a place.
+  // The focused segment's steps that have a place, on its zone map.
   const focused = focus != null ? segs[focus] : null;
   const mapSteps: NumberedStep[] = focused
     ? items.slice(focused.first, focused.last + 1).flatMap((x, k) => {
         const r = reports.get(x.key);
-        return (r?.lines ?? []).filter((l) => l.map).map((l) => ({ kind: l.kind, text: l.text, map: l.map, level: r!.level, time: r!.end, n: focused.first + k + 1 }));
+        const l = r?.line;
+        return r && l?.map ? [{ kind: l.kind, text: l.text, map: l.map, level: r.level, time: r.end, n: focused.first + k + 1 }] : [];
       })
     : [];
 
@@ -445,6 +460,7 @@ export function GuideEditor({ version, onClose, onSaved }: Props) {
               return (
                 <Fragment key={items[s.first].key}>
                   <tr
+                    data-seg={k}
                     className={`clickable zone-line${focus === k ? " selected" : ""}${drag && drag.over === -(k + 1) ? " drag-below" : ""}`}
                     onClick={(e) => {
                       if (q) return;
@@ -576,14 +592,12 @@ interface RowProps {
   onReplace: (step: RouteStep) => void;
 }
 
-/** A step of the draft: its line in the guide, what it does on the way, and how to change it.
- * Every line has its type in one column and its text in the next, so that they align. */
+/** A step of the draft: its line in the guide, the mobs killed on the way, and how to change it. */
 function EditRow(p: RowProps) {
   const t = useT();
   const { step, report: r, index: i } = p;
   const kind = KINDS[step.kind];
-  const main = r?.main != null ? r.lines[r.main] : null;
-  const others = r ? r.lines.filter((_, k) => k !== r.main) : [];
+  const main = r?.line;
   const status = r?.status;
   const reason = r?.reason ? t(REASONS[r.reason] ?? r.reason) : null;
   const classes = ["edit-row", status === "error" && "invalid", status === "skipped" && "skipped", p.moving === i && "moving", p.dragOver && `drag-${p.dragOver}`, p.active && "active"];
@@ -632,15 +646,6 @@ function EditRow(p: RowProps) {
           </span>
         </div>
         {reason && <div className={`edit-note ${status === "error" ? "step-error" : "step-skipped"}`}>{status === "error" ? t("Impossible : {reason}", { reason }) : t("Rien à faire : {reason}", { reason })}</div>}
-        {others.map((l, k) => (
-          <div key={k} className="edit-line sub">
-            <span className={`kind kind-${l.kind}`}>{t(LINE_KINDS[l.kind] ?? l.kind)}</span>
-            <span>
-              {l.text}
-              {l.bg && <span className="along"> {t("en chemin")}</span>}
-            </span>
-          </div>
-        ))}
         {r?.farm && step.kind !== "objective" && (
           <div className="edit-note">
             <FarmText farm={r.farm} />
@@ -659,6 +664,12 @@ function EditRow(p: RowProps) {
           <label className="edit-note farm-toggle">
             {t("Mobs à tuer")}
             <NumberInput value={step.mobs} min={1} max={2000} onChange={(mobs) => mobs >= 1 && p.onReplace({ kind: "grind", mobs: Math.round(mobs) })} aria-label={t("Mobs à tuer")} />
+          </label>
+        )}
+        {step.kind === "grind_to" && (
+          <label className="edit-note farm-toggle">
+            {t("Niveau à atteindre")}
+            <NumberInput value={step.level} min={2} max={70} onChange={(level) => level >= 2 && p.onReplace({ kind: "grind_to", level: Math.round(level) })} aria-label={t("Niveau à atteindre")} />
           </label>
         )}
       </td>
@@ -691,23 +702,6 @@ function EditRow(p: RowProps) {
   );
 }
 
-/** Labels of the guide's step types, for the lines a step writes. */
-const LINE_KINDS: Record<string, string> = {
-  accept: "Prendre",
-  objective: "Faire",
-  turnin: "Rendre",
-  fly: "Vol",
-  flight_master: "Point de vol",
-  link: "Transport",
-  grind: "Farmer",
-  train: "Entraîneur",
-  hearth: "Pierre de foyer",
-  teleport: "Téléportation",
-  bind: "Auberge",
-  dungeon: "Donjon",
-  abandon: "Abandonner",
-};
-
 /** Mobs killed on the way: count, XP and time (`estimate`: what checking the box would give). */
 function FarmText({ farm, estimate }: { farm: Farmed; estimate?: boolean }) {
   const t = useT();
@@ -721,6 +715,7 @@ function useNames(catalog: EditCatalog | undefined) {
     const quests = new Map(catalog?.quests.map((q) => [q.id, q]));
     const nodes = new Map(catalog?.nodes.map((n) => [n.id, n]));
     const inns = new Map(catalog?.inns.map((n) => [n.id, n]));
+    const trainers = new Map(catalog?.trainers.map((n) => [n.id, n]));
     const dungeons = new Map(catalog?.dungeons.map((d) => [d.id, d]));
     const quest = (id: number) => quests.get(id)?.name ?? `#${id}`;
     const node = (id: number) => nodes.get(id)?.name ?? `#${id}`;
@@ -744,8 +739,20 @@ function useNames(catalog: EditCatalog | undefined) {
           return t("Vol {from} → {to}", { from: node(s.from), to: node(s.to) });
         case "dungeon":
           return dungeons.get(s.dungeon)?.name ?? `#${s.dungeon}`;
+        case "link":
+          return s.first.name === s.last.name && s.first.to === s.last.to ? s.first.name : t("{first}, puis {last}", { first: s.first.name, last: s.last.name });
+        case "teleport":
+          return s.spell;
+        case "train": {
+          const trainer = trainers.get(s.trainer);
+          return t("S'entraîner auprès de {name} ({zone})", { name: trainer?.name ?? `#${s.trainer}`, zone: trainer?.zone ?? "?" });
+        }
+        case "abandon":
+          return t("Abandonner {quest}", { quest: quest(s.quest) });
         case "grind":
           return t("Tuer {n} mobs dans le coin", { n: s.mobs });
+        case "grind_to":
+          return t("Farmer jusqu'au niveau {level}", { level: s.level });
       }
     };
     return { label, quests, nodes, dungeons };
@@ -770,6 +777,7 @@ function AddPanel({ at, level, steps, catalog, names, onAdd, onClose }: AddProps
   const [search, setSearch] = useState("");
   const [farm, setFarm] = useState(false);
   const [mobs, setMobs] = useState(10);
+  const [toLevel, setToLevel] = useState(level + 1);
   const [from, setFrom] = useState<number>(catalog.nodes[0]?.id ?? 0);
   const [to, setTo] = useState<number>(catalog.nodes[1]?.id ?? 0);
   const q = search.trim().toLowerCase();
@@ -897,6 +905,32 @@ function AddPanel({ at, level, steps, catalog, names, onAdd, onClose }: AddProps
       );
       break;
     }
+    case "train": {
+      const list = catalog.trainers.filter((x) => match(x.name, x.zone));
+      body = (
+        <ul className="pick-list">
+          {list.map((x) => (
+            <li key={x.id}>
+              <button className="link" onClick={() => onAdd({ kind: "train", trainer: x.id })}>
+                {x.name}
+              </button>{" "}
+              <span className="muted">· {x.zone}</span>
+            </li>
+          ))}
+        </ul>
+      );
+      break;
+    }
+    case "abandon": {
+      const list = [...taken].filter((id) => !turned.has(id) && match(names.quests.get(id)?.name ?? "", id));
+      body =
+        list.length === 0 ? (
+          <p className="muted">{t("Aucune quête à abandonner : chaque quête prise par le guide est déjà rendue.")}</p>
+        ) : (
+          <ul className="pick-list">{list.slice(0, LIST_MAX).map((id) => questRow(id, null, () => onAdd({ kind: "abandon", quest: id })))}</ul>
+        );
+      break;
+    }
     case "grind":
       body = (
         <div className="fly-pick">
@@ -905,6 +939,11 @@ function AddPanel({ at, level, steps, catalog, names, onAdd, onClose }: AddProps
             <NumberInput value={mobs} min={1} max={2000} onChange={(n) => setMobs(Math.max(1, Math.round(n)))} aria-label={t("Mobs à tuer")} />
           </label>
           <button onClick={() => onAdd({ kind: "grind", mobs })}>{t("Ajouter")}</button>
+          <label>
+            {t("Niveau à atteindre")}
+            <NumberInput value={toLevel} min={2} max={70} onChange={(n) => setToLevel(Math.max(2, Math.round(n)))} aria-label={t("Niveau à atteindre")} />
+          </label>
+          <button onClick={() => onAdd({ kind: "grind_to", level: toLevel })}>{t("Ajouter")}</button>
           <p className="muted">{t("Des mobs du niveau du personnage, là où il se trouve : l'XP gagnée s'affiche sur l'étape.")}</p>
         </div>
       );

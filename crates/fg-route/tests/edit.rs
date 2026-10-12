@@ -88,28 +88,11 @@ fn unedited_guide_keeps_its_time() {
     assert_eq!(report.total_time, guide().route.total_time);
 }
 
-/// Each step of a guide does its own quest action and no other (no quest taken or turned in at
-/// another one's NPC, no objective finished on the way or with another): each one can be moved
-/// or removed apart.
+/// Each step of a guide does one thing, its own: training, a trip's flights and boats, flight
+/// paths learned in passing are steps of their own, so that each one can be moved or removed.
+/// Replayed unchanged, the guide keeps its time.
 #[test]
-fn each_step_does_only_its_own_action() {
-    use fg_route::export::StepKind;
-    let (editor, names) = editor();
-    let report = editor.simulate(&guide().plan, &names);
-    for (k, step) in report.steps.iter().enumerate() {
-        let actions = step
-            .lines
-            .iter()
-            .filter(|l| matches!(l.kind, StepKind::Accept | StepKind::Objective | StepKind::TurnIn))
-            .count();
-        assert!(actions <= 1, "step {k} does {actions} quest actions: {:?}", step.lines);
-    }
-}
-
-/// The flights a guide's trips took become steps of their own when it is edited: replayed
-/// unchanged it keeps its time, and no step flies on top of doing something else.
-#[test]
-fn flights_are_steps_of_their_own() {
+fn every_thing_done_is_a_step_of_its_own() {
     use fg_route::export::StepKind;
     let conn = database();
     let interrupt = job::Interrupt::default();
@@ -119,8 +102,12 @@ fn flights_are_steps_of_their_own() {
     let editor = Editor::open(&conn, &overrides(), &request, None).unwrap();
     let names = Names::load(&conn, "enUS").unwrap();
     let (steps, _) = editor.steps(&guide);
-    let flights = steps.iter().filter(|s| matches!(s, RouteStep::Fly { .. })).count();
-    assert!(flights > 0, "a guide to 25 flies");
+    let count = |pick: fn(&RouteStep) -> bool| steps.iter().filter(|s| pick(s)).count();
+    assert!(count(|s| matches!(s, RouteStep::Fly { .. })) > 0, "a guide to 25 flies");
+    assert!(
+        count(|s| matches!(s, RouteStep::Train { .. })) > 0,
+        "a guide to 25 trains"
+    );
     let report = editor.simulate(&steps, &names);
     assert_eq!(report.errors, 0);
     assert!(
@@ -129,21 +116,52 @@ fn flights_are_steps_of_their_own() {
         report.total_time,
         guide.route.total_time
     );
-    for (k, step) in report.steps.iter().enumerate() {
-        let kinds: Vec<StepKind> = step.lines.iter().map(|l| l.kind).collect();
-        let actions = kinds
-            .iter()
-            .filter(|k| matches!(k, StepKind::Accept | StepKind::Objective | StepKind::TurnIn))
-            .count();
-        // A flight within a step is the trip to the class trainer (training is not a step).
-        let fly_to_train = kinds
-            .iter()
-            .enumerate()
-            .filter(|(_, k)| **k == StepKind::Fly)
-            .all(|(i, _)| kinds[i..].contains(&StepKind::Train));
-        let alone = kinds == [StepKind::Fly];
-        assert!(actions <= 1 && (alone || fly_to_train), "step {k}: {kinds:?}");
+    for (k, (step, r)) in steps.iter().zip(&report.steps).enumerate() {
+        let Some(line) = &r.line else {
+            panic!("step {k} ({step:?}) did nothing: {r:?}");
+        };
+        let kind = match step {
+            RouteStep::Accept { .. } => StepKind::Accept,
+            RouteStep::Objective { .. } => StepKind::Objective,
+            RouteStep::TurnIn { .. } => StepKind::TurnIn,
+            RouteStep::FlightMaster { .. } => StepKind::FlightMaster,
+            RouteStep::Bind { .. } => StepKind::Bind,
+            RouteStep::Hearth { .. } => StepKind::Hearth,
+            RouteStep::Fly { .. } => StepKind::Fly,
+            RouteStep::Link { .. } => StepKind::Link,
+            RouteStep::Teleport { .. } => StepKind::Teleport,
+            RouteStep::Train { .. } => StepKind::Train,
+            RouteStep::Dungeon { .. } => StepKind::Dungeon,
+            RouteStep::Abandon { .. } => StepKind::Abandon,
+            RouteStep::Grind { .. } | RouteStep::GrindTo { .. } => StepKind::Grind,
+        };
+        assert_eq!(line.kind, kind, "step {k}: {step:?}");
     }
+}
+
+/// A guide saved before each thing done was a step (its plan only has the route's stops) opens
+/// with its training as steps of their own, every step possible.
+#[test]
+fn older_guide_opens_with_its_training_as_steps() {
+    let (editor, names) = editor();
+    let mut older = guide().clone();
+    older.plan.retain(|s| {
+        matches!(
+            s,
+            RouteStep::Accept { .. }
+                | RouteStep::Objective { .. }
+                | RouteStep::TurnIn { .. }
+                | RouteStep::Bind { .. }
+                | RouteStep::Hearth { .. }
+                | RouteStep::Dungeon { .. }
+        )
+    });
+    older.explicit = false;
+    let (steps, rebuilt) = editor.steps(&older);
+    assert!(!rebuilt);
+    assert!(steps.iter().any(|s| matches!(s, RouteStep::Train { .. })), "{steps:?}");
+    let report = editor.simulate(&steps, &names);
+    assert_eq!(report.errors, 0);
 }
 
 /// A turn-in moved before its quest is taken is not possible: reported there, and the guide
@@ -190,8 +208,14 @@ fn removed_turn_in_leaves_the_quest_unfinished() {
         "{:?}",
         report.unfinished
     );
+    // The same steps, objectives at one place possibly brought together.
+    let sorted = |steps: &[RouteStep]| {
+        let mut v: Vec<String> = steps.iter().map(|s| format!("{s:?}")).collect();
+        v.sort();
+        v
+    };
     let saved = editor.save(&steps, vec![]).unwrap();
-    assert_eq!(saved.plan, steps);
+    assert_eq!(sorted(&saved.plan), sorted(&steps));
 }
 
 /// Mobs killed where the character stands give their XP and take their time, and the guide
@@ -205,7 +229,7 @@ fn grind_step_kills_its_mobs() {
     let grind = &report.steps[1];
     assert_eq!(grind.status, "done");
     assert!(grind.xp > 0 && grind.end > grind.start, "{grind:?}");
-    assert!(grind.lines[grind.main.unwrap()].text.starts_with("Kill 10 mobs"));
+    assert!(grind.line.as_ref().unwrap().text.starts_with("Kill 10 mobs"));
     let saved = editor.save(&steps, vec![]).unwrap();
     assert!(saved.route.steps.iter().any(|s| s.text.starts_with("Kill 10 mobs")));
 }

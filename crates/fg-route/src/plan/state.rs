@@ -20,6 +20,17 @@ pub enum Kind {
     Dungeon,
 }
 
+/// How the last step of an edited guide left the character (see `State::landed`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum Landed {
+    #[default]
+    No,
+    /// Off a flight: the walk on counts as flying.
+    Flight,
+    /// Off a boat or a teleport: the walk on counts as travel.
+    Transport,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Stop {
     /// Quest index for quest stops, taxi node or inn index for visits.
@@ -207,10 +218,10 @@ pub(crate) struct State {
     /// with several places is done at the one on the way to it (`Planner::spot`). Set before
     /// each stop, not part of what the state carries on.
     pub(crate) next: Option<Pos>,
-    /// Just off a flight step of an edited guide (`Edit::Fly`): the walk to the next stop ends
-    /// the flight's trip, as when a trip takes a flight by itself (counted as flying, no mob
-    /// farmed, the zone changed on arriving).
-    pub(crate) landed: bool,
+    /// Just off a flight, boat or teleport step of an edited guide (`Edit::Fly`, `Edit::Link`,
+    /// `Edit::Teleport`): the walk to the next stop ends that trip, as when a trip takes it by
+    /// itself (no mob farmed, the zone changed on arriving).
+    pub(crate) landed: Landed,
     /// Quests the route accepts (bit 1) and turns in (bit 2): taken and turned in on the spot
     /// when their NPC is at hand.
     pub(crate) planned: Rc<Planned>,

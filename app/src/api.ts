@@ -434,8 +434,22 @@ export type RouteStep =
   | { kind: "hearth"; recall?: boolean }
   | { kind: "fly"; from: number; to: number }
   | { kind: "dungeon"; dungeon: number }
-  /** Kill mobs of the character's level where it stands. */
-  | { kind: "grind"; mobs: number };
+  /** Boats, zeppelins or trams: board `first`, leave `last` (the same when direct). */
+  | { kind: "link"; first: LinkRef; last: LinkRef }
+  /** Cast a class teleport (its spell name). */
+  | { kind: "teleport"; spell: string }
+  /** Learn the class spells at a trainer (NPC ID). */
+  | { kind: "train"; trainer: number }
+  | { kind: "abandon"; quest: number }
+  /** Kill mobs of the character's level where it stands: a number, or up to a level. */
+  | { kind: "grind"; mobs: number }
+  | { kind: "grind_to"; level: number };
+
+/** A transport link one way: its name and the zone it leads to. */
+export interface LinkRef {
+  name: string;
+  to: number;
+}
 
 /** Mobs killed on the way to a step. */
 export interface Farmed {
@@ -455,9 +469,8 @@ export interface StepReport {
   /** Level after it, and the XP it gave. */
   level: number;
   xp: number;
-  /** Lines of the guide it writes; `main`: its own. */
-  lines: { kind: string; text: string; zone?: string; bg?: boolean; map?: { ui_map: number; x: number; y: number } }[];
-  main?: number;
+  /** The line of the guide it writes (none when skipped or not possible). */
+  line?: { kind: string; text: string; zone?: string; bg?: boolean; map?: { ui_map: number; x: number; y: number } };
   farm?: Farmed;
   /** An objective without `farm`: what killing every mob on the way would give. */
   farm_all?: Farmed;
@@ -486,6 +499,7 @@ export interface CatalogPlace {
 export interface EditCatalog {
   quests: { id: number; name: string; level: number; min_level: number; zone: string; objectives: string[] }[];
   inns: CatalogPlace[];
+  trainers: CatalogPlace[];
   nodes: CatalogPlace[];
   dungeons: { id: number; name: string; min_level: number; max_level: number }[];
   /** The character learns Astral Recall. */

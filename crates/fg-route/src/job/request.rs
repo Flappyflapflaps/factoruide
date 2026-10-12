@@ -52,6 +52,10 @@ pub struct PlanOutcome {
     /// computed before the editor).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub plan: Vec<super::RouteStep>,
+    /// `plan` has a step for each thing done (training, a trip's flights and boats, quests given
+    /// up...); guides saved before only have the route's stops, which the editor completes.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub explicit: bool,
 }
 
 impl PlanOutcome {

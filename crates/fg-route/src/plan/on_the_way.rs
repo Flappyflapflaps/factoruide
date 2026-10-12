@@ -3,7 +3,7 @@
 //! there (quests turned in and taken around a stop).
 
 use super::Planner;
-use super::state::{Event, Kind, Leg, State, Stop};
+use super::state::{Event, Kind, Landed, Leg, State, Stop};
 use crate::model::Loc;
 use crate::world::Pos;
 use crate::xp;
@@ -40,9 +40,11 @@ impl Planner<'_> {
     /// Move to `target`, recording how.
     pub(crate) fn go(&self, s: &mut State, target: &Pos, zone: i64, record: &mut impl FnMut(&State, Event)) {
         let start = s.pos;
-        // Off a flight step: the end of its trip, on foot.
+        // Off a flight, boat or teleport step: the end of its trip, on foot.
         let landed = std::mem::take(&mut s.landed);
-        let (t, via) = if landed {
+        let (t, via) = if landed == Landed::No {
+            self.trips().fastest(s, target)
+        } else {
             (
                 self.trips().walk(&s.pos, target, s.level),
                 super::state::Via {
@@ -50,10 +52,8 @@ impl Planner<'_> {
                     leg: Leg::Walk,
                 },
             )
-        } else {
-            self.trips().fastest(s, target)
         };
-        let flying = landed || matches!(via.leg, Leg::Fly(..));
+        let flying = landed == Landed::Flight || matches!(via.leg, Leg::Fly(..));
         // Events are recorded when they happen (casting the hearthstone, boarding), so that
         // each step of the guide holds the time up to the next one.
         let spend = |s: &mut State, seconds: f64| {
@@ -95,7 +95,7 @@ impl Planner<'_> {
         }
         spend(s, left);
         // Areas discovered: around the arrival, and along a walk inside the zone.
-        let walking = matches!(via.leg, Leg::Walk) && via.teleport.is_none() && !landed;
+        let walking = matches!(via.leg, Leg::Walk) && via.teleport.is_none() && landed == Landed::No;
         let from = (walking && s.zone == zone).then_some(s.pos);
         self.explore(s, from, target, zone);
         if walking {
@@ -207,7 +207,7 @@ impl Planner<'_> {
     /// back later.
     pub(crate) fn while_here(&self, s: &mut State, record: &mut impl FnMut(&State, Event)) {
         let radius = self.params.camp_radius;
-        if radius <= 0.0 || s.planned.flags.is_empty() {
+        if radius <= 0.0 || s.planned.flags.is_empty() || self.explicit {
             return;
         }
         let here = s.pos;

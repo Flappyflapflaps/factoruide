@@ -67,8 +67,8 @@ pub(crate) struct Trips<'t> {
     pub(crate) model: &'t Model,
     pub(crate) flights: &'t FlightTables,
     pub(crate) legs: &'t Legs,
-    /// No flight taken by a trip itself (see `Planner::with_explicit_flights`).
-    pub(crate) explicit_flights: bool,
+    /// On foot only: flights, boats and teleports are steps of their own (`Planner::explicit`).
+    pub(crate) explicit: bool,
 }
 
 impl Trips<'_> {
@@ -102,7 +102,7 @@ impl Trips<'_> {
         let walk = self.walk(from, b, level);
         let mut best = (walk, Leg::Walk);
         let links = &self.world.links;
-        if !links.is_empty() && (from.continent != b.continent || walk > 240.0) {
+        if !self.explicit && !links.is_empty() && (from.continent != b.continent || walk > 240.0) {
             // The walks from each link to `b`, once (when a link is worth boarding).
             let mut to_b: Vec<f64> = Vec::new();
             for (i, li) in links.iter().enumerate() {
@@ -121,7 +121,7 @@ impl Trips<'_> {
                 }
             }
         }
-        if known.count_ones() < 2 || self.explicit_flights {
+        if known.count_ones() < 2 || self.explicit {
             return best;
         }
         let flights = self.flight_table(known);
@@ -179,6 +179,9 @@ impl Trips<'_> {
         let (t, leg) = self.leg(&s.pos, b, s.level, s.known);
         let mut best = (t, Via { teleport: None, leg });
         for (i, tp) in self.model.teleports.iter().enumerate() {
+            if self.explicit {
+                break;
+            }
             // Not before it is learned, nor when it cannot be faster: landing on another
             // continent, or farther than the trip as the crow flies at flight speed.
             if tp.level > s.trained

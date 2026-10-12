@@ -5,7 +5,7 @@ import { clearMapCache } from "./components/WorldMap";
 import { I18nProvider, LANGS, detectLang, useT, type Lang } from "./i18n";
 import { AddonPage } from "./pages/AddonPage";
 import { NewRoutePage, type WizardStart } from "./pages/NewRoutePage";
-import { GuidesPage } from "./pages/GuidesPage";
+import { GuidesPage, type OpenGuide } from "./pages/GuidesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ContributePage } from "./pages/ContributePage";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -53,6 +53,8 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
   const [wizard, setWizard] = useState<{ key: number; start: WizardStart }>({ key: 0, start: { initial: null, rerun: false } });
   // A generation is running: the wizard keeps it (and its progress) until it ends.
   const [busy, setBusy] = useState(false);
+  // The guide "Mes guides" opens on (a generation just saved it), until the user navigates away.
+  const [opened, setOpened] = useState<OpenGuide | null>(null);
   const [version, setVersion] = useState<string | null>(null);
   useEffect(() => {
     getVersion()
@@ -115,7 +117,11 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
           <button
             key={p.id}
             className={page === p.id ? "active" : ""}
-            onClick={() => (p.id === "plan" && page === "plan" ? openWizard({ initial: null, rerun: false }) : setPage(p.id))}
+            onClick={() => {
+              setOpened(null);
+              if (p.id === "plan" && page === "plan") openWizard({ initial: null, rerun: false });
+              else setPage(p.id);
+            }}
           >
             {t(p.label)}
             {p.id === "plan" && busy && <span className="spinner" role="status" aria-label={t("Génération en cours")} title={t("Génération en cours")} />}
@@ -128,7 +134,16 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
         {/* Always mounted (hidden on other pages) so that a running generation goes on showing. */}
         {options && (
           <div hidden={page !== "plan"}>
-            <NewRoutePage key={wizard.key} options={options} start={wizard.start} onBusy={setBusy} />
+            <NewRoutePage
+              key={wizard.key}
+              options={options}
+              start={wizard.start}
+              onBusy={setBusy}
+              onDone={(meta, notice) => {
+                setOpened({ guide: meta.guide, version: meta.version, notice });
+                setPage("results");
+              }}
+            />
           </div>
         )}
         {page === "plan" &&
@@ -142,8 +157,9 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
           ))}
         {page === "results" && (
           <GuidesPage
-            key={edition ?? ""}
+            key={`${edition ?? ""}-${opened?.guide ?? ""}-${opened?.version ?? ""}`}
             options={options}
+            start={opened}
             onRerun={(v: GuideVersion) => openWizard({ initial: v.request, rerun: true })}
             onEdit={(v: GuideVersion) => openWizard({ initial: v.request, rerun: false })}
           />

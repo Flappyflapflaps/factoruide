@@ -62,7 +62,7 @@ use crate::xp;
 use availability::{Availability, blocks, followers};
 use growth::Growth;
 use on_the_way::FarmWalks;
-use state::{Flags, Planned, State};
+use state::{Flags, Landed, Planned, State};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use step::{CampIndex, camp_index};
@@ -108,11 +108,11 @@ pub struct Planner<'a> {
     verify: bool,
     /// Tells the construction to give up (`abortable`).
     abort: Option<&'a dyn Fn() -> bool>,
-    /// Trips never take a flight by themselves: the flights are steps of the route (`Edit::Fly`,
-    /// the guide editor), so that each one can be moved or removed.
-    explicit_flights: bool,
-    /// A trip of the simulation's own (to the class trainer): it may fly even then.
-    side_trip: Cell<bool>,
+    /// Nothing is done that the route does not say (the guide editor): no flight, boat or
+    /// teleport taken by a trip, no training, flight path learned in passing, quest given up or
+    /// grinding by itself. Each of them is a step of the route (`Edit`), so that each step does
+    /// one thing and can be moved or removed apart.
+    explicit: bool,
 }
 
 impl<'a> Planner<'a> {
@@ -141,8 +141,7 @@ impl<'a> Planner<'a> {
             followers: followers(model),
             verify: std::env::var_os("FG_VERIFY").is_some(),
             abort: None,
-            explicit_flights: false,
-            side_trip: Cell::new(false),
+            explicit: false,
         }
     }
 
@@ -161,13 +160,10 @@ impl<'a> Planner<'a> {
         self.abort.is_some_and(|abort| abort())
     }
 
-    /// The same planner whose trips take no flight by themselves (`explicit_flights`).
+    /// The same planner doing only what the route says (`explicit`).
     #[must_use]
-    pub fn with_explicit_flights(self) -> Self {
-        Self {
-            explicit_flights: true,
-            ..self
-        }
+    pub fn explicit(self) -> Self {
+        Self { explicit: true, ..self }
     }
 
     /// The same planner checking each incremental evaluation of its search against a full
@@ -216,7 +212,7 @@ impl<'a> Planner<'a> {
             started: Vec::new(),
             together: state::Together::default(),
             next: None,
-            landed: false,
+            landed: Landed::No,
             planned: Rc::new(Planned::default()),
             at: 0,
             class_bonus: 0.0,
@@ -302,7 +298,7 @@ impl<'a> Planner<'a> {
             model: self.model,
             flights: &self.flights,
             legs: &self.legs,
-            explicit_flights: self.explicit_flights && !self.side_trip.get(),
+            explicit: self.explicit,
         }
     }
 

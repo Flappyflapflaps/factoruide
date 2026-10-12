@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type GuideVersion, type Options, type PlanRequest } from "../api";
+import { api, type Options, type PlanRequest, type VersionMeta } from "../api";
 import { ConfigForm } from "../components/ConfigForm";
 import { RACE_COLORS, type OptimizeState, type RaceSeries } from "../components/OptimizeProgress";
-import { ResultView } from "../components/ResultView";
 import { RunView } from "../components/RunView";
 import type { WorldPoint } from "../components/WorldMap";
 import { gameLocale, useLang, useT } from "../i18n";
@@ -14,16 +13,23 @@ export interface WizardStart {
   rerun: boolean;
 }
 
-type Step = "config" | "run" | "result";
+type Step = "config" | "run";
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "config", label: "Configuration" },
   { id: "run", label: "Génération" },
-  { id: "result", label: "Résultat" },
 ];
 
-/** New route in three steps: configure, watch the generation live, then the saved result. */
-export function NewRoutePage({ options, start, onBusy }: { options: Options; start: WizardStart; onBusy?: (busy: boolean) => void }) {
+interface Props {
+  options: Options;
+  start: WizardStart;
+  onBusy?: (busy: boolean) => void;
+  /** The guide is saved: show it (with a notice when the optimization was stopped early). */
+  onDone: (meta: VersionMeta, notice: string | null) => void;
+}
+
+/** New route in two steps: configure, then watch the generation live; the saved guide opens at the end. */
+export function NewRoutePage({ options, start, onBusy, onDone }: Props) {
   const t = useT();
   const lang = useLang();
   const [step, setStep] = useState<Step>("config");
@@ -34,7 +40,6 @@ export function NewRoutePage({ options, start, onBusy }: { options: Options; sta
   const [colors, setColors] = useState<Record<number, number>>({});
   const [route, setRoute] = useState<WorldPoint[]>([]);
   const [log, setLog] = useState<string[]>([]);
-  const [result, setResult] = useState<GuideVersion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -105,9 +110,11 @@ export function NewRoutePage({ options, start, onBusy }: { options: Options; sta
     setLog([]);
     try {
       const meta = await api.planRoute(request);
-      setResult(await api.getVersion(meta.guide, meta.version, gameLocale(lang)));
-      if (interrupted.current === "stop") setNotice(t("Optimisation arrêtée avant la fin : voici le meilleur guide trouvé jusque-là. « Relancer le calcul » le cherche jusqu'au bout."));
-      setStep("result");
+      setStep("config");
+      onDone(
+        meta,
+        interrupted.current === "stop" ? t("Optimisation arrêtée avant la fin : voici le meilleur guide trouvé jusque-là. « Relancer le calcul » le cherche jusqu'au bout.") : null,
+      );
     } catch (e) {
       // Cancelled: back to the configuration (the same one), nothing saved.
       if (String(e) === "cancelled") setNotice(t("Génération annulée : la configuration est conservée."));
@@ -144,11 +151,7 @@ export function NewRoutePage({ options, start, onBusy }: { options: Options; sta
               <span className="step-num" aria-hidden>
                 {done ? "✓" : i + 1}
               </span>
-              {s.id === "config" && step === "result" ? (
-                <button className="link" onClick={() => setStep("config")}>
-                  {t(s.label)}
-                </button>
-              ) : s.id === "config" && step === "run" ? (
+              {s.id === "config" && step === "run" ? (
                 <button className="link" onClick={cancel} disabled={interrupting === "cancel"} title={t("Abandonne la génération et revient à la configuration")}>
                   {t(s.label)}
                 </button>
@@ -179,19 +182,6 @@ export function NewRoutePage({ options, start, onBusy }: { options: Options; sta
         />
       )}
       {step === "run" && <RunView state={optimize} series={series} colors={colors} route={route} log={log} onStop={() => interrupt("stop")} onCancel={cancel} interrupting={interrupting} />}
-      {step === "result" && result && (
-        <ResultView
-          key={`${result.meta.guide}-${result.meta.version}`}
-          version={result}
-          options={options}
-          onOpenVersion={(n) => api.getVersion(result.meta.guide, n, gameLocale(lang)).then(setResult)}
-          onRerun={(v) => run(v.request)}
-          onEdit={(r) => {
-            setInitial(r.request);
-            setStep("config");
-          }}
-        />
-      )}
     </div>
   );
 }

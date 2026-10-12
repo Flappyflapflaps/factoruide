@@ -1879,8 +1879,8 @@ button.big {
 .editor-table.stale .edit-row td:not(.edit-actions) {
   opacity: 0.6;
 }
-/* A line of a step: its type in a column of its own, its text aligned after it; notes (why it
-   is not possible, mobs on the way) aligned with the texts. */
+/* The line of a step: its type in a column of its own, its text after it; notes (why it is not
+   possible, mobs on the way) aligned with the text. */
 .edit-line {
   display: grid;
   grid-template-columns: 6.6rem minmax(0, 1fr);
@@ -1892,11 +1892,6 @@ button.big {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.edit-line.sub {
-  margin-top: 3px;
-  font-size: 12px;
-  color: var(--text-secondary);
 }
 .edit-note {
   margin: 3px 0 0 calc(6.6rem + 6px);

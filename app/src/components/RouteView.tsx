@@ -266,8 +266,8 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
     onHighlight?.(s ? route.steps.slice(s.first, s.last + 1).flatMap((x) => (x.world ? [x.world as WorldPoint] : [])) : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, segs, route]);
-  // Beside the table, the map follows the scroll: the zone of the first opened step in view.
-  useFollowScroll(table, wide, "tr.sub-row", setFocus, [open, q]);
+  // Beside the table, the map shows the zone under the pointer, else the first opened one in view.
+  useFollowPointer(table, wide, "tr.sub-row", setFocus, [open, q]);
   const show = (i: number | null) => setFocus(i);
   const toggle = (i: number) => {
     const next = new Set(open);
@@ -361,6 +361,7 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
             {rows.map(({ s, i, shown }) => (
               <Fragment key={i}>
                 <tr
+                  data-seg={i}
                   className={`clickable zone-line${focus === i ? " selected" : ""}`}
                   onClick={(e) => {
                     if (q) return;
@@ -423,10 +424,11 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
 }
 
 /**
- * Beside a table of steps grouped in segments, the segment whose first opened row (`rows`, with
- * `data-seg`) is at the top of the view: `onFocus` follows the scroll (only when `active`).
+ * Beside a table of steps grouped in segments (rows with `data-seg`), the segment shown on the
+ * map: the one under the pointer, else (pointer outside the table) the one whose first opened row
+ * (`rows`) is at the top of the view. `onFocus` follows them only when `active`.
  */
-export function useFollowScroll(
+export function useFollowPointer(
   table: RefObject<HTMLTableElement | null>,
   active: boolean,
   rows: string,
@@ -438,8 +440,19 @@ export function useFollowScroll(
     if (!active || !el) return;
     const scroller = scrollParent(el);
     let frameId = 0;
+    // Last pointer position over the table, null once it left.
+    let pointer: { x: number; y: number } | null = null;
+    const segAt = (target: Element | null) => {
+      const seg = target?.closest<HTMLElement>("tr[data-seg]")?.dataset.seg;
+      return seg != null && el.contains(target) ? Number(seg) : null;
+    };
     const update = () => {
       frameId = 0;
+      if (pointer) {
+        // Scrolling under a still pointer: the row now beneath it.
+        const seg = segAt(document.elementFromPoint(pointer.x, pointer.y));
+        if (seg != null) return onFocus(seg);
+      }
       const lines = el.querySelectorAll<HTMLTableRowElement>(rows);
       if (!lines.length) return;
       const top = (scroller?.getBoundingClientRect().top ?? 0) + 40;
@@ -456,10 +469,27 @@ export function useFollowScroll(
     const onScroll = () => {
       if (!frameId) frameId = requestAnimationFrame(update);
     };
+    const onOver = (e: PointerEvent) => {
+      pointer = { x: e.clientX, y: e.clientY };
+      const seg = segAt(e.target as Element);
+      if (seg != null) onFocus(seg);
+    };
+    const onMove = (e: PointerEvent) => {
+      pointer = { x: e.clientX, y: e.clientY };
+    };
+    const onLeave = () => {
+      pointer = null;
+    };
     update();
     scroller?.addEventListener("scroll", onScroll, { passive: true });
+    el.addEventListener("pointerover", onOver);
+    el.addEventListener("pointermove", onMove, { passive: true });
+    el.addEventListener("pointerleave", onLeave);
     return () => {
       scroller?.removeEventListener("scroll", onScroll);
+      el.removeEventListener("pointerover", onOver);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", onLeave);
       cancelAnimationFrame(frameId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -2,11 +2,11 @@
 //! and skipped), what each one did, and the time of the whole, as the optimizer counts it.
 
 use super::Planner;
-use super::state::{Breakdown, Event, Kind, State, Stop, Timed};
+use super::state::{Breakdown, Event, Kind, Landed, State, Stop, Timed};
 use super::step::recorder;
 use std::ops::Range;
 
-/// A step of a route edited by hand.
+/// A step of a route edited by hand: one thing done (`Planner::explicit` does nothing else).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Edit {
     /// A stop of the route; `farm`: kill every normal mob met on the way to it, beyond
@@ -14,8 +14,18 @@ pub enum Edit {
     Stop { stop: Stop, farm: bool },
     /// Fly from a flight path to another (taxi node indexes), both known.
     Fly { from: usize, to: usize },
+    /// Boats, zeppelins or trams: board link `first`, leave link `last` (`World::links`).
+    Link { first: usize, last: usize },
+    /// Cast a class teleport (`Model::teleports`).
+    Teleport { to: usize },
+    /// Learn the class spells at a trainer (`Model::trainers`).
+    Train { trainer: usize },
+    /// Give up a quest of the log.
+    Abandon { quest: u32 },
     /// Kill this many mobs of the character's level where it stands.
     Grind { mobs: u32 },
+    /// Kill mobs of the character's level where it stands up to this level.
+    GrindTo { level: i64 },
 }
 
 /// What a step of an edited route did.
@@ -41,8 +51,11 @@ pub struct Farmed {
 #[derive(Debug, Clone)]
 pub struct EditedStep {
     pub outcome: Outcome,
-    /// Its events in the trace.
-    pub events: Range<usize>,
+    /// The one thing it did, in the trace (none when skipped or not possible).
+    pub event: Option<usize>,
+    /// Its events in the trace: its action, and what is not one (mobs farmed on the way, the
+    /// reward picked).
+    events: Range<usize>,
     /// Time before and after it, level after it, and the XP it gave.
     pub start: f64,
     pub end: f64,
@@ -126,6 +139,18 @@ impl Planner<'_> {
                         outcome
                     }
                     Edit::Fly { from, to } => self.edit_fly(&mut s, from, to, &mut trace),
+                    Edit::Link { first, last } => self.edit_link(&mut s, first, last, &mut trace),
+                    Edit::Teleport { to } => self.edit_teleport(&mut s, to, &mut trace),
+                    Edit::Train { trainer } => self.edit_train(&mut s, trainer, &mut trace),
+                    Edit::Abandon { quest } => {
+                        let i = quest as usize;
+                        if s.accepted[i] && !s.turned[i] {
+                            Self::abandon(&mut s, quest, &mut recorder(&mut Some(&mut trace)));
+                            Outcome::Done
+                        } else {
+                            Outcome::Invalid("quest not in the log")
+                        }
+                    }
                     Edit::Grind { mobs } => {
                         if mobs == 0 {
                             Outcome::Invalid("no mob to kill")
@@ -147,13 +172,42 @@ impl Planner<'_> {
                             Outcome::Done
                         }
                     }
+                    Edit::GrindTo { level } => {
+                        if level <= s.level {
+                            Outcome::Skipped("level reached")
+                        } else {
+                            let mut trace = Some(&mut trace);
+                            let mut record = recorder(&mut trace);
+                            let (near, zone) = (s.pos, s.zone);
+                            let seconds = self.growth().grind_to(&mut s, level);
+                            record(
+                                &s,
+                                Event::Grind {
+                                    to_level: level,
+                                    seconds,
+                                    near,
+                                    zone,
+                                },
+                            );
+                            self.train(&mut s, &mut record);
+                            Outcome::Done
+                        }
+                    }
                 }
             };
+            let actions: Vec<usize> = (first..trace.len()).filter(|&n| is_action(&trace[n].event)).collect();
+            // Each step of the guide editor does one thing: anything else is a step of its own.
+            assert!(
+                !self.explicit || actions.len() <= 1 && actions.iter().all(|&n| is_own(*edit, &trace[n].event)),
+                "step {e} ({edit:?}) does more than its own action: {:?}",
+                actions.iter().map(|&n| &trace[n].event).collect::<Vec<_>>()
+            );
             if let Edit::Stop { .. } = edit {
                 at += 1;
             }
             steps.push(EditedStep {
                 outcome,
+                event: actions.into_iter().find(|&n| is_own(*edit, &trace[n].event)),
                 events: first..trace.len(),
                 start,
                 end: s.time,
@@ -197,6 +251,19 @@ impl Planner<'_> {
         if !self.availability().valid(s, stop) {
             return Outcome::Invalid(self.why_invalid(s, stop));
         }
+        // A flight path at hand: a detour to it, as one learned on the way.
+        if self.explicit
+            && stop.kind == Kind::LearnFlight
+            && s.landed == Landed::No
+            && s.pos.dist(&self.world.taxi_nodes[i].pos) <= self.params.flight_learn_radius
+        {
+            let detour = 2.0 * self.trips().walk(&s.pos, &self.world.taxi_nodes[i].pos, s.level) + 5.0;
+            s.time += detour;
+            s.spent.travel += detour;
+            s.known |= 1u128 << i;
+            recorder(&mut Some(trace))(s, Event::LearnFlight { node: i });
+            return Outcome::Done;
+        }
         let before = Self::already_done(s, stop);
         let (saved, mark) = (s.clone(), trace.len());
         self.farm_all.set(farm);
@@ -206,6 +273,12 @@ impl Planner<'_> {
             *s = saved;
             trace.truncate(mark);
             return Outcome::Invalid("unreachable");
+        }
+        // A timed quest turned in too late is given up: a step of its own.
+        if self.explicit && trace[mark..].iter().any(|t| matches!(t.event, Event::Abandon { .. })) {
+            *s = saved;
+            trace.truncate(mark);
+            return Outcome::Invalid("quest time limit passed");
         }
         let hearth = || trace[mark..].iter().any(|t| matches!(t.event, Event::Hearth { .. }));
         if before {
@@ -265,8 +338,134 @@ impl Planner<'_> {
             s.spent.flight_cost += price as i64;
         }
         s.pos = end;
-        s.landed = true;
+        s.landed = Landed::Flight;
         Outcome::Done
+    }
+
+    /// Boats, zeppelins or trams of an edited route: walking to the first one.
+    fn edit_link(&self, s: &mut State, first: usize, last: usize, trace: &mut Vec<Timed>) -> Outcome {
+        let links = &self.world.links;
+        let ride = self.world.link_chain[first][last];
+        if !ride.is_finite() {
+            return Outcome::Invalid("no such crossing");
+        }
+        let walk = self.trips().walk(&s.pos, &links[first].from, s.level);
+        if !walk.is_finite() {
+            return Outcome::Invalid("unreachable");
+        }
+        s.time += walk;
+        s.spent.travel += walk;
+        recorder(&mut Some(trace))(s, Event::Link { first, last });
+        s.time += ride;
+        s.spent.travel += ride;
+        s.pos = links[last].to;
+        s.landed = Landed::Transport;
+        Outcome::Done
+    }
+
+    /// A class teleport of an edited route.
+    fn edit_teleport(&self, s: &mut State, to: usize, trace: &mut Vec<Timed>) -> Outcome {
+        let teleport = &self.model.teleports[to];
+        if teleport.level > s.trained {
+            return Outcome::Invalid("teleport not learned");
+        }
+        recorder(&mut Some(trace))(s, Event::Teleport { to });
+        s.time += self.params.teleport_cast;
+        s.spent.travel += self.params.teleport_cast;
+        s.pos = teleport.to.pos;
+        s.landed = Landed::Transport;
+        Outcome::Done
+    }
+
+    /// Training of an edited route, at the trainer it says.
+    fn edit_train(&self, s: &mut State, trainer: usize, trace: &mut Vec<Timed>) -> Outcome {
+        if s.trained >= s.level {
+            return Outcome::Skipped("nothing to learn");
+        }
+        let (saved, mark) = (s.clone(), trace.len());
+        self.train_at(s, trainer, &mut recorder(&mut Some(&mut *trace)));
+        if !s.time.is_finite() {
+            *s = saved;
+            trace.truncate(mark);
+            return Outcome::Invalid("unreachable");
+        }
+        Outcome::Done
+    }
+
+    /// The same route with each thing the simulation did by itself (a trip's flights, boats and
+    /// teleports, training, flight paths learned in passing, quests given up, grinding) as a step
+    /// of its own: what the explicit planner replays the same.
+    pub fn expand(&self, edits: &[Edit]) -> Vec<Edit> {
+        let edited = self.edit(edits);
+        let mut out = Vec::new();
+        for (step, edit) in edited.steps.iter().zip(edits) {
+            // A flight path learned on arriving comes after the stop: the explicit planner
+            // learns it as a detour from there.
+            let mut learned = Vec::new();
+            for t in &edited.trace[step.events.clone()] {
+                let next = match t.event {
+                    Event::Stop { stop, .. } => {
+                        let farm = matches!(edit, Edit::Stop { stop: own, farm: true } if *own == stop);
+                        out.push(Edit::Stop { stop, farm });
+                        out.append(&mut learned);
+                        continue;
+                    }
+                    Event::LearnFlight { node } => {
+                        learned.push(Edit::Stop {
+                            stop: Stop {
+                                index: node as u32,
+                                kind: Kind::LearnFlight,
+                            },
+                            farm: false,
+                        });
+                        continue;
+                    }
+                    Event::Hearth { recall, .. } => Edit::Stop {
+                        stop: Stop {
+                            index: u32::from(recall),
+                            kind: Kind::Hearth,
+                        },
+                        farm: false,
+                    },
+                    Event::Fly { from, to } => Edit::Fly { from, to },
+                    Event::Link { first, last } => Edit::Link { first, last },
+                    Event::Teleport { to } => Edit::Teleport { to },
+                    Event::Train { trainer, .. } => Edit::Train { trainer },
+                    Event::Abandon { quest } => Edit::Abandon { quest: quest as u32 },
+                    Event::Grind { to_level, .. } => Edit::GrindTo { level: to_level },
+                    Event::GrindMobs { mobs, .. } => Edit::Grind { mobs },
+                    Event::Reward { .. } | Event::Farm { .. } | Event::DeathSkip { .. } => continue,
+                };
+                out.push(next);
+            }
+            out.append(&mut learned);
+        }
+        out
+    }
+}
+
+/// Whether an event is something done (not the mobs farmed on the way, nor the reward picked).
+fn is_action(event: &Event) -> bool {
+    !matches!(event, Event::Farm { .. } | Event::Reward { .. })
+}
+
+/// Whether an event is the step's own action.
+fn is_own(edit: Edit, event: &Event) -> bool {
+    match (edit, event) {
+        (Edit::Stop { stop, .. }, Event::Stop { stop: done, .. }) => *done == stop,
+        (Edit::Stop { stop, .. }, Event::Hearth { recall, .. }) => {
+            stop.kind == Kind::Hearth && stop.index == u32::from(*recall)
+        }
+        (Edit::Stop { stop, .. }, Event::LearnFlight { node }) => {
+            stop.kind == Kind::LearnFlight && stop.index as usize == *node
+        }
+        (Edit::Fly { from, to }, Event::Fly { from: a, to: b }) => (from, to) == (*a, *b),
+        (Edit::Link { first, last }, Event::Link { first: a, last: b }) => (first, last) == (*a, *b),
+        (Edit::Teleport { to }, Event::Teleport { to: done }) => to == *done,
+        (Edit::Train { trainer }, Event::Train { trainer: done, .. }) => trainer == *done,
+        (Edit::Abandon { quest }, Event::Abandon { quest: done }) => quest as usize == *done,
+        (Edit::Grind { .. }, Event::GrindMobs { .. }) | (Edit::GrindTo { .. }, Event::Grind { .. }) => true,
+        _ => false,
     }
 }
 

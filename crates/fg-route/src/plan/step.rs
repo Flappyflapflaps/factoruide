@@ -1,6 +1,6 @@
 //! Doing one stop of a route: accept, objectives (and the mobs met on the way), turn-in, visits, what is done while there.
 
-use super::state::{Event, Kind, State, Stop, Timed, Together};
+use super::state::{Event, Kind, Landed, State, Stop, Timed, Together};
 use super::{Mode, Planner};
 use crate::model::{EntityKind, Loc, Model, Objective};
 use crate::world::Pos;
@@ -51,7 +51,7 @@ impl Planner<'_> {
     /// `train_min_gain` faster, late at `train_trip_gain`; else every `train_every` levels
     /// (and for the other classes of a group).
     pub(crate) fn train(&self, s: &mut State, record: &mut impl FnMut(&State, Event)) {
-        if self.model.trainers.is_empty() {
+        if self.model.trainers.is_empty() || self.explicit {
             return;
         }
         let every = s.level >= s.trained + self.params.train_every;
@@ -70,37 +70,42 @@ impl Planner<'_> {
         if !due {
             return;
         }
-        let (mut i, trainer) = self
+        let (near, trainer) = self
             .model
             .trainers
             .iter()
             .enumerate()
             .min_by(|a, b| s.pos.dist(&a.1.pos).total_cmp(&s.pos.dist(&b.1.pos)))
             .unwrap();
-        let distance = s.pos.dist(&trainer.pos);
-        if distance <= self.params.train_radius {
-            let detour = 2.0 * self.trips().walk(&s.pos, &trainer.pos, s.level);
-            s.time += detour;
-            s.spent.travel += detour;
+        let i = if s.pos.dist(&trainer.pos) <= self.params.train_radius {
+            near
         } else if late {
-            // Nearest trainer by travel time (it may be worth a flight or the hearthstone; a
-            // trip of the simulation's own, it flies even when the route's flights are steps).
-            self.side_trip.set(true);
-            let (k, trainer) = self
-                .model
+            // Nearest trainer by travel time (it may be worth a flight or the hearthstone).
+            self.model
                 .trainers
                 .iter()
                 .enumerate()
-                .map(|(i, t)| (i, t, self.trips().fastest(s, &t.pos).0))
-                .min_by(|a, b| a.2.total_cmp(&b.2))
-                .map(|(i, t, _)| (i, t))
-                .unwrap();
-            let (pos, zone) = (trainer.pos, trainer.zone);
-            self.go(s, &pos, zone, record);
-            self.side_trip.set(false);
-            i = k;
+                .map(|(i, t)| (i, self.trips().fastest(s, &t.pos).0))
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .map(|(i, _)| i)
+                .unwrap()
         } else {
             return;
+        };
+        self.train_at(s, i, record);
+    }
+
+    /// Train at trainer `i`: a detour when it is close (`train_radius`), else a trip there (the
+    /// end of the trip just off a flight, boat or teleport step).
+    pub(crate) fn train_at(&self, s: &mut State, i: usize, record: &mut impl FnMut(&State, Event)) {
+        let trainer = &self.model.trainers[i];
+        if s.landed == Landed::No && s.pos.dist(&trainer.pos) <= self.params.train_radius {
+            let detour = 2.0 * self.trips().walk(&s.pos, &trainer.pos, s.level);
+            s.time += detour;
+            s.spent.travel += detour;
+        } else {
+            let (pos, zone) = (trainer.pos, trainer.zone);
+            self.go(s, &pos, zone, record);
         }
         s.time += self.growth().train_time();
         s.spent.training += self.growth().train_time();
@@ -115,7 +120,7 @@ impl Planner<'_> {
     /// gray leading nowhere (`gray_dead_end`): they are no longer turned in, so the route turns
     /// them in before or loses their XP. Checked when the level or the dungeons done change.
     pub(crate) fn abandon_hopeless(&self, s: &mut State, record: &mut impl FnMut(&State, Event)) {
-        if s.abandon_check == (s.level, s.dungeons) {
+        if self.explicit || s.abandon_check == (s.level, s.dungeons) {
             return;
         }
         s.abandon_check = (s.level, s.dungeons);
@@ -134,16 +139,21 @@ impl Planner<'_> {
                         })
                 });
             if hopeless {
-                s.started.retain(|&(q, _, _)| q as usize != i);
-                s.timers.retain(|&(q, _)| q as usize != i);
-                s.accepted.set(i, false);
-                s.turned.set(i, true);
-                s.dropped.push(i as u32);
-                s.log = s.log.saturating_sub(1);
-                s.time += 2.0;
-                record(s, Event::Abandon { quest: i });
+                Self::abandon(s, i as u32, record);
             }
         }
+    }
+
+    /// Give up quest `i` of the log.
+    pub(crate) fn abandon(s: &mut State, i: u32, record: &mut impl FnMut(&State, Event)) {
+        s.started.retain(|&(q, _, _)| q != i);
+        s.timers.retain(|&(q, _)| q != i);
+        s.accepted.set(i as usize, false);
+        s.turned.set(i as usize, true);
+        s.dropped.push(i);
+        s.log = s.log.saturating_sub(1);
+        s.time += 2.0;
+        record(s, Event::Abandon { quest: i as usize });
     }
 
     /// Accept quest `i` (looting first the item that starts it, if any).
@@ -202,14 +212,7 @@ impl Planner<'_> {
         if !s.timers.iter().any(|&(q, deadline)| q == i && s.time > deadline) {
             return false;
         }
-        s.timers.retain(|&(q, _)| q != i);
-        s.started.retain(|&(q, _, _)| q != i);
-        s.accepted.set(i as usize, false);
-        s.turned.set(i as usize, true);
-        s.dropped.push(i);
-        s.log = s.log.saturating_sub(1);
-        s.time += 2.0;
-        record(s, Event::Abandon { quest: i as usize });
+        Self::abandon(s, i, record);
         true
     }
 
@@ -225,7 +228,7 @@ impl Planner<'_> {
             s.together = Together::default();
         }
         if stop.kind == Kind::Hearth {
-            s.landed = false;
+            s.landed = Landed::No;
             if self.hearth(s, stop.index == 1, &mut record) {
                 self.while_here(s, &mut record);
                 self.train(s, &mut record);
@@ -333,7 +336,7 @@ impl Planner<'_> {
         record: &mut impl FnMut(&State, Event),
     ) {
         let gate = self.gate_level_at(s, stop, spot);
-        if gate <= s.level || self.mode == Mode::Replay {
+        if gate <= s.level || self.mode == Mode::Replay || self.explicit {
             return;
         }
         let (near, zone) = (s.pos, s.zone);
@@ -362,7 +365,7 @@ impl Planner<'_> {
         self.go(s, &loc.pos, loc.zone, record);
         s.time += self.params.stop_overhead;
         s.spent.overhead += self.params.stop_overhead;
-        if stop.kind != Kind::LearnFlight {
+        if stop.kind != Kind::LearnFlight && !self.explicit {
             self.learn_flight_nearby(s, record);
         }
         loc

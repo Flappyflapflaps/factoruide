@@ -5,9 +5,17 @@ import { GuideEditor } from "../components/GuideEditor";
 import { ResultView } from "../components/ResultView";
 import { gameLocale, useDate, useGameName, useLang, useT } from "../i18n";
 
+export interface OpenGuide {
+  guide: string;
+  version: number;
+  notice: string | null;
+}
+
 interface Props {
   /** Options of the game version (race names and factions), when loaded. */
   options: Options | null;
+  /** A version to open at once instead of the list. */
+  start?: OpenGuide | null;
   onRerun: (version: GuideVersion) => void;
   onEdit: (version: GuideVersion) => void;
 }
@@ -18,7 +26,7 @@ type SortKey = "addon" | "name" | "character" | "levels" | "time" | "versions" |
 const shownVersion = (g: GuideSummary): VersionMeta => g.versions.find((v) => v.version === g.installed) ?? g.versions[0];
 
 /** Every guide with its versions; a checkbox installs (the latest version of) a guide in the addon. */
-export function GuidesPage({ options, onRerun, onEdit }: Props) {
+export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
   const t = useT();
   const date = useDate();
   const gameName = useGameName();
@@ -29,6 +37,9 @@ export function GuidesPage({ options, onRerun, onEdit }: Props) {
   // The version open in the guide editor.
   const [editing, setEditing] = useState<GuideVersion | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(start?.notice ?? null);
+  // Opening `start`: no list in the meantime.
+  const [pending, setPending] = useState(!!start);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -54,6 +65,10 @@ export function GuidesPage({ options, onRerun, onEdit }: Props) {
       .getVersion(guide, version, gameLocale(lang))
       .then(setOpen)
       .catch((e) => setError(String(e)));
+  useEffect(() => {
+    if (start) openVersion(start.guide, start.version).finally(() => setPending(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sorted = useMemo(() => {
     if (!guides || !sort) return guides;
@@ -104,12 +119,14 @@ export function GuidesPage({ options, onRerun, onEdit }: Props) {
           onClick={() => {
             setOpen(null);
             setMessage(null);
+            setNotice(null);
             load();
           }}
         >
           {t("← Tous les guides")}
         </button>
         {message && <div className="success">{message}</div>}
+        {notice && <div className="notice">{notice}</div>}
         <ResultView
           key={`${open.meta.guide}-${open.meta.version}`}
           version={open}
@@ -148,6 +165,7 @@ export function GuidesPage({ options, onRerun, onEdit }: Props) {
       {error && <div className="error">{error}</div>}
     </>
   );
+  if (pending) return <div className="empty">{t("Chargement…")}</div>;
   if (!guides || !sorted) return error ? notices : <div className="empty">{t("Chargement…")}</div>;
   if (guides.length === 0)
     return (
