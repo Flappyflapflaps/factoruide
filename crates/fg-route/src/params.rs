@@ -66,7 +66,8 @@ pub struct Params {
     pub farm_below: i64,
     pub farm_above: i64,
     /// Quests of the route whose NPC is within this distance of a stop are taken and turned in
-    /// there, as a player does at a quest hub (0: only at their own stop).
+    /// there, as a player does at a quest hub (0: only at their own stop). Off by default: the
+    /// route says every take and turn-in itself, as the guide editor shows them.
     pub camp_radius: f64,
     /// Allow quests whose objectives involve elite mobs.
     pub allow_elite: bool,
@@ -278,7 +279,7 @@ impl Default for Params {
             farm_corridor: 25.0,
             farm_below: 3,
             farm_above: 1,
-            camp_radius: 120.0,
+            camp_radius: 0.0,
             allow_elite: false,
             pvp_quests: false,
             pvp_mark_time: 900.0,
