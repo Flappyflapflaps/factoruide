@@ -3,6 +3,7 @@
 use super::Planner;
 use super::on_the_way::CAMP_AHEAD;
 use super::state::{Breakdown, Kind, Planned, State, Stop, Timed};
+use crate::world::Pos;
 use std::rc::Rc;
 
 /// States before each stop of a route, and its total time.
@@ -13,6 +14,11 @@ pub(crate) struct Run {
     pub(crate) play: f64,
     /// Whether the target level is reached within the route (stops after it have no effect).
     pub(crate) reached: bool,
+    /// Where quests were looked for at hand during stop `k`: `heres[here_at[k]..here_at[k + 1]]`.
+    /// The places really visited: an objective done at another of its places, the inn after the
+    /// hearthstone, the trainer...
+    pub(crate) heres: Vec<Pos>,
+    pub(crate) here_at: Vec<u32>,
 }
 
 impl Planner<'_> {
@@ -75,10 +81,21 @@ impl Planner<'_> {
 
     /// Replay a route keeping the state before each stop, for incremental evaluation.
     pub(crate) fn run(&self, route: &[Stop]) -> Option<Run> {
+        *self.heres.borrow_mut() = Some(Vec::new());
+        let run = self.replay_states(route);
+        let heres = self.heres.borrow_mut().take().unwrap_or_default();
+        run.map(|run| Run { heres, ..run })
+    }
+
+    /// `run`, the places looked at hand recorded by `while_here` meanwhile.
+    fn replay_states(&self, route: &[Stop]) -> Option<Run> {
+        let recorded = || self.heres.borrow().as_ref().map_or(0, Vec::len) as u32;
         let mut s = self.initial_state();
         s.planned = self.planned(route);
         let mut states = Vec::with_capacity(route.len() + 1);
+        let mut here_at = Vec::with_capacity(route.len() + 1);
         states.push(s.clone());
+        here_at.push(0);
         for (k, &stop) in route.iter().enumerate() {
             if s.level >= self.profile.to_level {
                 break;
@@ -92,6 +109,7 @@ impl Planner<'_> {
                 return None;
             }
             states.push(s.clone());
+            here_at.push(recorded());
         }
         let reached = s.level >= self.profile.to_level;
         let total = self.finish(&mut s, None);
@@ -100,15 +118,17 @@ impl Planner<'_> {
             total,
             play: s.spent.total,
             reached,
+            heres: Vec::new(),
+            here_at,
         })
     }
 
     /// First stop before `a` of the evaluated route whose quests taken or turned in at hand
-    /// (`while_here`) may differ with the plan `new` of `candidate`: a stop with an NPC at hand
-    /// of a quest whose plan changed. A quest is taken at hand up to `CAMP_AHEAD` stops before
+    /// (`while_here`) may differ with the plan `new` of the candidate: a stop with an NPC at hand
+    /// of a quest whose plan changed, where the stop really looked (`Run::heres`). A quest is taken at hand up to `CAMP_AHEAD` stops before
     /// the route accepts it, turned in at hand once in the log, and not taken when it would
     /// block one the route takes later.
-    fn replanned_from(&self, run: &Run, candidate: &[Stop], new: &Planned, a: usize) -> usize {
+    fn replanned_from(&self, run: &Run, new: &Planned, a: usize) -> usize {
         let radius = self.params.camp_radius;
         let old = &run.states[0].planned;
         // Stops after the target level were not done.
@@ -122,8 +142,9 @@ impl Planner<'_> {
         let at_hand = |i: usize, from: usize, to: usize, start: &mut usize| {
             let q = &self.model.quests[i];
             let near = |k: &usize| {
-                let here = self.places().pos(&run.states[*k], candidate[*k]);
-                q.starts.iter().chain(&q.ends).any(|l| l.pos.dist(&here) <= radius)
+                run.heres[run.here_at[*k] as usize..run.here_at[*k + 1] as usize]
+                    .iter()
+                    .any(|here| q.starts.iter().chain(&q.ends).any(|l| l.pos.dist(here) <= radius))
             };
             if let Some(k) = (from..to.min(*start).min(done)).find(near) {
                 *start = k;
@@ -163,7 +184,7 @@ impl Planner<'_> {
     pub(crate) fn evaluate(&self, run: &Run, candidate: &[Stop], a: usize, b: usize, same_set: bool) -> Option<f64> {
         // Positions of the accepts change even when the stops are only reordered.
         let planned = self.planned(candidate);
-        let start = self.replanned_from(run, candidate, &planned, a);
+        let start = self.replanned_from(run, &planned, a);
         if run.reached && start >= run.states.len() - 1 {
             return Some(run.total); // after the target level: no effect
         }
@@ -210,6 +231,7 @@ impl Planner<'_> {
                     && s.explored == old.explored
                     && s.grind_used == old.grind_used
                     && s.farm_used == old.farm_used
+                    && Self::same_timers(&s, old)
                 {
                     let extra = self.weights(&s.spent) - self.weights(&old.spent);
                     return Some(run.total + s.time - old.time + extra);
@@ -217,6 +239,16 @@ impl Planner<'_> {
             }
         }
         Some(self.finish(&mut s, None))
+    }
+
+    /// Whether the timed quests of both states have the same time left (the rest of the route is
+    /// shifted in time: their deadlines are compared to each state's time). Exact, so that a
+    /// rounding difference only makes the evaluation replay the rest.
+    fn same_timers(s: &State, old: &State) -> bool {
+        s.timers.len() == old.timers.len()
+            && s.timers.iter().zip(&old.timers).all(|(&(q, due), &(oq, old_due))| {
+                q == oq && (due - s.time).to_bits() == (old_due - old.time).to_bits()
+            })
     }
 
     /// First stop that makes a route invalid, with the reason. Replayed as `simulate` does: with

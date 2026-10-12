@@ -291,6 +291,9 @@ impl Planner<'_> {
             return;
         }
         let here = s.pos;
+        if let Some(heres) = self.heres.borrow_mut().as_mut() {
+            heres.push(here);
+        }
         let (cx, cy) = ((here.x / radius).floor() as i64, (here.y / radius).floor() as i64);
         loop {
             let mut best: Option<(f64, Stop, &Loc)> = None;

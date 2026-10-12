@@ -42,6 +42,9 @@ mod step;
 mod travel;
 mod worth;
 
+#[cfg(test)]
+mod tests;
+
 pub use alns::ALNS_OPS;
 pub use combat::Combat;
 pub use edit::{Edit, Edited, EditedStep, Farmed, Outcome};
@@ -53,13 +56,13 @@ pub use state::{Breakdown, Event, Kind, Stop, Timed, fmt_time};
 
 use crate::model::{Model, Profile, Quest};
 use crate::params::Params;
-use crate::world::World;
+use crate::world::{Pos, World};
 use crate::xp;
 use availability::{Availability, blocks, followers};
 use growth::Growth;
 use on_the_way::FarmWalks;
 use state::{Flags, Planned, State};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use step::{CampIndex, camp_index};
 use travel::{FlightTables, Legs, Trips};
@@ -86,6 +89,9 @@ pub struct Planner<'a> {
     farm_walks: FarmWalks,
     /// The next walk kills every normal mob met, beyond `farm_cap` (a step of an edited route).
     farm_all: Cell<bool>,
+    /// Where `while_here` looked for quests at hand, recorded while `run` replays a route (see
+    /// `Run::heres`).
+    heres: RefCell<Option<Vec<Pos>>>,
     mode: Mode,
     /// Quest givers and turn-in NPCs by cell of `camp_radius` (continent, x, y): (quest,
     /// index in its starts or ends, giver?).
@@ -121,6 +127,7 @@ impl<'a> Planner<'a> {
             legs: Legs::default(),
             farm_walks: FarmWalks::default(),
             farm_all: Cell::new(false),
+            heres: RefCell::new(None),
             mode: Mode::Plan,
             camp: camp_index(model, params.camp_radius),
             blocks,

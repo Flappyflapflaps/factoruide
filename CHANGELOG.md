@@ -8,6 +8,8 @@ The notes of each version are the message of its tag (`scripts/release.sh`), sho
 - Guide editor: a "do the quest" step can kill every normal mob met on the way to it, beyond the share of farming each level allows, with the mobs, XP and time it would bring shown before checking it.
 - Guides now keep the route they were written from, so that editing them replays it exactly; guides computed before read their route back from their steps (their time may then differ a little).
 - Faster optimization: each trip between two places is computed once and remembered, walks between zones and to flight masters no longer ask the same paths around the terrain again and again. The quests taken or turned in at hand, the gear rewards and the nearest places are checked with less work, and the optimizer uses less memory (a 30 s optimization of an orc warlock 1-60 peaks at about 420 MB instead of 675 MB). In the same time it now tries about 18 times more changes to the route (orc warlock 1-60, 30 s: 106h16 instead of 115h14 for the best search), and building the first routes takes a few seconds instead of about twenty. For the same work the routes are exactly the same as before: only the speed changed.
+- Fixed: a generation whose search failed on an internal error never ended (the progress kept running); it now stops with the error.
+- Fixed: the optimizer could misjudge some changes to a route, when a quest is taken or turned in on the spot at an objective's other place, or when a timed quest's deadline moved; it now scores them exactly as the full replay of the route.
 
 ## 0.5.0 (2026-10-11)
 
