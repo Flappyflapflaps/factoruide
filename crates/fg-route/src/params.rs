@@ -101,8 +101,11 @@ pub struct Params {
     /// (`qualify_tries`); the best `threads` go on (`threads` or fewer: no race). Fewer with a
     /// low `effort`.
     pub candidates: usize,
-    /// Tries of each candidate of the race, per stop of its route (times `effort`).
+    /// Tries of each candidate of the race, per stop of its route (times `effort`)...
     pub qualify_tries: f64,
+    /// ...and at least this many (times `effort`): on a short guide, a few tries per stop leave
+    /// the routes on the steep start of their improvement, where the race ranks them by chance.
+    pub qualify_min_tries: f64,
     /// Tries of each search in a round, per stop of its route (times `effort`). After each round
     /// the better half of the routes goes on, each with twice the searches. 0: no rounds, all the
     /// searches improve the best start (measured better: the leader of the race won every time,
@@ -300,6 +303,7 @@ impl Default for Params {
             dungeon_quest_weight: 0.11,
             candidates: 32,
             qualify_tries: 11.0,
+            qualify_min_tries: 20_000.0,
             round_tries: 0.0,
             final_routes: 1,
             final_tries: 130.0,

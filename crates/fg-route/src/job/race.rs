@@ -132,16 +132,16 @@ impl Tournament {
         stage + 1 == self.stages.len()
     }
 
-    /// Tries of the race and of the whole tournament, per stop of the routes (times `effort`).
-    fn tries_per_stop(&self, params: &Params) -> (f64, f64) {
-        let race = if self.race {
-            self.candidates as f64 * params.qualify_tries
-        } else {
-            0.0
-        };
+    /// How many tries the tournament makes (to show its progress).
+    fn tries(&self, params: &Params) -> Tries {
         let rounds = (self.stages.len() - 1) as f64;
-        let after = self.threads as f64 * (rounds * params.round_tries + params.final_tries);
-        (race * params.effort, (race + after) * params.effort)
+        Tries {
+            candidates: if self.race { self.candidates as f64 } else { 0.0 },
+            qualify: params.qualify_tries,
+            qualify_min: params.qualify_min_tries,
+            after: self.threads as f64 * (rounds * params.round_tries + params.final_tries),
+            effort: params.effort,
+        }
     }
 
     fn announce(&self) -> String {
@@ -152,6 +152,31 @@ impl Tournament {
         } else {
             format!("Optimizing ({rounds})")
         }
+    }
+}
+
+/// Tries of a tournament (see `Tournament::tries`).
+#[derive(Clone, Copy)]
+struct Tries {
+    /// Candidates of the race (0: no race), their tries per stop and at least.
+    candidates: f64,
+    qualify: f64,
+    qualify_min: f64,
+    /// Tries per stop of all the searches after the race.
+    after: f64,
+    effort: f64,
+}
+
+impl Tries {
+    /// Tries of a search of `per_stop` tries per stop of its `stops`, at least `min`.
+    fn of(per_stop: f64, min: f64, stops: f64, effort: f64) -> u64 {
+        ((per_stop * stops).max(min) * effort).round() as u64
+    }
+
+    /// Tries of the race and of the whole tournament, for routes of `stops` stops.
+    fn at(&self, stops: f64) -> (f64, f64) {
+        let race = self.candidates * Self::of(self.qualify, self.qualify_min, stops, self.effort) as f64;
+        (race, race + self.after * stops * self.effort)
     }
 }
 
@@ -187,8 +212,8 @@ struct Live<'p> {
     candidates: usize,
     threads: usize,
     stages: Vec<usize>,
-    /// Tries of the race and of the whole tournament per stop (see `Tournament::tries_per_stop`).
-    tries_per_stop: (f64, f64),
+    /// How many tries the tournament makes, for a route size.
+    tries: Tries,
     /// Time spent building candidate routes, how many were built and their stops.
     built: Mutex<(Duration, u32, usize)>,
     /// Tries of all the searches so far.
@@ -214,7 +239,7 @@ impl<'p> Live<'p> {
             candidates: plan.candidates,
             threads: plan.threads,
             stages: plan.stages.clone(),
-            tries_per_stop: plan.tries_per_stop(params),
+            tries: plan.tries(params),
             built: Mutex::new((Duration::ZERO, 0, 0)),
             tried: AtomicU64::new(0),
             routes: Mutex::new(vec![None; plan.candidates.max(plan.threads)]),
@@ -272,13 +297,15 @@ impl<'p> Live<'p> {
     /// the routes (the tries are per stop).
     fn progress(&self) -> Option<(f64, f64)> {
         let (_, n, stops) = *self.built.lock().unwrap();
-        let (race, total) = self.tries_per_stop;
-        if n == 0 || total <= 0.0 {
+        if n == 0 {
             return None;
         }
-        let tries = total * stops as f64 / f64::from(n);
+        let (race, total) = self.tries.at(stops as f64 / f64::from(n));
+        if total <= 0.0 {
+            return None;
+        }
         let done = self.tried.load(Ordering::Relaxed) as f64;
-        Some(((done / tries.max(1.0)).min(1.0), race / total))
+        Some(((done / total.max(1.0)).min(1.0), race / total))
     }
 
     /// `@progress {json}`: phase, elapsed seconds, share of the tries done, play time of the best
@@ -359,8 +386,9 @@ impl<'p> Live<'p> {
 struct Slot {
     /// Round and search of the route (None in the race: the candidate's own seed).
     round: Option<(usize, usize)>,
-    /// Tries per stop of the route (times `effort`).
+    /// Tries per stop of the route, and at least (times `effort`).
     tries_per_stop: f64,
+    min_tries: f64,
     /// Its progress is logged (the first search of the best route of a round).
     logs: bool,
 }
@@ -423,7 +451,12 @@ impl Searcher<'_> {
             route
         };
         self.live.started.get_or_init(Instant::now);
-        let tries = (slot.tries_per_stop * self.params.effort * start.len() as f64).round() as u64;
+        let tries = Tries::of(
+            slot.tries_per_stop,
+            slot.min_tries,
+            start.len() as f64,
+            self.params.effort,
+        );
         let route = planner.improve_while(
             start,
             Effort::Tries(tries),
@@ -456,7 +489,8 @@ fn rank(mut routes: Vec<(f64, usize, Vec<Stop>)>) -> Vec<(f64, usize, Vec<Stop>)
     routes
 }
 
-/// The race: every candidate is built and improved for `qualify_tries`, `threads` at a time.
+/// The race: every candidate is built and improved for `qualify_tries` (at least
+/// `qualify_min_tries`), `threads` at a time.
 /// Stopped, no new candidate starts but the first ones (there must be a route).
 fn qualify(searcher: &Searcher<'_>, plan: &Tournament) -> Vec<(f64, usize, Vec<Stop>)> {
     let next = AtomicUsize::new(0);
@@ -464,6 +498,7 @@ fn qualify(searcher: &Searcher<'_>, plan: &Tournament) -> Vec<(f64, usize, Vec<S
     let slot = Slot {
         round: None,
         tries_per_stop: searcher.params.qualify_tries,
+        min_tries: searcher.params.qualify_min_tries,
         logs: false,
     };
     std::thread::scope(|scope| {
@@ -518,6 +553,7 @@ fn round(
                 let slot = Slot {
                     round: Some((stage, search)),
                     tries_per_stop,
+                    min_tries: 0.0,
                     logs: i == 0 && search == 0,
                 };
                 handles.push(scope.spawn(move || {
@@ -629,12 +665,14 @@ mod tests {
         assert!(!preview.race);
     }
 
-    /// The tries are counted per stop: the race's share of them, then every search's.
+    /// The tries are counted per stop: the race's share of them, then every search's. A race
+    /// candidate of a short guide gets its minimum instead.
     #[test]
     fn progress_counts_the_tries_per_stop() {
         let params = Params {
             candidates: 64,
             qualify_tries: 2.0,
+            qualify_min_tries: 1000.0,
             round_tries: 10.0,
             final_routes: 2,
             final_tries: 50.0,
@@ -642,8 +680,11 @@ mod tests {
             threads: 8,
             ..Params::default()
         };
-        let (race, total) = Tournament::new(&params).tries_per_stop(&params);
-        assert!((race - 128.0).abs() < 1e-9);
-        assert!((total - (128.0 + 8.0 * (2.0 * 10.0 + 50.0))).abs() < 1e-9);
+        let tries = Tournament::new(&params).tries(&params);
+        let (race, total) = tries.at(1000.0);
+        assert!((race - 64.0 * 2000.0).abs() < 1e-9);
+        assert!((total - (race + 8.0 * (2.0 * 10.0 + 50.0) * 1000.0)).abs() < 1e-9);
+        let (short, _) = tries.at(100.0);
+        assert!((short - 64.0 * 1000.0).abs() < 1e-9);
     }
 }

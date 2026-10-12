@@ -84,6 +84,7 @@ export interface Params {
   continent_stay: number;
   candidates: number;
   qualify_tries: number;
+  qualify_min_tries: number;
   round_tries: number;
   final_routes: number;
   final_tries: number;
