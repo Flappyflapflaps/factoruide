@@ -42,28 +42,34 @@ impl QuestBuilder<'_> {
             id: target,
             name: name.clone(),
         };
+        // Objects giving it only now and then (random containers): bought instead when sold.
+        let object_chance = places
+            .sources
+            .iter()
+            .filter(|(t, _)| *t == SourceKind::Object)
+            .map(|(_, id)| self.sources.drop_chance.get(&(target, *id)).copied().unwrap_or(1.0))
+            .fold(0.0, f64::max);
+        let objects = if object_chance < 0.5 && !places.vendors.is_empty() {
+            &[][..]
+        } else {
+            &places.objects[..]
+        };
         let common = places.vendors.is_empty()
             && places.sources.iter().filter(|(t, _)| *t == SourceKind::Npc).count() >= self.params.common_item_sources;
         let objective = if common {
             Self::common_loot(at(quest.anchor, quest.zone), &text, count, self.params.common_item_time)
-        } else if let Some((pos, zone, _)) = best_cluster(&places.objects, Some(&quest.anchor)) {
+        } else if let Some((pos, zone, _)) = best_cluster(objects, Some(&quest.anchor)) {
             let loot = |pos: Pos, zone: i64| Objective {
-                uses: count,
+                uses: count / object_chance.max(0.01),
                 count,
-                spots: Spots::new(&places.objects, &pos),
+                spots: Spots::new(objects, &pos),
                 ..Objective::plain(at(pos, zone), text.clone(), 0.0)
             };
             Objective {
-                alts: alternatives(
-                    &places.objects,
-                    &pos,
-                    &quest.anchor,
-                    count,
-                    self.params.objective_alternatives,
-                )
-                .into_iter()
-                .map(|(p, z)| loot(p, z))
-                .collect(),
+                alts: alternatives(objects, &pos, &quest.anchor, count, self.params.objective_alternatives)
+                    .into_iter()
+                    .map(|(p, z)| loot(p, z))
+                    .collect(),
                 ..loot(pos, zone)
             }
         } else if let Some((pos, zone, _)) = best_cluster(&places.vendors, Some(&quest.anchor)) {

@@ -368,10 +368,13 @@ fn item_origins(
     let mut item_sources: HashMap<i64, Vec<(SourceKind, i64)>> = HashMap::new();
     let mut drop_chance: HashMap<(i64, i64), f64> = HashMap::new();
     let mut stmt = conn.prepare(&format!(
-        "WITH chest AS (SELECT from_id FROM m_item_source WHERE from_type = 'object' GROUP BY from_id
-                        HAVING {limit} > 0 AND count(DISTINCT item_id) > {limit})
-         SELECT item_id, from_type, from_id, chance FROM m_item_source s
-         WHERE from_type != 'object' OR from_id NOT IN chest OR NOT EXISTS (
+        "WITH loot AS (SELECT from_id, count(DISTINCT item_id) AS n FROM m_item_source
+                       WHERE from_type = 'object' GROUP BY from_id),
+              chest AS (SELECT from_id FROM loot WHERE {limit} > 0 AND n > {limit})
+         SELECT s.item_id, s.from_type, s.from_id, s.chance, coalesce(l.n, 0)
+         FROM m_item_source s
+         LEFT JOIN loot l ON s.from_type = 'object' AND l.from_id = s.from_id
+         WHERE s.from_type != 'object' OR s.from_id NOT IN chest OR NOT EXISTS (
            SELECT 1 FROM m_item_source o WHERE o.item_id = s.item_id
              AND NOT (o.from_type = 'object' AND o.from_id IN chest))",
         limit = params.max_object_loot
@@ -381,10 +384,17 @@ fn item_origins(
             r.get::<_, i64>(0)?,
             (r.get::<_, String>(1)?, r.get::<_, i64>(2)?),
             r.get::<_, Option<f64>>(3)?,
+            r.get::<_, i64>(4)?,
         ))
     })? {
-        let (i, (from, id), chance) = row?;
+        let (i, (from, id), chance, loot) = row?;
         let Some(from) = SourceKind::parse(&from) else { continue };
+        // A container giving one of several items (Box of Assorted Parts: 9 engineering parts),
+        // without a known rate: one chance in their number.
+        let chance = match from {
+            SourceKind::Object if chance.is_none() && loot > 1 => Some(1.0 / loot as f64),
+            _ => chance,
+        };
         if let Some(c) = chance {
             drop_chance.insert((i, id), c);
         }

@@ -53,6 +53,19 @@ impl QuestBuilder<'_> {
     pub(super) fn objectives(&self, r: &QuestRow, givers: &Givers) -> Result<Vec<Objective>, Skip> {
         let quest = self.context(r, givers);
         let rows = self.sources.objectives.get(&r.id).cloned().unwrap_or_default();
+        // Filed under a dungeon, objectives unknown ("Look for Daewyn in Whelgar's Excavation
+        // Site"): done by running the dungeon, not free.
+        if rows.is_empty()
+            && let Some(d) = r.sort.and_then(|s| self.sources.dungeon_by_area.get(&s).copied())
+        {
+            let dungeon = &self.sources.dungeons[d];
+            let mut objs = vec![Objective {
+                dungeon: Some(d),
+                ..Objective::plain(dungeon.entrance.clone(), dungeon.name.clone(), 0.0)
+            }];
+            self.add_dungeon_givers(r, &mut objs);
+            return Ok(objs);
+        }
         // Without them the quest would look free (some recent quests are only described).
         if rows.is_empty() && asks_for_work(r.requirements.as_deref()) {
             return Err("objectives unknown (only described)");
