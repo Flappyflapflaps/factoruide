@@ -237,6 +237,9 @@ pub struct Params {
     /// its annealing following the tries: with no race (`qualify_share` 0), a run gives the same
     /// routes whatever the machine, to compare planner changes without noise.
     pub search_tries: u64,
+    /// The searches of the final meet every this many tries, and those behind go on from the
+    /// best route of all (0: each on its own, the best one wins).
+    pub share_every: u64,
     /// Players leveling together (1 = solo, up to 5). Set from the request's group.
     pub group_size: i64,
     /// Damage each extra group member adds, as a share of one player's.
@@ -356,6 +359,7 @@ impl Default for Params {
             threads: std::thread::available_parallelism().map_or(4, |n| n.get().min(8)),
             seed: 42,
             search_tries: 0,
+            share_every: 500,
             group_size: 1,
             group_kill_speed: 0.8,
             group_shared_drops: true,

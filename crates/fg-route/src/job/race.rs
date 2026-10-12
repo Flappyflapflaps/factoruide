@@ -5,7 +5,7 @@
 use super::Interrupt;
 use crate::model::{Model, Profile};
 use crate::params::{Construction, Params};
-use crate::plan::{Planner, Stop, fmt_time};
+use crate::plan::{Exchange, Member, Planner, Stop, fmt_time};
 use crate::world::World;
 use rand::{Rng, SeedableRng};
 use std::cell::Cell;
@@ -320,16 +320,26 @@ struct Searcher<'a> {
 
 impl Searcher<'_> {
     /// Improve `route` (built when None) with candidate `k`'s settings until `until` after the
-    /// start of the optimization. Returns its score under the request's own settings; None when
-    /// the generation is cancelled, or stopped while building a route that is not `needed` (the
-    /// first ones are: without them there would be no guide to keep).
-    fn search(&self, k: usize, route: Option<Vec<Stop>>, until: Duration, needed: bool) -> Option<(f64, Vec<Stop>)> {
+    /// start of the optimization, meeting the other searches at `member`'s exchange. Returns its
+    /// score under the request's own settings; None when the generation is cancelled, or stopped
+    /// while building a route that is not `needed` (the first ones are: without them there would
+    /// be no guide to keep).
+    fn search(
+        &self,
+        k: usize,
+        route: Option<Vec<Stop>>,
+        until: Duration,
+        needed: bool,
+        member: Option<&Member<'_>>,
+    ) -> Option<(f64, Vec<Stop>)> {
         if self.interrupt.cancelled() {
             return None;
         }
         let p = candidate_params(self.params, k);
         let give_up = || self.interrupt.cancelled() || (!needed && self.interrupt.stopping());
-        let planner = Planner::new(self.model, self.world, &p, self.profile).abortable(&give_up);
+        let planner = Planner::new(self.model, self.world, &p, self.profile)
+            .abortable(&give_up)
+            .sharing(member);
         let log = |m: &str| {
             if k == 0 && !self.quiet {
                 (self.progress)(m);
@@ -401,7 +411,7 @@ fn qualify(searcher: &Searcher<'_>, plan: &RacePlan) -> Vec<(usize, Option<Vec<S
                     } else {
                         (slot * round).min(plan.qualify)
                     };
-                    if let Some((score, route)) = searcher.search(k, None, until, k < plan.threads) {
+                    if let Some((score, route)) = searcher.search(k, None, until, k < plan.threads, None) {
                         qualified.lock().unwrap().push((score, k, route));
                         searcher.live.qualified.fetch_add(1, Ordering::Relaxed);
                     }
@@ -423,16 +433,27 @@ fn qualify(searcher: &Searcher<'_>, plan: &RacePlan) -> Vec<(usize, Option<Vec<S
     kept
 }
 
-/// Final: the kept routes improved until the end of the budget.
+/// Final: the kept routes improved until the end of the budget, the searches sharing their best
+/// route (`share_every`).
 fn final_round(
     searcher: &Searcher<'_>,
     plan: &RacePlan,
     finalists: Vec<(usize, Option<Vec<Stop>>)>,
 ) -> Vec<(f64, Vec<Stop>)> {
+    let exchange = Exchange::new(finalists.len());
+    let sharing = searcher.params.share_every > 0 && finalists.len() > 1;
     let results: Vec<(usize, (f64, Vec<Stop>))> = std::thread::scope(|scope| {
         let handles: Vec<_> = finalists
             .into_iter()
-            .map(|(k, route)| scope.spawn(move || (k, searcher.search(k, route, plan.budget, true))))
+            .map(|(k, route)| {
+                let exchange = &exchange;
+                scope.spawn(move || {
+                    // Dropped at the end, panic included: the others stop waiting for it.
+                    let member = exchange.member();
+                    let seat = sharing.then_some(&member);
+                    (k, searcher.search(k, route, plan.budget, true, seat))
+                })
+            })
             .collect();
         handles
             .into_iter()

@@ -36,6 +36,7 @@ mod places;
 mod regions;
 mod report;
 mod search;
+mod share;
 mod spot;
 mod state;
 mod step;
@@ -53,6 +54,7 @@ pub use follow::{Followed, Want};
 pub(crate) use on_the_way::segment_dist;
 pub use places::Places;
 pub use regions::Group;
+pub use share::{Exchange, Member};
 pub use state::{Breakdown, Event, Kind, Stop, Timed, fmt_time};
 
 use crate::model::{Model, Profile, Quest};
@@ -113,6 +115,8 @@ pub struct Planner<'a> {
     verify: bool,
     /// Tells the construction to give up (`abortable`).
     abort: Option<&'a dyn Fn() -> bool>,
+    /// The search's seat at the meetings of the final (`sharing`).
+    share: Option<&'a Member<'a>>,
     /// Nothing is done that the route does not say (the guide editor): no flight, boat or
     /// teleport taken by a trip, no training, flight path learned in passing, quest given up or
     /// grinding by itself. Each of them is a step of the route (`Edit`), so that each step does
@@ -156,6 +160,7 @@ impl<'a> Planner<'a> {
             from_start: Vec::new(),
             verify: std::env::var_os("FG_VERIFY").is_some(),
             abort: None,
+            share: None,
             explicit: false,
         };
         let s0 = planner.initial_state();
@@ -190,6 +195,13 @@ impl<'a> Planner<'a> {
             abort: Some(abort),
             ..self
         }
+    }
+
+    /// The same planner whose search meets the other searches of the final at `member`'s
+    /// exchange every `share_every` tries (see `share`).
+    #[must_use]
+    pub fn sharing(self, member: Option<&'a Member<'a>>) -> Self {
+        Self { share: member, ..self }
     }
 
     /// Whether the construction must give up (see `abortable`).

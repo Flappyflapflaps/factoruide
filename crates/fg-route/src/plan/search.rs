@@ -92,6 +92,12 @@ impl Planner<'_> {
         while more(&search) && search.route.len() > 2 && keep_going() {
             search.tries += 1;
             self.try_a_move(&mut search, &on_best);
+            if self.params.share_every > 0 && search.tries.is_multiple_of(self.params.share_every) {
+                self.meet(&mut search, &on_best);
+            }
+        }
+        if let Some(member) = self.share {
+            member.leave();
         }
         if self.aborted() {
             return search.best.1;
@@ -104,6 +110,26 @@ impl Planner<'_> {
             fmt_time(total)
         ));
         route
+    }
+
+    /// At a meeting of the final (`sharing`): go on from the best route of all when it beats
+    /// the current one.
+    fn meet(&self, search: &mut Search, on_best: &impl Fn(f64, f64, &[Stop])) {
+        let Some(member) = self.share else { return };
+        let Some((score, route)) = member.meet(self.params.seed, &search.best) else {
+            return;
+        };
+        if score >= search.run.total - 0.5 {
+            return;
+        }
+        if let Some(run) = self.replace_run(&mut search.run, &search.route, &route) {
+            search.run = run;
+            search.route = route;
+            if search.run.total < search.best.0 - 0.5 {
+                search.best = (search.run.total, search.route.clone());
+                on_best(search.run.total, search.run.play, &search.route);
+            }
+        }
     }
 
     /// Draw a move (large neighbourhood or small), evaluate it and keep it or not.

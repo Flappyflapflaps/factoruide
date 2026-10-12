@@ -307,6 +307,57 @@ fn panicking_search_ends_the_job() {
     assert!(panicked);
 }
 
+/// Searches sharing their best route (`share_every`) give the same guide again for the same
+/// tries, whichever of them reaches a meeting first.
+#[test]
+fn sharing_searches_repeat_their_guide() {
+    let request = request(
+        "orc",
+        "warlock",
+        12,
+        &[
+            "time_limit_ms=600000",
+            "qualify_share=0",
+            "threads=3",
+            "search_tries=600",
+            "share_every=50",
+        ],
+    );
+    let interrupt = job::Interrupt::default();
+    let plan = || job::plan_interruptible(&database(), &overrides(), &request, &|_| {}, &interrupt, None).unwrap();
+    let (first, again) = (plan(), plan());
+    assert_eq!(
+        serde_json::to_value(&first.plan).unwrap(),
+        serde_json::to_value(&again.plan).unwrap()
+    );
+}
+
+/// A search that panics leaves the meetings: the others do not wait for it, the job ends with
+/// the panic.
+#[test]
+fn panicking_search_does_not_hold_the_meetings() {
+    let (sent, received) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let request = request(
+            "orc",
+            "warlock",
+            12,
+            &["time_limit_ms=5000", "qualify_share=0", "threads=2", "share_every=1"],
+        );
+        // The first search's first message (the other search waits at a meeting).
+        let progress = |m: &str| assert!(!m.starts_with("start:"), "search failed");
+        let interrupt = job::Interrupt::default();
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            job::plan_interruptible(&database(), &overrides(), &request, &progress, &interrupt, None)
+        }));
+        let _ = sent.send(outcome.is_err());
+    });
+    let panicked = received
+        .recv_timeout(std::time::Duration::from_secs(300))
+        .expect("the job hung after a sharing search panicked");
+    assert!(panicked);
+}
+
 /// A cancelled job fails with `Cancelled` instead of returning a route (the app saves nothing).
 #[test]
 fn cancelled_job_returns_no_route() {

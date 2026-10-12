@@ -85,6 +85,7 @@ export interface Params {
   candidates: number;
   qualify_share: number;
   finalists: number;
+  share_every: number;
   fit_penalty: number;
   fit_above_penalty: number;
   efficiency_power: number;

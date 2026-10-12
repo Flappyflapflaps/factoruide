@@ -5,6 +5,7 @@ The notes of each version are the message of its tag (`scripts/release.sh`), sho
 ## Unreleased
 
 - Faster optimization again: the paths around the terrain are searched about twice as fast, and replaying a route does less work at each stop (flight masters nearby, areas discovered, dungeon runs, quests given up, gear values, where to insert a quest). Building the first routes takes about half the time, and the optimizer tries about 20 % more changes in the same time. For the same work the routes are exactly the same as before.
+- The searches of the optimization's final now share their best route: every 500 tries they meet, and those behind go on from the best one, instead of each improving its own route until the end and only the best being kept. In the same time the routes are better (orc warlock 1-60, 30 s: a score of about 128h instead of 132h; 2 to 5 h less on the other guides compared). Advanced setting "Sharing between searches" (0: each search on its own, as before).
 
 ## 0.6.0 (2026-10-12)
 

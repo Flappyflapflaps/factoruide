@@ -163,6 +163,7 @@ export const sections: Section[] = [
       { key: "alns", kind: "number", label: "Part de grands remaniements", help: "Part des essais qui retirent un morceau du guide (zone, tranche de niveaux, quêtes rendues trop tard) puis le reconstruisent. 0 = désactivé.", min: 0, max: 0.8, step: 0.05 },
       { key: "candidates", kind: "number", label: "Candidats de la course", help: "Routes construites (chacune sa graine et son plan) et brièvement optimisées ; les meilleures continuent. Égal au nombre de recherches = pas de course.", min: 1, max: 128, step: 1 },
       { key: "qualify_share", kind: "number", label: "Part de la course entre départs", help: "Part du temps de calcul donnée à la course entre départs candidats, le reste améliore les meilleurs. 0 = pas de course.", min: 0, max: 0.6, step: 0.05 },
+      { key: "share_every", kind: "number", label: "Partage entre recherches", help: "Tous les combien d'essais les recherches finales mettent en commun leur meilleur guide : celles qui sont derrière repartent du meilleur. 0 = chacune seule, la meilleure gagne.", min: 0, max: 20000, step: 100 },
       { key: "threads", kind: "number", label: "Recherches en parallèle", min: 1, max: 32, step: 1 },
       { key: "seed", kind: "number", label: "Graine aléatoire", min: 0, step: 1 },
     ],
