@@ -192,8 +192,9 @@ pub(crate) struct State {
     pub(crate) objectives: Vec<u8>,
     /// Timed quests of the log: (quest, time by which the route must turn it in).
     pub(crate) timers: Vec<(u32, f64)>,
-    /// Objectives of the log whose mobs can be killed on the way to other stops, with the
-    /// kills already done: (quest, objective, kills).
+    /// Objectives of the log whose mobs can be killed on the way to other stops, with the share
+    /// of the objective already done (0 to 1): (quest, objective, share). A share, not kills:
+    /// the places of an objective may need different kills (their drop rates differ).
     pub(crate) along: Vec<(u32, u8, f64)>,
     /// Quests the route accepts (bit 1) and turns in (bit 2): taken and turned in on the spot
     /// when their NPC is at hand.

@@ -1,9 +1,10 @@
-//! The incremental evaluation of a changed route gives the cost of its full replay, on small
-//! routes built on the Classic database.
+//! Small routes built on the Classic database: the incremental evaluation of a changed route
+//! gives the cost of its full replay, objectives done partly on the way.
 
-use super::{Kind, Planner, Stop};
+use super::{Event, Kind, Planner, Stop};
 use crate::job::{self, Overrides, PlanRequest, Prepared};
-use crate::model::{Guard, Initial, Objective};
+use crate::model::{Guard, Initial, Objective, Spots};
+use crate::world::Pos;
 use crate::xp::Edition;
 use rusqlite::Connection;
 use std::path::PathBuf;
@@ -159,5 +160,129 @@ fn quests_at_hand_are_looked_for_where_the_stop_went() {
     assert!(
         (incremental - full).abs() < 1e-6,
         "incremental {incremental} != full {full}"
+    );
+}
+
+/// An objective whose places need different kills (drop rates): what was killed on the way at
+/// one counts as its share of the objective at the other. 10 items: 2 kills where it takes 20
+/// (50 %) leave 90 % of the objective, 9 kills where it takes 10.
+#[test]
+fn progress_on_the_way_is_a_share_of_the_objective() {
+    let mut p = quests_at_start(1);
+    p.profile.to_level = 10;
+    p.params.along_corridor = 10.0;
+    p.world.terrain = crate::terrain::Terrain::default();
+    let mut loc = p.model.start.clone();
+    loc.pos.x += 100.0;
+    let (x, y) = (loc.pos.x, loc.pos.y);
+    let mut objective = Objective {
+        loc: loc.clone(),
+        text: "Gather 10 items".into(),
+        kills: 20.0,
+        mob_level: 1,
+        uses: 0.0,
+        extra: 0.0,
+        dungeon: None,
+        elite: false,
+        count: 10.0,
+        mobs: vec![],
+        pull: 1.0,
+        spawns: 20,
+        pack: 1.0,
+        spots: Some(Spots {
+            continent: loc.pos.continent,
+            min: (x - 20.0, y),
+            max: (x + 20.0, y),
+            points: vec![(x - 20.0, y), (x + 20.0, y)],
+        }),
+        guard: Guard::default(),
+        alts: vec![],
+    };
+    let mut other = objective.clone();
+    (other.loc.pos.x, other.kills, other.spots) = (x + 200.0, 10.0, None);
+    objective.alts = vec![other];
+    p.model.quests[0].objectives = vec![objective];
+    p.model.initial.accepted = vec![0];
+    let planner = planner(&p);
+    let mut s = planner.initial_state();
+    // A walk past both spawns of the first place.
+    let start = s.pos;
+    planner.kill_along(
+        &mut s,
+        &start,
+        &Pos {
+            x: start.x + 140.0,
+            ..start
+        },
+        &mut |_, _| {},
+    );
+    assert!((s.along[0].2 - 0.1).abs() < 1e-9, "share done {}", s.along[0].2);
+    // At the other place.
+    let xp = s.spent.mob_xp;
+    s.pos.x += 300.0;
+    planner.apply(&mut s, Stop::quest(0, Kind::Objective(0)), None);
+    let each = planner.combat().mob_xp(1, &p.model.quests[0].objectives[0].alts[0]);
+    let kills = (s.spent.mob_xp - xp) as f64 / each;
+    assert!((kills - 9.0).abs() < 1e-6, "{kills} kills at the other place");
+    assert_eq!(s.objectives[0], 1);
+}
+
+/// Objects met on the way at a place guarded by mobs far above the character are left there, as
+/// on their own stop: the place's guards count, not those of the objective's main place (safe,
+/// far away).
+#[test]
+fn objects_met_on_the_way_keep_their_place_guards() {
+    let mut p = quests_at_start(2);
+    p.params.along_corridor = 10.0;
+    p.world.terrain = crate::terrain::Terrain::default();
+    let at = |dx: f64| {
+        let mut l = p.model.start.clone();
+        l.pos.x += dx;
+        l
+    };
+    let (safe, guarded, giver) = (at(10_000.0), at(50.0), at(100.0));
+    let mut objective = Objective {
+        loc: safe.clone(),
+        text: "Gather one object".into(),
+        kills: 0.0,
+        mob_level: 0,
+        uses: 1.0,
+        extra: 0.0,
+        dungeon: None,
+        elite: false,
+        count: 1.0,
+        mobs: vec![],
+        pull: 1.0,
+        spawns: 2,
+        pack: 1.0,
+        spots: Some(Spots {
+            continent: safe.pos.continent,
+            min: (guarded.pos.x, safe.pos.y),
+            max: (safe.pos.x, safe.pos.y),
+            points: vec![(safe.pos.x, safe.pos.y), (guarded.pos.x, guarded.pos.y)],
+        }),
+        guard: Guard::default(),
+        alts: vec![],
+    };
+    let mut other = objective.clone();
+    other.loc = guarded;
+    other.guard = Guard {
+        level: 25,
+        count: 3,
+        elite: false,
+    };
+    objective.alts = vec![other];
+    p.model.quests[0].objectives = vec![objective];
+    // On the way to the giver of quest 1, past the guarded place.
+    p.model.quests[1].starts = vec![giver];
+    p.model.initial.accepted = vec![0];
+    let planner = planner(&p);
+    let mut trace = Vec::new();
+    planner
+        .simulate(&[Stop::quest(1, Kind::Accept)], Some(&mut trace))
+        .unwrap();
+    assert!(
+        !trace.iter().any(|t| matches!(t.event, Event::Along { quest: 0, .. })),
+        "objects taken at the guarded place"
     );
 }

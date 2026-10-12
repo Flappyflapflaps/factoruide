@@ -429,7 +429,7 @@ impl Planner<'_> {
                 .iter()
                 .find(|&&(i, j, _)| i == q && j == ok)
                 .map_or(0.0, |&(_, _, done)| done);
-            let left = (total - done).max(0.0);
+            let left = (total * (1.0 - done)).max(0.0);
             let (k_work, g_work) = self.objective_work(s, q, ok, o);
             kills += k_work;
             gathers += g_work;
@@ -480,22 +480,19 @@ impl Planner<'_> {
     /// returning the time of its kills and the rest (objects, fixed extra time).
     fn objective_work(&self, s: &mut State, quest: u32, k: u8, o: &Objective) -> (f64, f64) {
         let i = quest as usize;
+        // The share done on the way, whatever the place: this place's kills (or uses) are left
+        // for the rest.
         let done = match s.along.iter().position(|&(q, ok, _)| q == quest && ok == k) {
             Some(n) => s.along.swap_remove(n).2,
             None => 0.0,
         };
+        let left = (1.0 - done).max(0.0);
         let (kills, uses) = if o.kills > 0.0 {
-            ((o.kills - done).max(0.0), o.uses)
+            (o.kills * left, o.uses)
         } else {
-            (0.0, (o.uses - done).max(0.0))
+            (0.0, o.uses * left)
         };
-        // The fixed time, by share of the targets left (those met on the way paid theirs).
-        let total = if o.kills > 0.0 { o.kills } else { o.uses };
-        let left = if total > 0.0 {
-            (total - done).max(0.0) / total
-        } else {
-            1.0
-        };
+        // The fixed time too, by share of the targets left (those met on the way paid theirs).
         let kill_work = kills * self.combat().kill_time(s.level, s.bonus, o);
         let other = uses * self.params.object_time + o.extra * left;
         s.time += kill_work + other;

@@ -15,6 +15,9 @@ pub(crate) const CAMP_LOG_MARGIN: usize = 2;
 /// Quests taken at hand: those the route takes within this many stops anyway.
 pub(crate) const CAMP_AHEAD: u32 = 30;
 
+/// Places of an objective counted apart on the way (`kill_along`).
+const PLACES: usize = 8;
+
 /// A walk: continent and the bits of its ends' coordinates.
 pub(crate) type FarmKey = (i64, [u64; 4]);
 
@@ -156,48 +159,82 @@ impl Planner<'_> {
                 || spots.min.0 > hi.0
                 || spots.max.1 < lo.1
                 || spots.min.1 > hi.1;
-            if apart || self.combat().need(self.quest(qi), o) > self.params.reach(s.level, s.bonus) {
+            if apart {
                 n += 1;
                 continue;
             }
-            let met = spots
-                .points
-                .iter()
-                .filter(|&&(x, y)| {
-                    let p = Pos {
-                        continent: a.continent,
-                        x,
-                        y,
-                        zone: 0,
-                    };
-                    segment_dist(&p, a, b) <= corridor
-                })
-                .count() as f64;
-            let total = if o.kills > 0.0 { o.kills } else { o.uses };
-            let kills = met.min(total - done);
+            // The places the character can take on (as on their own stop): none, nothing to count.
+            let reach = self.params.reach(s.level, s.bonus);
+            let mut open = [false; PLACES];
+            for (at, place) in o.places().take(PLACES).enumerate() {
+                open[at] = self.combat().need(self.quest(qi), place) <= reach;
+            }
+            if !open.contains(&true) {
+                n += 1;
+                continue;
+            }
+            // The spawns met, each at the nearest of the objective's places: its mobs, drop rate
+            // and guards are that place's. At most 1 + `objective_alternatives` places (up to 4
+            // in the app); spawns nearest to a place beyond `PLACES` are left out.
+            let mut met = [0.0_f64; PLACES];
+            for &(x, y) in &spots.points {
+                // Out of the walk's box (grown by the corridor, and a hair for the rounding): no
+                // closer than the corridor, the distance is not needed.
+                if x < lo.0 - 1e-6 || x > hi.0 + 1e-6 || y < lo.1 - 1e-6 || y > hi.1 + 1e-6 {
+                    continue;
+                }
+                let p = Pos {
+                    continent: a.continent,
+                    x,
+                    y,
+                    zone: 0,
+                };
+                if segment_dist(&p, a, b) <= corridor
+                    && let Some((at, _)) = o
+                        .places()
+                        .enumerate()
+                        .map(|(at, place)| (at, p.dist(&place.loc.pos)))
+                        .min_by(|x, y| x.1.total_cmp(&y.1))
+                    && at < PLACES
+                {
+                    met[at] += 1.0;
+                }
+            }
+            // Each open place's kills (or uses) are worth their share of the objective, up to
+            // what is left.
+            let (mut left, mut kills, mut work, mut mob_xp) = (1.0 - done, 0.0, 0.0, 0.0);
+            for ((place, &m), &open) in o.places().zip(&met).zip(&open) {
+                let total = if place.kills > 0.0 { place.kills } else { place.uses };
+                if !open || m <= 0.0 || total <= 0.0 || left <= 0.0 {
+                    continue;
+                }
+                let here = m.min(total * left);
+                // Its fixed time (the wait of a crowded server) is paid by share of the targets.
+                let wait = place.extra * here / total;
+                if place.kills > 0.0 {
+                    work += here * self.combat().kill_time(s.level, s.bonus, place) + wait;
+                    mob_xp += here * self.combat().mob_xp(s.level, place);
+                } else {
+                    work += here * self.params.object_time + wait;
+                }
+                left -= here / total;
+                kills += here;
+            }
             if kills < 1.0 {
                 n += 1;
                 continue;
             }
-            // Its fixed time (the wait of a crowded server) is paid by share of the targets.
-            let wait = o.extra * kills / total;
-            if o.kills > 0.0 {
-                let work = kills * self.combat().kill_time(s.level, s.bonus, o) + wait;
-                s.time += work;
-                s.spent.fighting += work;
-                let mob_xp = (kills * self.combat().mob_xp(s.level, o)) as i64;
-                s.spent.mob_xp += self.growth().gain_kills(s, mob_xp);
-            } else {
-                let work = kills * self.params.object_time + wait;
-                s.time += work;
-                s.spent.fighting += work;
+            s.time += work;
+            s.spent.fighting += work;
+            if mob_xp > 0.0 {
+                s.spent.mob_xp += self.growth().gain_kills(s, mob_xp as i64);
             }
-            let finished = done + kills >= total - 1e-9;
+            let finished = left <= 1e-9;
             if finished {
                 s.objectives[qi as usize] |= 1 << k;
                 s.along.swap_remove(n);
             } else {
-                s.along[n].2 += kills;
+                s.along[n].2 = 1.0 - left;
                 n += 1;
             }
             record(

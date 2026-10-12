@@ -225,11 +225,10 @@ impl<'a> Planner<'a> {
                 self.open_along(&mut s, i as u32);
             }
         }
-        // Objectives started: their kills (or uses) so far count as done on the way.
+        // Objectives started: their share so far counts as done on the way.
         for &(q, k, share) in &init.progress {
             if let Some(entry) = s.along.iter_mut().find(|e| e.0 as usize == q && e.1 == k) {
-                let o = &self.model.quests[q].objectives[k as usize];
-                entry.2 = share * if o.kills > 0.0 { o.kills } else { o.uses };
+                entry.2 = share;
             }
         }
         if let Some(power) = &self.model.power {
