@@ -219,10 +219,15 @@ impl Planner<'_> {
         Some(self.finish(&mut s, None))
     }
 
-    /// First stop that makes a route invalid, with the reason.
+    /// First stop that makes a route invalid, with the reason. Replayed as `simulate` does: with
+    /// the route's plan (the quests taken and turned in at hand), up to the target level.
     pub fn diagnose(&self, route: &[Stop]) -> Option<(usize, String)> {
         let mut s = self.initial_state();
+        s.planned = self.planned(route);
         for (n, &stop) in route.iter().enumerate() {
+            if s.level >= self.profile.to_level {
+                break;
+            }
             let label = if stop.is_quest() {
                 format!("{} {:?}", self.quest(stop.index).name, stop.kind)
             } else {
@@ -242,6 +247,7 @@ impl Planner<'_> {
                 };
                 return Some((n, format!("{label}: {reason}")));
             }
+            s.at = n as u32;
             self.apply(&mut s, stop, None);
             if !s.time.is_finite() {
                 let loc = self.places().loc(&s, stop);
