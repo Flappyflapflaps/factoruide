@@ -11,25 +11,47 @@ export interface OptimizeState {
   phase: "prepare" | "construct" | "optimize";
   /** While preparing: what is loading. */
   step?: "world" | "quests";
-  /** Race (several candidate routes): qualification, then the final of the best ones. */
-  stage?: "qualify" | "final";
+  /** The race of candidate routes, then the rounds (the better half goes on after each), the
+   * last one the final. */
+  stage?: "qualify" | "round" | "final";
+  /** Candidates of the race (0: no race) and how many are done. */
   candidates?: number;
   qualified?: number;
-  finalists?: number;
-  /** Seconds of qualification, at the start of the budget. */
-  qualify?: number;
+  /** Round under way (from 1) and rounds in all, the final included. */
+  round?: number;
+  rounds?: number;
+  /** Routes of the round, and searches improving each. */
+  width?: number;
+  searches?: number;
+  /** Share of the tries done (0 to 1), and where the race ends; known once a route is built. */
+  progress?: number;
+  race_end?: number;
+  /** Seconds since the first route was built. */
   elapsed?: number;
-  budget?: number;
   start?: number | null;
   best?: number | null;
-  /** While qualifying the best candidates so far, then the finalists. */
+  /** While racing the best candidates so far, then the routes of the round. */
   routes?: RaceRoute[];
   /** Route kept (best score) among `routes`. */
   selected?: number | null;
 }
 
-/** Times of each followed route, as [seconds into the optimization, play time] points. */
+/** Times of each followed route, as [share of the tries done, play time] points. */
 export type RaceSeries = Record<number, [number, number][]>;
+
+/** Where each round began (share of the tries done) and its routes. */
+export interface RaceMark {
+  round: number;
+  at: number;
+  width: number;
+}
+
+/** Seconds left, from the pace so far (the tries do not depend on the machine, their pace does). */
+export function secondsLeft(state: OptimizeState | null): number | null {
+  const done = state?.progress ?? 0;
+  if (!state?.elapsed || done < 0.02) return null;
+  return Math.max(0, Math.ceil((state.elapsed * (1 - done)) / done));
+}
 
 /** Categorical colors (see index.css `--cat-*`); beyond them routes are drawn in gray. */
 export const RACE_COLORS = 8;

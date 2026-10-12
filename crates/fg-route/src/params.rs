@@ -97,14 +97,23 @@ pub struct Params {
     /// Greedy construction: weight of the quests of a dungeon close in level (lower = the
     /// dungeon is planned more readily; forced dungeons use 0.25).
     pub dungeon_quest_weight: f64,
-    /// Race: routes built (each its own seed and construction plan) and briefly improved, at most
-    /// (no new one once its construction would end after the qualification)...
+    /// Race: routes built, each its own seed and construction plan, and briefly improved
+    /// (`qualify_tries`); the best `threads` go on (`threads` or fewer: no race). Fewer with a
+    /// low `effort`.
     pub candidates: usize,
-    /// ...during this share of `time_limit_ms` (0 = no race), then the best `threads` (or
-    /// `finalists`) are optimized for the rest.
-    pub qualify_share: f64,
-    /// Routes kept after the qualification (at least `threads`).
-    pub finalists: usize,
+    /// Tries of each candidate of the race, per stop of its route (times `effort`).
+    pub qualify_tries: f64,
+    /// Tries of each search in a round, per stop of its route (times `effort`). After each round
+    /// the better half of the routes goes on, each with twice the searches. 0: no rounds, all the
+    /// searches improve the best start (measured better: the leader of the race won every time,
+    /// and the tries count on the route that wins).
+    pub round_tries: f64,
+    /// Routes in the final, and tries of each of its searches per stop (times `effort`).
+    pub final_routes: usize,
+    pub final_tries: f64,
+    /// How much the optimization tries (all the tries above): a longer calculation gives a
+    /// shorter guide, the same one on any machine.
+    pub effort: f64,
     /// Greedy construction: weight of the stops outside the current zone (1 = nearest stop first,
     /// higher values clear the zone before leaving it).
     pub zone_stay: f64,
@@ -226,19 +235,12 @@ pub struct Params {
     pub mandatory_penalty: f64,
     /// How the first route is built.
     pub construction: Construction,
-    /// Whole optimization time: the race of candidates, then the search on the best. It counts
-    /// from the first route built (the first construction, filling the walking memory, is not
-    /// part of it).
-    pub time_limit_ms: u64,
-    /// Parallel searches (different seeds), the best one wins.
+    /// Searches at once (different seeds), whatever the machine's processors: the same guide on
+    /// any of them, only slower with fewer.
     pub threads: usize,
     pub seed: u64,
-    /// Each search stops after this many tries instead of at the end of its time (0: time),
-    /// its annealing following the tries: with no race (`qualify_share` 0), a run gives the same
-    /// routes whatever the machine, to compare planner changes without noise.
-    pub search_tries: u64,
-    /// The searches of the final meet every this many tries, and those behind go on from the
-    /// best route of all (0: each on its own, the best one wins).
+    /// The searches improving the same route meet every this many tries, and those behind go
+    /// on from the best (0: each on its own).
     pub share_every: u64,
     /// Players leveling together (1 = solo, up to 5). Set from the request's group.
     pub group_size: i64,
@@ -297,8 +299,11 @@ impl Default for Params {
             continent_stay: 1.0,
             dungeon_quest_weight: 0.5,
             candidates: 32,
-            qualify_share: 0.25,
-            finalists: 0,
+            qualify_tries: 11.0,
+            round_tries: 0.0,
+            final_routes: 1,
+            final_tries: 130.0,
+            effort: 1.0,
             max_object_loot: 20,
             common_item_sources: 100,
             common_item_time: 60.0,
@@ -355,10 +360,8 @@ impl Default for Params {
             excluded_dungeons: vec![],
             dungeon_pickup_ahead: 8,
             construction: Construction::Greedy,
-            time_limit_ms: 120_000,
-            threads: std::thread::available_parallelism().map_or(4, |n| n.get().min(8)),
+            threads: 8,
             seed: 42,
-            search_tries: 0,
             share_every: 500,
             group_size: 1,
             group_kill_speed: 0.8,

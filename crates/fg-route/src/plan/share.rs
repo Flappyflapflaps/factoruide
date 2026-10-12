@@ -3,7 +3,7 @@
 //! route another one already beats.
 //!
 //! A meeting waits for every search still running, so that the same tries give the same routes
-//! (`search_tries`). A search leaves once it stops trying (its time is over, the generation is
+//! (`Effort::Tries`). A search leaves once it stops trying (its time is over, the generation is
 //! stopped, it panicked): the others no longer wait for it.
 
 use super::state::Stop;

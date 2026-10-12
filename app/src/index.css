@@ -1601,6 +1601,15 @@ button.big {
   stroke-width: 3.5;
   opacity: 1;
 }
+.race-line.out {
+  stroke-width: 1.5;
+  opacity: 0.45;
+}
+.round-mark {
+  stroke: var(--text-muted);
+  stroke-dasharray: 3 4;
+  opacity: 0.6;
+}
 .race-dot {
   stroke: var(--surface-1);
   stroke-width: 2;

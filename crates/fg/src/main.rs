@@ -46,9 +46,10 @@ enum Command {
         /// Default: the edition's level cap
         #[arg(long)]
         to_level: Option<i64>,
-        /// Whole optimization time in seconds (the race of candidates included)
+        /// How much the optimization tries (1 = normal, 0.1 = preview, 3 = thorough; 0 = the first
+        /// routes only): the same guide on any machine, only slower with fewer processors
         #[arg(long)]
-        time_limit: Option<u64>,
+        effort: Option<f64>,
         /// Initial construction: regions (quest groups) or greedy
         #[arg(long)]
         construction: Option<String>,
@@ -91,9 +92,9 @@ enum Command {
     /// Replay a request exported by the app (debug/request-*.json)
     Replay {
         file: PathBuf,
-        /// Override the whole optimization time (seconds, the race of candidates included)
+        /// Override how much the optimization tries (see `route --effort`)
         #[arg(long)]
-        time_limit: Option<u64>,
+        effort: Option<f64>,
     },
     /// Walking distance and passages between two points (Zone,x,y)
     Travel {
@@ -155,7 +156,7 @@ fn main() -> Result<()> {
             class,
             from_level,
             to_level,
-            time_limit,
+            effort,
             construction,
             name,
             profession,
@@ -173,7 +174,7 @@ fn main() -> Result<()> {
                 class,
                 from_level,
                 to_level: to_level.unwrap_or(edition.rules().max_level),
-                time_limit,
+                effort,
                 construction,
                 out_name: name,
                 allow_elite,
@@ -202,7 +203,7 @@ fn main() -> Result<()> {
         )?,
         Command::Show { name, full } => route::show(&cli.routes, &name, full)?,
         Command::Addon => route::write_addon_routes(&open()?, &cli.routes, &cli.addon_dir)?,
-        Command::Replay { file, time_limit } => route::replay(&open()?, &overrides, &file, time_limit, &cli.routes)?,
+        Command::Replay { file, effort } => route::replay(&open()?, &overrides, &file, effort, &cli.routes)?,
         Command::Travel { from, to, faction } => travel::run(&open()?, &overrides, &faction, &from, &to)?,
         Command::Talents { out } => talents::run(
             &open()?,

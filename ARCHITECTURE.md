@@ -176,12 +176,19 @@ the same place are brought next to each other when that makes the route no worse
 (`plan/together.rs`): the addon shows the steps at one place together, so that the player does
 them at once.
 
-### Parallel race
+### Tournament
 
-`job::optimize` runs several searches at once. With a qualification time, it first runs a race:
-many candidate routes, each with its own random seed and construction settings, get a short
-search; the best ones are then improved for the rest of the time. The best route wins: a longer
-calculation gives a shorter guide.
+`job::optimize` runs several searches at once (`threads`, 8, whatever the processors), as a
+tournament counted in tries, not in time: the same request gives the same guide on any machine,
+only slower with fewer processors. The tries of each search are per stop of its route (a 1-20
+needs fewer than a 1-60), times `effort` (the calculation presets). First a race: many candidate
+routes, each with its own random seed and construction settings, get a short search. Then all the
+searches improve the best one: they meet every `share_every` tries and those behind go on from the
+best of them (`plan/share.rs`). Rounds can come in between (`round_tries`, off by default): the
+best `threads` go on, one search each, and after each round the better half goes on with twice the
+searches each, down to the `final_routes` of the final. The improvement slows down like a
+logarithm of the tries, and the leader of the race won every time: the tries count on the route
+that wins. A longer calculation gives a shorter guide.
 
 ## 4. The guide
 

@@ -154,17 +154,19 @@ export const sections: Section[] = [
     title: "Algorithme",
     help: "Pour tester l'optimiseur : les valeurs par défaut sont les meilleures mesurées.",
     fields: [
-      { key: "time_limit_ms", kind: "number", label: "Temps de calcul", help: "Temps total : une course entre des départs candidats, puis l'amélioration des meilleurs.", unit: "s", scale: 1000, min: 1, max: 900, step: 1 },
       { key: "allow_grind", kind: "bool", label: "Farm autorisé", help: "Sans farm, le guide va chercher plus de quêtes, quitte à être plus long. Il ne farme que s'il ne reste aucune quête." },
       { key: "grind_weight", kind: "number", label: "Poids du farm", help: "1 = seul le temps total compte ; 1.5 (défaut) = presque pas de farm et guide le plus rapide mesuré ; plus haut = encore moins de farm, mais accepte des quêtes peu rentables (3 rallongeait le guide de 5 à 9h).", min: 1, max: 10, step: 0.5 },
       { key: "grind_cap", kind: "number", label: "Part maximale de farm par niveau", help: "XP de chaque niveau que le farm pur peut donner (100 % = sans limite). Au-delà, le guide préfère des quêtes, même moins rentables.", unit: "%", scale: 0.01, min: 0, max: 100, step: 5 },
       { key: "farm_cap", kind: "number", label: "Part maximale de farm en chemin par niveau", help: "XP de chaque niveau que les mobs tués en chemin peuvent donner, à part du farm pur (100 % = sans limite). Une fois atteinte, le guide ne tue plus les mobs croisés jusqu'au niveau suivant.", unit: "%", scale: 0.01, min: 0, max: 100, step: 5 },
       { key: "grind_over_weight", kind: "number", label: "Poids du farm au-delà de cette part", help: "Comme le poids du farm, pour le farm qui dépasse la part maximale : 4 (défaut) = une quête jusqu'à 4 fois moins rentable que le farm est préférée.", min: 1, max: 10, step: 0.5 },
       { key: "alns", kind: "number", label: "Part de grands remaniements", help: "Part des essais qui retirent un morceau du guide (zone, tranche de niveaux, quêtes rendues trop tard) puis le reconstruisent. 0 = désactivé.", min: 0, max: 0.8, step: 0.05 },
-      { key: "candidates", kind: "number", label: "Candidats de la course", help: "Routes construites (chacune sa graine et son plan) et brièvement optimisées ; les meilleures continuent. Égal au nombre de recherches = pas de course.", min: 1, max: 128, step: 1 },
-      { key: "qualify_share", kind: "number", label: "Part de la course entre départs", help: "Part du temps de calcul donnée à la course entre départs candidats, le reste améliore les meilleurs. 0 = pas de course.", min: 0, max: 0.6, step: 0.05 },
-      { key: "share_every", kind: "number", label: "Partage entre recherches", help: "Tous les combien d'essais les recherches finales mettent en commun leur meilleur guide : celles qui sont derrière repartent du meilleur. 0 = chacune seule, la meilleure gagne.", min: 0, max: 20000, step: 100 },
-      { key: "threads", kind: "number", label: "Recherches en parallèle", min: 1, max: 32, step: 1 },
+      { key: "candidates", kind: "number", label: "Candidats de la course", help: "Routes construites (chacune sa graine et son plan) et brièvement optimisées ; les meilleures continuent, une recherche chacune. Égal au nombre de recherches = pas de course. Moins nombreux en aperçu.", min: 1, max: 256, step: 1 },
+      { key: "qualify_tries", kind: "number", label: "Essais de la course", help: "Essais de chaque candidat, par étape de sa route (multipliés par l'effort de calcul).", min: 0, max: 50, step: 0.5 },
+      { key: "round_tries", kind: "number", label: "Essais par manche", help: "Essais de chaque recherche dans une manche, par étape de sa route. Après chaque manche, la meilleure moitié des routes continue, avec deux fois plus de recherches chacune. 0 = pas de manche : toutes les recherches améliorent le meilleur départ.", min: 0, max: 500, step: 5 },
+      { key: "final_routes", kind: "number", label: "Routes en finale", help: "Les manches s'arrêtent à ce nombre de routes : la finale, dont la meilleure route donne le guide.", min: 1, max: 32, step: 1 },
+      { key: "final_tries", kind: "number", label: "Essais de la finale", help: "Essais de chaque recherche de la finale, par étape de sa route.", min: 0, max: 2000, step: 10 },
+      { key: "share_every", kind: "number", label: "Partage entre recherches", help: "Tous les combien d'essais les recherches d'une même route mettent en commun leur meilleur guide : celles qui sont derrière repartent du meilleur. 0 = chacune seule.", min: 0, max: 20000, step: 100 },
+      { key: "threads", kind: "number", label: "Recherches en parallèle", help: "Nombre de recherches, pas de processeurs : le guide est le même sur tout PC, le calcul seulement plus long avec moins de cœurs.", min: 1, max: 32, step: 1 },
       { key: "seed", kind: "number", label: "Graine aléatoire", min: 0, step: 1 },
     ],
   },
@@ -180,9 +182,9 @@ export const presets: { label: string; values: Partial<Params> }[] = [
   { label: "Rapide", values: { kill_time: 17, grind_kill_time: 40, stop_overhead: 5, object_time: 8 } },
 ];
 
-/** Calculation presets: the whole optimization time. */
-export const budgets: { label: string; ms: number }[] = [
-  { label: "Aperçu (10 s)", ms: 10_000 },
-  { label: "Normal (2 min)", ms: 120_000 },
-  { label: "Poussé (6 min)", ms: 360_000 },
+/** Calculation presets: how much the optimization tries (its time depends on the processor). */
+export const efforts: { label: string; effort: number }[] = [
+  { label: "Aperçu", effort: 0.1 },
+  { label: "Normal", effort: 1 },
+  { label: "Poussé", effort: 3 },
 ];

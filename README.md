@@ -72,8 +72,9 @@ zones to do, the level to reach before moving on from each, and where the XP is.
    code-signed). New versions are then offered by the app at startup.
 2. **Addon** page: choose your WoW folder, then "Save and install the addon".
 3. **New guide**: pick your character, professions, zones, dungeons and play style, then start
-   the generation (2 minutes, 6 for a thorough one). The best starting routes are picked first,
-   then improved: their times go down live on the chart and the route is drawn on the map. The
+   the generation (about 2 minutes, 6 for a thorough one, depending on the processor). The best
+   starting routes are picked first, then improved in rounds where the better half goes on: their
+   times go down live on the chart and the route is drawn on the map. The
    guide kept (in bold) is the best balance between play time and comfort (little grinding, few
    trips between zones), not always the very shortest.
 4. **My guides**: tick the version to install in the addon, then `/reload` in game.

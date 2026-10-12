@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type Options, type PlanRequest, type VersionMeta } from "../api";
 import { ConfigForm } from "../components/ConfigForm";
-import { RACE_COLORS, type OptimizeState, type RaceSeries } from "../components/OptimizeProgress";
+import { RACE_COLORS, type OptimizeState, type RaceMark, type RaceSeries } from "../components/OptimizeProgress";
 import { RunView } from "../components/RunView";
 import type { WorldPoint } from "../components/WorldMap";
 import { gameLocale, useLang, useT } from "../i18n";
@@ -37,6 +37,7 @@ export function NewRoutePage({ options, start, onBusy, onDone }: Props) {
   const [optimize, setOptimize] = useState<OptimizeState | null>(null);
   // Time of each followed route over the optimization, and its color slot.
   const [series, setSeries] = useState<RaceSeries>({});
+  const [marks, setMarks] = useState<RaceMark[]>([]);
   const [colors, setColors] = useState<Record<number, number>>({});
   const [route, setRoute] = useState<WorldPoint[]>([]);
   const [log, setLog] = useState<string[]>([]);
@@ -65,19 +66,22 @@ export function NewRoutePage({ options, start, onBusy, onDone }: Props) {
         }
         setColors(Object.fromEntries(slots.current));
         // Once the best starts are picked (or without a race), each route's time is drawn from
-        // the end of the qualification.
+        // the end of the race, against the share of the tries done; each round marked.
         if (next.phase === "optimize" && next.stage !== "qualify" && routes.length) {
-          const at = next.elapsed ?? 0;
+          const at = next.progress ?? 0;
+          const begin = next.race_end ?? 0;
           setSeries((prev) => {
             const out = { ...prev };
             for (const r of routes) {
               const points = out[r.id] ?? [];
               const last = points[points.length - 1];
-              if (!last) out[r.id] = [[next.qualify ?? 0, r.time]];
+              if (!last) out[r.id] = [[begin, r.time]];
               else if (Math.abs(last[1] - r.time) > 0.5) out[r.id] = [...points, [at, r.time]];
             }
             return out;
           });
+          const round = next.round ?? 1;
+          setMarks((prev) => (prev.some((mark) => mark.round === round) ? prev : [...prev, { round, at: prev.length ? at : begin, width: next.width ?? routes.length }]));
         }
         setOptimize(next);
       } else if (m.startsWith("@route ")) {
@@ -104,6 +108,7 @@ export function NewRoutePage({ options, start, onBusy, onDone }: Props) {
     interrupted.current = null;
     setOptimize(null);
     setSeries({});
+    setMarks([]);
     setColors({});
     slots.current.clear();
     setRoute([]);
@@ -181,7 +186,7 @@ export function NewRoutePage({ options, start, onBusy, onDone }: Props) {
           }}
         />
       )}
-      {step === "run" && <RunView state={optimize} series={series} colors={colors} route={route} log={log} onStop={() => interrupt("stop")} onCancel={cancel} interrupting={interrupting} />}
+      {step === "run" && <RunView state={optimize} series={series} marks={marks} colors={colors} route={route} log={log} onStop={() => interrupt("stop")} onCancel={cancel} interrupting={interrupting} />}
     </div>
   );
 }

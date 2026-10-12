@@ -12,7 +12,7 @@ pub struct RouteOptions {
     pub class: String,
     pub from_level: i64,
     pub to_level: i64,
-    pub time_limit: Option<u64>,
+    pub effort: Option<f64>,
     pub construction: Option<String>,
     pub out_name: Option<String>,
     pub allow_elite: bool,
@@ -35,8 +35,8 @@ pub struct RouteOptions {
 pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
     let overrides = Overrides::load_edition(&opts.overrides, crate::edition())?;
     let mut params = overrides.params.with_overrides(&opts.params)?;
-    if let Some(t) = opts.time_limit {
-        params.time_limit_ms = t * 1000;
+    if let Some(e) = opts.effort {
+        params.effort = e;
     }
     if let Some(c) = &opts.construction {
         params = params.with_overrides(&[format!("construction={c}")])?;
@@ -159,17 +159,14 @@ pub fn replay(
     conn: &Connection,
     overrides_dir: &Path,
     file: &Path,
-    time_limit: Option<u64>,
+    effort: Option<f64>,
     routes_dir: &Path,
 ) -> Result<()> {
     let mut request: PlanRequest =
         serde_json::from_str(&std::fs::read_to_string(file).with_context(|| format!("reading {}", file.display()))?)?;
     let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
-    if let Some(t) = time_limit {
-        request
-            .params
-            .get_or_insert_with(|| overrides.params.clone())
-            .time_limit_ms = t * 1000;
+    if let Some(e) = effort {
+        request.params.get_or_insert_with(|| overrides.params.clone()).effort = e;
     }
     request.name = Some(format!(
         "{}-replay",

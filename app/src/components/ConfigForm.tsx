@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type CharacterInfo, type Options, type Params, type PlanRequest, type ProfessionGoal, type StartState } from "../api";
-import { SIMPLE_KEYS, budgets, presets, sections } from "../paramSchema";
+import { SIMPLE_KEYS, efforts, presets, sections } from "../paramSchema";
 import { ClassName } from "./Character";
 import { CharacterPicker } from "./CharacterPicker";
 import { DungeonPicker } from "./DungeonPicker";
@@ -213,13 +213,13 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
             </button>
           </div>
         </div>
-        {/* The last choice before launching: how long to compute. */}
-        <div className="run-box" title={t("Plus le calcul est long, plus le guide est court.")}>
+        {/* The last choice before launching: how much to compute. */}
+        <div className="run-box" title={t("Plus le calcul est long, plus le guide est court. Sa durée dépend du processeur, le guide non.")}>
           <Segmented
             label={t("Temps de calcul")}
-            choices={budgets.map((b) => ({ label: t(b.label), value: b.ms }))}
-            value={params.time_limit_ms}
-            onChange={(ms) => set("time_limit_ms", ms)}
+            choices={efforts.map((e) => ({ label: t(e.label), value: e.effort }))}
+            value={params.effort}
+            onChange={(effort) => set("effort", effort)}
           />
           <button
             className="primary big"

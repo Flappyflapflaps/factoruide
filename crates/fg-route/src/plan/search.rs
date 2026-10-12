@@ -13,6 +13,15 @@ use std::collections::HashSet;
 use std::time::Duration;
 use std::time::Instant;
 
+/// How long a search tries.
+#[derive(Debug, Clone, Copy)]
+pub enum Effort {
+    /// Until this time is over.
+    Time(Duration),
+    /// This many tries: the same route on any machine, only slower or faster.
+    Tries(u64),
+}
+
 /// Where the search stands: the current route, the best one, how it decides.
 struct Search {
     route: Vec<Stop>,
@@ -22,19 +31,24 @@ struct Search {
     acceptance: Acceptance,
     operators: Operators,
     started: Instant,
-    budget: Duration,
-    /// Tries after which the search ends (0: its time, `budget`).
-    max_tries: u64,
+    effort: Effort,
     tries: u64,
     wins: u64,
 }
 
 impl Search {
     fn progress(&self) -> f64 {
-        if self.max_tries > 0 {
-            return self.tries as f64 / self.max_tries as f64;
+        match self.effort {
+            Effort::Tries(n) => self.tries as f64 / n.max(1) as f64,
+            Effort::Time(budget) => self.started.elapsed().as_secs_f64() / budget.as_secs_f64().max(1e-9),
         }
-        self.started.elapsed().as_secs_f64() / self.budget.as_secs_f64().max(1e-9)
+    }
+
+    fn more(&self) -> bool {
+        match self.effort {
+            Effort::Tries(n) => self.tries < n,
+            Effort::Time(budget) => self.started.elapsed() < budget,
+        }
     }
 }
 
@@ -49,16 +63,16 @@ impl Planner<'_> {
         log: impl Fn(&str),
         on_best: impl Fn(f64, f64, &[Stop]),
     ) -> Vec<Stop> {
-        self.improve_while(route, budget, || true, log, on_best)
+        self.improve_while(route, Effort::Time(budget), || true, log, on_best)
     }
 
-    /// `improve`, ending as soon as `keep_going` says no (the user stopped the generation): the
-    /// best route so far is cleaned up and returned. An aborted planner (`abortable`) skips the
+    /// `improve` for `effort`, ending as soon as `keep_going` says no (it is asked before each
+    /// try; the user stopped the generation): the best route so far is cleaned up and returned. An aborted planner (`abortable`) skips the
     /// clean-up: its route is thrown away, or cleaned up when improved again.
     pub fn improve_while(
         &self,
         route: Vec<Stop>,
-        budget: Duration,
+        effort: Effort,
         keep_going: impl Fn() -> bool,
         log: impl Fn(&str),
         on_best: impl Fn(f64, f64, &[Stop]),
@@ -77,19 +91,11 @@ impl Planner<'_> {
             rng: SmallRng::seed_from_u64(self.params.seed),
             operators: Operators::new(),
             started: Instant::now(),
-            budget,
-            max_tries: self.params.search_tries,
+            effort,
             tries: 0,
             wins: 0,
         };
-        let more = |search: &Search| {
-            if search.max_tries > 0 {
-                search.tries < search.max_tries
-            } else {
-                search.started.elapsed() < budget
-            }
-        };
-        while more(&search) && search.route.len() > 2 && keep_going() {
+        while search.more() && search.route.len() > 2 && keep_going() {
             search.tries += 1;
             self.try_a_move(&mut search, &on_best);
             if self.params.share_every > 0 && search.tries.is_multiple_of(self.params.share_every) {

@@ -83,8 +83,12 @@ export interface Params {
   construction_random: boolean;
   continent_stay: number;
   candidates: number;
-  qualify_share: number;
-  finalists: number;
+  qualify_tries: number;
+  round_tries: number;
+  final_routes: number;
+  final_tries: number;
+  /** How much the optimization tries (the calculation presets). */
+  effort: number;
   share_every: number;
   fit_penalty: number;
   fit_above_penalty: number;
@@ -96,7 +100,6 @@ export interface Params {
   dungeon_pickup_ahead: number;
   dungeon_xp_share: number;
   construction: string;
-  time_limit_ms: number;
   threads: number;
   seed: number;
   /** Players leveling together (set from the request's group). */

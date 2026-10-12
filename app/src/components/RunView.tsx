@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { fmtTime } from "../api";
-import type { OptimizeState, RaceSeries } from "./OptimizeProgress";
+import { secondsLeft, type OptimizeState, type RaceMark, type RaceSeries } from "./OptimizeProgress";
 import { RaceChart } from "./RaceChart";
 import { useT } from "../i18n";
 import { WorldMap, type WorldPoint } from "./WorldMap";
@@ -38,19 +38,23 @@ function phaseText(state: OptimizeState | null, t: ReturnType<typeof useT>): str
     return state?.step === "quests" ? t("Chargement des quêtes…") : t("Chargement de la carte…");
   }
   if (state.phase === "construct") return t("Construction des routes de départ…");
-  const left = Math.ceil(Math.max(0, (state.budget ?? 0) - (state.elapsed ?? 0)));
-  if (state.stage === "qualify") {
-    return t("Sélection des meilleurs départs · {done} essayés · encore {s} s", { done: state.qualified ?? 0, s: left });
-  }
-  if (state.stage === "final") {
-    return t("Optimisation des {k} meilleurs départs · encore {s} s", { k: state.finalists ?? 0, s: left });
-  }
-  return t("Optimisation · encore {n} s", { n: left });
+  const what =
+    state.stage === "qualify"
+      ? t("Sélection des meilleurs départs · {done} essayés sur {n}", { done: state.qualified ?? 0, n: state.candidates ?? 0 })
+      : state.stage === "final" && state.width === 1
+        ? t("Amélioration du meilleur départ par {m} recherches", { m: state.searches ?? 1 })
+        : state.stage === "final"
+          ? t("Finale : {k} chemins, {m} recherches chacun", { k: state.width ?? 0, m: state.searches ?? 1 })
+        : t("Manche {r} sur {n} : {k} chemins, {m} recherches chacun", { r: state.round ?? 1, n: (state.rounds ?? 1) - 1, k: state.width ?? 0, m: state.searches ?? 1 });
+  const left = secondsLeft(state);
+  // The time left is an estimate: the tries are fixed, their pace depends on the processor.
+  return left == null ? what : `${what} · ${t("encore ~{s} s", { s: left })}`;
 }
 
 interface Props {
   state: OptimizeState | null;
   series: RaceSeries;
+  marks: RaceMark[];
   /** Color slot of each followed route. */
   colors: Record<number, number>;
   route: WorldPoint[];
@@ -63,12 +67,12 @@ interface Props {
   interrupting: "stop" | "cancel" | null;
 }
 
-export function RunView({ state, series, colors, route, log, onStop, onCancel, interrupting }: Props) {
+export function RunView({ state, series, marks, colors, route, log, onStop, onCancel, interrupting }: Props) {
   const t = useT();
   const [showLog, setShowLog] = useState(false);
 
   const optimizing = state?.phase === "optimize";
-  const ratio = optimizing && state.budget ? Math.min(1, (state.elapsed ?? 0) / state.budget) : 0;
+  const ratio = optimizing ? Math.min(1, state.progress ?? 0) : 0;
   // The time of the route kept (best score), the best start before the routes are known.
   const kept = state?.routes?.find((r) => r.id === state.selected)?.time ?? state?.best ?? null;
 
@@ -96,7 +100,7 @@ export function RunView({ state, series, colors, route, log, onStop, onCancel, i
         <div style={optimizing ? { width: `${ratio * 100}%` } : undefined} />
       </div>
       <div className="panel">
-        <RaceChart state={state} series={series} colors={colors} />
+        <RaceChart state={state} series={series} marks={marks} colors={colors} />
       </div>
       <div className="panel">
         <WorldMap route={route} live height={520} />
