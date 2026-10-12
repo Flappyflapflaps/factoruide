@@ -213,10 +213,17 @@ impl Planner<'_> {
         true
     }
 
-    /// Apply a stop (assumed valid). Records events when `trace` is given.
+    /// Apply a stop (assumed valid). Records events when `trace` is given. The quests gone
+    /// hopeless are given up before and after: the next stop is judged (`valid`) on the log left
+    /// once the level reached here has made some of them gray, as the player would see it.
     pub(crate) fn apply(&self, s: &mut State, stop: Stop, mut trace: Option<&mut Vec<Timed>>) {
         let mut record = recorder(&mut trace);
         self.abandon_hopeless(s, &mut record);
+        self.do_apply(s, stop, &mut record);
+        self.abandon_hopeless(s, &mut record);
+    }
+
+    fn do_apply(&self, s: &mut State, stop: Stop, record: &mut impl FnMut(&State, Event)) {
         if Self::already_done(s, stop) {
             return;
         }
@@ -226,17 +233,17 @@ impl Planner<'_> {
         }
         if stop.kind == Kind::Hearth {
             s.landed = Landed::No;
-            if self.hearth(s, stop.index == 1, &mut record) {
-                self.while_here(s, &mut record);
-                self.train(s, &mut record);
+            if self.hearth(s, stop.index == 1, record) {
+                self.while_here(s, record);
+                self.train(s, record);
             }
             return;
         }
         // Chosen once, before grinding to it: the place the stop is gated by is the one gone to.
         let spot = self.spot_of(s, stop);
-        self.grind_to_gate(s, stop, spot, &mut record);
-        let loc = self.arrive(s, stop, spot, &mut record);
-        if !(stop.kind == Kind::TurnIn && Self::failed_in_time(s, stop.index, &mut record)) {
+        self.grind_to_gate(s, stop, spot, record);
+        let loc = self.arrive(s, stop, spot, record);
+        if !(stop.kind == Kind::TurnIn && Self::failed_in_time(s, stop.index, record)) {
             let picked = self.do_stop(s, stop, spot);
             record(s, Event::Stop { stop, loc });
             if let Some(item) = picked {
@@ -249,8 +256,8 @@ impl Planner<'_> {
                 );
             }
         }
-        self.while_here(s, &mut record);
-        self.train(s, &mut record);
+        self.while_here(s, record);
+        self.train(s, record);
     }
 
     /// Back to the inn the hearthstone is bound to, with the hearthstone or Astral Recall

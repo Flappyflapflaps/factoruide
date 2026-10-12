@@ -199,6 +199,40 @@ fn pet_quest_comes_early() {
     assert!(at < 25, "imp turned in at stop {at}");
 }
 
+/// Constructed routes stay valid when a level reached makes quests of a full log hopeless
+/// (gone gray, or their dungeon outleveled): the next accept is judged on the log once they are
+/// given up, and the construction's replay (`settle`) goes where the route goes next, as the
+/// simulation does, so that it reaches the same levels. With these construction weights the
+/// route ended with "quest log full" at an accept (w010: given up one stop too late; w142: the
+/// replay a level ahead, it saw room and repaired nothing).
+#[test]
+fn constructed_route_keeps_its_log_in_bounds() {
+    for weights in [
+        [4.502, 2.569, 1.073, 0.475, 0.58, 0.547],
+        [2.899, 5.096, 1.277, 0.732, 0.04, 0.352],
+    ] {
+        let names = [
+            "zone_stay",
+            "continent_stay",
+            "dungeon_quest_weight",
+            "fit_penalty",
+            "fit_above_penalty",
+            "efficiency_power",
+        ];
+        let mut params: Vec<String> = names.iter().zip(weights).map(|(n, w)| format!("{n}={w}")).collect();
+        params.extend(["progression=cautious".into(), "construction_random=false".into()]);
+        let params: Vec<&str> = params.iter().map(String::as_str).collect();
+        let p = prepare("orc", "warlock", 60, &params);
+        let planner = planner(&p);
+        let route = planner.construct(|_| {});
+        assert!(
+            planner.simulate(&route, None).is_some(),
+            "{weights:?}: {:?}",
+            planner.diagnose(&route)
+        );
+    }
+}
+
 /// A stopped search (the user stopped the generation) ends at once, however long its budget,
 /// and hands back a valid route.
 #[test]

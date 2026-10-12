@@ -244,6 +244,7 @@ impl Planner<'_> {
                 for k in 0..self.quest(stop.index).objectives.len() {
                     let o = Stop::quest(stop.index, Kind::Objective(k as u8));
                     if s.objectives[i] & (1 << k) == 0 && self.availability().valid(&s, o) {
+                        s.next = Some(self.places().pos(&s, stop));
                         self.apply(&mut s, o, None);
                         out.push(o);
                     }
@@ -255,6 +256,9 @@ impl Planner<'_> {
                 }
                 continue;
             }
+            // Where it goes next, as `simulate` replays it: the objectives are done on that side
+            // (`spot`), which changes the mobs killed on the way, the level and the log.
+            s.next = self.next_pos(&s, route, pos);
             self.apply(&mut s, stop, None);
             out.push(stop);
         }
