@@ -24,6 +24,7 @@ A security fix (updating is recommended), and better guides: the optimization co
 ### Data
 
 - Forever: NPCs added by Forever that the quest data gave no faction (the profession trainers of Camp Narache, Karne Grayhoof...) are no longer taken for hostile creatures. Around Grull Hawkwind they made a camp of level 8-10 "mobs": The Hunt Begins was out of reach for a level 1 tauren, and with it The Hunt Continues, The Battleboars and the hunter's class note. The tauren guides walked to Durotar at level 1 instead (23 minutes); they now start in Mulgore with The Hunt Begins. 316 NPCs get their side: from the faction Wowhead names under them, or from the races of the quests they give.
+- Forever: the human guides start in Northshire again. Two level 60 Rune Brokers that Forever adds in Northshire Abbey, vendors with no faction in the quest data, were taken for hostile creatures standing by Marshal McBride: A Threat Within was never turned in, the whole Northshire chain stayed locked (Kobold Camp Cleanup, Echo Ridge, Brotherhood of Thieves, Milly Osworth...), and the guides went through Stormwind and the Deeprun Tram to do the dwarves' start in Coldridge Valley at level 3. NPCs of no known faction offering a service (vendors, trainers, flight masters, innkeepers, bankers...) are now friendly to both sides: 190 NPCs. Humans 1-20, Normal: they stay in Elwynn Forest up to level 12 and reach level 10 12 to 21 minutes sooner.
 
 ### App
 
