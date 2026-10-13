@@ -6,7 +6,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 ## 0.7.0 (2026-10-13)
 
-A security fix (updating is recommended), and better guides: the optimization counts tries, the race looks around its best starting routes, and the calculation screen shows them as they are built.
+A security fix (updating is recommended), and better guides: the optimization counts tries, the race looks around its best starting routes, and the calculation screen shows them as they are built. The human guides start in Northshire again (Forever).
 
 ### Security
 
@@ -20,6 +20,7 @@ A security fix (updating is recommended), and better guides: the optimization co
 - Fixed starting routes that ended with a full quest log: once a level reached makes quests of the log hopeless (gone gray, dungeon outleveled), they are given up before the next quest is taken, and the construction replays its route the way the guide is computed. About 4 % of the construction settings drawn for the starting routes gave no route at all.
 - Faster optimization again: the paths around the terrain are searched about twice as fast, and replaying a route does less work at each stop (flight masters nearby, areas discovered, dungeon runs, quests given up, gear values, where to insert a quest). Building the first routes takes about half the time, and the optimizer tries about 20 % more changes in the same time. For the same work the routes are exactly the same as before.
 - The optimization counts tries, no longer seconds: the same settings give the same guide on any PC, only its time depends on the processor (before, the same request could come out 2 hours apart from one run to the next). 32 starting routes are built and briefly improved, then the 8 searches all improve the best one together, sharing their best route every 500 tries. The tries follow the size of the guide (a 1-20 does far fewer than a 1-60). The calculation presets (Preview, Normal, Thorough) set how much is tried; Normal takes about as long as before for routes as good (orc warlock 1-60, 4 seeds: a score of 127h55 on average, 127h33 before). Advanced settings: candidates and their tries, tries of the final, and rounds in between (the better half of the routes going on after each; off by default: the leader of the race won every time). The chart follows the routes against the share of the calculation done.
+- Objectives the quest data gives no amount for: an item Wowhead lists alone among a quest's requirements is wanted once (it writes "x 8" only above one), and a mob standing at one single place, in a quest whose text gives no number, is killed or met once. The guides asked for 6 Sacks of "Picture" Books from Shinyfinder Narf (46 minutes waiting for him to come back) and killed Henze Faulk 8 times for the paladin's Tome of Divinity. With the Northshire fix, humans 1-20, Normal: 34 minutes (warrior) to 1h28 (priest) shorter; tauren and dwarf hunters about an hour shorter.
 
 ### Data
 

@@ -32,7 +32,8 @@ impl QuestBuilder<'_> {
             return Ok(None); // given when accepting
         }
         let name = self.sources.entities.name(EntityKind::Item, target);
-        let count = amount.unwrap_or_else(|| count_for(&quest.requirements, &name, self.params.default_item_count));
+        let count =
+            amount.unwrap_or_else(|| count_for(&quest.requirements, &name).unwrap_or(self.params.default_item_count));
         let places = self.item_places(quest, target, count);
         let text = text.unwrap_or_else(|| format!("{name} x{count}"));
         let at = |pos, zone| Loc {

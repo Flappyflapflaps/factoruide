@@ -4,7 +4,9 @@
 use super::builder::{QuestBuilder, Skip};
 use super::entities::{alternatives, best_cluster};
 use super::givers::Givers;
-use super::sources::{ObjectiveKind, QuestRow, SourceKind, asks_for_work, count_for, on_reachable, parse_requirements};
+use super::sources::{
+    ObjectiveKind, QuestRow, SourceKind, asks_for_work, count_for, on_reachable, one_place, parse_requirements,
+};
 use super::types::{EntityKind, Guard, Loc, Objective, Spots};
 use crate::world::Pos;
 use std::collections::HashMap;
@@ -246,16 +248,22 @@ impl QuestBuilder<'_> {
             ids.extend(alt);
         }
         let name = entities.name(EntityKind::Npc, target);
-        let needed = amount.unwrap_or_else(|| count_for(&quest.requirements, &name, params.default_kill_count));
+        let points: Vec<_> = ids
+            .iter()
+            .flat_map(|id| entities.points(self.world, EntityKind::Npc, *id))
+            .collect();
+        let needed = amount.or_else(|| count_for(&quest.requirements, &name)).unwrap_or(
+            if one_place(&points) && !quest.row.numbered {
+                1.0
+            } else {
+                params.default_kill_count
+            },
+        );
         let friendly = entities.friendly.contains(&target);
         let elite = ids.iter().any(|id| entities.is_elite(*id));
         if !params.allow_elite && needed > params.solo_elite_kills && !friendly && elite {
             return Err("elite objective");
         }
-        let points: Vec<_> = ids
-            .iter()
-            .flat_map(|id| entities.points(self.world, EntityKind::Npc, *id))
-            .collect();
         let (pos, zone, _) = best_cluster(&points, Some(&quest.anchor))
             .or(quest.approx)
             .ok_or("objective mob location unknown")?;
@@ -314,7 +322,7 @@ impl QuestBuilder<'_> {
             .or(quest.approx)
             .ok_or("objective object location unknown")?;
         let name = entities.name(EntityKind::Object, target);
-        let uses = amount.unwrap_or_else(|| count_for(&quest.requirements, &name, 1.0));
+        let uses = amount.or_else(|| count_for(&quest.requirements, &name)).unwrap_or(1.0);
         let text = text.unwrap_or_else(|| format!("Use {name}"));
         let at = |pos: Pos, zone: i64| {
             let loc = Loc {

@@ -6,7 +6,7 @@ use super::entities::{EliteSpawns, Entities};
 use super::pvp::pvp_quests;
 use super::types::{Dungeon, EntityKind, Loc, Profile};
 use crate::params::Params;
-use crate::world::World;
+use crate::world::{Pos, World};
 use anyhow::{Context, Result};
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
@@ -227,7 +227,8 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
         "SELECT id, coalesce(name, ''), level, min_level, coalesce(xp, 0), zone_or_sort, races_mask, classes_mask,
                 special_flags, required_skill_id, required_min_rep_faction, required_spell, breadcrumb_for,
                 requirements, source_item_id, json_extract(extra, '$.required_source_items'), {observed},
-                required_skill_value, reputation_reward, sources, quest_flags, {limit}
+                required_skill_value, reputation_reward, sources, quest_flags, {limit},
+                coalesce(objectives_text GLOB '*[0-9]*', 0)
          FROM m_quest WHERE status = 'available'"
     ))?;
     let rows = stmt.query_map([], |r| {
@@ -254,6 +255,7 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
             sources: r.get(19)?,
             flags: r.get(20)?,
             time_limit: r.get(21)?,
+            numbered: r.get(22)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -461,6 +463,8 @@ pub(super) struct QuestRow {
     pub(super) flags: Option<i64>,
     /// Seconds from taking the quest to finish it (timed quests).
     pub(super) time_limit: Option<i64>,
+    /// Its objectives text has a number ("Capture 5 Deeprun Rats").
+    pub(super) numbered: bool,
 }
 
 impl QuestRow {
@@ -473,13 +477,15 @@ impl QuestRow {
     }
 }
 
-/// "Tough Wolf Meat x 8" -> ("tough wolf meat", 8)
+/// "Tough Wolf Meat x 8" -> ("tough wolf meat", 8); Wowhead names one alone ("Sack of
+/// \"Picture\" Books" -> 1). Gold and reputations ("Money:2", "The Defilers:") are no count.
 pub(super) fn parse_requirements(json: Option<String>) -> Vec<(String, f64)> {
     let list: Vec<String> = json.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default();
     list.iter()
-        .filter_map(|r| {
-            let (name, count) = r.rsplit_once(" x ")?;
-            Some((name.trim().to_lowercase(), count.trim().parse().ok()?))
+        .filter_map(|r| match r.rsplit_once(" x ") {
+            Some((name, count)) => Some((name.trim().to_lowercase(), count.trim().parse().ok()?)),
+            None if r.contains(':') || r.trim().is_empty() => None,
+            None => Some((r.trim().to_lowercase(), 1.0)),
         })
         .collect()
 }
@@ -497,11 +503,22 @@ pub(super) fn asks_for_work(json: Option<&str>) -> bool {
     })
 }
 
-pub(super) fn count_for(reqs: &[(String, f64)], name: &str, default: f64) -> f64 {
+pub(super) fn count_for(reqs: &[(String, f64)], name: &str) -> Option<f64> {
     let name = name.to_lowercase();
     reqs.iter()
         .find(|(r, _)| r.contains(&name) || name.contains(r.as_str()))
-        .map_or(default, |(_, c)| *c)
+        .map(|(_, c)| *c)
+}
+
+/// Spawn points all within this many yards: one NPC, not a kind of mob.
+const ONE_NPC: f64 = 30.0;
+
+/// Whether `points` are those of one NPC standing at one place (Henze Faulk, Rageclaw): an
+/// objective on it with no known amount, and no number in the quest's text, asks for it once.
+pub(super) fn one_place(points: &[(Pos, i64)]) -> bool {
+    points
+        .first()
+        .is_some_and(|(a, _)| points.iter().all(|(b, _)| a.dist(b) <= ONE_NPC))
 }
 
 #[cfg(test)]
