@@ -79,6 +79,31 @@ zones to do, the level to reach before moving on from each, and where the XP is.
    trips between zones), not always the very shortest.
 4. **My guides**: tick the version to install in the addon, then `/reload` in game.
 
+### Building on macOS
+
+Install Xcode Command Line Tools (`xcode-select --install`, or use a full Xcode
+installation), Node.js 22 and npm, and Rust via [rustup](https://rustup.rs/).
+The repository's `rust-toolchain.toml` selects the Rust version. Then, from a clone:
+
+```sh
+./scripts/build-macos.sh
+open target/release/bundle/macos/Factoruide.app
+```
+
+The script installs the locked frontend dependencies, builds a native app for the
+Mac running the build, and applies and verifies a local ad-hoc signature. No Apple
+developer certificate or publisher updater key is needed. You can copy the app to
+Applications. This is a local build, not an Apple-notarized distribution, and it
+does not check for the publisher's automatic updates.
+
+The app defaults to `/Applications/World of Warcraft`; choose another installation
+in the **Addon** page if needed. Follow the addon and guide steps above. After
+first installing the addon, restart WoW so it discovers the new files.
+
+Verified on Apple Silicon with WoW Forever: native app launch, character profile
+import, guide generation and user-reported in-game use. Intel Macs have not been
+verified.
+
 ## In game: the addon
 
 - Guide: picks the route for your race and class and advances by itself; `/fg guide`, `/fg next`,

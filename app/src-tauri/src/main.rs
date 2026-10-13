@@ -53,6 +53,8 @@ impl Default for Settings {
     fn default() -> Self {
         let wow_dir = if cfg!(windows) {
             PathBuf::from(r"C:\Program Files (x86)\World of Warcraft")
+        } else if cfg!(target_os = "macos") {
+            PathBuf::from("/Applications/World of Warcraft")
         } else {
             PathBuf::from("/mnt/c/Program Files (x86)/World of Warcraft")
         };
