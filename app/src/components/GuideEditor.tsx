@@ -12,6 +12,8 @@ interface Props {
   version: GuideVersion;
   onClose: () => void;
   onSaved: (meta: VersionMeta) => void;
+  /** Whether the draft has changes to lose: leaving the page asks first. */
+  onChanged?: (changed: boolean) => void;
 }
 
 /** Why a step is not possible or does nothing (`fg_route` editor, English as sent), French key of the catalog. */
@@ -110,7 +112,7 @@ const item = (step: RouteStep): Item => ({ key: nextKey++, step });
  * replayed after each change (its time, the steps that are not possible), saved as a new
  * version only when every step is possible.
  */
-export function GuideEditor({ version, onClose, onSaved }: Props) {
+export function GuideEditor({ version, onClose, onSaved, onChanged }: Props) {
   const t = useT();
   const locale = gameLocale(useLang());
   const [opened, setOpened] = useState<EditOpened | null>(null);
@@ -223,6 +225,8 @@ export function GuideEditor({ version, onClose, onSaved }: Props) {
   const current = replayed?.items === items ? replayed.report : null;
   const shown = current ?? replayed?.report ?? null;
   const changed = history.length > 0 && !(steps.length === opened?.steps.length && steps.every((s, i) => sameStep(s, opened.steps[i])));
+  useEffect(() => onChanged?.(changed), [changed, onChanged]);
+  useEffect(() => () => onChanged?.(false), [onChanged]);
   const catalog = opened?.catalog;
   const names = useNames(catalog);
   // Consecutive steps in the same zone (where each step's line is).

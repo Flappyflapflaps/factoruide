@@ -68,6 +68,17 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
       .then(setVersion)
       .catch(() => {});
   }, []);
+  // The guide editor has changes not saved: leaving its page (another page, another game
+  // version, a generation ending) asks first, as its own back button does.
+  const unsaved = useRef(false);
+  const setUnsaved = useCallback((u: boolean) => {
+    unsaved.current = u;
+  }, []);
+  const away = (go: () => void) => {
+    if (unsaved.current && !confirm(t("Quitter l'édition sans enregistrer ? Les modifications seront perdues."))) return;
+    unsaved.current = false;
+    go();
+  };
   const openWizard = (start: WizardStart) => {
     if (!busy) setWizard((w) => ({ key: w.key + 1, start }));
     setPage("plan");
@@ -114,7 +125,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
               className={e.key === edition ? "active" : ""}
               disabled={!e.available || busy}
               title={!e.available ? t("Pas encore disponible") : busy ? t("Génération en cours") : e.name + (e.installed ? "" : " — " + t("client non trouvé dans le dossier WoW"))}
-              onClick={() => switchEdition(e.key)}
+              onClick={() => away(() => switchEdition(e.key))}
             >
               {EDITION_LABELS[e.key]}
             </button>
@@ -124,18 +135,20 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
           <button
             key={p.id}
             className={page === p.id ? "active" : ""}
-            onClick={() => {
-              setOpened(null);
-              if (p.id === "plan" && page === "plan") openWizard({ initial: null, rerun: false });
-              else setPage(p.id);
-            }}
+            onClick={() =>
+              away(() => {
+                setOpened(null);
+                if (p.id === "plan" && page === "plan") openWizard({ initial: null, rerun: false });
+                else setPage(p.id);
+              })
+            }
           >
             {t(p.label)}
             {p.id === "plan" && busy && <span className="spinner" role="status" aria-label={t("Génération en cours")} title={t("Génération en cours")} />}
           </button>
         ))}
         <div className="sidebar-footer">
-          <button className={page === "changelog" ? "active" : ""} onClick={() => setPage("changelog")}>
+          <button className={page === "changelog" ? "active" : ""} onClick={() => away(() => setPage("changelog"))}>
             {t("Nouveautés")}
           </button>
           {version && <span>Factoruide {version}</span>}
@@ -156,6 +169,8 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
                 // Started from a character's block: the character follows its new guide.
                 const character = wizard.start.character;
                 if (character) api.assignGuide(character, meta.guide).catch((e) => setError(String(e)));
+                // Not over a guide being edited: the new guide waits in "Mes guides".
+                if (unsaved.current) return;
                 setOpened({ guide: meta.guide, version: meta.version, notice });
                 setPage("results");
               }}
@@ -192,6 +207,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
             onRerun={(v: GuideVersion) => openWizard({ initial: v.request, rerun: true })}
             onEdit={(v: GuideVersion) => openWizard({ initial: v.request, rerun: false })}
             onClone={(v: GuideVersion) => openWizard({ initial: { ...v.request, name: t("{name} (copie)", { name: v.request.name ?? v.meta.name }) }, rerun: false })}
+            onUnsaved={setUnsaved}
           />
         )}
         {page === "addon" && <AddonPage />}

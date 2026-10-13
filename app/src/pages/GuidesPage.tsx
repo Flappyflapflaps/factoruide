@@ -21,6 +21,8 @@ interface Props {
   onEdit: (version: GuideVersion) => void;
   /** A new guide from the same configuration (under another name). */
   onClone: (version: GuideVersion) => void;
+  /** The guide editor has changes not saved (see `GuideEditor`). */
+  onUnsaved?: (unsaved: boolean) => void;
 }
 
 type SortKey = "addon" | "name" | "character" | "levels" | "time" | "versions" | "created";
@@ -29,7 +31,7 @@ type SortKey = "addon" | "name" | "character" | "levels" | "time" | "versions" |
 const shownVersion = (g: GuideSummary): VersionMeta => g.versions.find((v) => v.version === g.installed) ?? g.versions[0];
 
 /** Every guide with its versions, who follows it, and the actions of its page on each row. */
-export function GuidesPage({ options, start, onRerun, onEdit, onClone }: Props) {
+export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved }: Props) {
   const t = useT();
   const date = useDate();
   const gameName = useGameName();
@@ -116,6 +118,7 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone }: Props) 
       <GuideEditor
         version={editing}
         onClose={() => setEditing(null)}
+        onChanged={onUnsaved}
         onSaved={(meta) => {
           setEditing(null);
           setMessage(t("Guide modifié enregistré : version {n}", { n: meta.version }));
