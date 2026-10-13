@@ -2,6 +2,10 @@
 
 Each version's tag message (`scripts/release.sh`), shown in the app's update prompt, is kept short: a link to this file.
 
+## Unreleased
+
+- Windows: the What's new page shows its titles and lists again (it showed the raw text).
+
 ## 0.8.0 (2026-10-14)
 
 The app on Mac, a new look, a Characters page, and class quests planned again.

@@ -22,7 +22,8 @@ export function Markdown({ text }: { text: string }) {
     paragraph = [];
     list = [];
   };
-  for (const line of text.split("\n")) {
+  // Windows line ends too (a checkout on Windows turns the file's into CRLF).
+  for (const line of text.split(/\r?\n/)) {
     const heading = /^(#{1,4})\s+(.*)$/.exec(line);
     const item = /^\s*[-*]\s+(.*)$/.exec(line);
     if (heading) {
