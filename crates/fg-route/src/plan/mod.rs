@@ -80,6 +80,9 @@ pub enum Mode {
     Replay,
 }
 
+/// A zone change of the greedy construction: (level, time, from, to).
+pub(crate) type ZoneChange = (i64, f64, i64, i64);
+
 pub struct Planner<'a> {
     pub model: &'a Model,
     pub world: &'a World,
@@ -96,6 +99,8 @@ pub struct Planner<'a> {
     /// Where `while_here` looked for quests at hand, recorded while `run` replays a route (see
     /// `Run::heres`).
     heres: RefCell<Option<Vec<Pos>>>,
+    /// The zone changes of the last greedy construction: (level, time, from, to).
+    zone_changes: RefCell<Vec<ZoneChange>>,
     mode: Mode,
     /// Quest givers and turn-in NPCs by cell of `camp_radius` (continent, x, y): (quest,
     /// index in its starts or ends, giver?).
@@ -152,6 +157,7 @@ impl<'a> Planner<'a> {
             farm_walks: FarmWalks::default(),
             farm_all: Cell::new(false),
             heres: RefCell::new(None),
+            zone_changes: RefCell::new(Vec::new()),
             mode: Mode::Plan,
             camp: camp_index(model, params.camp_radius),
             blocks,
@@ -208,6 +214,11 @@ impl<'a> Planner<'a> {
     /// Whether the construction must give up (see `abortable`).
     pub fn aborted(&self) -> bool {
         self.abort.is_some_and(|abort| abort())
+    }
+
+    /// The zone changes of the last greedy construction: (level, time, from, to).
+    pub(crate) fn zone_changes(&self) -> Vec<ZoneChange> {
+        self.zone_changes.borrow().clone()
     }
 
     /// The same planner doing only what the route says (`explicit`).

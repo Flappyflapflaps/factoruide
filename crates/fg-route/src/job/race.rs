@@ -8,7 +8,7 @@
 use super::Interrupt;
 use crate::model::{Model, Profile};
 use crate::params::{Construction, Params};
-use crate::plan::{Effort, Exchange, Member, Planner, Stop, fmt_time};
+use crate::plan::{Effort, Exchange, Member, Planner, Stop, ZoneChange, fmt_time};
 use crate::world::World;
 use rand::{Rng, SeedableRng};
 use std::cell::Cell;
@@ -39,6 +39,8 @@ pub fn optimize_interruptible(planner: &Planner<'_>, progress: Progress<'_>, int
         live: &live,
         progress,
         interrupt,
+        changes: Mutex::new(Vec::new()),
+        mutants: Mutex::new(Vec::new()),
     };
     let ranked = std::thread::scope(|scope| {
         scope.spawn(|| live.watch(&searcher));
@@ -86,7 +88,11 @@ impl Drop for Done<'_> {
 /// How the tries are shared: the race of candidates, then the routes of each round.
 struct Tournament {
     threads: usize,
+    /// Candidates drawing their weights, then the mutants of the best of them.
     candidates: usize,
+    mutants: usize,
+    /// Candidates improved in the race (`Params::screen`).
+    qualifying: usize,
     race: bool,
     /// Routes of each round: `threads`, then half as many each time, the last one the final.
     stages: Vec<usize>,
@@ -98,6 +104,15 @@ impl Tournament {
         // A low effort races fewer candidates: a preview does not build 64 routes.
         let candidates = ((params.candidates as f64 * params.effort.min(1.0)).round() as usize).max(threads);
         let race = candidates > threads;
+        let mutants = if race {
+            (params.race_mutants as f64 * params.effort.min(1.0)).round() as usize
+        } else {
+            0
+        };
+        let qualifying = match params.screen {
+            0 => candidates + mutants,
+            screen => screen.max(threads).min(candidates + mutants),
+        };
         let last = params.final_routes.clamp(1, threads);
         let mut stages = vec![threads];
         while let Some(&n) = stages.last()
@@ -117,6 +132,8 @@ impl Tournament {
         Self {
             threads,
             candidates,
+            mutants,
+            qualifying,
             race,
             stages,
         }
@@ -136,7 +153,7 @@ impl Tournament {
     fn tries(&self, params: &Params) -> Tries {
         let rounds = (self.stages.len() - 1) as f64;
         Tries {
-            candidates: if self.race { self.candidates as f64 } else { 0.0 },
+            candidates: if self.race { self.qualifying as f64 } else { 0.0 },
             qualify: params.qualify_tries,
             qualify_min: params.qualify_min_tries,
             after: self.threads as f64 * (rounds * params.round_tries + params.final_tries),
@@ -148,7 +165,11 @@ impl Tournament {
         let rounds: Vec<String> = self.stages.iter().map(ToString::to_string).collect();
         let rounds = format!("{} routes, {} searches", rounds.join(" -> "), self.threads);
         if self.race {
-            format!("Optimizing (a race of {} candidates, then {rounds})", self.candidates)
+            format!(
+                "Optimizing (a race of {} candidates, {} improved, then {rounds})",
+                self.candidates + self.mutants,
+                self.qualifying
+            )
         } else {
             format!("Optimizing ({rounds})")
         }
@@ -240,13 +261,13 @@ impl<'p> Live<'p> {
         Self {
             progress,
             race: plan.race,
-            candidates: plan.candidates,
+            candidates: plan.qualifying,
             threads: plan.threads,
             stages: plan.stages.clone(),
             tries: plan.tries(params),
             built: Mutex::new((Duration::ZERO, 0, 0)),
             tried: AtomicU64::new(0),
-            routes: Mutex::new(vec![None; plan.candidates.max(plan.threads)]),
+            routes: Mutex::new(vec![None; (plan.candidates + plan.mutants).max(plan.threads)]),
             round: Mutex::new(None),
             started: OnceLock::new(),
             scores: Mutex::new((f64::INFINITY, f64::INFINITY, f64::INFINITY, f64::INFINITY)),
@@ -407,6 +428,18 @@ struct Searcher<'a> {
     progress: Progress<'a>,
     /// The user stopping or cancelling the generation.
     interrupt: &'a Interrupt,
+    /// The zone changes of each candidate's construction (see `mutate`), and the candidates
+    /// built as another with one of them done otherwise.
+    changes: Mutex<Vec<Vec<ZoneChange>>>,
+    mutants: Mutex<Vec<Option<Mutant>>>,
+}
+
+/// A race candidate built as a better one with one zone change done otherwise.
+#[derive(Clone)]
+struct Mutant {
+    params: Params,
+    parent: usize,
+    what: String,
 }
 
 impl Searcher<'_> {
@@ -426,7 +459,10 @@ impl Searcher<'_> {
         if self.interrupt.cancelled() {
             return None;
         }
-        let mut p = candidate_params(self.params, k);
+        let mutant = self.mutants.lock().unwrap().get(k).cloned().flatten();
+        let mut p = mutant
+            .as_ref()
+            .map_or_else(|| candidate_params(self.params, k), |m| m.params.clone());
         if let Some((stage, search)) = slot.round {
             p.seed = round_seed(p.seed, stage, search);
         }
@@ -439,20 +475,12 @@ impl Searcher<'_> {
                 (self.progress)(m);
             }
         };
-        let first = Cell::new(route.is_none());
+        // A start: built here, or a candidate of the race built beforehand (`screen`).
+        let first = Cell::new(route.is_none() || slot.round.is_none());
         let start = if let Some(route) = route {
             route
         } else {
-            let begun = Instant::now();
-            let route = planner.construct(log);
-            if planner.aborted() {
-                return None;
-            }
-            let mut built = self.live.built.lock().unwrap();
-            built.0 += begun.elapsed();
-            built.1 += 1;
-            built.2 += route.len();
-            route
+            self.build(k, &planner, mutant.as_ref(), log)?
         };
         self.live.started.get_or_init(Instant::now);
         let tries = Tries::of(
@@ -461,23 +489,84 @@ impl Searcher<'_> {
             start.len() as f64,
             self.params.effort,
         );
+        // With FG_RACE_LOG, each candidate's best at doublings of its tries: how soon the race
+        // ranking settles.
+        let checkpoints = slot.round.is_none() && std::env::var_os("FG_RACE_LOG").is_some();
+        let (tried, best) = (Cell::new(0u64), Cell::new(f64::INFINITY));
         let route = planner.improve_while(
             start,
             Effort::Tries(tries),
             || {
                 self.live.tried.fetch_add(1, Ordering::Relaxed);
+                let done = tried.replace(tried.get() + 1);
+                if checkpoints && (done == 0 || (done % 2500 == 0 && (done / 2500).is_power_of_two())) {
+                    (self.progress)(&format!("candidate {k} at {done} tries: {:.0}", best.get()));
+                }
                 !self.interrupt.stopping()
             },
             log,
             |score, play, route| {
+                best.set(best.get().min(score));
                 self.live.on_best(k, &first, score, play, route);
             },
         );
         if self.interrupt.cancelled() {
             return None;
         }
-        let base = Planner::new(self.model, self.world, self.params, self.profile);
-        Some((base.simulate(&route, None).unwrap_or(f64::INFINITY), route))
+        Some((self.score(&route), route))
+    }
+
+    /// Build candidate `k`'s route (None when given up), keeping its zone changes.
+    fn build(&self, k: usize, planner: &Planner<'_>, mutant: Option<&Mutant>, log: impl Fn(&str)) -> Option<Vec<Stop>> {
+        let begun = Instant::now();
+        let route = planner.construct(log);
+        if planner.aborted() {
+            return None;
+        }
+        let mut built = self.live.built.lock().unwrap();
+        built.0 += begun.elapsed();
+        built.1 += 1;
+        built.2 += route.len();
+        drop(built);
+        let changes = planner.zone_changes();
+        if let Some(m) = mutant
+            && std::env::var_os("FG_RACE_LOG").is_some()
+        {
+            let parent = &self.changes.lock().unwrap()[m.parent];
+            let same = changes.iter().zip(parent).take_while(|(a, b)| a == b).count();
+            (self.progress)(&format!(
+                "candidate {k} (mutant of {}, {}): zone changes as its parent's up to {same} of {}",
+                m.parent,
+                m.what,
+                parent.len()
+            ));
+        }
+        let mut all = self.changes.lock().unwrap();
+        if all.len() <= k {
+            all.resize(k + 1, Vec::new());
+        }
+        all[k] = changes;
+        Some(route)
+    }
+
+    /// Build candidate `k`'s route only, scored (None when cancelled, or stopped while building a
+    /// route that is not `needed`).
+    fn build_only(&self, k: usize, needed: bool) -> Option<(f64, Vec<Stop>)> {
+        let mutant = self.mutants.lock().unwrap().get(k).cloned().flatten();
+        let p = mutant
+            .as_ref()
+            .map_or_else(|| candidate_params(self.params, k), |m| m.params.clone());
+        let give_up = || self.interrupt.cancelled() || (!needed && self.interrupt.stopping());
+        let planner = Planner::new(self.model, self.world, &p, self.profile).abortable(&give_up);
+        let route = self.build(k, &planner, mutant.as_ref(), |_| {})?;
+        Some((self.score(&route), route))
+    }
+
+    /// Score of a route under the request's own settings.
+    fn score(&self, route: &[Stop]) -> f64 {
+        Planner::new(self.model, self.world, self.params, self.profile)
+            .simulate(route, None)
+            .unwrap_or(f64::INFINITY)
     }
 }
 
@@ -494,10 +583,153 @@ fn rank(mut routes: Vec<(f64, usize, Vec<Stop>)>) -> Vec<(f64, usize, Vec<Stop>)
 }
 
 /// The race: every candidate is built and improved for `qualify_tries` (at least
-/// `qualify_min_tries`), `threads` at a time.
+/// `qualify_min_tries`), `threads` at a time, then `race_mutants` more as the best of them with
+/// one zone change done otherwise: weights give one zone order each, mutations look around the
+/// good ones. With `screen`, all are built first and only the best built routes are improved
+/// (the ranking of the built routes already tells the winner).
 /// Stopped, no new candidate starts but the first ones (there must be a route).
 fn qualify(searcher: &Searcher<'_>, plan: &Tournament) -> Vec<(f64, usize, Vec<Stop>)> {
+    let (first, end) = (plan.candidates, plan.candidates + plan.mutants);
+    let mutants = plan.mutants;
+    let ranked = if plan.qualifying < end {
+        let mut built = build_all(searcher, plan, 0..first);
+        if mutants > 0 && !searcher.interrupt.stopping() {
+            mutate(searcher, &rank(built.clone()), first..end);
+            built.extend(build_all(searcher, plan, first..end));
+        }
+        let built = rank(built);
+        if std::env::var_os("FG_RACE_LOG").is_some() {
+            for (score, k, _) in &built {
+                (searcher.progress)(&format!("built {k}: {}", fmt_time(*score)));
+            }
+        }
+        let kept = built
+            .into_iter()
+            .take(plan.qualifying)
+            .map(|(_, k, r)| (k, Some(r)))
+            .collect();
+        rank(race(searcher, plan, kept))
+    } else {
+        let mut qualified = race(searcher, plan, (0..first).map(|k| (k, None)).collect());
+        if mutants > 0 && !searcher.interrupt.stopping() {
+            mutate(searcher, &rank(qualified.clone()), first..end);
+            qualified.extend(race(searcher, plan, (first..end).map(|k| (k, None)).collect()));
+        }
+        rank(qualified)
+    };
+    if std::env::var_os("FG_RACE_LOG").is_some() {
+        for (score, k, _) in &ranked {
+            (searcher.progress)(&format!("candidate {k}: {}", fmt_time(*score)));
+        }
+    }
+    ranked
+}
+
+/// Candidates `ks` built only, `threads` at a time. Stopped, the first ones are still built
+/// (there must be a route).
+fn build_all(searcher: &Searcher<'_>, plan: &Tournament, ks: std::ops::Range<usize>) -> Vec<(f64, usize, Vec<Stop>)> {
+    let next = AtomicUsize::new(ks.start);
+    let built: Mutex<Vec<(f64, usize, Vec<Stop>)>> = Mutex::new(Vec::new());
+    std::thread::scope(|scope| {
+        for _ in 0..plan.threads {
+            scope.spawn(|| {
+                loop {
+                    let k = next.fetch_add(1, Ordering::Relaxed);
+                    let stopping = searcher.interrupt.stopping() && k >= plan.threads;
+                    if k >= ks.end || stopping || searcher.interrupt.cancelled() {
+                        break;
+                    }
+                    if let Some((score, route)) = searcher.build_only(k, k < plan.threads) {
+                        built.lock().unwrap().push((score, k, route));
+                    }
+                }
+            });
+        }
+    });
+    built.into_inner().unwrap()
+}
+
+/// Parents of the mutated candidates: the best of the first ones.
+const PARENTS: usize = 4;
+
+/// Candidates `ks` as the best `ranked` ones in turn, with one of their zone changes done
+/// otherwise (`Params::zone_detour`): left a few levels earlier or later, or for a zone it went to
+/// later. The greedy construction gives the same route up to there.
+fn mutate(searcher: &Searcher<'_>, ranked: &[(f64, usize, Vec<Stop>)], ks: std::ops::Range<usize>) {
+    let changes = searcher.changes.lock().unwrap();
+    let parents: Vec<usize> = ranked
+        .iter()
+        .map(|(_, k, _)| *k)
+        .filter(|&k| changes.get(k).is_some_and(|c| !c.is_empty()))
+        .take(PARENTS)
+        .collect();
+    if parents.is_empty() {
+        return;
+    }
+    let mut mutants = searcher.mutants.lock().unwrap();
+    mutants.resize(ks.end, None);
+    for (i, k) in ks.enumerate() {
+        let parent = parents[i % parents.len()];
+        let seed = searcher.params.seed.wrapping_add(k as u64);
+        let mut rng = rand::rngs::SmallRng::seed_from_u64(seed ^ 0x5851_f42d_4c95_7f2d);
+        let (detour, what) = detour(&changes[parent], &mut rng);
+        let mut params = candidate_params(searcher.params, parent);
+        params.seed = seed;
+        params.zone_detour = detour;
+        mutants[k] = Some(Mutant { params, parent, what });
+    }
+}
+
+/// A stay in a zone shorter than this (seconds of play) is passing through: its zone changes
+/// are not detoured.
+const MAJOR_STAY: f64 = 1800.0;
+
+/// A detour (see `Params::zone_detour`) of one of the zone changes `changes` (level, time, from,
+/// to) into a long stay, and what it does: left earlier (from the stay before) or later, or for
+/// the zone of a later stay.
+fn detour(changes: &[ZoneChange], rng: &mut impl Rng) -> (Vec<i64>, String) {
+    let major: Vec<usize> = (0..changes.len())
+        .filter(|&i| {
+            changes
+                .get(i + 1)
+                .is_none_or(|next| next.1 - changes[i].1 >= MAJOR_STAY)
+        })
+        .collect();
+    let m = rng.random_range(0..major.len());
+    let n = major[m];
+    let (level, _, _, to) = changes[n];
+    let later: Vec<i64> = major[m + 1..]
+        .iter()
+        .map(|&i| changes[i].3)
+        .filter(|&z| z != to)
+        .take(4)
+        .collect();
+    let shift = rng.random_range(1..=3);
+    let since = if m == 0 { 0 } else { major[m - 1] + 1 };
+    match rng.random_range(0..3) {
+        0 => (
+            vec![since as i64, level - shift, to],
+            format!("change {n} {shift} levels earlier"),
+        ),
+        2 if !later.is_empty() => {
+            let zone = later[rng.random_range(0..later.len())];
+            (vec![n as i64, level, zone], format!("change {n} to zone {zone}"))
+        }
+        _ => (
+            vec![n as i64, level + shift, to],
+            format!("change {n} {shift} levels later"),
+        ),
+    }
+}
+
+/// Candidates of the race (their route, built when None), `threads` at a time.
+fn race(
+    searcher: &Searcher<'_>,
+    plan: &Tournament,
+    candidates: Vec<(usize, Option<Vec<Stop>>)>,
+) -> Vec<(f64, usize, Vec<Stop>)> {
     let next = AtomicUsize::new(0);
+    let candidates: Vec<_> = candidates.into_iter().map(|c| Mutex::new(Some(c))).collect();
     let qualified: Mutex<Vec<(f64, usize, Vec<Stop>)>> = Mutex::new(Vec::new());
     let slot = Slot {
         round: None,
@@ -509,12 +741,15 @@ fn qualify(searcher: &Searcher<'_>, plan: &Tournament) -> Vec<(f64, usize, Vec<S
         for _ in 0..plan.threads {
             scope.spawn(|| {
                 loop {
-                    let k = next.fetch_add(1, Ordering::Relaxed);
-                    let stopping = searcher.interrupt.stopping() && k >= plan.threads;
-                    if k >= plan.candidates || stopping || searcher.interrupt.cancelled() {
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    let stopping = searcher.interrupt.stopping() && i >= plan.threads;
+                    if i >= candidates.len() || stopping || searcher.interrupt.cancelled() {
                         break;
                     }
-                    if let Some((score, route)) = searcher.search(k, None, slot, k < plan.threads, None) {
+                    let Some((k, route)) = candidates[i].lock().unwrap().take() else {
+                        continue;
+                    };
+                    if let Some((score, route)) = searcher.search(k, route, slot, i < plan.threads, None) {
                         qualified.lock().unwrap().push((score, k, route));
                         searcher.live.qualified.fetch_add(1, Ordering::Relaxed);
                     }
@@ -522,13 +757,7 @@ fn qualify(searcher: &Searcher<'_>, plan: &Tournament) -> Vec<(f64, usize, Vec<S
             });
         }
     });
-    let ranked = rank(qualified.into_inner().unwrap());
-    if std::env::var_os("FG_RACE_LOG").is_some() {
-        for (score, k, _) in &ranked {
-            (searcher.progress)(&format!("candidate {k}: {}", fmt_time(*score)));
-        }
-    }
-    ranked
+    qualified.into_inner().unwrap()
 }
 
 /// Round `stage`: each route improved by its searches (`Tournament::searches`), which share their
@@ -660,6 +889,25 @@ mod tests {
         assert_eq!(tournament(1, 64, 2, 1.0).stages, vec![1]);
     }
 
+    /// A detour changes one zone change of the route: when, or where to.
+    #[test]
+    fn detours_change_one_zone_change() {
+        let changes = [
+            (3, 0.0, 1, 2),
+            (8, 3600.0, 2, 3),
+            (8, 3700.0, 3, 2),
+            (12, 9000.0, 2, 4),
+            (15, 12000.0, 4, 2),
+        ];
+        let mut rng = rand::rngs::SmallRng::seed_from_u64(7);
+        for _ in 0..200 {
+            let (d, what) = detour(&changes, &mut rng);
+            // Not into the stay of 100 s.
+            assert!(!what.starts_with("change 1 "), "{what}");
+            assert!(d[1] != 8 || d[2] != 3, "{d:?}");
+        }
+    }
+
     /// A low effort races fewer candidates, down to none (one route per search).
     #[test]
     fn a_preview_races_fewer_candidates() {
@@ -670,11 +918,14 @@ mod tests {
     }
 
     /// The tries are counted per stop: the race's share of them, then every search's. A race
-    /// candidate of a short guide gets its minimum instead.
+    /// candidate of a short guide gets its minimum instead. With `screen`, only the candidates
+    /// kept are improved.
     #[test]
     fn progress_counts_the_tries_per_stop() {
         let params = Params {
             candidates: 64,
+            race_mutants: 0,
+            screen: 0,
             qualify_tries: 2.0,
             qualify_min_tries: 1000.0,
             round_tries: 10.0,
@@ -690,5 +941,14 @@ mod tests {
         assert!((total - (race + 8.0 * (2.0 * 10.0 + 50.0) * 1000.0)).abs() < 1e-9);
         let (short, _) = tries.at(100.0);
         assert!((short - 64.0 * 1000.0).abs() < 1e-9);
+        let screened = Params {
+            race_mutants: 100,
+            screen: 8,
+            ..params
+        };
+        let plan = Tournament::new(&screened);
+        assert_eq!((plan.candidates, plan.mutants, plan.qualifying), (64, 100, 8));
+        let (race, _) = plan.tries(&screened).at(1000.0);
+        assert!((race - 8.0 * 2000.0).abs() < 1e-9);
     }
 }

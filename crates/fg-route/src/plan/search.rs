@@ -163,7 +163,7 @@ impl Planner<'_> {
         {
             search.run = run;
             search.route = candidate;
-            search.wins += 1;
+            search.wins += u64::from(improves);
             if search.run.total < search.best.0 - 0.5 {
                 search.best = (search.run.total, search.route.clone());
                 on_best(search.run.total, search.run.play, &search.route);

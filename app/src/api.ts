@@ -83,6 +83,8 @@ export interface Params {
   construction_random: boolean;
   continent_stay: number;
   candidates: number;
+  race_mutants: number;
+  screen: number;
   qualify_tries: number;
   qualify_min_tries: number;
   round_tries: number;

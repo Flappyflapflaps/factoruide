@@ -10,124 +10,26 @@ impl Planner<'_> {
     pub fn greedy(&self) -> Vec<Stop> {
         let mut s = self.initial_state();
         let mut route = Vec::new();
+        let mut changes = Vec::new();
+        // The detour (`Params::zone_detour`): the zone held until its level, once begun.
+        let mut held: Option<i64> = None;
+        let mut detoured = false;
         let n = self.model.quests.len() as u32;
         while s.level < self.profile.to_level && !self.aborted() {
-            let mut best: Option<(f64, Stop)> = None;
-            let found = std::cell::Cell::new(false);
-            // Quest value only decides what is worth accepting. Weights favour finishing what
-            // is in the log, and class quests.
-            let mut consider = |stop: Stop, weight: f64, s: &State| {
-                let (t, _) = self.trips().fastest(s, &self.places().pos(s, stop));
-                // Finish the zone before leaving it (clear a zone, then move on).
-                let stay = if self.places().zone(stop) == s.zone {
-                    1.0
-                } else {
-                    self.params.zone_stay
-                };
-                // Same for another continent (a detour to Kalimdor while Eastern Kingdoms has more).
-                let stay = if self.places().pos(s, stop).continent == s.pos.continent {
-                    stay
-                } else {
-                    stay * self.params.continent_stay
-                };
-                let score = (t + self.params.stop_overhead) * weight * stay;
-                if score.is_finite() && best.as_ref().is_none_or(|b| score < b.0) {
-                    best = Some((score, stop));
-                    found.set(true);
+            let pull = match self.params.zone_detour[..] {
+                [after, level, zone] if !detoured && changes.len() as i64 >= after => {
+                    if s.level < level {
+                        Some(*held.get_or_insert(s.zone))
+                    } else if s.zone == zone {
+                        detoured = true;
+                        None
+                    } else {
+                        Some(zone)
+                    }
                 }
+                _ => None,
             };
-            for i in 0..n {
-                let iu = i as usize;
-                if s.turned[iu] {
-                    continue;
-                }
-                let class = if self.quest(i).mandatory { 0.6 } else { 1.0 };
-                // Givers and turn-ins among mobs too strong for the character wait.
-                let reach = self.params.reach(s.level, s.bonus);
-                let guarded = |g| self.combat().guard_need(g) > reach;
-                if s.accepted[iu] {
-                    if self.availability().objectives_done(&s, i) {
-                        if !guarded(&self.quest(i).end_guard) {
-                            consider(Stop::quest(i, Kind::TurnIn), 0.7 * class, &s);
-                        }
-                    } else {
-                        let q = self.quest(i);
-                        for k in 0..q.objectives.len() {
-                            let o = &q.objectives[k];
-                            let level_ok = self.combat().need(q, o) <= self.params.reach(s.level, s.bonus);
-                            if s.objectives[iu] & (1 << k) == 0 && level_ok && o.dungeon.is_none() {
-                                consider(Stop::quest(i, Kind::Objective(k as u8)), class, &s);
-                            }
-                        }
-                    }
-                } else if self.quest(i).min_level <= s.level
-                    && !guarded(&self.quest(i).start_guard)
-                    && self.availability().can_accept(&s, i)
-                    && {
-                        let trip = self
-                            .trips()
-                            .fastest(&s, &self.places().pos(&s, Stop::quest(i, Kind::Accept)))
-                            .0;
-                        self.worth().worth_it(&s, i, s.level, trip)
-                    }
-                {
-                    // Dungeon quests: worth a detour only when the dungeon is close in level.
-                    // Quests of a dungeon close in level: forced ones first, the others weighed by
-                    // `dungeon_quest_weight` (the optimizer then keeps the runs that pay off).
-                    let dungeon = match self.quest(i).objectives.iter().find_map(|o| o.dungeon) {
-                        Some(d) if s.level + 2 >= self.model.dungeons[d].min_level => {
-                            if self.availability().dungeon_forced(d) {
-                                0.25
-                            } else {
-                                self.params.dungeon_quest_weight
-                            }
-                        }
-                        _ => 1.0,
-                    };
-                    let preferred = if self.params.preferred_zones.contains(&self.quest(i).starts[0].zone) {
-                        0.5
-                    } else {
-                        1.0
-                    };
-                    consider(
-                        Stop::quest(i, Kind::Accept),
-                        1.3 * class
-                            * dungeon
-                            * preferred
-                            * self.worth().level_fit(i, s.level)
-                            * self.worth().efficiency_weight(&s, i, s.level),
-                        &s,
-                    );
-                }
-            }
-
-            for d in 0..self.model.dungeons.len() {
-                if let Some(stop) = self.dungeon_ready(&s, d) {
-                    consider(
-                        stop,
-                        if self.availability().dungeon_forced(d) {
-                            0.5
-                        } else {
-                            0.8
-                        },
-                        &s,
-                    );
-                }
-            }
-
-            // Zone exhausted: move on to the closest quest worth doing on its own, wherever it is.
-            if !found.get() {
-                for i in 0..n {
-                    // Its level, and the camp around its giver (`gate_level`).
-                    if self.gate_level(&s, Stop::quest(i, Kind::Accept)) <= s.level
-                        && self.availability().can_accept(&s, i)
-                        && self.worth().worth_it(&s, i, s.level, 0.0)
-                    {
-                        consider(Stop::quest(i, Kind::Accept), 1.0, &s);
-                    }
-                }
-            }
-            let next = if let Some((_, stop)) = best {
+            let next = if let Some(stop) = self.nearest_stop(&s, pull) {
                 stop
             } else {
                 // Nothing doable at this level: the smallest grind that unlocks something,
@@ -173,9 +75,14 @@ impl Planner<'_> {
                     break;
                 }
             };
+            let zone = self.places().zone(next);
+            if zone != s.zone {
+                changes.push((s.level, s.time, s.zone, zone));
+            }
             self.apply(&mut s, next, None);
             route.push(next);
         }
+        *self.zone_changes.borrow_mut() = changes;
 
         if std::env::var_os("FG_DEBUG").is_some() {
             eprintln!(
@@ -188,6 +95,131 @@ impl Planner<'_> {
         }
         let route = self.settle(route);
         self.insert_missing_mandatory(route)
+    }
+
+    /// The stop the greedy construction takes next from `s` (None: nothing worth doing at this
+    /// level), pulled to a zone by a detour.
+    fn nearest_stop(&self, s: &State, pull: Option<i64>) -> Option<Stop> {
+        let n = self.model.quests.len() as u32;
+        let mut best: Option<(f64, Stop)> = None;
+        let found = std::cell::Cell::new(false);
+        // Quest value only decides what is worth accepting. Weights favour finishing what
+        // is in the log, and class quests.
+        let mut consider = |stop: Stop, weight: f64, s: &State| {
+            let (t, _) = self.trips().fastest(s, &self.places().pos(s, stop));
+            let zone = self.places().zone(stop);
+            // Finish the zone before leaving it (clear a zone, then move on).
+            let stay = if zone == s.zone { 1.0 } else { self.params.zone_stay };
+            let stay = match pull {
+                Some(z) if zone != z && !(zone == s.zone && stop.kind == Kind::TurnIn) => {
+                    stay * self.params.zone_detour_pull
+                }
+                _ => stay,
+            };
+            // Same for another continent (a detour to Kalimdor while Eastern Kingdoms has more).
+            let stay = if self.places().pos(s, stop).continent == s.pos.continent {
+                stay
+            } else {
+                stay * self.params.continent_stay
+            };
+            let score = (t + self.params.stop_overhead) * weight * stay;
+            if score.is_finite() && best.as_ref().is_none_or(|b| score < b.0) {
+                best = Some((score, stop));
+                found.set(true);
+            }
+        };
+        for i in 0..n {
+            let iu = i as usize;
+            if s.turned[iu] {
+                continue;
+            }
+            let class = if self.quest(i).mandatory { 0.6 } else { 1.0 };
+            // Givers and turn-ins among mobs too strong for the character wait.
+            let reach = self.params.reach(s.level, s.bonus);
+            let guarded = |g| self.combat().guard_need(g) > reach;
+            if s.accepted[iu] {
+                if self.availability().objectives_done(s, i) {
+                    if !guarded(&self.quest(i).end_guard) {
+                        consider(Stop::quest(i, Kind::TurnIn), 0.7 * class, s);
+                    }
+                } else {
+                    let q = self.quest(i);
+                    for k in 0..q.objectives.len() {
+                        let o = &q.objectives[k];
+                        let level_ok = self.combat().need(q, o) <= self.params.reach(s.level, s.bonus);
+                        if s.objectives[iu] & (1 << k) == 0 && level_ok && o.dungeon.is_none() {
+                            consider(Stop::quest(i, Kind::Objective(k as u8)), class, s);
+                        }
+                    }
+                }
+            } else if self.quest(i).min_level <= s.level
+                && !guarded(&self.quest(i).start_guard)
+                && self.availability().can_accept(s, i)
+                && {
+                    let trip = self
+                        .trips()
+                        .fastest(s, &self.places().pos(s, Stop::quest(i, Kind::Accept)))
+                        .0;
+                    self.worth().worth_it(s, i, s.level, trip)
+                }
+            {
+                // Dungeon quests: worth a detour only when the dungeon is close in level.
+                // Quests of a dungeon close in level: forced ones first, the others weighed by
+                // `dungeon_quest_weight` (the optimizer then keeps the runs that pay off).
+                let dungeon = match self.quest(i).objectives.iter().find_map(|o| o.dungeon) {
+                    Some(d) if s.level + 2 >= self.model.dungeons[d].min_level => {
+                        if self.availability().dungeon_forced(d) {
+                            0.25
+                        } else {
+                            self.params.dungeon_quest_weight
+                        }
+                    }
+                    _ => 1.0,
+                };
+                let preferred = if self.params.preferred_zones.contains(&self.quest(i).starts[0].zone) {
+                    0.5
+                } else {
+                    1.0
+                };
+                consider(
+                    Stop::quest(i, Kind::Accept),
+                    1.3 * class
+                        * dungeon
+                        * preferred
+                        * self.worth().level_fit(i, s.level)
+                        * self.worth().efficiency_weight(s, i, s.level),
+                    s,
+                );
+            }
+        }
+
+        for d in 0..self.model.dungeons.len() {
+            if let Some(stop) = self.dungeon_ready(s, d) {
+                consider(
+                    stop,
+                    if self.availability().dungeon_forced(d) {
+                        0.5
+                    } else {
+                        0.8
+                    },
+                    s,
+                );
+            }
+        }
+
+        // Zone exhausted: move on to the closest quest worth doing on its own, wherever it is.
+        if !found.get() {
+            for i in 0..n {
+                // Its level, and the camp around its giver (`gate_level`).
+                if self.gate_level(s, Stop::quest(i, Kind::Accept)) <= s.level
+                    && self.availability().can_accept(s, i)
+                    && self.worth().worth_it(s, i, s.level, 0.0)
+                {
+                    consider(Stop::quest(i, Kind::Accept), 1.0, s);
+                }
+            }
+        }
+        best.map(|(_, stop)| stop)
     }
 
     /// Make a constructed route replay as it was built. The construction does not know the

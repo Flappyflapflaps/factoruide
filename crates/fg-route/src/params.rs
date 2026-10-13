@@ -92,6 +92,17 @@ pub struct Params {
     /// Construction plan drawn at random for each candidate of the race (zone_stay,
     /// continent_stay, fit and efficiency weights); off: the values below are used as they are.
     pub construction_random: bool,
+    /// Greedy construction: one zone change done otherwise, as [changes, level, zone]: after
+    /// that many zone changes, stay in the zone until the level, then go to the zone (empty =
+    /// none). The other stops weigh `zone_detour_pull` more meanwhile.
+    pub zone_detour: Vec<i64>,
+    pub zone_detour_pull: f64,
+    /// Race: candidates built after those above as the best of them with one zone change done
+    /// otherwise (`zone_detour`), fewer with a low `effort`.
+    pub race_mutants: usize,
+    /// Race: only the best this many candidates by their built route are improved (0 = every
+    /// one): the ranking of the built routes already tells the winner, building is cheap.
+    pub screen: usize,
     /// Greedy construction: weight of the stops on another continent (1 = no preference).
     pub continent_stay: f64,
     /// Greedy construction: weight of the quests of a dungeon close in level (lower = the
@@ -299,6 +310,10 @@ impl Default for Params {
             solo_elite_kills: 2.0,
             zone_stay: 4.0,
             construction_random: true,
+            zone_detour: vec![],
+            zone_detour_pull: 10.0,
+            race_mutants: 224,
+            screen: 8,
             continent_stay: 1.0,
             dungeon_quest_weight: 0.3,
             candidates: 32,
