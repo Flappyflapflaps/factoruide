@@ -181,7 +181,11 @@ impl Tries {
 }
 
 /// Construction settings of race candidate `k`: its seed, and (with `construction_random`)
-/// varied greedy weights.
+/// varied greedy weights. A set of weights gives one starting route (the seed plays no part in
+/// it), and a slight change can switch a single choice (when to leave a zone or a continent)
+/// that changes the whole route by hours: no weights are best everywhere, the race draws many.
+/// The ranges are where the routes are better on average, on the six classic starts: zones
+/// finished (zone_stay high), no penalty for low quests, no chase of quest XP per second.
 fn candidate_params(params: &Params, k: usize) -> Params {
     let mut p = params.clone();
     p.seed = params.seed.wrapping_add(k as u64);
@@ -194,12 +198,12 @@ fn candidate_params(params: &Params, k: usize) -> Params {
     }
     if params.construction_random && k > 0 && p.construction == Construction::Greedy {
         let mut rng = rand::rngs::SmallRng::seed_from_u64(p.seed ^ 0x9e37_79b9_7f4a_7c15);
-        p.zone_stay = rng.random_range(1.5..=3.5);
+        p.zone_stay = rng.random_range(3.5..=5.0);
         p.continent_stay = rng.random_range(1.0..=4.0);
-        p.dungeon_quest_weight = rng.random_range(0.25..=1.0);
-        p.fit_penalty = rng.random_range(0.0..=0.4);
-        p.fit_above_penalty = rng.random_range(0.0..=0.6);
-        p.efficiency_power = rng.random_range(0.0..=0.6);
+        p.dungeon_quest_weight = rng.random_range(0.1..=0.6);
+        p.fit_penalty = rng.random_range(0.0..=0.15);
+        p.fit_above_penalty = rng.random_range(0.2..=0.8);
+        p.efficiency_power = rng.random_range(0.0..=0.2);
     }
     p
 }

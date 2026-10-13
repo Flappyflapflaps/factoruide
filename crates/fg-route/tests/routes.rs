@@ -904,8 +904,8 @@ fn hearthstone_flight_paths_and_log_of_a_character_met_in_game() {
 }
 
 /// The hearthstone is bound anew as the route moves on (more than one inn over 30 levels), each
-/// bind worth it: the route without them takes longer. Built with the former default construction
-/// weights: with the current ones (tuned on Horde guides) this human route binds nowhere.
+/// bind worth it: the route without them takes longer. Built with fixed construction weights (the
+/// defaults change with the measures): with others, as with any, this route can bind nowhere.
 #[test]
 fn hearthstone_follows_the_route() {
     let p = &prepare(
