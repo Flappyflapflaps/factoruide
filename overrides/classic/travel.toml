@@ -75,3 +75,12 @@ to = { zone = 1657, x = 29.13, y = 41.21 }   # area trigger 527
 seconds = 5
 instant = true
 
+
+# --- Class teleports a quest teaches ---
+# Taking "Moonglade" (level 10) teaches the druid Teleport: Moonglade (the quest's source spell
+# in VMaNGOS): the bear form quests are done there. It lands next to Dendrite Starblaze.
+[[teleport]]
+name = "Teleport: Moonglade"
+class = "druid"
+quest = "Moonglade"
+to = { zone = 493, x = 56.26, y = 32.46 }

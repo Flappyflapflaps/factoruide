@@ -188,3 +188,12 @@ to = { zone = 3487, x = 58.5, y = 21.0 }
 seconds = 15
 instant = true
 one_way = true
+
+# --- Class teleports a quest teaches ---
+# Taking "Moonglade" (level 10) teaches the druid Teleport: Moonglade (the quest's source spell
+# in VMaNGOS): the bear form quests are done there. It lands next to Dendrite Starblaze.
+[[teleport]]
+name = "Teleport: Moonglade"
+class = "druid"
+quest = "Moonglade"
+to = { zone = 493, x = 56.26, y = 32.46 }

@@ -2,7 +2,6 @@
 //! for the character's class.
 
 use super::builder::QuestBuilder;
-use super::chains::class_sort;
 use super::givers::Givers;
 use super::selection::QuestSkill;
 use super::sources::{LinkKind, QuestRow};
@@ -17,10 +16,10 @@ impl QuestBuilder<'_> {
         objectives: Vec<Objective>,
     ) -> Quest {
         let level = r.level.unwrap_or(1).max(1);
-        let class_quest = r.sort == Some(-class_sort(self.profile.class_id));
+        let class_quest = r.of_class(self.profile.class_id);
         // The class quests the group requires are those of every class in it (the power they
         // give is the character's own class only).
-        let group_class_quest = self.profile.class_ids().iter().any(|&c| r.sort == Some(-class_sort(c)));
+        let group_class_quest = self.profile.class_ids().iter().any(|&c| r.of_class(c));
         let (pre_all, pre_any) = self.prerequisites(r.id, &givers.item_pre);
         let guard = |locs: &[super::types::Loc]| {
             locs.iter()

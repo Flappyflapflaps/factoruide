@@ -34,8 +34,8 @@ pub(super) fn load_dungeons(
             "SELECT d.area, d.name, d.alt_areas, d.entrance_zone, d.entrance_x, d.entrance_y, m.ExpansionID
              FROM dungeon d
              JOIN client_areatable a ON a.ID = d.area
-             JOIN client_map m ON m.ID = a.ContinentID
-             WHERE m.InstanceType = 1",
+             JOIN client_map m ON m.InstanceType = 1 AND (m.ID = a.ContinentID OR m.AreaTableID = d.area)
+             GROUP BY d.area",
         )?;
         stmt.query_map([], |r| {
             Ok((

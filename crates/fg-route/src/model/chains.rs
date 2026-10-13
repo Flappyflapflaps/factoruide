@@ -107,12 +107,16 @@ pub(super) fn chain_tops(quests: &[Quest], index: &HashMap<i64, usize>) -> Vec<i
     (0..quests.len()).map(|i| top(i, &next, quests, &mut memo, 0)).collect()
 }
 
-/// Prerequisites of required quests are required too.
+/// Prerequisites of required quests are required too: all of `pre_all`, and the one of
+/// `pre_any` the character can take when it is the only one (Archaic Rune before the dwarf's
+/// Call of Earth).
 pub(super) fn require_prerequisites(quests: &mut [Quest]) {
     let pos: HashMap<i64, usize> = quests.iter().enumerate().map(|(i, q)| (q.id, i)).collect();
     let mut stack: Vec<usize> = (0..quests.len()).filter(|&i| quests[i].mandatory).collect();
     while let Some(i) = stack.pop() {
-        for p in quests[i].pre_all.clone() {
+        let any: Vec<usize> = quests[i].pre_any.iter().filter_map(|p| pos.get(p).copied()).collect();
+        let only = (any.len() == 1).then(|| quests[any[0]].id);
+        for p in quests[i].pre_all.clone().into_iter().chain(only) {
             if let Some(&j) = pos.get(&p)
                 && !quests[j].mandatory
             {

@@ -56,6 +56,7 @@ impl Places {
                 Some(Teleport {
                     name: name.clone(),
                     level: *level,
+                    quests: Vec::new(),
                     to,
                 })
             })
@@ -72,6 +73,33 @@ impl Places {
             recall,
         })
     }
+}
+
+/// The teleports the character's quests teach: none when it cannot take any of those quests.
+pub(super) fn quest_teleports(world: &World, profile: &Profile, quests: &[super::Quest]) -> Vec<Teleport> {
+    profile
+        .quest_teleports
+        .iter()
+        .filter_map(|def| {
+            let taught: Vec<usize> = (quests.iter().enumerate())
+                .filter(|(_, q)| q.name == def.quest)
+                .map(|(i, _)| i)
+                .collect();
+            let pos = world.to_world(def.to.zone, def.to.x, def.to.y)?;
+            (!taught.is_empty()).then(|| Teleport {
+                name: def.name.clone(),
+                level: 0,
+                quests: taught,
+                to: Loc {
+                    pos,
+                    zone: def.to.zone,
+                    kind: EntityKind::Area,
+                    id: 0,
+                    name: world.zone_name(def.to.zone).to_owned(),
+                },
+            })
+        })
+        .collect()
 }
 
 /// The class's spells that travel ("Teleport: Stormwind", "Astral Recall") and the level they

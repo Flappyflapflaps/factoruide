@@ -228,7 +228,10 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
                 special_flags, required_skill_id, required_min_rep_faction, required_spell, breadcrumb_for,
                 requirements, source_item_id, json_extract(extra, '$.required_source_items'), {observed},
                 required_skill_value, reputation_reward, sources, quest_flags, {limit},
-                coalesce(objectives_text GLOB '*[0-9]*', 0)
+                coalesce(objectives_text GLOB '*[0-9]*', 0),
+                (SELECT json_group_array(json_extract(t.value, '$[1]'))
+                 FROM json_each(extra, '$.extra_objectives') e, json_each(e.value, '$.\"5\"') t
+                 WHERE json_extract(t.value, '$[0]') = 'object')
          FROM m_quest WHERE status = 'available'"
     ))?;
     let rows = stmt.query_map([], |r| {
@@ -256,6 +259,10 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
             flags: r.get(20)?,
             time_limit: r.get(21)?,
             numbered: r.get(22)?,
+            extra_objects: r
+                .get::<_, Option<String>>(23)?
+                .and_then(|j| serde_json::from_str(&j).ok())
+                .unwrap_or_default(),
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -266,12 +273,7 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
 fn class_quest_ids(rows: &[QuestRow], profile: &Profile, links: &HashMap<i64, Vec<(LinkKind, i64)>>) -> HashSet<i64> {
     let mut ids: HashSet<i64> = rows
         .iter()
-        .filter(|r| {
-            profile
-                .class_ids()
-                .iter()
-                .any(|c| r.sort == Some(-super::chains::class_sort(*c)))
-        })
+        .filter(|r| profile.class_ids().iter().any(|c| r.of_class(*c)))
         .filter(|r| profile.required_class_quests.iter().any(|n| n == &r.name))
         .filter(|r| r.classes.is_some_and(|m| m & profile.group_class_mask() != 0))
         // The character's race, or the one deduced for the other player's class.
@@ -436,6 +438,7 @@ fn tokens(objectives: &ObjectiveRows, item_origins: &HashMap<i64, Vec<(SourceKin
 }
 
 /// A row of `m_quest`.
+#[cfg_attr(test, derive(Default))]
 pub(super) struct QuestRow {
     pub(super) id: i64,
     pub(super) name: String,
@@ -465,9 +468,18 @@ pub(super) struct QuestRow {
     pub(super) time_limit: Option<i64>,
     /// Its objectives text has a number ("Capture 5 Deeprun Rats").
     pub(super) numbered: bool,
+    /// Objects its extra objectives are done at (Questie's): where a creature found nowhere
+    /// else is summoned (The Binding's summoning circle).
+    pub(super) extra_objects: Vec<i64>,
 }
 
 impl QuestRow {
+    /// A quest of that class: filed under the class, or given to that class only (Forever files
+    /// some under their zone: the dwarf's Call of Earth under Dun Morogh).
+    pub(super) fn of_class(&self, class_id: i64) -> bool {
+        self.sort == Some(-super::chains::class_sort(class_id)) || self.classes == Some(1 << (class_id - 1))
+    }
+
     /// Known only from catalogues (a tooltip's text, a giver): their objectives and turn-in are
     /// unknown (the giver stands for it).
     pub(super) fn catalogued_only(&self) -> bool {
@@ -523,7 +535,40 @@ pub(super) fn one_place(points: &[(Pos, i64)]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::asks_for_work;
+    use super::{QuestRow, asks_for_work};
+
+    /// A class quest is filed under its class, or given to that class only: Forever's dwarf
+    /// Call of Earth is filed under Dun Morogh.
+    #[test]
+    fn class_quests_filed_under_a_zone() {
+        let (shaman, warrior) = (7, 1);
+        let classic = QuestRow {
+            sort: Some(-82),
+            classes: Some(64),
+            ..QuestRow::default()
+        };
+        let forever = QuestRow {
+            sort: Some(1),
+            classes: Some(64),
+            ..QuestRow::default()
+        };
+        let shared = QuestRow {
+            sort: Some(1),
+            classes: Some(64 | 1),
+            ..QuestRow::default()
+        };
+        assert!(classic.of_class(shaman));
+        assert!(forever.of_class(shaman));
+        assert!(!forever.of_class(warrior));
+        assert!(!shared.of_class(shaman));
+        assert!(
+            !QuestRow {
+                sort: Some(1),
+                ..QuestRow::default()
+            }
+            .of_class(shaman)
+        );
+    }
 
     /// Gold, a reputation or a talk ask for nothing to plan; items, mobs and actions do.
     #[test]

@@ -26,6 +26,8 @@ pub struct Overrides {
     pub spells: HashMap<String, BTreeMap<String, crate::power::SpellWeight>>,
     pub dungeons: Vec<DungeonDef>,
     pub links: Vec<LinkDef>,
+    /// Class teleports quests teach (`[[teleport]]` of travel.toml).
+    pub teleports: Vec<crate::model::TeleportDef>,
     pub passes: Vec<crate::world::PassDef>,
     /// Areas left only by boat, portal or lift (`[[enclosed]]` of passes.toml).
     pub enclosed: Vec<crate::world::EnclosedDef>,
@@ -85,6 +87,8 @@ impl Overrides {
         struct Travel {
             #[serde(default)]
             link: Vec<LinkDef>,
+            #[serde(default)]
+            teleport: Vec<crate::model::TeleportDef>,
         }
         #[derive(Deserialize, Default)]
         struct Passes {
@@ -95,6 +99,7 @@ impl Overrides {
         }
         let class_quests: HashMap<String, ClassQuests> = parse_toml(&file, "class_quests.toml")?;
         let passes = parse_toml::<Passes>(&file, "passes.toml")?;
+        let travel = parse_toml::<Travel>(&file, "travel.toml")?;
         Ok(Self {
             races: parse_toml(&file, "races.toml")?,
             class_powers: class_quests
@@ -104,7 +109,8 @@ impl Overrides {
             class_quests: class_quests.into_iter().map(|(k, v)| (k, v.required)).collect(),
             spells: parse_toml(&file, "spells.toml")?,
             dungeons: parse_toml::<Dungeons>(&file, "dungeons.toml")?.dungeon,
-            links: parse_toml::<Travel>(&file, "travel.toml")?.link,
+            links: travel.link,
+            teleports: travel.teleport,
             passes: passes.pass,
             enclosed: passes.enclosed,
             params: parse_toml(&file, "routing.toml")?,

@@ -267,6 +267,12 @@ impl State {
     pub(crate) fn rewarded(&self, i: usize) -> bool {
         self.turned[i] && !self.dropped.contains(&(i as u32))
     }
+
+    /// The class teleport is learned: trained, or one of the quests teaching it taken.
+    pub(crate) fn knows(&self, tp: &crate::model::Teleport) -> bool {
+        tp.level <= self.trained
+            && (tp.quests.is_empty() || tp.quests.iter().any(|&q| self.accepted[q] || self.turned[q]))
+    }
 }
 
 /// Where the time goes.

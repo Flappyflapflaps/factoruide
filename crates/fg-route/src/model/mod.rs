@@ -25,7 +25,7 @@ pub use guard::Guards;
 pub use names::Names;
 pub use types::{
     Dungeon, DungeonDef, EntityKind, ExploreArea, Guard, Initial, Loc, Model, Objective, ProfessionPlan, Profile,
-    Quest, Spots, Teleport, race_bit,
+    Quest, Spots, Teleport, TeleportDef, race_bit,
 };
 
 use crate::params::Params;
@@ -46,6 +46,8 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
     chains::release_impossible_class_quests(&mut quests);
     dungeons::set_dungeon_levels(&mut sources.dungeons, &quests);
     let index: HashMap<i64, usize> = quests.iter().enumerate().map(|(i, q)| (q.id, i)).collect();
+    let mut teleports = places.teleports;
+    teleports.extend(places::quest_teleports(world, profile, &quests));
     let unlocks = chains::chain_values(&quests, &index, &chains::quest_work(&quests, params));
     let chain_top = chains::chain_tops(&quests, &index);
     let (explore, explore_by_zone) = explore::load_explore(conn, world)?;
@@ -76,7 +78,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         trainers: places.trainers,
         inns: places.inns,
         start_inn: places.start_inn,
-        teleports: places.teleports,
+        teleports,
         recall: places.recall,
         skipped,
         initial: Initial::default(),

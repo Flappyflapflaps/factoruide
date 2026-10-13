@@ -36,6 +36,13 @@ pub const CHECKS: &[Check] = &[
         error: true,
     },
     Check {
+        name: "class-quests",
+        what: "class quests every guide of the class must include (class_quests.toml) that the \
+               planner leaves out for a race of that class: their place, a prerequisite or the \
+               way there is unknown",
+        error: true,
+    },
+    Check {
         name: "terrain-gaps",
         what: "areas with places of quests the terrain does not connect to their continent's \
                mainland, even through the passages: the planner walks there in a straight line. \
@@ -149,8 +156,45 @@ pub fn audit(
                 .into_iter()
                 .for_each(&mut add);
         }
+        if on("class-quests") {
+            for class in job::race_classes(conn, def.id)? {
+                if overrides.class_quests.get(&class).is_none_or(Vec::is_empty) {
+                    continue;
+                }
+                let request = PlanRequest {
+                    class: class.clone(),
+                    ..request.clone()
+                };
+                match job::prepare(conn, overrides, &request, &|_| {}) {
+                    Ok(p) => class_quests_left_out(&class, &p.profile.required_class_quests, &p.model)
+                        .into_iter()
+                        .for_each(&mut add),
+                    Err(e) => progress(&format!("{race} {class}: {e}")),
+                }
+            }
+        }
     }
     Ok(found.into_values().collect())
+}
+
+/// Required class quests of a class (by name) the model leaves out: skipped while building it,
+/// or no longer required because a prerequisite cannot be planned.
+fn class_quests_left_out(class: &str, required: &[String], model: &Model) -> Vec<Finding> {
+    let skipped = (model.skipped.iter())
+        .filter(|(_, name, why)| required.contains(name) && why != "repeatable")
+        .map(|(id, name, why)| (*id, name, why.as_str()));
+    let released = (model.quests.iter())
+        .filter(|q| required.contains(&q.name) && !q.mandatory)
+        .map(|q| (q.id, &q.name, "a prerequisite cannot be planned"));
+    skipped
+        .chain(released)
+        .map(|(id, name, why)| Finding {
+            check: "class-quests",
+            key: format!("{class} quest {id}"),
+            detail: format!("{name} ({id}): {why}"),
+            races: Vec::new(),
+        })
+        .collect()
 }
 
 /// A place of a quest: what is there, and its position.

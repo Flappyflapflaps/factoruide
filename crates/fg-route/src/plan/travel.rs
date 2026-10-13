@@ -184,7 +184,7 @@ impl Trips<'_> {
             }
             // Not before it is learned, nor when it cannot be faster: landing on another
             // continent, or farther than the trip as the crow flies at flight speed.
-            if tp.level > s.trained
+            if !s.knows(tp)
                 || tp.to.pos.continent != b.continent
                 || self.params.teleport_cast + tp.to.pos.dist(b) / self.params.flight_speed >= best.0
             {

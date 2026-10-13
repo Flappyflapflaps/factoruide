@@ -23,6 +23,8 @@ pub struct Profile {
     pub spell_weights: Vec<(String, crate::power::SpellWeight)>,
     /// Dungeon settings (see overrides/dungeons.toml).
     pub dungeons: Vec<DungeonDef>,
+    /// The class's teleports that a quest teaches (see overrides/travel.toml).
+    pub quest_teleports: Vec<TeleportDef>,
     /// Professions to level along the route.
     pub professions: Vec<crate::profession::ProfessionGoal>,
     /// Language of the guide texts (enUS, frFR, deDE...).
@@ -284,12 +286,26 @@ pub struct Model {
 }
 
 /// A class spell taking the character to a city (a mage's "Teleport: Stormwind"): learned at the
-/// trainer from `level`, it lands at `to` (the class trainer there, else the inn).
+/// trainer from `level`, or on taking one of `quests` (indexes in `Model::quests`) when there
+/// are some; it lands at `to` (the class trainer there, else the inn).
 #[derive(Debug, Clone)]
 pub struct Teleport {
     pub name: String,
     pub level: i64,
+    pub quests: Vec<usize>,
     pub to: Loc,
+}
+
+/// A class teleport a quest teaches, not the trainer (`[[teleport]]` of overrides/travel.toml):
+/// taking "Moonglade" teaches the druid Teleport: Moonglade.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct TeleportDef {
+    pub name: String,
+    /// Class file name, lower case (druid).
+    pub class: String,
+    /// Name of the quests teaching it.
+    pub quest: String,
+    pub to: crate::world::ZonePoint,
 }
 
 /// An area that gives XP the first time the character enters it.

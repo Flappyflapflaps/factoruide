@@ -53,6 +53,12 @@ pub(super) fn character(conn: &Connection, overrides: &Overrides, req: &PlanRequ
             .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
             .unwrap_or_default(),
         dungeons: overrides.dungeons.clone(),
+        quest_teleports: overrides
+            .teleports
+            .iter()
+            .filter(|t| t.class == class)
+            .cloned()
+            .collect(),
         professions,
         locale: req.locale.clone(),
         group_class_ids: group.iter().map(|(id, _)| *id).collect(),

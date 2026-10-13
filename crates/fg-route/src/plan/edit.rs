@@ -366,7 +366,7 @@ impl Planner<'_> {
     /// A class teleport of an edited route.
     fn edit_teleport(&self, s: &mut State, to: usize, trace: &mut Vec<Timed>) -> Outcome {
         let teleport = &self.model.teleports[to];
-        if teleport.level > s.trained {
+        if !s.knows(teleport) {
             return Outcome::Invalid("teleport not learned");
         }
         recorder(&mut Some(trace))(s, Event::Teleport { to });

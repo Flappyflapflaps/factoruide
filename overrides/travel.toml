@@ -102,3 +102,12 @@ from = { zone = 36, x = 12.04, y = 56.21 } # portal object
 to = { zone = 1519, x = 74.0, y = 45.0 }   # approx: arrival in Stormwind
 seconds = 15
 one_way = true
+
+# --- Class teleports a quest teaches ---
+# Taking "Moonglade" (level 10) teaches the druid Teleport: Moonglade (the quest's source spell
+# in VMaNGOS): the bear form quests are done there. It lands next to Dendrite Starblaze.
+[[teleport]]
+name = "Teleport: Moonglade"
+class = "druid"
+quest = "Moonglade"
+to = { zone = 493, x = 56.26, y = 32.46 }

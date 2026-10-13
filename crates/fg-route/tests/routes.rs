@@ -1286,12 +1286,12 @@ fn each_companion_keeps_its_race() {
     let hunter = mandatory(&["hunter"]);
     let both = mandatory(&["hunter", "druid"]);
     assert!(!hunter.is_empty());
-    let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Classic).unwrap();
-    let druid = &overrides.class_quests["druid"];
+    // The druid brings its own quests and their chains, no other variant of the hunter's.
+    let hunter_names: std::collections::HashSet<&String> = hunter.values().collect();
     for (id, name) in &both {
         assert!(
-            hunter.contains_key(id) || druid.contains(name),
-            "{name} ({id}) required with the druid, not without"
+            hunter.contains_key(id) || !hunter_names.contains(name),
+            "{name} ({id}): a hunter quest of another race required with the druid"
         );
     }
     assert!(hunter.keys().all(|id| both.contains_key(id)));
@@ -1489,5 +1489,46 @@ fn steps_carry_the_planned_xp() {
             pair[0].text,
             pair[1].text
         );
+    }
+}
+
+/// The tauren druid's bear form: Body and Heart is required with its chain through Moonglade
+/// (one possible prerequisite each), Moonglade is reached by the teleport the quest
+/// "Moonglade" teaches, and Lunaclaw Spirit is met at the Horde's Moonkin Stone, in the Barrens.
+#[test]
+fn druid_bear_form_through_moonglade() {
+    let p = prepare("tauren", "druid", 16, &[]);
+    let at = |id: i64| &p.model.quests[p.model.index[&id]];
+    for id in [5922, 5930, 5932, 6002] {
+        assert!(at(id).mandatory, "{} ({id}) not required", at(id).name);
+    }
+    assert_eq!(at(6002).objectives[0].loc.zone, 17);
+    let teleport = p
+        .model
+        .teleports
+        .iter()
+        .find(|t| t.name == "Teleport: Moonglade")
+        .unwrap();
+    let taught: Vec<&str> = teleport
+        .quests
+        .iter()
+        .map(|&i| p.model.quests[i].name.as_str())
+        .collect();
+    assert!(!taught.is_empty() && taught.iter().all(|n| *n == "Moonglade"));
+    assert!(
+        p.model
+            .teleports
+            .iter()
+            .all(|t| t.name != "Teleport: Moonglade" || t.level == 0)
+    );
+}
+
+/// Dungeons whose zone the game files under the continent (Blackrock Depths, Blackrock Spire,
+/// the Sunken Temple) are found through their instance map.
+#[test]
+fn dungeons_filed_under_the_continent() {
+    let options = job::options(&database(), &overrides()).unwrap();
+    for name in ["Blackrock Depths", "Blackrock Spire", "The Temple of Atal'Hakkar"] {
+        assert!(options.dungeons.iter().any(|d| d.name == name), "{name} missing");
     }
 }

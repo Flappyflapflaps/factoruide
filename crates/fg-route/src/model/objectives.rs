@@ -282,10 +282,16 @@ impl QuestBuilder<'_> {
             ids.extend(alt);
         }
         let name = entities.name(EntityKind::Npc, target);
-        let points: Vec<_> = ids
+        let mut points: Vec<_> = ids
             .iter()
             .flat_map(|id| entities.points(self.world, EntityKind::Npc, *id))
             .collect();
+        // A creature found nowhere is summoned where the quest's extra objectives are done.
+        if points.is_empty() {
+            points = (quest.row.extra_objects.iter())
+                .flat_map(|id| entities.points(self.world, EntityKind::Object, *id))
+                .collect();
+        }
         let needed = amount.or_else(|| count_for(&quest.requirements, &name)).unwrap_or(
             if one_place(&points) && !quest.row.numbered {
                 1.0
