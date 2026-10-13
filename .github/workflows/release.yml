@@ -1,16 +1,22 @@
 name: Release
 
-# Pushing a tag vX.Y.Z (scripts/release.sh) builds the Windows installer, signs the update and
-# publishes them as a GitHub release, with latest.json: installed apps offer it at startup.
+# Pushing a tag vX.Y.Z (scripts/release.sh) builds the Windows installer and the macOS apps, signs
+# the updates and publishes them as a GitHub release, with latest.json: installed apps offer it at
+# startup. Run by hand with a tag, it builds only the macOS apps and adds them to that tag's release.
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release to add the macOS apps to (vX.Y.Z)
+        required: true
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,6 +28,7 @@ env:
 jobs:
   windows:
     name: Windows installer
+    if: github.event_name == 'push'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -63,3 +70,63 @@ jobs:
           prerelease: false
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
+
+  # Added to the release the Windows job published (or the one given by hand), one after the other:
+  # each adds its platform to latest.json, which two jobs at once would overwrite. Ad-hoc signed,
+  # not notarized: macOS asks the player to allow the app the first time, not on updates.
+  macos:
+    name: macOS app (${{ matrix.arch }})
+    needs: windows
+    # Also when the Windows job is skipped (run by hand).
+    if: ${{ !cancelled() && needs.windows.result != 'failure' }}
+    runs-on: macos-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    strategy:
+      max-parallel: 1
+      matrix:
+        include:
+          - arch: Apple Silicon
+            target: aarch64-apple-darwin
+          - arch: Intel
+            target: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+      - name: Release of the tag (published)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release view "$TAG" --json tagName
+      - name: Version from the tag
+        run: perl -0pi -e "s/^version = .*/version = \"${TAG#v}\"/m" app/src-tauri/Cargo.toml
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Frontend dependencies
+        working-directory: app
+        run: npm ci
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: app
+          tagName: ${{ env.TAG }}
+          uploadUpdaterJson: true
+          # The .dmg to install, the .app.tar.gz for the updates (left out of local builds). The
+          # signature too, for the tags older than tauri.macos.conf.json. Single quotes:
+          # tauri-action drops the double ones around an argument.
+          args: >-
+            --target ${{ matrix.target }} --bundles app,dmg
+            --config '{"bundle":{"createUpdaterArtifacts":true,"macOS":{"signingIdentity":"-"}}}'

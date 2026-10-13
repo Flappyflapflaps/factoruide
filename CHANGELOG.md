@@ -4,6 +4,10 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 ## Unreleased
 
+### App
+
+- macOS: the app now runs on Mac (Apple Silicon and Intel), with automatic updates. Thanks to @csselement.
+
 ## 0.7.1 (2026-10-13)
 
 - Addon on WoW Classic and TBC: the guide now shows, and quests are accepted automatically.

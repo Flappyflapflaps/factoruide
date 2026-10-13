@@ -67,9 +67,14 @@ zones to do, the level to reach before moving on from each, and where the XP is.
 
 ## Getting started
 
-1. Download the [Windows installer](https://github.com/brouznouf/factoruide/releases/latest) and
-   run it. Windows may warn about an unknown publisher the first time (the installer is not
-   code-signed). New versions are then offered by the app at startup.
+1. Download the app from the [latest release](https://github.com/brouznouf/factoruide/releases/latest)
+   and install it. New versions are then offered by the app at startup.
+   - **Windows**: run the `_x64-setup.exe` installer. Windows may warn about an unknown publisher
+     the first time (the installer is not code-signed).
+   - **macOS**: open the `_aarch64.dmg` (Apple Silicon) or `_x64.dmg` (Intel) and drag the app to
+     Applications. The app is not notarized by Apple, so macOS refuses to open it the first time:
+     go to System Settings > Privacy & Security and click "Open Anyway", or run
+     `xattr -dr com.apple.quarantine /Applications/Factoruide.app`. Updates do not ask again.
 2. **Addon** page: choose your WoW folder, then "Save and install the addon".
 3. **New guide**: pick your character, professions, zones, dungeons and play style, then start
    the generation (about 2 minutes, 6 for a thorough one, depending on the processor). The best
