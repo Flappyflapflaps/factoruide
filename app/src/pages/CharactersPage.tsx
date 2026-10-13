@@ -12,6 +12,10 @@ interface Props {
   onOpenGuide: (guide: string, version: number) => void;
   /** Start a new guide from a character (it follows the guide once computed). */
   onNewGuide: (character: string) => void;
+  /** Name of the game version chosen in the menu. */
+  editionName: string;
+  /** Go to the addon page (to install it). */
+  onAddon: () => void;
 }
 
 /** The latest version of a guide, and the one its characters follow. */
@@ -22,7 +26,7 @@ const followed = (g: GuideSummary) => g.versions.find((v) => v.version === g.ins
  * The account's characters the addon recorded, one block each: who it is, where it is, and the
  * guide it follows (0 or 1, chosen here only: the addon shows it in game after /reload).
  */
-export function CharactersPage({ options, onOpenGuide, onNewGuide }: Props) {
+export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, onAddon }: Props) {
   const t = useT();
   const date = useDate();
   const gameName = useGameName();
@@ -80,7 +84,24 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide }: Props) {
       {characters === null ? (
         <div className="empty">{t("Chargement…")}</div>
       ) : characters.length === 0 ? (
-        <div className="empty characters-empty">{t("Un personnage apparaît ici une fois enregistré par l'addon : connectez-vous avec lui en jeu, l'addon installé, puis faites /reload, déconnectez-vous ou quittez le jeu (le jeu n'écrit les données de l'addon qu'à ce moment-là). Choisissez la bonne version du jeu dans le menu.")}</div>
+        <section className="panel characters-empty">
+          <h3>{t("Aucun personnage pour {edition}", { edition: editionName })}</h3>
+          <p>{t("Un personnage apparaît ici une fois enregistré par l'addon. S'il n'y en a pas :")}</p>
+          <ul>
+            <li>
+              <strong>{t("Mauvaise version du jeu")}</strong> — {t("le personnage est sur une autre version que celle choisie en haut du menu ({edition}).", { edition: editionName })}
+            </li>
+            <li>
+              <strong>{t("Addon pas installé")}</strong> — {t("installez-le dans ce client depuis la page Addon.")}{" "}
+              <button className="link" onClick={onAddon}>
+                {t("Aller à la page Addon")}
+              </button>
+            </li>
+            <li>
+              <strong>{t("Personnage pas encore enregistré")}</strong> — {t("connectez-vous avec lui en jeu, l'addon installé, puis faites /reload, déconnectez-vous ou quittez le jeu : le jeu n'écrit les données de l'addon qu'à ce moment-là.")}
+            </li>
+          </ul>
+        </section>
       ) : (
         <div className="character-cards">
           {characters.map((c) => {

@@ -175,6 +175,8 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
           <CharactersPage
             key={edition ?? ""}
             options={options}
+            editionName={edition ? EDITION_LABELS[edition] : ""}
+            onAddon={() => setPage("addon")}
             onOpenGuide={(guide, shown) => {
               setOpened({ guide, version: shown, notice: null });
               setPage("results");
