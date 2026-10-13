@@ -1,0 +1,47 @@
+# Findings of `fg audit` known to be right, with the reason (overrides/<edition>/audit.toml: one
+# edition's). `check` and `key` as `fg audit` prints them.
+
+[[accept]]
+check = "source-items"
+key = "quest 8240 item 19707"
+reason = "A Bijou for Zanza takes one of the ten bijous (Zul'Gurub), any of them"
+
+[[accept]]
+check = "source-items"
+key = "quest 8240 item 19708"
+reason = "A Bijou for Zanza takes one of the ten bijous (Zul'Gurub), any of them"
+
+[[accept]]
+check = "source-items"
+key = "quest 8240 item 19709"
+reason = "A Bijou for Zanza takes one of the ten bijous (Zul'Gurub), any of them"
+
+[[accept]]
+check = "source-items"
+key = "quest 8240 item 19710"
+reason = "A Bijou for Zanza takes one of the ten bijous (Zul'Gurub), any of them"
+
+[[accept]]
+check = "source-items"
+key = "quest 8240 item 19711"
+reason = "A Bijou for Zanza takes one of the ten bijous (Zul'Gurub), any of them"
+
+[[accept]]
+check = "source-items"
+key = "quest 8240 item 19712"
+reason = "A Bijou for Zanza takes one of the ten bijous (Zul'Gurub), any of them"
+
+[[accept]]
+check = "source-items"
+key = "quest 8240 item 19713"
+reason = "A Bijou for Zanza takes one of the ten bijous (Zul'Gurub), any of them"
+
+[[accept]]
+check = "source-items"
+key = "quest 8240 item 19714"
+reason = "A Bijou for Zanza takes one of the ten bijous (Zul'Gurub), any of them"
+
+[[accept]]
+check = "source-items"
+key = "quest 8240 item 19715"
+reason = "A Bijou for Zanza takes one of the ten bijous (Zul'Gurub), any of them"

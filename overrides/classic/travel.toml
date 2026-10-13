@@ -1,6 +1,7 @@
 # Transport links (boats, zeppelins, trams, portals) used by the route planner.
 # Coordinates are zone percent coordinates (AreaTable zone ID, x, y) of where you board.
-# `seconds` = average wait + ride. Links work both ways unless `one_way = true`.
+# `seconds` = ride (the average wait `link_wait` is added, except with `instant = true`: portals,
+# orbs, lifts). Links work both ways unless `one_way = true`.
 #
 # Positions marked "npc" come from the zeppelin/ship masters' spawns in the database;
 # "approx" ones are estimates to replace with values recorded in game (`transit` events
@@ -63,4 +64,14 @@ faction = "Alliance"
 from = { zone = 148, x = 33.2, y = 40.2 } # approx
 to = { zone = 141, x = 55.0, y = 93.0 }   # approx
 seconds = 150
+
+# Rut'theran Village lies at the foot of Teldrassil: only this portal leads up to the top
+# (area triggers 542 up, 527 down, next to each other on the Darnassus side).
+[[link]]
+name = "Portal Rut'theran Village - Darnassus"
+faction = "Alliance"
+from = { zone = 141, x = 55.87, y = 89.34 }  # area trigger 542
+to = { zone = 1657, x = 29.13, y = 41.21 }   # area trigger 527
+seconds = 5
+instant = true
 

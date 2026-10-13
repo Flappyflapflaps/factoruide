@@ -201,6 +201,9 @@ fn load_world(
         .filter(|p| params.shortcuts || !p.shortcut)
         .cloned()
         .collect();
+    for warning in world.enclose(&overrides.enclosed) {
+        progress(&warning);
+    }
     for warning in world.add_passes(conn, &passes)? {
         progress(&warning);
     }

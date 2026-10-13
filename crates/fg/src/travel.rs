@@ -30,6 +30,9 @@ pub fn run(conn: &Connection, overrides_dir: &Path, faction: &str, from: &str, t
     let faction =
         fg_route::faction::Faction::parse(faction).ok_or_else(|| anyhow::anyhow!("unknown faction {faction}"))?;
     let mut world = World::load(conn, faction, params.flight_speed)?;
+    for w in world.enclose(&overrides.enclosed) {
+        eprintln!("{w}");
+    }
     for w in world.add_passes(conn, &overrides.passes)? {
         eprintln!("{w}");
     }
@@ -41,6 +44,22 @@ pub fn run(conn: &Connection, overrides_dir: &Path, faction: &str, from: &str, t
         d,
         d * params.detour / params.run_speed / 60.0
     );
+    let planned = world.walk_distance(&a, &b);
+    if (planned - d).abs() > 1e-6 && !(planned.is_infinite() && d.is_infinite()) {
+        println!("the planner walks {planned:.0} yd (straight line where the walk is unknown)");
+    }
+    if let (Some(ta), Some(tb)) = (world.terrain.area_of(&a), world.terrain.area_of(&b)) {
+        let how = match world.terrain.distance(&a, &b) {
+            None => "way unknown (straight line assumed)",
+            Some(w) if w.is_infinite() => "an enclosed area and another (no walk)",
+            Some(w) if (w - a.dist(&b)).abs() < 1e-6 => "straight line clear",
+            Some(_) => "path around the steep ground",
+        };
+        println!(
+            "terrain: area {} ({} cells) to area {} ({} cells), {how}",
+            ta.0, ta.1, tb.0, tb.1
+        );
+    }
     if let Some((i, j)) = passes {
         let p = |k: usize| {
             format!(

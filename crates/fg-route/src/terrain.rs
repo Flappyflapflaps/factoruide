@@ -3,8 +3,10 @@
 //! 8.33 yards, a tile of 64 x 64 cells per row of 64 bits.
 //!
 //! A straight line that only crosses walkable cells is the walk; otherwise the shortest path
-//! around (A* on the cells, cached). Points the terrain does not connect (a ledge, a cave under
-//! a hill) keep the straight line.
+//! around (A* on the cells, cached). Points it does not connect keep the straight line: tunnels,
+//! bridges and city gates are buildings, not terrain. Except the large areas declared enclosed
+//! (`[[enclosed]]` of `overrides/passes.toml`: an island, the top of a cliff), which only a boat,
+//! a portal or a lift (`overrides/travel.toml`) leaves.
 //!
 //! The paths searched are slow to find (the first route of a long guide asks for thousands):
 //! they are kept in a walking memory (`Walks`) that the app shares between generations, and
@@ -29,7 +31,7 @@ const ORIGIN: f64 = 32.0 * TILE;
 /// Endpoints on a steep cell or a small walkable patch (an NPC on a slope, a ledge) move to the
 /// nearest cell of a large walkable area this close.
 const SNAP: i32 = 12;
-const LARGE_AREA: u32 = 2000;
+pub const LARGE_AREA: u32 = 2000;
 /// The path is searched in the box around both ends, this much larger (cells), then larger.
 const MARGINS: [i32; 2] = [60, 240];
 const SHARDS: usize = 32;
@@ -60,7 +62,8 @@ impl Hasher for Packed {
 }
 
 /// Answers already given in this thread, by terrain, continent and pair of cells: the planner
-/// asks the same walks millions of times. Negative: the straight line; infinite: not connected.
+/// asks the same walks millions of times. Negative: the straight line; infinite: not connected;
+/// NaN: not known.
 type Memo = FxHashMap<(u32, i64, u64), f32>;
 thread_local! {
     static MEMO: RefCell<Memo> = RefCell::new(Memo::default());
@@ -321,6 +324,8 @@ pub struct Terrain {
     walks: Arc<Walks>,
     /// Paths this terrain asked its memory (or searched), for the memory of its guide.
     used: Vec<Mutex<HashSet<Key>>>,
+    /// Large areas left only by boat, portal or lift (continent, area): `Terrain::enclose`.
+    enclosed: HashSet<(i64, u32)>,
 }
 
 impl Terrain {
@@ -331,6 +336,7 @@ impl Terrain {
             grids: FxHashMap::default(),
             walks: Arc::new(Walks::default()),
             used: (0..SHARDS).map(|_| Mutex::new(HashSet::new())).collect(),
+            enclosed: HashSet::new(),
         };
         let exists: bool = conn.query_row(
             "SELECT count(*) > 0 FROM sqlite_schema WHERE name = 'client_terrain'",
@@ -481,8 +487,8 @@ impl Terrain {
     }
 
     /// Walking distance (yards) between two points of the same continent, around the steep
-    /// terrain: the straight line when nothing is in the way, None when the terrain does not
-    /// connect them.
+    /// terrain: the straight line when nothing is in the way, infinite when no walk goes between
+    /// them (`separated`), None when it does not know the way.
     pub fn distance(&self, a: &Pos, b: &Pos) -> Option<f64> {
         let straight = a.dist(b);
         let Some(grid) = self.grids.get(&a.continent) else {
@@ -499,28 +505,99 @@ impl Terrain {
         let walk = known.unwrap_or_else(|| {
             let w = self
                 .walk_cells(grid, a.continent, ca, cb)
-                .map_or(f32::INFINITY, |d| d as f32);
+                .map_or(f32::NAN, |d| d as f32);
             MEMO.with(|m| m.borrow_mut().insert(key, w));
             w
         });
-        if walk < 0.0 {
-            Some(straight)
-        } else if walk.is_finite() {
-            Some(f64::from(walk).max(straight))
-        } else {
+        if walk.is_nan() {
             None
+        } else if walk < 0.0 {
+            Some(straight)
+        } else {
+            Some(f64::from(walk).max(straight))
         }
     }
 
-    /// Walk between two cells (yards), negative for the straight line, None when not connected.
+    /// The walkable area a point stands in (after snapping to the nearest large one) and its
+    /// size in cells: None without terrain for its continent, area 0 on steep ground.
+    pub fn area_of(&self, p: &Pos) -> Option<(u32, u32)> {
+        let grid = self.grids.get(&p.continent)?;
+        let (r, c) = Self::snap(grid, Self::cell(p));
+        let area = grid.area(r, c);
+        Some((area, grid.sizes.get(area as usize).copied().unwrap_or(0)))
+    }
+
+    /// The large area at `p` is left only by boat, portal or lift (Rut'theran Village, at the
+    /// foot of Teldrassil): no walk between it and the other areas. Its area and size, None when
+    /// `p` is not in a large area.
+    pub fn enclose(&mut self, p: &Pos) -> Option<(u32, u32)> {
+        let (area, size) = self.area_of(p).filter(|&(a, size)| a != 0 && size >= LARGE_AREA)?;
+        self.enclosed.insert((p.continent, area));
+        // Answers given before are kept by terrain: this one is another.
+        self.id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        Some((area, size))
+    }
+
+    /// Continents the terrain covers.
+    pub fn continents(&self) -> Vec<i64> {
+        let mut c: Vec<i64> = self.grids.keys().copied().collect();
+        c.sort_unstable();
+        c
+    }
+
+    /// The areas declared enclosed (continent, area).
+    pub fn enclosed_areas(&self) -> impl Iterator<Item = (i64, u32)> + '_ {
+        self.enclosed.iter().copied()
+    }
+
+    /// The largest walkable area of a continent (its mainland).
+    pub fn main_area(&self, continent: i64) -> Option<u32> {
+        let grid = self.grids.get(&continent)?;
+        (1..grid.sizes.len()).max_by_key(|&a| grid.sizes[a]).map(|a| a as u32)
+    }
+
+    /// Whether area `a` (of continent `map`) is left only by boat, portal or lift.
+    pub fn is_enclosed(&self, map: i64, a: u32) -> bool {
+        self.enclosed.contains(&(map, a))
+    }
+
+    /// Two areas the terrain does not connect, large, one of them enclosed: no walk between them.
+    fn apart(&self, grid: &Grid, map: i64, area: u32, other: u32) -> bool {
+        let large = |a: u32| a != 0 && grid.sizes[a as usize] >= LARGE_AREA;
+        area != other
+            && large(area)
+            && large(other)
+            && (self.enclosed.contains(&(map, area)) || self.enclosed.contains(&(map, other)))
+    }
+
+    /// Whether no walk goes between `a` and `b`: two areas the terrain does not connect, one of
+    /// them enclosed (no path searched).
+    pub fn separated(&self, a: &Pos, b: &Pos) -> bool {
+        if self.enclosed.is_empty() || a.continent != b.continent {
+            return false;
+        }
+        let Some(grid) = self.grids.get(&a.continent) else {
+            return false;
+        };
+        let (ca, cb) = (Self::snap(grid, Self::cell(a)), Self::snap(grid, Self::cell(b)));
+        self.apart(grid, a.continent, grid.area(ca.0, ca.1), grid.area(cb.0, cb.1))
+    }
+
+    /// Walk between two cells (yards), negative for the straight line, infinite when no walk
+    /// goes between them (`separated`), None when the terrain does not know the way (two areas
+    /// it does not connect, which a tunnel or a bridge may: a small patch, a ledge, a cave, or no
+    /// path found).
     fn walk_cells(&self, grid: &Grid, map: i64, ca: (i32, i32), cb: (i32, i32)) -> Option<f64> {
         let (ca, cb) = (Self::snap(grid, ca), Self::snap(grid, cb));
         if ca == cb || Self::clear(grid, ca, cb) {
             return Some(-1.0);
         }
-        let area = grid.area(ca.0, ca.1);
-        if area == 0 || area != grid.area(cb.0, cb.1) {
+        let (area, other) = (grid.area(ca.0, ca.1), grid.area(cb.0, cb.1));
+        if area == 0 || other == 0 {
             return None;
+        }
+        if area != other {
+            return self.apart(grid, map, area, other).then_some(f64::INFINITY);
         }
         let key = if ca <= cb {
             (map, ca.0, ca.1, cb.0, cb.1)
@@ -650,6 +727,37 @@ mod tests {
         assert_eq!(walks.len(), 1);
         assert!((second.distance(&a, &b).unwrap() - walk).abs() < 1e-3);
         assert_eq!(walks.len(), 1, "searched again");
+    }
+
+    /// Two large areas the terrain does not connect are walked between in a straight line (a
+    /// tunnel or a bridge may join them), unless one of them is enclosed: then no walk does.
+    #[test]
+    fn enclosed_area_is_not_walked_out_of() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE client_terrain (map_id INTEGER, tile_x INTEGER, tile_y INTEGER, blocked BLOB)",
+        )
+        .unwrap();
+        // Tile (33, 32), east of (32, 32), has its first column steep: a cliff between them.
+        for (x, row) in [(32, 0u64), (33, 1)] {
+            let blob: Vec<u8> = (0..64).flat_map(|_| row.to_le_bytes()).collect();
+            conn.execute(
+                "INSERT INTO client_terrain VALUES (1, ?1, 32, ?2)",
+                rusqlite::params![x, blob],
+            )
+            .unwrap();
+        }
+        let mut t = Terrain::load(&conn).unwrap();
+        let (west, east) = (at(10.0, 20.0), at(10.0, 64.0 + 20.0));
+        assert_eq!(t.distance(&west, &east), None, "way unknown: straight line");
+        assert!(!t.separated(&west, &east));
+        assert!(t.enclose(&east).is_some());
+        assert_eq!(t.distance(&west, &east), Some(f64::INFINITY));
+        assert!(t.separated(&west, &east));
+        assert!(
+            t.distance(&east, &at(30.0, 64.0 + 40.0)).unwrap().is_finite(),
+            "walked within"
+        );
     }
 
     /// A memory of other terrain data (the game changed) is not used: its walks would be wrong.

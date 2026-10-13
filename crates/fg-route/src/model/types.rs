@@ -128,6 +128,9 @@ pub struct Objective {
     /// changes there: the mobs, their level and packs, the guards, the wait for respawns. The
     /// planner goes to the best one from where the character is (`Planner::spot`).
     pub alts: Vec<Objective>,
+    /// Objectives of the quest done before this one (bits): the item it uses must be got first
+    /// (Samuel's Remains looted before they are buried).
+    pub after: u8,
 }
 
 impl Objective {

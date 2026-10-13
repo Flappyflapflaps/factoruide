@@ -1,3 +1,4 @@
+mod audit;
 mod route;
 mod talents;
 mod travel;
@@ -103,6 +104,16 @@ enum Command {
         #[arg(long, default_value = "Alliance")]
         faction: String,
     },
+    /// Look for each known kind of data problem in all the edition's data, for every race
+    /// (accepted findings: overrides/audit.toml); fails when some are left to fix
+    Audit {
+        /// Checks to run (default: all): islands, source-items
+        #[arg(long = "check")]
+        checks: Vec<String>,
+        /// Also list the accepted findings
+        #[arg(long)]
+        all: bool,
+    },
     /// Write the leveling talent plans of the addon (TalentBuilds_<edition>.lua) from the game's talent trees
     Talents {
         #[arg(long)]
@@ -205,6 +216,7 @@ fn main() -> Result<()> {
         Command::Addon => route::write_addon_routes(&open()?, &cli.routes, &cli.addon_dir)?,
         Command::Replay { file, effort } => route::replay(&open()?, &overrides, &file, effort, &cli.routes)?,
         Command::Travel { from, to, faction } => travel::run(&open()?, &overrides, &faction, &from, &to)?,
+        Command::Audit { checks, all } => audit::run(&open()?, &overrides, &checks, all)?,
         Command::Talents { out } => talents::run(
             &open()?,
             &out.unwrap_or_else(|| PathBuf::from(format!("addon/Factoruide/TalentBuilds_{}.lua", edition.key()))),

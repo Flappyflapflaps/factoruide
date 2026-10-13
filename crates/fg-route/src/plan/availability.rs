@@ -106,6 +106,14 @@ impl Availability<'_> {
         s.objectives[i as usize].count_ones() as usize == n
     }
 
+    /// Objective `k` of quest `i` is still to do and can be done now (the objectives it comes
+    /// after are done).
+    pub(crate) fn objective_open(&self, s: &State, i: u32, k: usize) -> bool {
+        let done = s.objectives[i as usize];
+        let after = self.quest_at(i).objectives[k].after;
+        done & (1 << k) == 0 && done & after == after
+    }
+
     pub(crate) fn valid(&self, s: &State, stop: Stop) -> bool {
         let i = stop.index as usize;
         match stop.kind {
@@ -122,9 +130,12 @@ impl Availability<'_> {
             }
             // Done on the way already (even turned in since): the stop is skipped.
             Kind::Objective(k) => {
+                let done = s.objectives[i] & (1 << k) != 0;
+                let o = &self.quest_at(stop.index).objectives[k as usize];
                 s.accepted[i]
-                    && (!s.turned[i] || s.objectives[i] & (1 << k) != 0)
-                    && self.quest_at(stop.index).objectives[k as usize].dungeon.is_none()
+                    && (!s.turned[i] || done)
+                    && o.dungeon.is_none()
+                    && (done || s.objectives[i] & o.after == o.after)
             }
             Kind::TurnIn => s.accepted[i] && !s.turned[i] && self.objectives_done(s, stop.index),
             Kind::LearnFlight => s.known & (1u128 << i) == 0,

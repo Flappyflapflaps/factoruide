@@ -8,6 +8,16 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 - macOS: the app now runs on Mac (Apple Silicon and Intel), with automatic updates. Thanks to @csselement.
 
+### Guides
+
+- Quests needing an item first now send you to get it: Marla's Last Wish has you kill Samuel Fipps before burying his remains.
+- Night elves: Rut'theran Village and the top of Teldrassil are linked by the portal, no longer walked between.
+- TBC: portals and orbs no longer count a boat's wait.
+
+### WoW data
+
+- In Search of Thaelrid is no longer offered to the Horde.
+
 ## 0.7.1 (2026-10-13)
 
 - Addon on WoW Classic and TBC: the guide now shows, and quests are accepted automatically.

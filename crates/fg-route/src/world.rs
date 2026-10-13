@@ -481,6 +481,9 @@ pub struct LinkDef {
     pub seconds: f64,
     #[serde(default)]
     pub one_way: bool,
+    /// Taken at once (portal, orb, lift): no wait for a departure (`Params::link_wait`).
+    #[serde(default)]
+    pub instant: bool,
 }
 
 /// A directed transport link.
@@ -515,7 +518,7 @@ impl World {
                 from_zone: fz,
                 to,
                 to_zone: tz,
-                seconds: d.seconds + wait,
+                seconds: d.seconds + if d.instant { 0.0 } else { wait },
             };
             self.links.push(make(a, d.from.zone, b, d.to.zone));
             if !d.one_way {
@@ -579,6 +582,14 @@ pub struct PassDef {
     pub shortcut: bool,
 }
 
+/// A large walkable area left only by boat, portal or lift (`[[enclosed]]` of
+/// `overrides/passes.toml`): the terrain area at `at`.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct EnclosedDef {
+    pub name: String,
+    pub at: ZonePoint,
+}
+
 #[derive(Debug, Clone)]
 pub struct Pass {
     pub name: String,
@@ -587,6 +598,21 @@ pub struct Pass {
 }
 
 impl World {
+    /// Areas left only by boat, portal or lift: no walk to or from them. Before the passages
+    /// (their walks depend on it).
+    pub fn enclose(&mut self, defs: &[EnclosedDef]) -> Vec<String> {
+        let mut warnings = Vec::new();
+        for d in defs {
+            let enclosed = self
+                .to_world(d.at.zone, d.at.x, d.at.y)
+                .and_then(|p| self.terrain.enclose(&p));
+            if enclosed.is_none() && !self.terrain.is_empty() {
+                warnings.push(format!("enclosed area {}: not in a large area of the terrain", d.name));
+            }
+        }
+        warnings
+    }
+
     /// Register passages; subzone positions come from the map exploration overlays.
     pub fn add_passes(&mut self, conn: &Connection, defs: &[PassDef]) -> Result<Vec<String>> {
         // Center of each explorable map area, per zone.
@@ -662,7 +688,8 @@ impl World {
 
     /// Walking distance (yards): around the steep terrain within a zone, through passages between
     /// zones.
-    /// Zones the passage graph does not cover fall back to a straight line.
+    /// Zones the passage graph does not cover fall back to a straight line, unless one of the
+    /// places is in an enclosed area.
     /// Walking distance and the passages used to leave `a`'s zone and enter `b`'s (debugging).
     pub fn walk_route(&self, a: &Pos, b: &Pos) -> (f64, Option<(usize, usize)>) {
         if a.zone == b.zone {
@@ -693,7 +720,7 @@ impl World {
             return self.ground(a, b);
         }
         let (Some(pa), Some(pb)) = (self.zone_passes.get(&a.zone), self.zone_passes.get(&b.zone)) else {
-            return straight;
+            return self.unknown_walk(a, b);
         };
         let mut best = self.across(a, b);
         // Each walk to a passage once (the inner loop would ask them for every passage left).
@@ -707,10 +734,25 @@ impl World {
                 }
             }
         }
-        if best.is_finite() { best } else { straight }
+        if best.is_finite() {
+            best
+        } else {
+            self.unknown_walk(a, b)
+        }
     }
 
-    /// Walk within a zone: around the steep terrain, straight when it does not know the way.
+    /// A walk the passages do not know: the straight line, unless no walk goes between the two
+    /// places (one in an enclosed area: an island, the top of a cliff).
+    fn unknown_walk(&self, a: &Pos, b: &Pos) -> f64 {
+        if self.terrain.separated(a, b) {
+            f64::INFINITY
+        } else {
+            a.dist(b)
+        }
+    }
+
+    /// Walk within a zone: around the steep terrain, straight when it does not know the way,
+    /// infinite to or from an enclosed area.
     fn ground(&self, a: &Pos, b: &Pos) -> f64 {
         self.terrain.distance(a, b).unwrap_or_else(|| a.dist(b))
     }

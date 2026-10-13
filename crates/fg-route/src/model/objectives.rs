@@ -47,6 +47,7 @@ impl Objective {
             spots: None,
             guard: Guard::default(),
             alts: vec![],
+            after: 0,
         }
     }
 }
@@ -75,9 +76,15 @@ impl QuestBuilder<'_> {
         if rows.is_empty() && r.catalogued_only() {
             return Err("objectives and turn-in unknown (catalogue only)");
         }
-        let mut objs = Vec::new();
+        let mut objs = self.source_items(&quest, &rows);
+        let first = (1u8 << objs.len().min(8)) - 1;
         for row in rows {
-            if let Some(o) = self.objective(&quest, row)? {
+            let kind = row.0;
+            if let Some(mut o) = self.objective(&quest, row)? {
+                // Mobs are killed and items got without the item; the rest uses it.
+                if !(kind == ObjectiveKind::Item || kind == ObjectiveKind::Creature && o.kills > 0.0) {
+                    o.after = first;
+                }
                 objs.push(o);
             }
         }
@@ -123,6 +130,33 @@ impl QuestBuilder<'_> {
                 .filter_map(serde_json::Value::as_i64)
                 .collect(),
         }
+    }
+
+    /// Items the quest needs that no objective asks for, used on its objectives ("Bring Samuel
+    /// Fipps' Remains to Marla's Grave": the remains are looted from Samuel): an objective to
+    /// get each one that is found somewhere. Not the item given on accepting, nor the parts of
+    /// an item objective made of them.
+    fn source_items(&self, quest: &QuestContext<'_>, rows: &[ObjectiveRow]) -> Vec<Objective> {
+        let asked: Vec<i64> = rows
+            .iter()
+            .filter(|r| r.0 == ObjectiveKind::Item)
+            .filter_map(|r| r.1)
+            .collect();
+        if asked.iter().any(|&item| self.item_sources(item, &[]).is_empty()) {
+            return Vec::new();
+        }
+        let mut objs = Vec::new();
+        for &item in &quest.parts {
+            if quest.row.source_item == Some(item) || asked.contains(&item) || self.item_sources(item, &[]).is_empty() {
+                continue;
+            }
+            // Not found where it can be got (from elites, a source unknown): left out, as an
+            // item probably given along the quest.
+            if let Ok(Some(o)) = self.objective(quest, (ObjectiveKind::Item, Some(item), None, None, Some(1))) {
+                objs.push(o);
+            }
+        }
+        objs
     }
 
     /// One objective; None when there is nothing to do for it (the item is given on accepting).

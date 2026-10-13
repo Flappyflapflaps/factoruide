@@ -260,3 +260,17 @@ name = "Dun Morogh -> Wetlands mountain skip"
 zones = [1, 11] # Dun Morogh, Wetlands
 at = { zone = 1, x = 66.9, y = 8.5 }
 shortcut = true
+
+# --- Enclosed areas ------------------------------------------------------------------
+# Large walkable areas left only by boat, portal or lift (overrides/travel.toml): no walk to or
+# from them. The area is the terrain's, around `at`. Elsewhere, places the terrain does not
+# connect are still walked between (tunnels, bridges and gates are buildings, not terrain):
+# `fg audit --check terrain-gaps` lists them, to declare here or to accept in audit.toml.
+
+[[enclosed]]
+name = "Rut'theran Village"         # the boat to Auberdine, the portal up to Darnassus
+at = { zone = 141, x = 55.5, y = 90.0 }
+
+[[enclosed]]
+name = "Teldrassil"                 # the portal down to Rut'theran Village
+at = { zone = 141, x = 56.0, y = 60.0 }

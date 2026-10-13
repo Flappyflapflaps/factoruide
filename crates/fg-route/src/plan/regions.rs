@@ -171,8 +171,11 @@ impl Planner<'_> {
         q.objectives.iter().enumerate().find_map(|(k, o)| {
             let stop = Stop::quest(i, Kind::Objective(k as u8));
             let level_ok = self.combat().need(q, o) <= self.params.reach(s.level, s.bonus);
-            (s.objectives[iu] & (1 << k) == 0 && level_ok && o.dungeon.is_none() && self.near_group(s, stop, group))
-                .then_some(stop)
+            (self.availability().objective_open(s, i, k)
+                && level_ok
+                && o.dungeon.is_none()
+                && self.near_group(s, stop, group))
+            .then_some(stop)
         })
     }
 
@@ -271,7 +274,7 @@ impl Planner<'_> {
                     for (k, o) in q.objectives.iter().enumerate() {
                         let stop = Stop::quest(i, Kind::Objective(k as u8));
                         let level_ok = self.combat().need(q, o) <= self.params.reach(s.level, s.bonus);
-                        if s.objectives[iu] & (1 << k) == 0
+                        if self.availability().objective_open(s, i, k)
                             && level_ok
                             && o.dungeon.is_none()
                             && (groups.of_quest[iu] == g || self.near_group(s, stop, group))

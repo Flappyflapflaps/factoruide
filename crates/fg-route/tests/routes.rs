@@ -537,6 +537,7 @@ fn gathering_next_to_kills_overlaps_them() {
             }),
             guard: Guard::default(),
             alts: vec![],
+            after: 0,
         }];
     }
     p.model.initial.accepted = vec![0, 1];
@@ -597,6 +598,57 @@ fn flight_paths_are_in_their_zone() {
     assert_eq!(zone_of("Thunder Bluff"), "Thunder Bluff");
     let ratchet = world.taxi_nodes.iter().find(|n| n.name.starts_with("Ratchet")).unwrap();
     assert_eq!(world.place_name(&ratchet.pos), Some("Ratchet"));
+}
+
+/// Marla's Last Wish: Samuel's Remains are looted from Samuel Fipps, then buried at Marla's
+/// grave. The guide gets them first; burying them before is not a valid route.
+#[test]
+fn item_used_by_an_objective_is_got_first() {
+    let mut p = prepare("undead", "warrior", 10, &[]);
+    let marla = quest(&p, 6395).unwrap();
+    let objectives = &p.model.quests[marla as usize].objectives;
+    let get = objectives
+        .iter()
+        .position(|o| o.mobs.iter().any(|(id, _)| *id == 1919))
+        .expect("Samuel Fipps killed for his remains");
+    let bury = objectives
+        .iter()
+        .position(|o| o.after & (1 << get) != 0)
+        .expect("burying them comes after");
+    p.model.initial.accepted = vec![marla as usize];
+    let planner = planner(&p);
+    let objective = |k: usize| Stop::quest(marla, Kind::Objective(k as u8));
+    let turn_in = Stop::quest(marla, Kind::TurnIn);
+    assert!(
+        planner
+            .simulate(&[objective(get), objective(bury), turn_in], None)
+            .is_some()
+    );
+    assert!(
+        planner
+            .simulate(&[objective(bury), objective(get), turn_in], None)
+            .is_none()
+    );
+}
+
+/// Rut'theran Village lies at the foot of Teldrassil: no walk goes up to Dolanaar nor across the
+/// sea to Auberdine, the portal and the boat do. Darnassus is walked to from Dolanaar.
+#[test]
+fn rut_theran_is_left_by_portal_or_boat() {
+    let p = prepare("nightelf", "warrior", 2, &[]);
+    let w = &p.world;
+    let at = |zone, x, y| w.to_world(zone, x, y).unwrap();
+    let (village, dolanaar) = (at(141, 55.5, 90.0), at(141, 55.6, 59.8));
+    assert!(w.walk_distance(&village, &dolanaar).is_infinite());
+    assert!(w.walk_distance(&village, &at(148, 37.0, 44.0)).is_infinite());
+    assert!(w.walk_distance(&dolanaar, &at(1657, 40.0, 50.0)).is_finite());
+    let portal = w
+        .links
+        .iter()
+        .find(|l| l.name == "Portal Rut'theran Village - Darnassus")
+        .unwrap();
+    assert!(w.walk_distance(&village, &portal.from).is_finite());
+    assert!(portal.seconds < 30.0, "a portal is taken at once");
 }
 
 /// A quest given up is not turned in: it opens no follow-up. Fire Hardened Mail, left in the log
@@ -1124,6 +1176,7 @@ fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Obj
         spots: None,
         guard: Guard::default(),
         alts: vec![],
+        after: 0,
     }
 }
 

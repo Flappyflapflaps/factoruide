@@ -27,6 +27,8 @@ pub struct Overrides {
     pub dungeons: Vec<DungeonDef>,
     pub links: Vec<LinkDef>,
     pub passes: Vec<crate::world::PassDef>,
+    /// Areas left only by boat, portal or lift (`[[enclosed]]` of passes.toml).
+    pub enclosed: Vec<crate::world::EnclosedDef>,
     pub params: Params,
 }
 
@@ -88,8 +90,11 @@ impl Overrides {
         struct Passes {
             #[serde(default)]
             pass: Vec<crate::world::PassDef>,
+            #[serde(default)]
+            enclosed: Vec<crate::world::EnclosedDef>,
         }
         let class_quests: HashMap<String, ClassQuests> = parse_toml(&file, "class_quests.toml")?;
+        let passes = parse_toml::<Passes>(&file, "passes.toml")?;
         Ok(Self {
             races: parse_toml(&file, "races.toml")?,
             class_powers: class_quests
@@ -100,7 +105,8 @@ impl Overrides {
             spells: parse_toml(&file, "spells.toml")?,
             dungeons: parse_toml::<Dungeons>(&file, "dungeons.toml")?.dungeon,
             links: parse_toml::<Travel>(&file, "travel.toml")?.link,
-            passes: parse_toml::<Passes>(&file, "passes.toml")?.pass,
+            passes: passes.pass,
+            enclosed: passes.enclosed,
             params: parse_toml(&file, "routing.toml")?,
         })
     }

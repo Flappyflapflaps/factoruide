@@ -42,7 +42,7 @@ impl Planner<'_> {
                     let q = self.quest(i);
                     if s.accepted[iu] && !s.turned[iu] {
                         for (k, o) in q.objectives.iter().enumerate() {
-                            if s.objectives[iu] & (1 << k) == 0 && o.kills > 0.0 && o.dungeon.is_none() {
+                            if self.availability().objective_open(&s, i, k) && o.kills > 0.0 && o.dungeon.is_none() {
                                 options.push((
                                     self.params.level_for(self.combat().need(q, o), s.bonus),
                                     Stop::quest(i, Kind::Objective(k as u8)),
@@ -147,7 +147,7 @@ impl Planner<'_> {
                     for k in 0..q.objectives.len() {
                         let o = &q.objectives[k];
                         let level_ok = self.combat().need(q, o) <= self.params.reach(s.level, s.bonus);
-                        if s.objectives[iu] & (1 << k) == 0 && level_ok && o.dungeon.is_none() {
+                        if self.availability().objective_open(s, i, k) && level_ok && o.dungeon.is_none() {
                             consider(Stop::quest(i, Kind::Objective(k as u8)), class, s);
                         }
                     }
