@@ -17,6 +17,8 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Contribute page: the tools that send what your game sees to the community quest databases.
 - What's new page, and links, licenses and data notice under Settings.
 - Guide editor: leaving it with changes not saved (another page, another game version) asks first.
+- New guide: each game version keeps its configuration; switching back finds it as you left it.
+- Faster start and game version switch (the dungeon list took seconds), the window stays responsive meanwhile.
 
 ### Guides
 
