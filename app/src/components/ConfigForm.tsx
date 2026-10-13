@@ -21,6 +21,8 @@ interface Props {
   defaultLocale: string;
   onRun: (request: PlanRequest) => void;
   onExport?: (request: PlanRequest) => void;
+  /** The configuration as it is now, after each change. */
+  onChange?: (request: PlanRequest) => void;
 }
 
 type View = "simple" | "advanced";
@@ -100,7 +102,7 @@ function Toggle({ label, help, checked, onChange }: { label: string; help: strin
  * Step 1. The simple view holds the choices that matter (character, pace, dungeons, zones,
  * professions); the advanced view every setting of the planner.
  */
-export function ConfigForm({ options, initial, startCharacter, defaultLocale, onRun, onExport }: Props) {
+export function ConfigForm({ options, initial, startCharacter, defaultLocale, onRun, onExport, onChange }: Props) {
   const t = useT();
   const gameName = useGameName();
   const defaults = options.params;
@@ -218,6 +220,12 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
     group,
     start,
   });
+
+  useEffect(() => {
+    onChange?.(request());
+    // The request is made of these.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [race, klass, fromLevel, toLevel, name, params, classQuests, professions, locale, group, start, onChange]);
 
   /** A section of the advanced settings (null when the search leaves none of its fields). */
   const settingsSection = (s: Section) => {

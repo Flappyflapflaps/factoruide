@@ -26,12 +26,14 @@ interface Props {
   options: Options;
   start: WizardStart;
   onBusy?: (busy: boolean) => void;
+  /** The configuration as it is now, after each change (kept when switching game versions). */
+  onDraft?: (request: PlanRequest) => void;
   /** The guide is saved: show it (with a notice when the optimization was stopped early). */
   onDone: (meta: VersionMeta, notice: string | null) => void;
 }
 
 /** New route in two steps: configure, then watch the generation live; the saved guide opens at the end. */
-export function NewRoutePage({ options, start, onBusy, onDone }: Props) {
+export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props) {
   const t = useT();
   const lang = useLang();
   const [step, setStep] = useState<Step>("config");
@@ -184,6 +186,7 @@ export function NewRoutePage({ options, start, onBusy, onDone }: Props) {
           startCharacter={initial ? undefined : start.character}
           defaultLocale={gameLocale(lang)}
           onRun={(r) => run(r)}
+          onChange={onDraft}
           onExport={async (r) => {
             try {
               setMessage(t("Configuration exportée : {path}", { path: await api.exportRequest(r) }));

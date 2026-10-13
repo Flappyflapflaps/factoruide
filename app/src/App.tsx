@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { api, type Edition, type EditionInfo, type GuideVersion, type Options } from "./api";
+import { api, type Edition, type EditionInfo, type GuideVersion, type Options, type PlanRequest } from "./api";
 import { clearMapCache } from "./components/WorldMap";
 import { I18nProvider, LANGS, detectLang, useT, type Lang } from "./i18n";
 import { AddonPage } from "./pages/AddonPage";
@@ -96,6 +96,15 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
     api.listEditions().then(setEditions).catch(() => {});
     api.getSettings().then((s) => setEdition(s.edition)).catch(() => {});
   }, []);
+  // Each game version keeps its new guide's configuration: coming back to it finds it as left.
+  const drafts = useRef<Partial<Record<Edition, WizardStart>>>({});
+  const draftCharacter = wizard.start.character;
+  const saveDraft = useCallback(
+    (request: PlanRequest) => {
+      if (edition) drafts.current[edition] = { initial: request, rerun: false, character: draftCharacter };
+    },
+    [edition, draftCharacter],
+  );
   const switchEdition = async (e: Edition) => {
     if (busy || e === edition) return;
     await api.setEdition(e);
@@ -104,7 +113,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
     setOptions(null);
     setError(null);
     load();
-    setWizard((w) => ({ key: w.key + 1, start: { initial: null, rerun: false } }));
+    setWizard((w) => ({ key: w.key + 1, start: drafts.current[e] ?? { initial: null, rerun: false } }));
   };
 
   return (
@@ -165,6 +174,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
               options={options}
               start={wizard.start}
               onBusy={setBusy}
+              onDraft={saveDraft}
               onDone={(meta, notice) => {
                 // Started from a character's block: the character follows its new guide.
                 const character = wizard.start.character;
