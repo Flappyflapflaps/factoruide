@@ -9,7 +9,7 @@ professions, and how strong your character gets with its gear and spells) and se
 fastest route to your target level, killing the mobs met on the way and grinding only a small
 share of each level. The in-game addon then takes you through it step by step.
 
-![Generating a guide: the times of the best routes improving live, the guide kept in bold, and the route on the map](docs/generation.png)
+![A guide's page: its route on the map with the level reached at each stage, its play time, quests, dungeons, flights and XP](docs/guide.png)
 
 ## An experiment
 
@@ -50,6 +50,8 @@ zones to do, the level to reach before moving on from each, and where the XP is.
 - **Your language**: the app and the guide in 10 languages. A guide is computed once and shown in
   the app's language; the addon writes it in the language you choose on its page.
 
+![A new guide: character, professions, play style, dungeons by level and the zones to prefer or exclude on the map](docs/new-guide.png)
+
 ## It adapts as you play
 
 - The addon follows you: it advances by itself (quest accepted, objective done, quest turned in,
@@ -65,6 +67,8 @@ zones to do, the level to reach before moving on from each, and where the XP is.
   kill), the guide replayed after each change with its new time and the steps that are no longer
   possible; saved as a new version once every step holds.
 - Share a guide with a friend as a `.fgguide` file; they import it in their app.
+
+![The characters the addon recorded, each with its level, professions and the guide it follows](docs/characters.png)
 
 ## Getting started
 
@@ -83,6 +87,8 @@ zones to do, the level to reach before moving on from each, and where the XP is.
    times go down live on the chart and the route is drawn on the map. The
    guide kept (in bold) is the best balance between play time and comfort (little grinding, few
    trips between zones), not always the very shortest.
+
+   ![Generating a guide: the time of the guide kept going down live, and its route drawn on the map](docs/generation.png)
 4. **Characters**: choose the guide each character follows (a guide started from a character
    follows it already), then `/reload` in game. A character follows only the guide chosen for it.
 
