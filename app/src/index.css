@@ -2968,8 +2968,8 @@ button.dungeon.excluded b {
   border: none;
   background: transparent;
 }
-.characters-intro {
-  max-width: 900px;
-  margin: -4px 0 14px;
-  line-height: 1.5;
+.characters-empty {
+  max-width: 720px;
+  margin: 0 auto;
+  line-height: 1.6;
 }

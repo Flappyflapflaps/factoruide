@@ -70,18 +70,17 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide }: Props) {
       <div className="page-head">
         <h2>
           {t("Personnages")}
-          <Hint text={t("Chaque personnage suit au plus un guide, choisi ici : l'addon le lui montre en jeu après /reload.")} />
+          <Hint
+            text={`${t("Chaque personnage suit au plus un guide, choisi ici : l'addon le lui montre en jeu après /reload.")} ${t("Un personnage manque ? Connectez-vous avec lui en jeu, puis /reload.")}`}
+          />
         </h2>
       </div>
-      <p className="muted characters-intro">
-        {t("Un personnage apparaît ici une fois enregistré par l'addon : connectez-vous avec lui en jeu, l'addon installé, puis faites /reload, déconnectez-vous ou quittez le jeu (le jeu n'écrit les données de l'addon qu'à ce moment-là). Choisissez la bonne version du jeu dans le menu.")}
-      </p>
       {message && <div className="success">{message}</div>}
       {error && <div className="error">{error}</div>}
       {characters === null ? (
         <div className="empty">{t("Chargement…")}</div>
       ) : characters.length === 0 ? (
-        <div className="empty">{t("Aucun personnage enregistré : connectez-vous en jeu avec l'addon installé, puis tapez /fg profile.")}</div>
+        <div className="empty characters-empty">{t("Un personnage apparaît ici une fois enregistré par l'addon : connectez-vous avec lui en jeu, l'addon installé, puis faites /reload, déconnectez-vous ou quittez le jeu (le jeu n'écrit les données de l'addon qu'à ce moment-là). Choisissez la bonne version du jeu dans le menu.")}</div>
       ) : (
         <div className="character-cards">
           {characters.map((c) => {
