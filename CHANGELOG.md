@@ -1,18 +1,33 @@
 # Changelog
 
-The notes of each version are the message of its tag (`scripts/release.sh`), shown in the app.
+Each version's tag message (`scripts/release.sh`), shown in the app's update prompt, is kept short: a link to this file.
 
 ## Unreleased
 
-- Calculation screen: while the starting routes are built, it counts them ("Building the starting routes · 20 of 32", then "Variants of the best starts · 150 of 224") with a progress bar, shows the time of the best one built so far and draws it on the map. The best starts improved in the race are drawn on the chart from the beginning, the chart showing the race alone while it runs.
+## 0.7.0 (2026-10-13)
+
+A security fix (updating is recommended), and better guides: the optimization counts tries, the race looks around its best starting routes, and the calculation screen shows them as they are built.
+
+### Security
+
 - Security: the addon's saved data (SavedVariables) is read as data only. The app ran that Lua file with Lua's standard libraries, so a SavedVariables file crafted by someone else (a file shared, or modified by hand) could run commands or read files on the PC when the app read it, for a contribution or the characters' profiles. The file now reaches no library at all, compiled Lua code is refused, and its reading is limited in memory and in work done. Such a file could also freeze the app (a loop that never ends) or crash it (a table holding itself); it is now refused, and the characters and the contribution are read outside the window's thread.
+
+### Routes
+
 - The race looks around its best starting routes: besides the 32 weight sets drawn, 224 more starting routes are built as the 4 best ones with one zone change done otherwise (leaving a zone 1 to 3 levels earlier or later, or going to a zone it went to later). All are ranked once built, and only the 8 best are improved in the race: the ranking of the built routes already tells the winner, and building is cheap. The winner is one of these new routes 22 times out of 24. Whole calculations on six classic starts, 4 seeds each, Normal: 39 minutes shorter on average, and the calculation about 13 % faster. Advanced settings: "Race mutants" and "Candidates improved".
-- Forever: NPCs added by Forever that the quest data gave no faction (the profession trainers of Camp Narache, Karne Grayhoof...) are no longer taken for hostile creatures. Around Grull Hawkwind they made a camp of level 8-10 "mobs": The Hunt Begins was out of reach for a level 1 tauren, and with it The Hunt Continues, The Battleboars and the hunter's class note. The tauren guides walked to Durotar at level 1 instead (23 minutes); they now start in Mulgore with The Hunt Begins. 316 NPCs get their side: from the faction Wowhead names under them, or from the races of the quests they give.
 - Short guides get a real race: each starting route now gets at least 20 000 tries (times the calculation preset) before the best one is picked. With a few tries per step, a short guide's routes were ranked while still improving fast, by chance. Human warrior 25-30 (Thorough, 4 seeds): a score of 7h29 instead of 7h51 on average, about 7 seconds of calculation. A 1-60 is unchanged (its starting routes already got more).
 - Starting routes drawn where they are better on average: the race's candidates now finish their zone (stay in the zone 3.5 to 5), no longer avoid quests below their level nor chase quest XP per second, and take dungeon quests more readily; the first candidate uses 4, 1, 0.3, 0, 0.4 and 0 (zone, continent, dungeon quests, quests below and above the level, quest efficiency). Whole calculations on the six classic starts, 10 seeds each: 49 minutes shorter on average (41 times out of 60), from 1h27 on the dwarf hunter to even on the orc warlock. Weights tuned on a single guide do not carry over: a weight set gives one starting route, and a slight change can switch when it leaves a zone or a continent, for hours more or less.
 - Fixed starting routes that ended with a full quest log: once a level reached makes quests of the log hopeless (gone gray, dungeon outleveled), they are given up before the next quest is taken, and the construction replays its route the way the guide is computed. About 4 % of the construction settings drawn for the starting routes gave no route at all.
 - Faster optimization again: the paths around the terrain are searched about twice as fast, and replaying a route does less work at each stop (flight masters nearby, areas discovered, dungeon runs, quests given up, gear values, where to insert a quest). Building the first routes takes about half the time, and the optimizer tries about 20 % more changes in the same time. For the same work the routes are exactly the same as before.
 - The optimization counts tries, no longer seconds: the same settings give the same guide on any PC, only its time depends on the processor (before, the same request could come out 2 hours apart from one run to the next). 32 starting routes are built and briefly improved, then the 8 searches all improve the best one together, sharing their best route every 500 tries. The tries follow the size of the guide (a 1-20 does far fewer than a 1-60). The calculation presets (Preview, Normal, Thorough) set how much is tried; Normal takes about as long as before for routes as good (orc warlock 1-60, 4 seeds: a score of 127h55 on average, 127h33 before). Advanced settings: candidates and their tries, tries of the final, and rounds in between (the better half of the routes going on after each; off by default: the leader of the race won every time). The chart follows the routes against the share of the calculation done.
+
+### Data
+
+- Forever: NPCs added by Forever that the quest data gave no faction (the profession trainers of Camp Narache, Karne Grayhoof...) are no longer taken for hostile creatures. Around Grull Hawkwind they made a camp of level 8-10 "mobs": The Hunt Begins was out of reach for a level 1 tauren, and with it The Hunt Continues, The Battleboars and the hunter's class note. The tauren guides walked to Durotar at level 1 instead (23 minutes); they now start in Mulgore with The Hunt Begins. 316 NPCs get their side: from the faction Wowhead names under them, or from the races of the quests they give.
+
+### App
+
+- Calculation screen: while the starting routes are built, it counts them ("Building the starting routes · 20 of 32", then "Variants of the best starts · 150 of 224") with a progress bar, shows the time of the best one built so far and draws it on the map. The best starts improved in the race are drawn on the chart from the beginning, the chart showing the race alone while it runs.
 
 ## 0.6.0 (2026-10-12)
 

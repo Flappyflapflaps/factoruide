@@ -3,7 +3,7 @@
 # push the tag. The CI (.github/workflows/release.yml) builds the Windows installer and publishes
 # it; installed apps offer the update at startup, showing the notes.
 #
-#   scripts/release.sh 0.2.0 "What changed (shown in the app)"
+#   scripts/release.sh 0.2.0 "Short notes (shown in the app): a link to CHANGELOG.md"
 #   scripts/release.sh 0.2.0            # writes the notes in $EDITOR
 set -eu
 cd "$(dirname "$0")/.."
