@@ -5,12 +5,17 @@
 
 use anyhow::{Context, Result};
 use mlua::{ChunkMode, HookTriggers, Lua, LuaOptions, StdLib, Table, Value as LV, VmState};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
-use std::time::{Duration, Instant};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const MEMORY_LIMIT: usize = 1 << 30;
-const TIME_LIMIT: Duration = Duration::from_secs(60);
+/// Instructions a file may run: a real SavedVariables runs about 0.05 per byte.
+const BASE_INSTRUCTIONS: u64 = 10_000_000;
+const INSTRUCTIONS_PER_BYTE: u64 = 100;
+const HOOK_STEP: u32 = 10_000;
+/// The addon's SavedVariables nest less than ten tables deep.
+const MAX_DEPTH: usize = 64;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Key {
@@ -134,13 +139,21 @@ impl Val {
     }
 }
 
+/// Converts a Lua value; tables nested too deep or met twice (cycles, shared tables that would
+/// expand exponentially) are refused.
 pub fn convert(v: &LV) -> Result<Val> {
+    convert_at(v, 0, &mut HashSet::new())
+}
+
+fn convert_at(v: &LV, depth: usize, seen: &mut HashSet<usize>) -> Result<Val> {
     Ok(match v {
         LV::Boolean(b) => Val::Bool(*b),
         LV::Integer(i) => Val::Num(*i as f64),
         LV::Number(n) => Val::Num(*n),
         LV::String(s) => Val::Str(s.to_string_lossy().clone()),
         LV::Table(t) => {
+            anyhow::ensure!(depth < MAX_DEPTH, "Lua tables nested too deep");
+            anyhow::ensure!(seen.insert(t.to_pointer() as usize), "Lua table met twice");
             let mut map = BTreeMap::new();
             for pair in t.clone().pairs::<LV, LV>() {
                 let (k, v) = pair?;
@@ -150,7 +163,7 @@ pub fn convert(v: &LV) -> Result<Val> {
                     LV::String(s) => Key::Str(s.to_string_lossy().clone()),
                     other => Key::Str(format!("{other:?}")),
                 };
-                map.insert(key, convert(&v)?);
+                map.insert(key, convert_at(&v, depth + 1, seen)?);
             }
             Val::Table(map)
         }
@@ -158,25 +171,26 @@ pub fn convert(v: &LV) -> Result<Val> {
     })
 }
 
-/// A state for untrusted data files: no libraries, bounded memory and time.
+/// A state for untrusted data files: no libraries, bounded memory.
 pub fn new_lua() -> Lua {
     let lua = Lua::new_with(StdLib::NONE, LuaOptions::default()).expect("creating Lua state");
     lua.set_memory_limit(MEMORY_LIMIT).expect("limiting Lua memory");
-    let start = Instant::now();
-    lua.set_hook(HookTriggers::new().every_nth_instruction(100_000), move |_, _| {
-        if start.elapsed() > TIME_LIMIT {
-            return Err(mlua::Error::runtime("Lua file took too long"));
-        }
-        Ok(VmState::Continue)
-    })
-    .expect("setting Lua hook");
     lua
 }
 
-/// Text only (Lua 5.1 bytecode is unverified, so it can corrupt memory), and an empty
-/// environment so the file reaches none of the base library (`dofile`, `loadfile`, …).
+/// Text only (Lua 5.1 bytecode is unverified, so it can corrupt memory), an empty environment
+/// so the file reaches none of the base library (`dofile`, `loadfile`, …), and a budget of
+/// instructions after the file's size.
 fn sandboxed(lua: &Lua, path: &Path) -> Result<(mlua::Chunk<'static>, Table)> {
     let src = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    let budget = BASE_INSTRUCTIONS + INSTRUCTIONS_PER_BYTE * src.len() as u64;
+    let run = AtomicU64::new(0);
+    lua.set_hook(HookTriggers::new().every_nth_instruction(HOOK_STEP), move |_, _| {
+        if run.fetch_add(u64::from(HOOK_STEP), Ordering::Relaxed) > budget {
+            return Err(mlua::Error::runtime("Lua file runs too long"));
+        }
+        Ok(VmState::Continue)
+    })?;
     let env = lua.create_table()?;
     let chunk = lua
         .load(src)
@@ -189,9 +203,7 @@ fn sandboxed(lua: &Lua, path: &Path) -> Result<(mlua::Chunk<'static>, Table)> {
 /// Run a Lua file and convert its return value.
 pub fn eval_file(lua: &Lua, path: &Path) -> Result<Val> {
     let (chunk, _) = sandboxed(lua, path)?;
-    let v: LV = chunk
-        .eval()
-        .with_context(|| format!("evaluating {}", path.display()))?;
+    let v: LV = chunk.eval().with_context(|| format!("evaluating {}", path.display()))?;
     convert(&v)
 }
 
@@ -208,7 +220,7 @@ mod tests {
 
     fn load(src: &[u8]) -> Result<Vec<Val>> {
         static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let n = N.fetch_add(1, Ordering::Relaxed);
         let file = std::env::temp_dir().join(format!("fg-lua-{}-{n}.lua", std::process::id()));
         std::fs::write(&file, src)?;
         let out = load_globals(&new_lua(), &file, &["DB"]);
@@ -224,7 +236,14 @@ mod tests {
 
     #[test]
     fn reaches_no_library() {
-        for src in ["os.execute('true')", "io.open('/etc/passwd')", "dofile('/etc/passwd')", "loadfile('/etc/passwd')", "require('os')", "string.rep('x', 1)"] {
+        for src in [
+            "os.execute('true')",
+            "io.open('/etc/passwd')",
+            "dofile('/etc/passwd')",
+            "loadfile('/etc/passwd')",
+            "require('os')",
+            "string.rep('x', 1)",
+        ] {
             assert!(load(src.as_bytes()).is_err(), "{src}");
         }
     }
@@ -232,6 +251,18 @@ mod tests {
     #[test]
     fn refuses_bytecode() {
         assert!(load(b"\x1bLua\x51\x00").is_err());
+    }
+
+    #[test]
+    fn bounds_instructions() {
+        assert!(load(b"while true do end").is_err());
+    }
+
+    #[test]
+    fn refuses_cycles_and_shared_tables() {
+        assert!(load(b"DB = {} DB.self = DB").is_err());
+        assert!(load(b"local a = {} for i = 1, 60 do a = {a, a} end DB = a").is_err());
+        assert!(load(b"local a = {} for i = 1, 100000 do a = {a} end DB = a").is_err());
     }
 
     #[test]

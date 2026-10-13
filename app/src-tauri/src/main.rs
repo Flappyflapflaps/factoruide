@@ -1011,12 +1011,15 @@ fn rested_now(p: &StartState, now: i64) -> i64 {
 }
 
 /// The characters of the game client of the current edition, most recently played first.
+// Off the main thread: reading the SavedVariables can take a while.
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
-fn list_characters(state: State<'_, AppState>) -> CmdResult<Vec<CharacterInfo>> {
+async fn list_characters(app: AppHandle) -> CmdResult<Vec<CharacterInfo>> {
+    tauri::async_runtime::spawn_blocking(move || characters(&app.state::<AppState>()))
+        .await
+        .map_err(err)?
+}
+
+fn characters(state: &AppState) -> CmdResult<Vec<CharacterInfo>> {
     let settings = state.settings();
     let client_dir = settings.wow_dir.join(settings.edition.client_folder());
     let files = fg_contrib::collector::find_saved_variables(&client_dir);
@@ -1309,13 +1312,16 @@ fn contribution(state: &AppState) -> CmdResult<(fg_contrib::contribution::Contri
     Ok((c, client_dir))
 }
 
+// Off the main thread: reading the SavedVariables can take a while.
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
-fn contribution_preview(state: State<'_, AppState>) -> CmdResult<ContributionPreview> {
-    let (c, client_dir) = contribution(&state)?;
+async fn contribution_preview(app: AppHandle) -> CmdResult<ContributionPreview> {
+    tauri::async_runtime::spawn_blocking(move || preview(&app.state::<AppState>()))
+        .await
+        .map_err(err)?
+}
+
+fn preview(state: &AppState) -> CmdResult<ContributionPreview> {
+    let (c, client_dir) = contribution(state)?;
     let settings = state.settings();
     Ok(ContributionPreview {
         edition: settings.edition.key(),
