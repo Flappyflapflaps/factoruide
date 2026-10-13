@@ -139,12 +139,17 @@ pub fn options(conn: &Connection, overrides: &Overrides) -> Result<Options> {
                UNION SELECT i.from_type, i.from_id
                FROM m_quest_objective o JOIN m_quest q ON q.id = o.quest_id
                JOIN m_item_source i ON i.item_id = o.target_id AND i.from_type IN ('npc', 'object')
-               WHERE q.status = 'available' AND q.level <= ?1 AND o.type = 'item')
+               WHERE q.status = 'available' AND q.level <= ?1 AND o.type = 'item'),
+             -- The areas inside each dungeon, then the spawns read once (not once per dungeon).
+             inside(dungeon, zone) AS (
+               SELECT area, area FROM dungeon
+               UNION SELECT d.area, j.value FROM dungeon d, json_each(coalesce(d.alt_areas, '[]')) j),
+             found(dungeon) AS (
+               SELECT DISTINCT i.dungeon FROM m_spawn s JOIN inside i ON i.zone = s.zone_id
+               WHERE (s.entity_type, s.entity_id) IN needed)
              SELECT d.area, d.name, coalesce(d.alt_areas, '[]') FROM dungeon d JOIN client_areatable a ON a.ID = d.area
              JOIN client_map m ON m.InstanceType = 1 AND (m.ID = a.ContinentID OR m.AreaTableID = d.area)
-             WHERE EXISTS (
-               SELECT 1 FROM needed n JOIN m_spawn s ON s.entity_type = n.entity_type AND s.entity_id = n.entity_id
-               WHERE s.zone_id = d.area OR s.zone_id IN (SELECT value FROM json_each(coalesce(d.alt_areas, '[]'))))
+             WHERE d.area IN found
              GROUP BY d.area",
         )?;
         let max_level = overrides.params.edition.rules().max_level + 2;

@@ -303,13 +303,15 @@ fn write_settings(state: &AppState, settings: Settings) -> CmdResult<()> {
     Ok(())
 }
 
+/// Off the main thread: the window stays responsive while the database is unpacked and read.
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
-fn get_options(state: State<'_, AppState>) -> CmdResult<Options> {
-    job::options(&state.open_db()?, &overrides(state.edition())?).map_err(err)
+async fn get_options(app: AppHandle) -> CmdResult<Options> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        job::options(&state.open_db()?, &overrides(state.edition())?).map_err(err)
+    })
+    .await
+    .map_err(err)?
 }
 
 /// Save a planning request for debugging (replay with `fg route --request <file>`).
