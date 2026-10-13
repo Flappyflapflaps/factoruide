@@ -48,6 +48,8 @@ run() {
     cargo build --release --quiet -p fg
     # Its own binary: a rebuild meanwhile does not change the runs left.
     cp target/release/fg "$dir/fg"
+    # The script given to sh -c expands its own arguments: single quotes on purpose.
+    # shellcheck disable=SC2016
     for start in $starts; do
         for seed in $seeds; do
             echo "$start $seed"
@@ -80,7 +82,7 @@ compare() {
             id=$(echo "$start" | tr : -)-$seed
             a=$root/$1/$id.json
             b=$root/$2/$id.json
-            [ -f "$a" ] && [ -f "$b" ] || continue
+            if [ ! -f "$a" ] || [ ! -f "$b" ]; then continue; fi
             echo "$id $(jq .total_time "$a") $(jq .total_time "$b")"
         done
     done | awk -v base="$1" -v other="$2" '
