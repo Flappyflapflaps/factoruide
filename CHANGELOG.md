@@ -16,6 +16,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Addon page: settings saved as you change them; "Install in game" appears when the game is not up to date.
 - Contribute page: the tools that send what your game sees to the community quest databases.
 - What's new page, and links, licenses and data notice under Settings.
+- Guide editor: leaving it with changes not saved (another page, another game version) asks first.
 
 ### Guides
 
@@ -23,6 +24,10 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Quests needing an item first now send you to get it: Marla's Last Wish has you kill Samuel Fipps before burying his remains.
 - Night elves: Rut'theran Village and the top of Teldrassil are linked by the portal, no longer walked between.
 - TBC: portals and orbs no longer count a boat's wait.
+- Druids: the bear form quests are planned again. Moonglade is reached with the teleport the quest "Moonglade" teaches, and Lunaclaw is met at the right Moonkin Stone (the Barrens for the Horde).
+- Warlocks: The Binding (Voidwalker, Succubus) is planned again, at the summoning circle.
+- WoW Forever: class quests filed under a zone count as class quests: the dwarf shaman's Call of Earth, and Archaic Rune before it, are always in the guide.
+- Classic and WoW Forever: Blackrock Depths, Blackrock Spire and the Sunken Temple are in the dungeon list again.
 
 ### WoW data
 
