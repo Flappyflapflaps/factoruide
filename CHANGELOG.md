@@ -31,7 +31,7 @@ A security fix (updating is recommended), and better guides.
 
 ### App
 
-- The calculation screen shows the starting routes as they are built, with a progress bar and the best one on the map.
+- The calculation screen shows its progress, and the best route so far on the map.
 
 ## 0.6.0 (2026-10-12)
 
