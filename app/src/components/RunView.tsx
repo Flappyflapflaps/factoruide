@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { fmtTime } from "../api";
-import { secondsLeft, type OptimizeState, type RaceMark, type RaceSeries } from "./OptimizeProgress";
+import { builtShare, secondsLeft, type OptimizeState, type RaceMark, type RaceSeries } from "./OptimizeProgress";
 import { RaceChart } from "./RaceChart";
 import { useT } from "../i18n";
 import { WorldMap, type WorldPoint } from "./WorldMap";
@@ -37,9 +37,17 @@ function phaseText(state: OptimizeState | null, t: ReturnType<typeof useT>): str
   if (!state || state.phase === "prepare") {
     return state?.step === "quests" ? t("Chargement des quêtes…") : t("Chargement de la carte…");
   }
-  if (state.phase === "construct") return t("Construction des routes de départ…");
+  if (state.phase === "construct") {
+    const [built, draws, all] = [state.built ?? 0, state.draws ?? 0, state.to_build ?? 0];
+    if (!all) return t("Construction des routes de départ…");
+    return built < draws
+      ? t("Construction des chemins de départ · {done} sur {n}", { done: built, n: draws })
+      : t("Variantes des meilleurs départs · {done} sur {n}", { done: built - draws, n: all - draws });
+  }
   const what =
-    state.stage === "qualify"
+    state.stage === "qualify" && (state.candidates ?? 0) <= (state.searches ?? 0)
+      ? t("Amélioration des {n} meilleurs départs", { n: state.candidates ?? 0 })
+      : state.stage === "qualify"
       ? t("Sélection des meilleurs départs · {done} essayés sur {n}", { done: state.qualified ?? 0, n: state.candidates ?? 0 })
       : state.stage === "final" && state.width === 1
         ? t("Amélioration du meilleur départ par {m} recherches", { m: state.searches ?? 1 })
@@ -72,7 +80,9 @@ export function RunView({ state, series, marks, colors, route, log, onStop, onCa
   const [showLog, setShowLog] = useState(false);
 
   const optimizing = state?.phase === "optimize";
-  const ratio = optimizing ? Math.min(1, state.progress ?? 0) : 0;
+  const building = builtShare(state);
+  const ratio = optimizing ? Math.min(1, state.progress ?? 0) : (building ?? 0);
+  const determinate = optimizing || building != null;
   // The time of the route kept (best score), the best start before the routes are known.
   const kept = state?.routes?.find((r) => r.id === state.selected)?.time ?? state?.best ?? null;
 
@@ -82,7 +92,7 @@ export function RunView({ state, series, marks, colors, route, log, onStop, onCa
         <div>
           <div className="run-phase">{phaseText(state, t)}</div>
           <div className="run-best">{kept != null ? <AnimatedTime value={kept} /> : "—"}</div>
-          <div className="run-sub">{kept != null ? t("temps du guide retenu") : t("construction en cours")}</div>
+          <div className="run-sub">{kept == null ? t("construction en cours") : optimizing ? t("temps du guide retenu") : t("meilleur départ construit")}</div>
         </div>
         <div className="run-actions">
           {/* Until a first route is built there is no guide to keep: only cancelling. */}
@@ -96,8 +106,8 @@ export function RunView({ state, series, marks, colors, route, log, onStop, onCa
           </button>
         </div>
       </header>
-      <div className={`progress big${optimizing ? "" : " indeterminate"}`} role="progressbar" aria-valuenow={Math.round(ratio * 100)}>
-        <div style={optimizing ? { width: `${ratio * 100}%` } : undefined} />
+      <div className={`progress big${determinate ? "" : " indeterminate"}`} role="progressbar" aria-valuenow={Math.round(ratio * 100)}>
+        <div style={determinate ? { width: `${ratio * 100}%` } : undefined} />
       </div>
       <div className="panel">
         <RaceChart state={state} series={series} marks={marks} colors={colors} />

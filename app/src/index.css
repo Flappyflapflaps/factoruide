@@ -1615,13 +1615,6 @@ button.big {
   stroke-width: 2;
   transition: cy 0.4s ease-out;
 }
-.race-wait {
-  font-size: 13px;
-  paint-order: stroke;
-  stroke: var(--surface-1);
-  stroke-width: 8px;
-  stroke-linejoin: round;
-}
 .race-note {
   margin: 0;
   color: var(--text-muted);

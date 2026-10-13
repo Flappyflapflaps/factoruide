@@ -17,6 +17,11 @@ export interface OptimizeState {
   /** Candidates of the race (0: no race) and how many are done. */
   candidates?: number;
   qualified?: number;
+  /** While constructing: routes built, to build before the race (0: built in the race), and how
+   * many of them draw their weights (the others vary the best of those). */
+  built?: number;
+  to_build?: number;
+  draws?: number;
   /** Round under way (from 1) and rounds in all, the final included. */
   round?: number;
   rounds?: number;
@@ -26,14 +31,21 @@ export interface OptimizeState {
   /** Share of the tries done (0 to 1), and where the race ends; known once a route is built. */
   progress?: number;
   race_end?: number;
-  /** Seconds since the first route was built. */
+  /** Seconds since the race began. */
   elapsed?: number;
   start?: number | null;
+  /** Play time of the best route so far (while constructing: of the best route built). */
   best?: number | null;
   /** While racing the best candidates so far, then the routes of the round. */
   routes?: RaceRoute[];
   /** Route kept (best score) among `routes`. */
   selected?: number | null;
+}
+
+/** Share of the routes built before the race, or null when they are built in the race. */
+export function builtShare(state: OptimizeState | null): number | null {
+  if (state?.phase !== "construct" || !state.to_build) return null;
+  return Math.min(1, (state.built ?? 0) / state.to_build);
 }
 
 /** Times of each followed route, as [share of the tries done, play time] points. */

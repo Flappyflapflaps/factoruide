@@ -236,6 +236,11 @@ struct Live<'p> {
     race: bool,
     candidates: usize,
     threads: usize,
+    /// Routes built before the race (`screen`), the first ones drawing their weights.
+    to_build: usize,
+    draws: usize,
+    /// Best (score, play time) of the routes built so far.
+    built_best: Mutex<(f64, f64)>,
     stages: Vec<usize>,
     /// How many tries the tournament makes, for a route size.
     tries: Tries,
@@ -263,6 +268,13 @@ impl<'p> Live<'p> {
             race: plan.race,
             candidates: plan.qualifying,
             threads: plan.threads,
+            to_build: if plan.qualifying < plan.candidates + plan.mutants {
+                plan.candidates + plan.mutants
+            } else {
+                0
+            },
+            draws: plan.candidates,
+            built_best: Mutex::new((f64::INFINITY, f64::INFINITY)),
             stages: plan.stages.clone(),
             tries: plan.tries(params),
             built: Mutex::new((Duration::ZERO, 0, 0)),
@@ -338,7 +350,17 @@ impl<'p> Live<'p> {
     fn report(&self) {
         let (_, start, _, best) = *self.scores.lock().unwrap();
         let Some(t) = self.started.get() else {
-            (self.progress)(&format!("@progress {}", serde_json::json!({ "phase": "construct" })));
+            let (_, built, _) = *self.built.lock().unwrap();
+            let (_, best) = *self.built_best.lock().unwrap();
+            let msg = serde_json::json!({
+                "phase": "construct",
+                "built": built,
+                "to_build": self.to_build,
+                "draws": self.draws,
+                "candidates": self.candidates,
+                "best": if best.is_finite() { Some(best) } else { None },
+            });
+            (self.progress)(&format!("@progress {msg}"));
             return;
         };
         let (routes, selected) = self.followed();
@@ -351,6 +373,7 @@ impl<'p> Live<'p> {
             "selected": selected,
             "candidates": if self.race { self.candidates } else { 0 },
             "qualified": self.qualified.load(Ordering::Relaxed),
+            "searches": self.threads,
             "rounds": self.stages.len(),
         });
         if let Some((done, race_end)) = self.progress() {
@@ -386,6 +409,15 @@ impl<'p> Live<'p> {
         *last = Instant::now();
         let points = planner.places().polyline(&route, 800);
         (self.progress)(&format!("@route {}", serde_json::json!({ "points": points })));
+    }
+
+    /// A route built before the race: the best so far is drawn.
+    fn on_built(&self, score: f64, play: f64, route: &[Stop]) {
+        let mut best = self.built_best.lock().unwrap();
+        if score < best.0 {
+            *best = (score, play);
+            *self.best_route.lock().unwrap() = (route.to_vec(), true);
+        }
     }
 
     fn on_best(&self, k: usize, first: &Cell<bool>, score: f64, play: f64, route: &[Stop]) {
@@ -559,14 +591,21 @@ impl Searcher<'_> {
         let give_up = || self.interrupt.cancelled() || (!needed && self.interrupt.stopping());
         let planner = Planner::new(self.model, self.world, &p, self.profile).abortable(&give_up);
         let route = self.build(k, &planner, mutant.as_ref(), |_| {})?;
-        Some((self.score(&route), route))
+        let (score, play) = self.scored(&route);
+        self.live.on_built(score, play, &route);
+        Some((score, route))
     }
 
     /// Score of a route under the request's own settings.
     fn score(&self, route: &[Stop]) -> f64 {
+        self.scored(route).0
+    }
+
+    /// Score and play time of a route under the request's own settings.
+    fn scored(&self, route: &[Stop]) -> (f64, f64) {
         Planner::new(self.model, self.world, self.params, self.profile)
-            .simulate(route, None)
-            .unwrap_or(f64::INFINITY)
+            .simulate_full(route, None)
+            .map_or((f64::INFINITY, f64::INFINITY), |(score, spent)| (score, spent.total))
     }
 }
 

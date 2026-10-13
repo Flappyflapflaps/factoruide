@@ -65,11 +65,11 @@ export function NewRoutePage({ options, start, onBusy, onDone }: Props) {
           if (free != null) slots.current.set(r.id, free);
         }
         setColors(Object.fromEntries(slots.current));
-        // Once the best starts are picked (or without a race), each route's time is drawn from
-        // the end of the race, against the share of the tries done; each round marked.
-        if (next.phase === "optimize" && next.stage !== "qualify" && routes.length) {
+        // Each route's time is drawn against the share of the tries done, from where it is first
+        // followed (a route of the rounds from the end of the race); each round marked.
+        if (next.phase === "optimize" && routes.length) {
           const at = next.progress ?? 0;
-          const begin = next.race_end ?? 0;
+          const begin = next.stage === "qualify" ? at : (next.race_end ?? 0);
           setSeries((prev) => {
             const out = { ...prev };
             for (const r of routes) {
@@ -80,6 +80,10 @@ export function NewRoutePage({ options, start, onBusy, onDone }: Props) {
             }
             return out;
           });
+        }
+        if (next.phase === "optimize" && next.stage !== "qualify" && routes.length) {
+          const at = next.progress ?? 0;
+          const begin = next.race_end ?? 0;
           const round = next.round ?? 1;
           setMarks((prev) => (prev.some((mark) => mark.round === round) ? prev : [...prev, { round, at: prev.length ? at : begin, width: next.width ?? routes.length }]));
         }

@@ -38,10 +38,10 @@ interface Props {
 const percent = (share: number) => `${Math.round(share * 100)} %`;
 
 /**
- * The routes the optimization follows, against the share of its tries done. While the best starts
- * are picked, their times are only points on the left edge (they change as better candidates
- * come); once picked, each route's time is drawn, the kept route in bold. After each round the
- * routes left behind stop (gray) and the others go on, each with more searches.
+ * The routes the optimization follows, against the share of its tries done, the kept route in
+ * bold: the best starts improved in the race, then the routes of the rounds from the end of the
+ * race (marked). After each round the routes left behind stop (gray) and the others go on, each
+ * with more searches.
  */
 export function RaceChart({ state, series, marks, colors }: Props) {
   const t = useT();
@@ -50,7 +50,6 @@ export function RaceChart({ state, series, marks, colors }: Props) {
   const [frame, W] = useWidth(900);
   const routes: RaceRoute[] = state?.routes ?? [];
   const selected = state?.selected ?? null;
-  const qualifying = state?.stage === "qualify";
   const alive = new Set(routes.map((r) => r.id));
   const byTime = [...routes].sort((a, b) => a.time - b.time);
 
@@ -67,6 +66,7 @@ export function RaceChart({ state, series, marks, colors }: Props) {
   );
   const explanation = (
     <p className="race-note">
+      {(state?.candidates ?? 0) > 0 && <>{t("Jusqu'au premier trait, les meilleurs départs construits sont améliorés chacun de son côté ; seuls les meilleurs continuent.")} </>}
       {(state?.rounds ?? 1) > 1 && <>{t("Après chaque manche, la meilleure moitié des chemins continue, avec deux fois plus de recherches chacun ; les autres s'arrêtent (en gris).")} </>}
       {t(
         "Le temps en gras est le guide retenu. Ce n'est pas toujours le plus court : chaque chemin est noté sur son temps de jeu, plus un malus pour ce qui rend la montée pénible (farm, allers-retours entre zones, or dépensé en vols). Le guide retenu a la meilleure note : c'est le plus confortable à jouer.",
@@ -77,17 +77,23 @@ export function RaceChart({ state, series, marks, colors }: Props) {
   if (routes.length === 0) {
     return (
       <figure className="race-chart">
-        <div className="empty-chart">{t("Les temps apparaissent dès que les premiers chemins sont construits…")}</div>
+        <div className="empty-chart">
+          {state?.phase === "construct" && state.to_build
+            ? t("{n} chemins de départ construits puis classés : les {k} meilleurs sont améliorés ensuite.", { n: state.to_build, k: state.candidates ?? 0 })
+            : t("Les temps apparaissent dès que les premiers chemins sont construits…")}
+        </div>
       </figure>
     );
   }
 
   const H = 260;
   const pad = { l: 56, r: 16, t: 12, b: 24 };
-  const x0 = state?.race_end ?? 0;
-  const x1 = 1;
+  // From the start with a race (its routes drawn too), else from the end of the race.
+  const x0 = (state?.candidates ?? 0) > 0 ? 0 : (state?.race_end ?? 0);
+  // The race is a small share of the tries: while it runs, the chart shows it alone.
+  const x1 = state?.stage === "qualify" && state.race_end ? state.race_end : 1;
   const ids = Object.keys(series).map(Number);
-  const values = qualifying ? routes.map((r) => r.time) : [...ids.flatMap((id) => series[id].map((p) => p[1])), ...routes.map((r) => r.time)];
+  const values = [...ids.flatMap((id) => series[id].map((p) => p[1])), ...routes.map((r) => r.time)];
   const [lo, hi] = [Math.min(...values), Math.max(...values)];
   const margin = Math.max((hi - lo) * 0.1, 300);
   const [ylo, yhi] = [lo - margin, hi + margin];
@@ -102,7 +108,7 @@ export function RaceChart({ state, series, marks, colors }: Props) {
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const box = plot.current?.getBoundingClientRect();
-    if (!box || qualifying) return;
+    if (!box) return;
     const sx = ((e.clientX - box.left) / box.width) * W;
     const s = x0 + ((sx - pad.l) / (W - pad.l - pad.r)) * (x1 - x0);
     setHover(s >= x0 && s <= now ? s : null);
@@ -120,7 +126,7 @@ export function RaceChart({ state, series, marks, colors }: Props) {
   return (
     <figure className="race-chart">
       <figcaption>
-        {qualifying ? t("Départ des {n} meilleurs chemins", { n: routes.length }) : t("Temps des chemins au fil de l'optimisation")}
+        {t("Temps des chemins au fil de l'optimisation")}
       </figcaption>
       {legend}
       <div className="chart-plot" ref={frame}>
@@ -139,29 +145,24 @@ export function RaceChart({ state, series, marks, colors }: Props) {
           <text x={W - pad.r} y={H - 6} textAnchor="end" className="axis">
             {percent(x1)}
           </text>
-          {!qualifying &&
-            marks.slice(1).map((m) => (
+          {marks
+            .filter((m) => m.at > x0)
+            .map((m) => (
               <g key={m.round}>
                 <line x1={x(m.at)} x2={x(m.at)} y1={pad.t} y2={H - pad.b} className="round-mark" />
                 <text x={x(m.at) + 4} y={pad.t + 10} className="axis">
-                  {t("{n} chemins", { n: m.width })}
+                  {m.width === 1 ? t("le meilleur") : t("{n} chemins", { n: m.width })}
                 </text>
               </g>
             ))}
-          {qualifying && (
-            <text x={(W + pad.l) / 2} y={H / 2} textAnchor="middle" className="axis race-wait">
-              {t("Les courbes démarrent quand les {n} meilleurs chemins sont choisis", { n: routes.length })}
-            </text>
-          )}
-          {!qualifying &&
-            drawn.map((id) => {
+          {drawn.map((id) => {
               const points = series[id];
               if (!points?.length) return null;
               const running = alive.has(id);
               return <path key={id} d={path(points, running)} className={`race-line${id === selected ? " selected" : ""}${running ? "" : " out"}`} style={{ stroke: color(running ? colors[id] : undefined) }} />;
-            })}
+          })}
           {routes.map((r) => (
-            <circle key={r.id} cx={x(qualifying ? x0 : now)} cy={y(r.time)} r={r.id === selected ? 5 : 4} className="race-dot" style={{ fill: color(colors[r.id]) }}>
+            <circle key={r.id} cx={x(now)} cy={y(r.time)} r={r.id === selected ? 5 : 4} className="race-dot" style={{ fill: color(colors[r.id]) }}>
               <title>{fmtTime(r.time)}</title>
             </circle>
           ))}
