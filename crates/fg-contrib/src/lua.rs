@@ -4,9 +4,13 @@
 //! with holes (`{"a", nil, 3}`) stay distinguishable.
 
 use anyhow::{Context, Result};
-use mlua::{Lua, Value as LV};
+use mlua::{ChunkMode, HookTriggers, Lua, LuaOptions, StdLib, Table, Value as LV, VmState};
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::time::{Duration, Instant};
+
+const MEMORY_LIMIT: usize = 1 << 30;
+const TIME_LIMIT: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Key {
@@ -154,16 +158,38 @@ pub fn convert(v: &LV) -> Result<Val> {
     })
 }
 
+/// A state for untrusted data files: no libraries, bounded memory and time.
 pub fn new_lua() -> Lua {
-    Lua::new()
+    let lua = Lua::new_with(StdLib::NONE, LuaOptions::default()).expect("creating Lua state");
+    lua.set_memory_limit(MEMORY_LIMIT).expect("limiting Lua memory");
+    let start = Instant::now();
+    lua.set_hook(HookTriggers::new().every_nth_instruction(100_000), move |_, _| {
+        if start.elapsed() > TIME_LIMIT {
+            return Err(mlua::Error::runtime("Lua file took too long"));
+        }
+        Ok(VmState::Continue)
+    })
+    .expect("setting Lua hook");
+    lua
+}
+
+/// Text only (Lua 5.1 bytecode is unverified, so it can corrupt memory), and an empty
+/// environment so the file reaches none of the base library (`dofile`, `loadfile`, …).
+fn sandboxed(lua: &Lua, path: &Path) -> Result<(mlua::Chunk<'static>, Table)> {
+    let src = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    let env = lua.create_table()?;
+    let chunk = lua
+        .load(src)
+        .set_name(path.display().to_string())
+        .set_mode(ChunkMode::Text)
+        .set_environment(env.clone());
+    Ok((chunk, env))
 }
 
 /// Run a Lua file and convert its return value.
 pub fn eval_file(lua: &Lua, path: &Path) -> Result<Val> {
-    let src = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-    let v: LV = lua
-        .load(&src[..])
-        .set_name(path.display().to_string())
+    let (chunk, _) = sandboxed(lua, path)?;
+    let v: LV = chunk
         .eval()
         .with_context(|| format!("evaluating {}", path.display()))?;
     convert(&v)
@@ -171,10 +197,45 @@ pub fn eval_file(lua: &Lua, path: &Path) -> Result<Val> {
 
 /// Run a SavedVariables-like file (assigns globals) and return the named globals.
 pub fn load_globals(lua: &Lua, path: &Path, names: &[&str]) -> Result<Vec<Val>> {
-    let src = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-    lua.load(&src[..])
-        .set_name(path.display().to_string())
-        .exec()
-        .with_context(|| format!("executing {}", path.display()))?;
-    names.iter().map(|n| convert(&lua.globals().get::<LV>(*n)?)).collect()
+    let (chunk, env) = sandboxed(lua, path)?;
+    chunk.exec().with_context(|| format!("executing {}", path.display()))?;
+    names.iter().map(|n| convert(&env.get::<LV>(*n)?)).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn load(src: &[u8]) -> Result<Vec<Val>> {
+        static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let file = std::env::temp_dir().join(format!("fg-lua-{}-{n}.lua", std::process::id()));
+        std::fs::write(&file, src)?;
+        let out = load_globals(&new_lua(), &file, &["DB"]);
+        std::fs::remove_file(&file)?;
+        out
+    }
+
+    #[test]
+    fn reads_saved_variables() {
+        let v = load(b"DB = { [\"a\"] = { 1, nil, 3 }, [12] = true }").unwrap();
+        assert_eq!(v[0].field("a").get(3).int(), Some(3));
+    }
+
+    #[test]
+    fn reaches_no_library() {
+        for src in ["os.execute('true')", "io.open('/etc/passwd')", "dofile('/etc/passwd')", "loadfile('/etc/passwd')", "require('os')", "string.rep('x', 1)"] {
+            assert!(load(src.as_bytes()).is_err(), "{src}");
+        }
+    }
+
+    #[test]
+    fn refuses_bytecode() {
+        assert!(load(b"\x1bLua\x51\x00").is_err());
+    }
+
+    #[test]
+    fn bounds_memory() {
+        assert!(load(b"local t = {} for i = 1, 1e10 do t[i] = i end").is_err());
+    }
 }
