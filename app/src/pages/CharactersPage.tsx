@@ -73,6 +73,9 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide }: Props) {
           <Hint text={t("Chaque personnage suit au plus un guide, choisi ici : l'addon le lui montre en jeu après /reload.")} />
         </h2>
       </div>
+      <p className="muted characters-intro">
+        {t("Un personnage apparaît ici une fois enregistré par l'addon : connectez-vous avec lui en jeu, l'addon installé, puis faites /reload, déconnectez-vous ou quittez le jeu (le jeu n'écrit les données de l'addon qu'à ce moment-là). Choisissez la bonne version du jeu dans le menu.")}
+      </p>
       {message && <div className="success">{message}</div>}
       {error && <div className="error">{error}</div>}
       {characters === null ? (
