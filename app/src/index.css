@@ -2963,3 +2963,8 @@ button.dungeon.excluded b {
 .list-hint {
   margin-top: 14px;
 }
+/* In the zones' panel, the map lies on the panel itself (no second frame). */
+.zones-layout .map-frame.vector {
+  border: none;
+  background: transparent;
+}
