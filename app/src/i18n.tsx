@@ -109,7 +109,8 @@ export function useGameName() {
     (name: string) => {
       const row = GAME[name.toLowerCase().replace(/[^a-z]/g, "")];
       const i = GAME_LANGS.indexOf(lang === "esMX" ? "es" : lang);
-      return row && i >= 0 ? row[i] : name;
+      // English: the name itself, capitalized when given as a key ("priest").
+      return row && i >= 0 ? row[i] : name.charAt(0).toUpperCase() + name.slice(1);
     },
     [lang],
   );

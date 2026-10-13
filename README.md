@@ -57,9 +57,10 @@ zones to do, the level to reach before moving on from each, and where the XP is.
   with the guide's (`/fg time`).
 - Ahead, behind, changed your mind about a profession or a zone? Generate the guide again from your
   character as it is now: it becomes a new version of the guide, with the difference from the previous
-  one, and you choose the version installed in the addon.
+  one, and you choose the version its characters follow.
 - The guides learn from the game: the XP and positions the addon records replace the estimates,
-  and players can share theirs ("Contribute" page) to improve the quest database for everyone.
+  and the "Contribute" page lists the tools that send what your game sees to the community's quest
+  databases.
 - Rework a guide by hand: move, remove or add steps (a quest, the hearthstone, a flight, mobs to
   kill), the guide replayed after each change with its new time and the steps that are no longer
   possible; saved as a new version once every step holds.
@@ -75,14 +76,15 @@ zones to do, the level to reach before moving on from each, and where the XP is.
      Applications. The app is not notarized by Apple, so macOS refuses to open it the first time:
      go to System Settings > Privacy & Security and click "Open Anyway", or run
      `xattr -dr com.apple.quarantine /Applications/Factoruide.app`. Updates do not ask again.
-2. **Addon** page: choose your WoW folder, then "Save and install the addon".
+2. **Settings**: choose your WoW folder.
 3. **New guide**: pick your character, professions, zones, dungeons and play style, then start
    the generation (about 2 minutes, 6 for a thorough one, depending on the processor). The best
    starting routes are picked first, then improved in rounds where the better half goes on: their
    times go down live on the chart and the route is drawn on the map. The
    guide kept (in bold) is the best balance between play time and comfort (little grinding, few
    trips between zones), not always the very shortest.
-4. **My guides**: tick the version to install in the addon, then `/reload` in game.
+4. **Characters**: choose the guide each character follows (a guide started from a character
+   follows it already), then `/reload` in game. A character follows only the guide chosen for it.
 
 ### Building on macOS
 
@@ -111,8 +113,8 @@ verified.
 
 ## In game: the addon
 
-- Guide: picks the route for your race and class and advances by itself; `/fg guide`, `/fg next`,
-  `/fg prev`, `/fg step <n>`, `/fg route [name]`, `/fg waypoint`.
+- Guide: follows the guide chosen for the character in the app and advances by itself; `/fg guide`,
+  `/fg next`, `/fg prev`, `/fg step <n>`, `/fg route` (shows it), `/fg waypoint`.
 - Size: Ctrl + mouse wheel over a window, or `/fg scale <size>`.
 - Helpers: a big arrow towards the current step (green ahead, red behind, distance below),
   targeting macro "FG Cible" (`/fg macro`), quest item button (key binding in the game's

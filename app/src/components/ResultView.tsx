@@ -5,6 +5,7 @@ import { fmtGain } from "./OptimizeProgress";
 import { RouteView } from "./RouteView";
 import { useDate, useT } from "../i18n";
 import { WorldMap, routeMarkers, type WorldPoint } from "./WorldMap";
+import { Icon } from "./Icons";
 
 interface Props {
   version: GuideVersion;
@@ -12,6 +13,8 @@ interface Props {
   onRerun: (version: GuideVersion) => void;
   /** Start a new configuration from this one. */
   onEdit: (version: GuideVersion) => void;
+  /** A new guide from the same configuration (under another name). */
+  onClone?: (version: GuideVersion) => void;
   /** Edit the guide's steps by hand (a new version once saved). */
   onEditSteps?: (version: GuideVersion) => void;
   /** Show another version of the guide. */
@@ -28,7 +31,7 @@ export function Delta({ seconds }: { seconds: number }) {
 }
 
 /** A guide version: its figures, its versions, its map and steps, and what to do with it. */
-export function ResultView({ version, onRerun, onEdit, onEditSteps, onOpenVersion, options }: Props) {
+export function ResultView({ version, onRerun, onEdit, onClone, onEditSteps, onOpenVersion, options }: Props) {
   const t = useT();
   const date = useDate();
   const { meta, outcome } = version;
@@ -60,19 +63,20 @@ export function ResultView({ version, onRerun, onEdit, onEditSteps, onOpenVersio
       setError(String(e));
     }
   };
-  const install = (n: number | null) =>
-    act(async () => t("Guides dans l'addon : {n} — faites /reload en jeu", { n: await api.setInstalled(meta.guide, n) }));
+  // The version the guide's characters follow (the latest unless one is chosen).
+  const follow = (n: number) => act(async () => t("Guides dans l'addon : {n} — faites /reload en jeu", { n: await api.setInstalled(meta.guide, n) }));
 
   const versions = guide?.versions ?? [];
   const previous = versions.find((v) => v.version < meta.version);
-  const installed = guide?.installed === meta.version;
+  const followed = guide?.installed ?? versions[0]?.version;
+  const installed = followed === meta.version;
   return (
     <div className="result-view">
       <header className="result-head">
         <div>
           <h2>
             {route.name} <span className="version-tag">v{meta.version}</span>
-            {installed && <span className="tag installed">{t("installée")}</span>}
+            {installed && versions.length > 1 && <span className="tag installed">{t("suivie")}</span>}
           </h2>
           <div className="muted result-meta">
             <Character race={version.request.race} klass={version.request.class} group={version.request.group} options={options} /> ·{" "}
@@ -84,27 +88,32 @@ export function ResultView({ version, onRerun, onEdit, onEditSteps, onOpenVersio
         </div>
       </header>
       <div className="actions">
-        {installed ? (
-          <button onClick={() => install(null)}>{t("Retirer de l'addon")}</button>
-        ) : (
-          <button className="primary" onClick={() => install(meta.version)}>
-            {guide?.installed ? t("Installer cette version (remplace la v{n})", { n: guide.installed }) : t("Installer dans l'addon")}
+        {!installed && (
+          <button className="primary" onClick={() => follow(meta.version)} title={t("Les personnages de ce guide suivront cette version en jeu.")}>
+            {t("Suivre cette version")}
           </button>
         )}
         <button onClick={() => onRerun(version)} title={t("Même configuration, données et algorithme actuels : nouvelle version")}>
-          {t("Relancer le calcul")}
+          <Icon name="rerun" /> {t("Relancer le calcul")}
         </button>
-        <button onClick={() => onEdit(version)}>{t("Modifier la configuration")}</button>
+        <button onClick={() => onEdit(version)}>
+          <Icon name="config" /> {t("Modifier la configuration")}
+        </button>
         {onEditSteps && (
           <button onClick={() => onEditSteps(version)} title={t("Déplacer, supprimer ou ajouter des étapes ; le guide est rejoué à chaque modification")}>
-            {t("Modifier les étapes")}
+            <Icon name="steps" /> {t("Modifier les étapes")}
+          </button>
+        )}
+        {onClone && (
+          <button onClick={() => onClone(version)} title={t("Nouveau guide à partir de la même configuration")}>
+            <Icon name="clone" /> {t("Cloner")}
           </button>
         )}
         <button
           onClick={() => act(async () => t("Fichier à partager enregistré : {path}", { path: await api.exportVersion(meta.guide, meta.version) }))}
           title={t("Enregistre un fichier .fgguide (configuration et guide) à envoyer aux autres joueurs")}
         >
-          {t("Partager")}
+          <Icon name="share" /> {t("Partager")}
         </button>
       </div>
       {message && <div className="success">{message}</div>}
@@ -127,7 +136,7 @@ export function ResultView({ version, onRerun, onEdit, onEditSteps, onOpenVersio
                       ) : (
                         <strong>v{v.version}</strong>
                       )}
-                      {guide?.installed === v.version && <span className="tag installed">{t("installée")}</span>}
+                      {followed === v.version && <span className="tag installed">{t("suivie")}</span>}
                       {v.imported && <span className="tag">{t("importé")}</span>}
                       {v.edited && <span className="tag">{t("modifiée")}</span>}
                     </td>
@@ -135,9 +144,9 @@ export function ResultView({ version, onRerun, onEdit, onEditSteps, onOpenVersio
                     <td>{v.total_time_text}</td>
                     <td>{before ? <Delta seconds={v.total_time - before.total_time} /> : ""}</td>
                     <td className="row-actions">
-                      {guide?.installed !== v.version && (
-                        <button className="link" onClick={() => install(v.version)}>
-                          {t("Installer")}
+                      {followed !== v.version && (
+                        <button className="link" onClick={() => follow(v.version)}>
+                          {t("Suivre")}
                         </button>
                       )}
                       {v.version !== meta.version && (

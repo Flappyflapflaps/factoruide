@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api, type Settings } from "../api";
 import { LANGS, useLang, useT, type Lang } from "../i18n";
+import { AboutPanels } from "../components/AboutPanels";
+import { Hint } from "../components/Hint";
 
 /** Game version folders the app has guides for. */
 const SUPPORTED = ["_classic_beta_", "_classic_era_", "_anniversary_"];
@@ -22,9 +24,12 @@ const CLIENTS: Record<string, string> = {
 interface Props {
   /** Applied at once, saved with the other settings. */
   onLanguage: (lang: Lang) => void;
+  /** The app's version (shown with the project's links). */
+  version: string | null;
 }
 
-export function SettingsPage({ onLanguage }: Props) {
+/** The app's settings, and under them the project: its links, licenses and data. */
+export function SettingsPage({ onLanguage, version }: Props) {
   const t = useT();
   const lang = useLang();
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -48,9 +53,14 @@ export function SettingsPage({ onLanguage }: Props) {
       <div className="page-head">
         <h2>{t("Réglages")}</h2>
       </div>
+      <div className="settings-grid">
     <section className="panel">
+      <h3>{t("Général")}</h3>
       <label className="field">
-        <span>{t("Langue de l'application")}</span>
+        <span>
+          {t("Langue de l'application")}
+          <Hint text={t("Aussi celle des guides affichés dans l'application.")} />
+        </span>
         <select
           value={settings.language ?? lang}
           onChange={(e) => {
@@ -66,10 +76,12 @@ export function SettingsPage({ onLanguage }: Props) {
             </option>
           ))}
         </select>
-        <small>{t("Aussi celle des guides affichés dans l'application.")}</small>
       </label>
       <div className={`field${found && !found.some((c) => SUPPORTED.includes(c)) ? " invalid" : ""}`}>
-        <label htmlFor="wow-dir">{t("Dossier World of Warcraft")}</label>
+        <label htmlFor="wow-dir">
+          {t("Dossier World of Warcraft")}
+          <Hint text={t("Celui qui contient .build.info.")} />
+        </label>
         <div className="row">
           <input id="wow-dir" value={settings.wow_dir} onChange={(e) => setSettings({ ...settings, wow_dir: e.target.value })} />
           <button
@@ -81,10 +93,12 @@ export function SettingsPage({ onLanguage }: Props) {
             {t("Parcourir…")}
           </button>
         </div>
-        <small>{t("Celui qui contient .build.info.")}</small>
       </div>
       <div className="field">
-        <span>{t("Versions du jeu trouvées")}</span>
+        <span>
+          {t("Versions du jeu trouvées")}
+          <Hint text={t("L'addon s'installe dans la version choisie dans le menu.")} />
+        </span>
         {found === null ? null : found.length === 0 ? (
           <small className="field-error">{t("Aucune version trouvée dans ce dossier.")}</small>
         ) : (
@@ -97,18 +111,34 @@ export function SettingsPage({ onLanguage }: Props) {
             ))}
           </ul>
         )}
-        <small>{t("L'addon s'installe dans la version choisie dans le menu.")}</small>
       </div>
+      <label className="field-bool all-guides">
+        <input
+          type="checkbox"
+          checked={Boolean(settings.all_guides)}
+          onChange={(e) => {
+            const next = { ...settings, all_guides: e.target.checked };
+            setSettings(next);
+            api.setSettings(next).catch((err) => setError(String(err)));
+          }}
+        />
+        <span>
+          {t("Proposer tous les guides à chaque personnage")}
+          <Hint text={t("Sinon, un personnage ne se voit proposer que les guides de sa race et de sa classe.")} />
+        </span>
+      </label>
       <details className="advanced-settings">
         <summary>{t("Avancé")}</summary>
         <label className="field">
-          <span>{t("Serveur de contribution")}</span>
+          <span>
+            {t("Serveur de contribution")}
+            <Hint text={t("Adresse qui reçoit les données des joueurs (page Contribuer).")} />
+          </span>
           <input
             placeholder="https://…"
             value={settings.contribution_url ?? ""}
             onChange={(e) => setSettings({ ...settings, contribution_url: e.target.value })}
           />
-          <small>{t("Adresse qui reçoit les données des joueurs (page Contribuer).")}</small>
         </label>
       </details>
       <button
@@ -127,6 +157,8 @@ export function SettingsPage({ onLanguage }: Props) {
       {message && <div className="success">{message}</div>}
       {error && <div className="error">{error}</div>}
     </section>
+      </div>
+      <AboutPanels version={version} />
     </div>
   );
 }

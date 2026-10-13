@@ -7,9 +7,18 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 ### App
 
 - macOS: the app now runs on Mac (Apple Silicon and Intel), with automatic updates. Thanks to @csselement.
+- New look: a night-blue theme, explanations in tooltips, readable at the keyboard (visible focus, stronger contrast). The light theme is gone.
+- Characters page: each recorded character with its full name, level and professions, and the guide it follows. A character follows only the guide chosen for it in the app.
+- New guide: character, professions, dungeons by level and zone map on one screen; profession skill set on a curve.
+- Advanced settings as sliders with their default marked, a search, and folded expert sections.
+- Guides: every action on each row, "Clone" to start a new guide from the same setup, gold spent on flights.
+- Addon page: settings saved as you change them; "Install in game" appears when the game is not up to date.
+- Contribute page: the tools that send what your game sees to the community quest databases.
+- What's new page, and links, licenses and data notice under Settings.
 
 ### Guides
 
+- Fixed: camps around a mob of unknown level are counted right.
 - Quests needing an item first now send you to get it: Marla's Last Wish has you kill Samuel Fipps before burying his remains.
 - Night elves: Rut'theran Village and the top of Teldrassil are linked by the portal, no longer walked between.
 - TBC: portals and orbs no longer count a boat's wait.

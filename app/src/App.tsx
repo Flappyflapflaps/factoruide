@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { api, type Edition, type EditionInfo, type GuideVersion, type Options } from "./api";
 import { clearMapCache } from "./components/WorldMap";
@@ -7,16 +7,19 @@ import { AddonPage } from "./pages/AddonPage";
 import { NewRoutePage, type WizardStart } from "./pages/NewRoutePage";
 import { GuidesPage, type OpenGuide } from "./pages/GuidesPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { CharactersPage } from "./pages/CharactersPage";
+import { ChangelogPage } from "./pages/ChangelogPage";
 import { ContributePage } from "./pages/ContributePage";
 import { UpdateBanner } from "./components/UpdateBanner";
 
 const EDITION_LABELS: Record<Edition, string> = { forever: "Forever", classic: "Classic", tbc: "TBC" };
 
-type Page = "plan" | "results" | "addon" | "contribute" | "settings";
+type Page = "characters" | "plan" | "results" | "addon" | "contribute" | "settings" | "changelog";
 
 const PAGES: { id: Page; label: string }[] = [
   { id: "plan", label: "Nouveau guide" },
-  { id: "results", label: "Mes guides" },
+  { id: "characters", label: "Personnages" },
+  { id: "results", label: "Guides" },
   { id: "addon", label: "Addon" },
   { id: "contribute", label: "Contribuer" },
   { id: "settings", label: "Réglages" },
@@ -47,6 +50,10 @@ export default function App() {
 function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
   const t = useT();
   const [page, setPage] = useState<Page>("plan");
+  const main = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (page) main.current?.focus({ preventScroll: true });
+  }, [page]);
   const [options, setOptions] = useState<Options | null>(null);
   const [error, setError] = useState<string | null>(null);
   // The new route wizard restarts (key) with a configuration to edit or recompute.
@@ -91,7 +98,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
 
   return (
     <div className="app">
-      <nav className="sidebar">
+      <nav className="sidebar" aria-label={t("Menu")}>
         <div className="brand">
           <span className="logo">★</span> Factoruide
         </div>
@@ -127,9 +134,15 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
             {p.id === "plan" && busy && <span className="spinner" role="status" aria-label={t("Génération en cours")} title={t("Génération en cours")} />}
           </button>
         ))}
-        {version && <div className="sidebar-footer">Factoruide {version}</div>}
+        <div className="sidebar-footer">
+          <button className={page === "changelog" ? "active" : ""} onClick={() => setPage("changelog")}>
+            {t("Nouveautés")}
+          </button>
+          {version && <span>Factoruide {version}</span>}
+        </div>
       </nav>
-      <div className="content">
+      {/* Focused on each page change: the keyboard scrolls it and a screen reader starts there. */}
+      <main className="content" ref={main} tabIndex={-1}>
         <UpdateBanner />
         {/* Always mounted (hidden on other pages) so that a running generation goes on showing. */}
         {options && (
@@ -140,6 +153,9 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
               start={wizard.start}
               onBusy={setBusy}
               onDone={(meta, notice) => {
+                // Started from a character's block: the character follows its new guide.
+                const character = wizard.start.character;
+                if (character) api.assignGuide(character, meta.guide).catch((e) => setError(String(e)));
                 setOpened({ guide: meta.guide, version: meta.version, notice });
                 setPage("results");
               }}
@@ -155,6 +171,17 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
           ) : (
             <div className="empty">{t("Chargement…")}</div>
           ))}
+        {page === "characters" && (
+          <CharactersPage
+            key={edition ?? ""}
+            options={options}
+            onOpenGuide={(guide, shown) => {
+              setOpened({ guide, version: shown, notice: null });
+              setPage("results");
+            }}
+            onNewGuide={(character) => openWizard({ initial: null, rerun: false, character })}
+          />
+        )}
         {page === "results" && (
           <GuidesPage
             key={`${edition ?? ""}-${opened?.guide ?? ""}-${opened?.version ?? ""}`}
@@ -162,12 +189,14 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
             start={opened}
             onRerun={(v: GuideVersion) => openWizard({ initial: v.request, rerun: true })}
             onEdit={(v: GuideVersion) => openWizard({ initial: v.request, rerun: false })}
+            onClone={(v: GuideVersion) => openWizard({ initial: { ...v.request, name: t("{name} (copie)", { name: v.request.name ?? v.meta.name }) }, rerun: false })}
           />
         )}
         {page === "addon" && <AddonPage />}
-        {page === "contribute" && <ContributePage key={edition ?? ""} onSettings={() => setPage("settings")} />}
-        {page === "settings" && <SettingsPage onLanguage={onLanguage} />}
-      </div>
+        {page === "changelog" && <ChangelogPage />}
+        {page === "contribute" && <ContributePage edition={edition} />}
+        {page === "settings" && <SettingsPage onLanguage={onLanguage} version={version} />}
+      </main>
     </div>
   );
 }

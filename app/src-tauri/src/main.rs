@@ -10,7 +10,7 @@ use fg_route::terrain::{WalkMemory, Walks};
 use fg_route::xp::Edition;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -47,6 +47,18 @@ struct Settings {
     /// language it was made in.
     #[serde(default)]
     guide_locale: Option<String>,
+    /// Offer every guide to every character, not only those of its race and class.
+    #[serde(default)]
+    all_guides: bool,
+    /// What the addon in the game was last installed with (`addon_snapshot`): the settings page
+    /// saves at once, the game gets them when asked.
+    #[serde(default)]
+    addon_installed: Option<String>,
+}
+
+/// The settings the installed addon depends on (its options, the guides' language).
+fn addon_snapshot(settings: &Settings) -> String {
+    serde_json::to_string(&(&settings.addon, &settings.guide_locale)).unwrap_or_default()
 }
 
 impl Default for Settings {
@@ -67,6 +79,8 @@ impl Default for Settings {
             last_contribution: None,
             addon: serde_json::Map::new(),
             guide_locale: None,
+            all_guides: false,
+            addon_installed: None,
         }
     }
 }
@@ -270,6 +284,9 @@ fn set_settings(state: State<'_, AppState>, mut settings: Settings) -> CmdResult
     if settings.contributor.is_none() {
         settings.contributor = state.settings().contributor;
     }
+    if settings.addon_installed.is_none() {
+        settings.addon_installed = state.settings().addon_installed;
+    }
     write_settings(&state, settings)
 }
 
@@ -336,9 +353,12 @@ fn list_clients(wow_dir: PathBuf) -> Vec<String> {
 // Guides ---------------------------------------------------------------------------
 //
 // A guide is a name and its versions: every computation (first one, or computed again with the
-// same name) adds a version. One version per guide can be installed in the addon.
+// same name) adds a version. A character follows 0 or 1 guide, assigned in the app only (never
+// in game); a guide can serve several characters. The addon gets the guides assigned to a
+// character, each in its chosen version (the latest by default), and who follows which.
 //
-//   guides/<slug>/guide.json          name, installed version
+//   guides/characters.json            "Name-Realm" -> guide (slug)
+//   guides/<slug>/guide.json          name, version the characters follow
 //   guides/<slug>/v<N>/meta.json      summary of the version
 //   guides/<slug>/v<N>/request.json   configuration
 //   guides/<slug>/v<N>/outcome.json   computed guide
@@ -346,7 +366,7 @@ fn list_clients(wow_dir: PathBuf) -> Vec<String> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct GuideInfo {
     name: String,
-    /// Version installed in the addon.
+    /// Version the characters follow (None: the latest).
     #[serde(default)]
     installed: Option<u32>,
 }
@@ -538,20 +558,67 @@ impl AppState {
         Ok(meta)
     }
 
-    /// The installed version of every guide.
-    fn installed_routes(&self) -> Vec<Route> {
-        let Ok(dir) = std::fs::read_dir(self.guides()) else {
-            return Vec::new();
-        };
-        let mut routes: Vec<Route> = dir
+    /// Which guide each character follows ("Name-Realm" -> guide).
+    fn assignments(&self) -> BTreeMap<String, String> {
+        let path = self.guides().join("characters.json");
+        match std::fs::read_to_string(&path) {
+            Ok(text) => serde_json::from_str(&text).unwrap_or_default(),
+            Err(_) => self.first_assignments(),
+        }
+    }
+
+    /// Before characters followed a guide, guides were installed in the addon: a guide installed
+    /// and computed from a character now goes to that character (the most recent one first).
+    fn first_assignments(&self) -> BTreeMap<String, String> {
+        let mut out = BTreeMap::new();
+        let mut guides: Vec<(u64, String, String)> = std::fs::read_dir(self.guides())
+            .into_iter()
+            .flatten()
             .flatten()
             .filter_map(|e| {
                 let id = e.file_name().to_string_lossy().into_owned();
-                let v = self.guide_info(&id).ok()?.installed?;
-                Some(self.version(&id, v).ok()?.outcome.route)
+                let version = self.guide_info(&id).ok()?.installed?;
+                let meta = self.versions(&id).into_iter().find(|m| m.version == version)?;
+                Some((meta.created, meta.character?, id))
             })
             .collect();
-        routes.sort_by(|a, b| a.name.cmp(&b.name));
+        guides.sort();
+        for (_, character, id) in guides.into_iter().rev() {
+            out.entry(character).or_insert(id);
+        }
+        out
+    }
+
+    fn write_assignments(&self, assignments: &BTreeMap<String, String>) -> CmdResult<()> {
+        std::fs::create_dir_all(self.guides()).map_err(err)?;
+        std::fs::write(
+            self.guides().join("characters.json"),
+            serde_json::to_string_pretty(assignments).map_err(err)?,
+        )
+        .map_err(err)
+    }
+
+    /// The version of a guide its characters follow: the one chosen, else the latest.
+    fn followed_version(&self, id: &str) -> Option<u32> {
+        let chosen = self.guide_info(id).ok()?.installed;
+        chosen.or_else(|| self.versions(id).first().map(|v| v.version))
+    }
+
+    /// The guides assigned to a character, in the version they follow, by guide.
+    fn assigned_routes(&self) -> BTreeMap<String, Route> {
+        let mut routes = BTreeMap::new();
+        for id in self.assignments().into_values() {
+            if routes.contains_key(&id) {
+                continue;
+            }
+            if let Some(route) = self
+                .followed_version(&id)
+                .and_then(|v| self.version(&id, v).ok())
+                .map(|v| v.outcome.route)
+            {
+                routes.insert(id, route);
+            }
+        }
         routes
     }
 }
@@ -812,7 +879,7 @@ fn get_version(
     Ok(v)
 }
 
-/// Install `version` of a guide in the addon (`None`: remove the guide from the addon).
+/// The version of a guide its characters follow (`None`: the latest), written to the addon.
 #[tauri::command]
 #[expect(
     clippy::needless_pass_by_value,
@@ -836,16 +903,20 @@ fn delete_version(state: State<'_, AppState>, guide: String, version: u32) -> Cm
     let info = state.guide_info(&guide)?;
     if state.versions(&guide).is_empty() {
         delete_guide(state, guide)
-    } else if info.installed == Some(version) {
-        state.write_guide_info(
-            &guide,
-            &GuideInfo {
-                installed: None,
-                ..info
-            },
-        )?;
-        install_addon(state).map(|_| ())
     } else {
+        if info.installed == Some(version) {
+            state.write_guide_info(
+                &guide,
+                &GuideInfo {
+                    installed: None,
+                    ..info
+                },
+            )?;
+        }
+        // Its characters may have followed the version deleted.
+        if state.assignments().values().any(|g| *g == guide) {
+            install_addon(state)?;
+        }
         Ok(())
     }
 }
@@ -856,16 +927,49 @@ fn delete_version(state: State<'_, AppState>, guide: String, version: u32) -> Cm
     reason = "tauri commands take their arguments by value"
 )]
 fn delete_guide(state: State<'_, AppState>, guide: String) -> CmdResult<()> {
-    let installed = state.guide_info(&guide).ok().and_then(|i| i.installed).is_some();
     std::fs::remove_dir_all(state.guides().join(&guide)).map_err(err)?;
-    if installed {
+    // Its characters follow no guide any more.
+    let mut assignments = state.assignments();
+    let before = assignments.len();
+    assignments.retain(|_, g| *g != guide);
+    if assignments.len() != before {
+        state.write_assignments(&assignments)?;
         install_addon(state)?;
     }
     Ok(())
 }
 
-/// Copy the addon into the game, with Routes.lua holding the installed version of each guide
-/// and Config.lua the settings. Returns the number of guides installed.
+/// Which guide each character follows ("Name-Realm" -> guide).
+#[tauri::command]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn list_assignments(state: State<'_, AppState>) -> BTreeMap<String, String> {
+    state.assignments()
+}
+
+/// Make a character follow a guide (`None`: no guide), then write the addon. Returns the number
+/// of guides in the addon.
+#[tauri::command]
+fn assign_guide(state: State<'_, AppState>, character: String, guide: Option<String>) -> CmdResult<usize> {
+    let mut assignments = state.assignments();
+    match guide {
+        Some(guide) => {
+            state.guide_info(&guide)?;
+            assignments.insert(character, guide);
+        }
+        None => {
+            assignments.remove(&character);
+        }
+    }
+    state.write_assignments(&assignments)?;
+    install_addon(state)
+}
+
+/// Copy the addon into the game, with Routes.lua holding the guides assigned to a character (in
+/// the version they follow) and who follows which, and Config.lua the settings. Returns the
+/// number of guides in the addon.
 #[tauri::command]
 #[expect(
     clippy::needless_pass_by_value,
@@ -889,14 +993,88 @@ fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
         }
         std::fs::write(path, bytes).map_err(err)?;
     }
-    let routes = state
-        .installed_routes()
-        .iter()
+    let assigned = state.assigned_routes();
+    let mut routes = assigned
+        .values()
         .map(|r| state.render(r, settings.guide_locale.as_deref()))
         .collect::<CmdResult<Vec<_>>>()?;
-    std::fs::write(dest.join("Routes.lua"), fg_route::export::to_lua(&routes)).map_err(err)?;
+    routes.sort_by(|a, b| a.name.cmp(&b.name));
+    // The addon finds a character's route by its name.
+    let mut lua = fg_route::export::to_lua(&routes);
+    lua.push_str("\n-- Which guide each character follows (assigned in the app).\nFG.Assignments = {\n");
+    for (character, guide) in state.assignments() {
+        if let Some(route) = assigned.get(&guide) {
+            let _ = writeln!(lua, "  [{}] = {},", lua_string(&character), lua_string(&route.name));
+        }
+    }
+    lua.push_str("}\n");
+    std::fs::write(dest.join("Routes.lua"), lua).map_err(err)?;
     job::write_addon_config(&dest, &settings.addon).map_err(err)?;
+    write_settings(
+        &state,
+        Settings {
+            addon_installed: Some(addon_snapshot(&settings)),
+            ..settings
+        },
+    )?;
     Ok(routes.len())
+}
+
+/// Whether the addon in the game has the current settings (else it is to be installed again).
+#[tauri::command]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn addon_synced(state: State<'_, AppState>) -> bool {
+    let settings = state.settings();
+    settings.installed_addon().join("Config.lua").exists()
+        && settings.addon_installed.as_deref() == Some(addon_snapshot(&settings).as_str())
+}
+
+/// Pages the app opens in the browser: the project's (repository, license, notice) and the
+/// community tools the contribution page points to; nothing else.
+const LINKS: &[&str] = &[
+    "https://github.com/brouznouf/factoruide/",
+    "https://github.com/Questie/QuestieTrace",
+    "https://questie.dev/trace",
+    "https://www.wowhead.com/",
+];
+
+/// Open one of the `LINKS` pages in the browser.
+#[tauri::command]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn open_link(url: String) -> CmdResult<()> {
+    if !LINKS.iter().any(|l| url.starts_with(l)) {
+        return Err(format!("not a link the app opens: {url}"));
+    }
+    let program = if cfg!(windows) {
+        "explorer"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    std::process::Command::new(program).arg(&url).spawn().map_err(err)?;
+    Ok(())
+}
+
+/// A Lua string literal.
+fn lua_string(text: &str) -> String {
+    let mut out = String::from("\"");
+    for c in text.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// The addon was called BrouzQuest: drop its folder (the game would load both) and carry its
@@ -992,6 +1170,9 @@ fn import_guide(state: State<'_, AppState>, content: String) -> CmdResult<Versio
 /// A character the addon recorded (`/fg profile`, or at each logout), to start a guide from.
 #[derive(Serialize)]
 struct CharacterInfo {
+    /// Full name when the game gives characters one (WoW Forever: first and last name), from the
+    /// client's per-character folders (`WTF/Account/<account>/<realm>/<First>-<Last>/`).
+    full_name: Option<String>,
     /// Race key of `races.toml` (None: a race this game version does not know).
     race: Option<String>,
     class: String,
@@ -1021,10 +1202,34 @@ async fn list_characters(app: AppHandle) -> CmdResult<Vec<CharacterInfo>> {
         .map_err(err)?
 }
 
+/// Full names of the characters by first name, from the per-character folders of the accounts
+/// of these SavedVariables files (`<account>/<realm>/<First>-<Last>/`).
+fn full_names(files: &[PathBuf]) -> HashMap<String, Vec<String>> {
+    let mut out: HashMap<String, Vec<String>> = HashMap::new();
+    for account in files.iter().filter_map(|f| f.parent()?.parent()) {
+        for realm in std::fs::read_dir(account).into_iter().flatten().flatten() {
+            for character in std::fs::read_dir(realm.path()).into_iter().flatten().flatten() {
+                let folder = character.file_name().to_string_lossy().into_owned();
+                if let Some((first, last)) = folder.split_once('-')
+                    && character.path().is_dir()
+                {
+                    let full = format!("{first} {last}");
+                    let names = out.entry(first.to_owned()).or_default();
+                    if !names.contains(&full) {
+                        names.push(full);
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
 fn characters(state: &AppState) -> CmdResult<Vec<CharacterInfo>> {
     let settings = state.settings();
     let client_dir = settings.wow_dir.join(settings.edition.client_folder());
     let files = fg_contrib::collector::find_saved_variables(&client_dir);
+    let full_names = full_names(&files);
     let races = overrides(settings.edition)?.races;
     let now = i64::try_from(now()?).map_err(err)?;
     Ok(fg_contrib::profile::read(&files)
@@ -1033,7 +1238,14 @@ fn characters(state: &AppState) -> CmdResult<Vec<CharacterInfo>> {
         .filter_map(|json| serde_json::from_value::<StartState>(json).ok())
         .map(|mut profile| {
             profile.rested = rested_now(&profile, now);
+            // Only when the first name is not shared (two characters with the same one).
+            let first = profile.name.split('-').next().unwrap_or_default();
+            let full_name = match full_names.get(first).map(Vec::as_slice) {
+                Some([one]) => Some(one.clone()),
+                _ => None,
+            };
             CharacterInfo {
+                full_name,
                 race: races
                     .iter()
                     .find(|(_, r)| r.id == profile.race)
@@ -1178,6 +1390,8 @@ fn main() {
             cancel_plan,
             export_request,
             install_addon,
+            addon_synced,
+            open_link,
             list_clients,
             list_editions,
             set_edition,
@@ -1189,6 +1403,8 @@ fn main() {
             set_installed,
             delete_version,
             delete_guide,
+            list_assignments,
+            assign_guide,
             export_version,
             import_guide,
             map_index,

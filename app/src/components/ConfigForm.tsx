@@ -1,19 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type CharacterInfo, type Options, type Params, type PlanRequest, type ProfessionGoal, type StartState } from "../api";
-import { SIMPLE_KEYS, efforts, presets, sections } from "../paramSchema";
+import { SIMPLE_KEYS, efforts, presets, sections, type Field, type Section } from "../paramSchema";
 import { ClassName } from "./Character";
 import { CharacterPicker } from "./CharacterPicker";
-import { DungeonPicker } from "./DungeonPicker";
+import { DungeonPanel } from "./DungeonPanel";
+import { Hint } from "./Hint";
 import { ParamField } from "./ParamField";
 import { ProfessionPicker } from "./ProfessionPicker";
 import { WorldMap, type ZoneState } from "./WorldMap";
-import { ZonePicker } from "./ZonePicker";
+import { ZonePanel } from "./ZonePanel";
 import { useGameName, useT } from "../i18n";
 
 interface Props {
   options: Options;
   /** Configuration to start from (editing a previous result). */
   initial?: PlanRequest | null;
+  /** A recorded character ("Name-Realm") to start from, picked once the characters are read. */
+  startCharacter?: string;
   /** Guide language when the configuration has none (the app language). */
   defaultLocale: string;
   onRun: (request: PlanRequest) => void;
@@ -33,7 +36,10 @@ const PROGRESSION = [
 function Segmented<T>({ label, choices, value, onChange, help }: { label: string; choices: { label: string; value: T }[]; value: T | null; onChange: (v: T) => void; help?: string }) {
   return (
     <div className="field">
-      <span>{label}</span>
+      <span>
+        {label}
+        {help && <Hint text={help} />}
+      </span>
       <div className="segmented" role="radiogroup" aria-label={label}>
         {choices.map((c) => (
           <button key={c.label} role="radio" aria-checked={c.value === value} className={c.value === value ? "active" : ""} onClick={() => onChange(c.value)}>
@@ -49,7 +55,6 @@ function Segmented<T>({ label, choices, value, onChange, help }: { label: string
           </button>
         ))}
       </div>
-      {help && <small>{help}</small>}
     </div>
   );
 }
@@ -67,9 +72,9 @@ function Level({ label, help, value, words, onChange }: { label: string; help: s
       <span className="toggle-text">
         <strong>
           {label} · {t(word)}
+          <Hint text={help} />
         </strong>
         <input type="range" min={0} max={100} step={5} value={Math.round(value * 100)} onChange={(e) => onChange(Number(e.target.value) / 100)} />
-        <small>{help}</small>
       </span>
     </label>
   );
@@ -82,8 +87,10 @@ function Toggle({ label, help, checked, onChange }: { label: string; help: strin
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span className="toggle-switch" aria-hidden />
       <span className="toggle-text">
-        <strong>{label}</strong>
-        <small>{help}</small>
+        <strong>
+          {label}
+          <Hint text={help} />
+        </strong>
       </span>
     </label>
   );
@@ -93,7 +100,7 @@ function Toggle({ label, help, checked, onChange }: { label: string; help: strin
  * Step 1. The simple view holds the choices that matter (character, pace, dungeons, zones,
  * professions); the advanced view every setting of the planner.
  */
-export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }: Props) {
+export function ConfigForm({ options, initial, startCharacter, defaultLocale, onRun, onExport }: Props) {
   const t = useT();
   const gameName = useGameName();
   const defaults = options.params;
@@ -135,6 +142,8 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
       .then(setCharacters)
       .catch(() => setCharacters([]));
   }, []);
+  // Opened from a character: it is picked once the characters are read (adjusted while rendering).
+  const [picked, setPicked] = useState(false);
   const pickCharacter = (c: CharacterInfo | null) => {
     setStart(c?.profile ?? null);
     if (!c) {
@@ -150,6 +159,11 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
     const added = c.professions.filter(([key]) => !professions.some((g) => g.key === key));
     if (added.length) setProfessions([...professions, ...added.map(([key]) => ({ key, target: 300 }))]);
   };
+  if (startCharacter && characters && !picked) {
+    setPicked(true);
+    const found = characters.find((c) => c.profile.name === startCharacter);
+    if (found) pickCharacter(found);
+  }
 
   const className = options.classes.find((c) => c.key === klass)?.name.toLowerCase() ?? klass;
   // Class quests follow the class unless they come from the configuration being edited (adjusted
@@ -182,7 +196,14 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
   const pace = presets.find((p) => Object.entries(p.values).every(([k, v]) => params[k as keyof Params] === v))?.label ?? null;
   // Settings of the advanced view, and those that differ from the defaults.
   const advancedKeys = sections.flatMap((s) => s.fields).map((f) => f.key).filter((k) => !SIMPLE_KEYS.includes(k));
-  const changed = advancedKeys.filter((k) => JSON.stringify(params[k]) !== JSON.stringify(defaults[k])).length;
+  const isChanged = (k: keyof Params) => JSON.stringify(params[k]) !== JSON.stringify(defaults[k]);
+  const changed = advancedKeys.filter(isChanged).length;
+  // Advanced view: a search over the settings' names and explanations; the sections for experts
+  // folded until opened (all open while searching).
+  const [query, setQuery] = useState("");
+  const [openSections, setOpenSections] = useState(() => new Set(sections.filter((s) => !s.expert).map((s) => s.title)));
+  const plain = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  const matches = (f: Field) => !query.trim() || plain(`${t(f.label)} ${f.help ? t(f.help) : ""}`).includes(plain(query.trim()));
 
   const request = (): PlanRequest => ({
     race,
@@ -197,6 +218,45 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
     group,
     start,
   });
+
+  /** A section of the advanced settings (null when the search leaves none of its fields). */
+  const settingsSection = (s: Section) => {
+    const fields = s.fields.filter((f) => !SIMPLE_KEYS.includes(f.key) && matches(f));
+    if (!fields.length) return null;
+    const open = openSections.has(s.title) || Boolean(query.trim());
+    const count = s.fields.filter((f) => !SIMPLE_KEYS.includes(f.key) && isChanged(f.key)).length;
+    return (
+      <section className={`panel settings-section${open ? " open" : ""}`} key={s.title}>
+        <button
+          className="section-head"
+          aria-expanded={open}
+          onClick={() =>
+            setOpenSections((o) => {
+              const next = new Set(o);
+              if (next.has(s.title)) next.delete(s.title);
+              else next.add(s.title);
+              return next;
+            })
+          }
+        >
+          <h3>
+            {t(s.title)}
+            {s.help && <Hint text={t(s.help)} />}
+          </h3>
+          {s.expert && <span className="tag">{t("Pour experts")}</span>}
+          {count > 0 && (
+            <span className="badge" title={t("Réglages modifiés : {n}", { n: count })}>
+              {count}
+            </span>
+          )}
+          <span className="chevron" aria-hidden>
+            ▾
+          </span>
+        </button>
+        {open && fields.map((f) => <ParamField key={f.key} field={f} params={params} defaults={defaults} onChange={set} />)}
+      </section>
+    );
+  };
 
   return (
     <div className="config">
@@ -291,9 +351,20 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
                 <input type="number" min={2} max={options.max_level} value={toLevel} onChange={(e) => setToLevel(Number(e.target.value))} />
               </label>
             </div>
+
+            <div className="character-extras">
+              <div>
+                <h3>
+                  {t("Métiers")}
+                  <Hint text={t("Pas de temps ni d'étapes dans le guide : l'addon indique si vous êtes en avance ou en retard sur la courbe, et les quêtes du métier sont proposées (facultatives).")} />
+                </h3>
+                <ProfessionPicker goals={professions} onChange={setProfessions} />
+              </div>
+            </div>
           </section>
 
           <div className="config-columns">
+            {/* How to play and the group in a column; beside it, the dungeons over the zones. */}
             <div className="config-col">
               <section className="panel">
                 <h3>{t("Façon de jouer")}</h3>
@@ -322,6 +393,18 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
                   checked={params.farm_on_way}
                   onChange={(v) => set("farm_on_way", v)}
                 />
+                <Toggle
+                  label={t("Faire les donjons rentables en groupe")}
+                  help={t("Un donjon est fait, avec ses quêtes, quand il fait gagner du temps.")}
+                  checked={params.dungeons}
+                  onChange={(v) => set("dungeons", v)}
+                />
+                <Toggle
+                  label={t("Quêtes élites (groupe)")}
+                  help={t("Quêtes dont les objectifs sont des mobs élites hors donjon.")}
+                  checked={params.allow_elite}
+                  onChange={(v) => set("allow_elite", v)}
+                />
                 <Level
                   label={t("Monde sur le serveur")}
                   help={t("D'autres joueurs farment les mêmes mobs et objets, et attendent leur tour pour les escortes et les événements : le guide compte l'attente aux petits spots et les évite quand d'autres quêtes rapportent plus.")}
@@ -330,49 +413,18 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
                   onChange={(v) => set("crowded", v)}
                 />
               </section>
-            </div>
-
-            <div className="config-col">
-              <section className="panel">
-                <h3>{t("Donjons et élites")}</h3>
-                <Toggle
-                  label={t("Faire les donjons rentables en groupe")}
-                  help={t("Un donjon est fait, avec ses quêtes, quand il fait gagner du temps.")}
-                  checked={params.dungeons}
-                  onChange={(v) => set("dungeons", v)}
-                />
-                <DungeonPicker
-                  dungeons={options.dungeons}
-                  forced={params.forced_dungeons}
-                  excluded={params.excluded_dungeons}
-                  onChange={(forced, excluded) => {
-                    set("forced_dungeons", forced);
-                    set("excluded_dungeons", excluded);
-                  }}
-                />
-                <Toggle
-                  label={t("Quêtes élites (groupe)")}
-                  help={t("Quêtes dont les objectifs sont des mobs élites hors donjon.")}
-                  checked={params.allow_elite}
-                  onChange={(v) => set("allow_elite", v)}
-                />
-              </section>
-            </div>
-
-            <div className="config-col">
-              <section className="panel">
-                <h3>{t("Métiers")}</h3>
-                <p className="muted">{t("Pas de temps ni d'étapes dans le guide : l'addon indique si vous êtes en avance ou en retard sur la courbe, et les quêtes du métier sont proposées (facultatives).")}</p>
-                <ProfessionPicker goals={professions} onChange={setProfessions} />
-              </section>
 
               <section className="panel">
-                <h3>{t("Groupe")}</h3>
-                <p className="muted">
-                  {group.length === 0
-                    ? t("Seul. Ajoutez les joueurs qui montent avec vous : combats plus rapides, XP des mobs partagée, quêtes de classe de chacun.")
-                    : t("{n} joueurs : combats plus rapides, XP des mobs partagée, quêtes de classe de chacun.", { n: group.length + 1 })}
-                </p>
+                <h3>
+                  {t("Groupe")}
+                  <Hint
+                    text={
+                      group.length === 0
+                        ? t("Seul. Ajoutez les joueurs qui montent avec vous : combats plus rapides, XP des mobs partagée, quêtes de classe de chacun.")
+                        : t("{n} joueurs : combats plus rapides, XP des mobs partagée, quêtes de classe de chacun.", { n: group.length + 1 })
+                    }
+                  />
+                </h3>
                 <div className="companions">
                   <div className="companion me">
                     <span className="muted">{t("Vous")}</span>
@@ -400,20 +452,36 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
                 </div>
               </section>
             </div>
-          </div>
 
-          <section className="panel">
-            <h3>{t("Zones")}</h3>
-            <WorldMap zoneStates={zoneStates} onZoneClick={cycleZone} height={560} />
-            <div className="row zone-pickers">
-              <ZonePicker label={t("★ Privilégiées")} zones={options.zones} selected={params.preferred_zones} onChange={(ids) => set("preferred_zones", ids)} />
-              <ZonePicker label={t("✕ Exclues")} zones={options.zones} selected={params.excluded_zones} onChange={(ids) => set("excluded_zones", ids)} />
+            <div className="config-col config-side">
+              <DungeonPanel
+                dungeons={options.dungeons}
+                forced={params.forced_dungeons}
+                excluded={params.excluded_dungeons}
+                onChange={(forced_dungeons, excluded_dungeons) => setParams((p) => ({ ...p, forced_dungeons, excluded_dungeons }))}
+              />
+              <section className="panel zones-layout">
+                <WorldMap zoneStates={zoneStates} onZoneClick={cycleZone} height={420} />
+                <div>
+                  <h3>
+                    {t("Zones")}
+                    <Hint text={t("Cliquez une zone sur la carte ou cherchez-la ici.")} />
+                  </h3>
+                  <ZonePanel
+                    zones={options.zones}
+                    preferred={params.preferred_zones}
+                    excluded={params.excluded_zones}
+                    onChange={(preferred_zones, excluded_zones) => setParams((p) => ({ ...p, preferred_zones, excluded_zones }))}
+                  />
+                </div>
+              </section>
             </div>
-          </section>
+          </div>
         </div>
       ) : (
         <>
         <div className="advanced-bar">
+          <input type="search" className="settings-search" placeholder={t("Rechercher un réglage…")} value={query} onChange={(e) => setQuery(e.target.value)} />
           <span className="muted">{changed > 0 ? t("Réglages modifiés : {n}", { n: changed }) : t("Tous les réglages sont aux valeurs par défaut.")}</span>
           <button disabled={changed === 0} onClick={() => setParams((p) => ({ ...p, ...Object.fromEntries(advancedKeys.map((k) => [k, defaults[k]])) }))}>
             {t("Tout remettre par défaut")}
@@ -424,10 +492,15 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
             </button>
           )}
         </div>
+        {/* Two fixed columns: folding a section moves only those under it, never the other column. */}
         <div className="config-advanced">
+          <div className="config-col">
+          {!query.trim() && (
           <section className="panel">
-            <h3>{t("Quêtes de classe obligatoires")}</h3>
-            <p className="muted">{t("Les autres quêtes de classe sont faites seulement si elles sont rentables.")}</p>
+            <h3>
+              {t("Quêtes de classe obligatoires")}
+              <Hint text={t("Les autres quêtes de classe sont faites seulement si elles sont rentables.")} />
+            </h3>
             <div className="chips">
               {(classQuests ?? []).map((q) => (
                 <button key={q} className="chip" onClick={() => setClassQuests((classQuests ?? []).filter((c) => c !== q))}>
@@ -463,19 +536,12 @@ export function ConfigForm({ options, initial, defaultLocale, onRun, onExport }:
               />
             </label>
           </section>
+          )}
 
-          {sections.map((s) => (
-            <section className="panel" key={s.title}>
-              <h3>{t(s.title)}</h3>
-              {s.help && <p className="muted">{t(s.help)}</p>}
-              {s.fields
-                .filter((f) => !SIMPLE_KEYS.includes(f.key))
-                .map((f) => (
-                  <ParamField key={f.key} field={f} params={params} defaults={defaults} onChange={set} />
-                ))}
-            </section>
-          ))}
-
+          {sections.slice(0, 3).map(settingsSection)}
+          </div>
+          <div className="config-col">{sections.slice(3).map(settingsSection)}</div>
+          {query.trim() && !sections.some((s) => s.fields.some((f) => !SIMPLE_KEYS.includes(f.key) && matches(f))) && <p className="muted settings-none">{t("Aucun réglage trouvé.")}</p>}
         </div>
         </>
       )}

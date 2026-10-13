@@ -11,6 +11,8 @@ export interface WizardStart {
   initial: PlanRequest | null;
   /** Compute `initial` again at once (a new version of its guide). */
   rerun: boolean;
+  /** The recorded character ("Name-Realm") a new guide starts from. */
+  character?: string;
 }
 
 type Step = "config" | "run";
@@ -179,6 +181,7 @@ export function NewRoutePage({ options, start, onBusy, onDone }: Props) {
           key={JSON.stringify(initial)}
           options={options}
           initial={initial}
+          startCharacter={initial ? undefined : start.character}
           defaultLocale={gameLocale(lang)}
           onRun={(r) => run(r)}
           onExport={async (r) => {

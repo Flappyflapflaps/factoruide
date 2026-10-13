@@ -26,8 +26,8 @@ local L = {
     pointHint = fr and "Clic gauche : flèche vers cette étape" or "Left-click: point the arrow at this step",
     level = fr and "Niv." or "Lvl",
     planned = fr and "prévu" or "planned",
-    noRoute = fr and "Pas de route pour cette race/classe.\nGénérez-en une avec `fg route`."
-        or "No route for this race/class.\nGenerate one with `fg route`.",
+    noRoute = fr and "Aucun guide pour ce personnage.\nAssignez-en un dans l'application Factoruide (Personnages)."
+        or "No guide for this character.\nAssign one in the Factoruide app (Characters).",
     done = fr and "Route terminée !" or "Route finished!",
     yards = fr and "m" or "yd",
     prevStep = fr and "Étape précédente" or "Previous step",
@@ -972,21 +972,17 @@ local function UseRoute(name)
     end
 end
 
-local function PickRoute(char)
-    if state.route and FG.Routes and FG.Routes[state.route] then return state.route end
-    local classID = select(3, UnitClass("player"))
-    local exact, sameRace, sameFaction
-    for name, r in pairs(FG.Routes or {}) do
-        if r.race == char.raceID and r.class == classID then
-            -- Several variants (e.g. "-solo"): the plain one has the shortest name.
-            if not exact or #name < #exact or (#name == #exact and name < exact) then exact = name end
-        elseif r.race == char.raceID then
-            sameRace = sameRace or name
-        elseif r.faction == char.faction then
-            sameFaction = sameFaction or name
-        end
-    end
-    return exact or sameRace or sameFaction
+--- The guide the app assigned to this character (Routes.lua's FG.Assignments), nil when none:
+--- a character follows only the guide chosen for it in the app, never one picked in game.
+local function PickRoute()
+    local name = FG.Assignments and FG.Assignments[FG:CharacterKey()]
+    if name and FG.Routes and FG.Routes[name] then return name end
+end
+
+--- Follow the guide assigned to the character again (Routes.lua reloaded, tests).
+function Guide:FollowAssignment()
+    UseRoute(PickRoute())
+    self:Resync()
 end
 
 FG:On("PLAYER_LOGIN", function()
@@ -995,7 +991,7 @@ FG:On("PLAYER_LOGIN", function()
     state = char.guide
     state.shown = nil -- moved to settings in 0.2
     state.flightLearned = nil -- replaced by marks in 0.3
-    UseRoute(PickRoute(char))
+    UseRoute(PickRoute())
     CreateUI()
     Guide:Resync()
     C_Timer.NewTicker(1, function() Guide:Advance() end)
@@ -1079,17 +1075,8 @@ function Guide:Command(cmd, arg)
     elseif cmd == "config" or cmd == "options" then
         FG:OpenSettings()
     elseif cmd == "route" then
-        if arg and FG.Routes and FG.Routes[arg] then
-            UseRoute(arg)
-            self:Resync()
-        else
-            local names = {}
-            for name in pairs(FG.Routes or {}) do
-                table.insert(names, name)
-            end
-            table.sort(names)
-            FG:Print("routes: %s (current: %s)", table.concat(names, ", "), tostring(state.route))
-        end
+        -- Shown only: the guide is assigned to the character in the app.
+        FG:Print("guide: %s (assigned in the Factoruide app, Characters)", tostring(state.route))
     else
         return false
     end

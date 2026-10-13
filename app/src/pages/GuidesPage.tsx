@@ -4,6 +4,7 @@ import { Character } from "../components/Character";
 import { GuideEditor } from "../components/GuideEditor";
 import { ResultView } from "../components/ResultView";
 import { gameLocale, useDate, useGameName, useLang, useT } from "../i18n";
+import { Icon } from "../components/Icons";
 
 export interface OpenGuide {
   guide: string;
@@ -18,19 +19,24 @@ interface Props {
   start?: OpenGuide | null;
   onRerun: (version: GuideVersion) => void;
   onEdit: (version: GuideVersion) => void;
+  /** A new guide from the same configuration (under another name). */
+  onClone: (version: GuideVersion) => void;
 }
 
 type SortKey = "addon" | "name" | "character" | "levels" | "time" | "versions" | "created";
 
-/** The version a row shows: the one installed, else the latest. */
+/** The version a row shows: the one its characters follow (the latest unless one is chosen). */
 const shownVersion = (g: GuideSummary): VersionMeta => g.versions.find((v) => v.version === g.installed) ?? g.versions[0];
 
-/** Every guide with its versions; a checkbox installs (the latest version of) a guide in the addon. */
-export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
+/** Every guide with its versions, who follows it, and the actions of its page on each row. */
+export function GuidesPage({ options, start, onRerun, onEdit, onClone }: Props) {
   const t = useT();
   const date = useDate();
   const gameName = useGameName();
   const [guides, setGuides] = useState<GuideSummary[] | null>(null);
+  // Which guide each character follows ("Name-Realm" -> guide).
+  const [assignments, setAssignments] = useState<Record<string, string>>({});
+  const followers = (id: string) => Object.keys(assignments).filter((c) => assignments[c] === id);
   // Column sorted by (none: the saved order), ascending or not.
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean } | null>(null);
   const [open, setOpen] = useState<GuideVersion | null>(null);
@@ -45,6 +51,7 @@ export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
 
   const load = useCallback(() => {
     api.listGuides().then(setGuides).catch((e) => setError(String(e)));
+    api.listAssignments().then(setAssignments).catch(() => {});
   }, []);
   useEffect(load, [load]);
 
@@ -60,6 +67,12 @@ export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
     }
   };
   const lang = useLang();
+  /** Run an action on the version a row shows (loaded first). */
+  const withVersion = (g: GuideSummary, action: (v: GuideVersion) => void) =>
+    api
+      .getVersion(g.id, shownVersion(g).version, gameLocale(lang))
+      .then(action)
+      .catch((e) => setError(String(e)));
   const openVersion = (guide: string, version: number) =>
     api
       .getVersion(guide, version, gameLocale(lang))
@@ -74,7 +87,7 @@ export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
     if (!guides || !sort) return guides;
     const character = (v: VersionMeta) => `${gameName(options?.races.find((r) => r.key === v.race)?.name ?? v.race)} ${gameName(v.class)}`;
     const compare: Record<SortKey, (a: GuideSummary, b: GuideSummary) => number> = {
-      addon: (a, b) => Number(a.installed != null) - Number(b.installed != null),
+      addon: (a, b) => followers(a.id).length - followers(b.id).length,
       name: (a, b) => a.name.localeCompare(b.name),
       character: (a, b) => character(a.versions[0]).localeCompare(character(b.versions[0])),
       levels: (a, b) => shownVersion(a).from_level - shownVersion(b).from_level || shownVersion(a).to_level - shownVersion(b).to_level,
@@ -83,7 +96,8 @@ export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
       created: (a, b) => a.versions[0].created - b.versions[0].created,
     };
     return [...guides].sort((a, b) => (sort.asc ? 1 : -1) * compare[sort.key](a, b) || a.name.localeCompare(b.name));
-  }, [guides, sort, gameName, options]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guides, sort, gameName, options, assignments]);
 
   /** A column header sorting the table: ascending first, then descending. */
   const header = (key: SortKey, label: string, title?: string) => (
@@ -133,6 +147,7 @@ export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
           options={options}
           onRerun={onRerun}
           onEdit={onEdit}
+          onClone={onClone}
           onEditSteps={setEditing}
           onOpenVersion={(n) => openVersion(open.meta.guide, n)}
         />
@@ -142,7 +157,7 @@ export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
 
   const bar = (
     <div className="page-head">
-      <h2>{t("Mes guides")}</h2>
+      <h2>{t("Guides")}</h2>
       <input
         ref={fileRef}
         type="file"
@@ -183,14 +198,16 @@ export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
       <table className="table">
         <thead>
           <tr>
-            {header("addon", t("Dans l'addon"), t("Guides installés dans l'addon : cochez pour installer (la dernière version), décochez pour retirer"))}
+            {header("addon", t("Suivi par"), t("Personnages qui suivent ce guide : à choisir dans la page Personnages."))}
             {header("name", t("Guide"))}
             {header("character", t("Personnage"))}
             {header("levels", t("Niveaux"))}
             {header("time", t("Temps estimé"))}
             {header("versions", t("Versions"))}
             {header("created", t("Calculé le"))}
-            <th />
+            <th>
+              <span className="sr-only">{t("Actions")}</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -199,18 +216,12 @@ export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
             const shown = shownVersion(g);
             return (
               <tr key={g.id}>
-                <td>
-                  <label className="switch" title={g.installed != null ? t("Retirer de l'addon") : t("Installer dans l'addon")}>
-                    <input
-                      type="checkbox"
-                      aria-label={t("Installer « {name} » dans l'addon", { name: g.name })}
-                      checked={g.installed != null}
-                      onChange={(e) =>
-                        act(async () => t("Guides dans l'addon : {n} — faites /reload en jeu", { n: await api.setInstalled(g.id, e.target.checked ? latest.version : null) }))
-                      }
-                    />
-                    <span aria-hidden />
-                  </label>
+                <td className="followers">
+                  {followers(g.id).map((c) => (
+                    <span key={c} className="tag" title={c}>
+                      {c.split("-")[0]}
+                    </span>
+                  ))}
                 </td>
                 <td>
                   <button className="link" onClick={() => openVersion(g.id, shown.version)}>
@@ -218,7 +229,7 @@ export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
                   </button>
                   {g.installed != null && g.installed !== latest.version && (
                     <span className="tag" title={t("Une version plus récente existe")}>
-                      {t("v{n} installée", { n: g.installed })}
+                      {t("v{n} suivie", { n: g.installed })}
                     </span>
                   )}
                   {latest.imported && <span className="tag">{t("importé")}</span>}
@@ -237,14 +248,37 @@ export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
                 <td>{shown.total_time_text}</td>
                 <td>v{latest.version}</td>
                 <td>{date(latest.created)}</td>
-                <td>
+                <td className="row-icons">
+                  {/* The actions of the guide's page, on the version the row shows. */}
+                  <button className="icon" title={t("Relancer le calcul")} aria-label={t("Relancer le calcul")} onClick={() => withVersion(g, onRerun)}>
+                    <Icon name="rerun" />
+                  </button>
+                  <button className="icon" title={t("Modifier la configuration")} aria-label={t("Modifier la configuration")} onClick={() => withVersion(g, onEdit)}>
+                    <Icon name="config" />
+                  </button>
+                  <button className="icon" title={t("Modifier les étapes")} aria-label={t("Modifier les étapes")} onClick={() => withVersion(g, setEditing)}>
+                    <Icon name="steps" />
+                  </button>
+                  <button className="icon" title={t("Nouveau guide à partir de la même configuration")} aria-label={t("Cloner")} onClick={() => withVersion(g, onClone)}>
+                    <Icon name="clone" />
+                  </button>
                   <button
-                    className="link danger"
+                    className="icon"
+                    title={t("Enregistre un fichier .fgguide (configuration et guide) à envoyer aux autres joueurs")}
+                    aria-label={t("Partager")}
+                    onClick={() => act(async () => t("Fichier à partager enregistré : {path}", { path: await api.exportVersion(g.id, shown.version) }))}
+                  >
+                    <Icon name="share" />
+                  </button>
+                  <button
+                    className="icon danger"
+                    title={t("Supprimer")}
+                    aria-label={t("Supprimer")}
                     onClick={() => {
                       if (confirm(t("Supprimer le guide « {name} » et ses {n} versions ?", { name: g.name, n: g.versions.length }))) act(() => api.deleteGuide(g.id));
                     }}
                   >
-                    {t("Supprimer")}
+                    <Icon name="delete" />
                   </button>
                 </td>
               </tr>
@@ -252,6 +286,7 @@ export function GuidesPage({ options, start, onRerun, onEdit }: Props) {
           })}
         </tbody>
       </table>
+      <p className="muted list-hint">{t("Créez un guide dans « Nouveau guide », ou importez celui d'un autre joueur (fichier .fgguide).")}</p>
     </div>
   );
 }

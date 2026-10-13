@@ -1,15 +1,38 @@
 :root {
   color-scheme: dark;
-  --surface-0: #121211;
-  --surface-1: #1a1a19;
-  --surface-2: #242422;
-  --border: #33332f;
+  --surface-0: #040912;
+  --surface-1: #09111f;
+  --surface-2: #0e1a2c;
+  --surface-3: #15233a;
+  --border: #162237;
+  --border-strong: #23344f;
+  /* The edge of a control (field, checkbox, switch, choice): 3:1 against every surface. */
+  --control-edge: #566b90;
+  /* Cards: a faint light from the top over the surface, a hairline edge. */
+  --card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0) 60%), var(--surface-1);
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.25);
+  --accent-fill: color-mix(in srgb, var(--accent) 62%, var(--surface-2));
+  --accent-edge: color-mix(in srgb, var(--accent-text) 45%, transparent);
+  --radius: 10px;
+  --radius-sm: 7px;
+  /* The edge of the main action and of the chosen option: ultramarine to a cold cyan. */
+  --edge: linear-gradient(110deg, #3a4dff, #1fa8d8);
+  --edge-hover: linear-gradient(110deg, #5566ff, #3cc3f0);
+  --edge-go: linear-gradient(110deg, #22c55e, #14b8a6);
+  --edge-go-hover: linear-gradient(110deg, #4ade80, #2dd4bf);
+  --sky: linear-gradient(200deg, #03070f 0%, #050e20 65%, #09162e 100%);
+  /* The game's map images in their own colours made soft (world map, zone maps). */
+  --parchment: saturate(0.55) brightness(0.78) contrast(0.92) sepia(0.12);
   --text-primary: #ffffff;
-  --text-secondary: #c3c2b7;
-  --text-muted: #8d8c84;
-  --accent: #3987e5;
-  --series-1: #3987e5;
-  --grid: #2c2c29;
+  --text-secondary: #bac4d6;
+  --text-muted: #7e8ba3;
+  /* Ultramarine for fills; a lighter tint where it colors text (links) to stay readable; the
+     glows a brighter ultramarine (a planet's edge lit on a night-blue sky). */
+  --accent: #2a3de6;
+  --accent-text: #7d8dff;
+  --glow: #3a4dff;
+  --series-1: var(--accent-text);
+  --grid: #121e30;
   --good: #3fae5d;
   --bad: #e66767;
   /* Categorical series, in this order (validated for color vision deficiencies). */
@@ -22,39 +45,30 @@
   --cat-7: #9085e9;
   --cat-8: #e66767;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   background: var(--surface-0);
   color: var(--text-primary);
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color-scheme: light;
-    --surface-0: #f2f2f0;
-    --surface-1: #fcfcfb;
-    --surface-2: #ececea;
-    --border: #d6d5cf;
-    --text-primary: #0b0b0b;
-    --text-secondary: #52514e;
-    --text-muted: #77766f;
-    --accent: #2a78d6;
-    --series-1: #2a78d6;
-    --grid: #e4e3df;
-    --good: #23803d;
-    --bad: #c23a39;
-    --cat-1: #2a78d6;
-    --cat-2: #eb6834;
-    --cat-3: #1baf7a;
-    --cat-4: #eda100;
-    --cat-5: #e87ba4;
-    --cat-6: #008300;
-    --cat-7: #4a3aa7;
-    --cat-8: #e34948;
-  }
-}
 
 * {
   box-sizing: border-box;
+}
+/* Where the keyboard is: a ring on every control (the browser's own is black on the dark sky). */
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+input:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+/* Within a row of choices the ring sits inside, not over the neighbours. */
+.segmented button:focus-visible,
+.edition-switch button:focus-visible,
+.view-tabs button:focus-visible,
+.sidebar button:focus-visible {
+  outline-offset: -2px;
 }
 body {
   margin: 0;
@@ -68,55 +82,135 @@ select {
   color: inherit;
 }
 button {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
   padding: 6px 12px;
   cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 button:hover:not(:disabled) {
-  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 button:disabled {
   opacity: 0.5;
   cursor: default;
 }
+/* The main action: dark inside, a green gradient edge (the go colour, apart from the blue of the
+   chosen options). */
 button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  color: var(--text-primary);
   font-weight: 600;
+  border: 1px solid transparent;
+  background: linear-gradient(var(--surface-1), var(--surface-1)) padding-box, var(--edge-go) border-box;
+}
+button.primary:hover:not(:disabled) {
+  border-color: transparent;
+  background:
+    linear-gradient(rgba(47, 211, 107, 0.12), rgba(47, 211, 107, 0.12)) padding-box,
+    linear-gradient(var(--surface-1), var(--surface-1)) padding-box,
+    var(--edge-go-hover) border-box;
+}
+/* Range sliders: a thin track, the filled part is not drawn (no cross-engine way). */
+input[type="range"] {
+  appearance: none;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--control-edge);
+}
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--text-primary);
+  border: 3px solid var(--accent);
+}
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 /* A faded blue reads as "almost clickable": a disabled main button is plainly grey. */
 button.primary:disabled {
   background: var(--surface-2);
   border-color: var(--border);
   color: var(--text-muted);
+  box-shadow: none;
   opacity: 1;
 }
 button.active {
   border-color: var(--accent);
-  color: var(--accent);
+  color: var(--accent-text);
 }
-button.link {
+button.link,
+button.link:hover:not(:disabled) {
   background: none;
   border: none;
   padding: 0;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 button.link.danger {
   color: var(--bad);
 }
 input,
 select {
-  background: var(--surface-1);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 8px;
+  background: var(--surface-0);
+  border: 1px solid var(--control-edge);
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
   width: 100%;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+input:hover,
+select:hover {
+  border-color: var(--border-strong);
+}
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+select {
+  appearance: none;
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238d8c84' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+select option {
+  background: var(--surface-1);
 }
 input[type="checkbox"] {
   width: auto;
+}
+/* Checkboxes drawn like the rest (the toggles' and switches' own stay hidden). */
+input[type="checkbox"]:not(.toggle input, .switch input) {
+  appearance: none;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  margin: 0 2px 0 0;
+  vertical-align: -3px;
+  border: 1px solid var(--control-edge);
+  border-radius: 4px;
+  background: var(--surface-0) center / 10px 10px no-repeat;
+  cursor: pointer;
+}
+input[type="checkbox"]:not(.toggle input, .switch input):checked {
+  background-color: var(--accent-fill);
+  border-color: var(--accent-edge);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M2 5.2l2 2 4-4.4' fill='none' stroke='white' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 .app {
@@ -128,24 +222,38 @@ input[type="checkbox"] {
      scrollbar, so the user could not scroll it back). */
   position: fixed;
   inset: 0;
+  /* One sky under the menu and the content: night blue, an ultramarine light from the left edge
+     (stays put while the content scrolls). */
+  background:
+    radial-gradient(520px 900px at -260px 45%, color-mix(in srgb, var(--glow) 24%, transparent), transparent 70%),
+    var(--sky);
 }
 .sidebar {
-  background: var(--surface-1);
-  border-right: 1px solid var(--border);
+  background: transparent;
   display: flex;
   flex-direction: column;
   padding: 16px 10px;
-  gap: 4px;
+  gap: 2px;
 }
 .sidebar button {
+  position: relative;
   text-align: left;
   background: none;
-  border: none;
+  border: 1px solid transparent;
   padding: 8px 10px;
+  color: var(--text-secondary);
 }
-.sidebar button.active {
+.sidebar button:hover:not(:disabled) {
   background: var(--surface-2);
+  border-color: transparent;
   color: var(--text-primary);
+}
+.sidebar button.active,
+.sidebar button.active:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: transparent;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 .sidebar button {
   display: flex;
@@ -181,16 +289,27 @@ input[type="checkbox"] {
 }
 .sidebar-label {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 0 6px 4px;
 }
+/* Bottom of the menu: what's new, about, the version. */
 .sidebar-footer {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   color: var(--text-muted);
   font-size: 12px;
-  padding: 0 10px;
+}
+.sidebar .sidebar-footer button {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 400;
+}
+.sidebar-footer span {
+  padding: 6px 10px 0;
 }
 .content {
   min-height: 0;
@@ -199,7 +318,7 @@ input[type="checkbox"] {
 }
 
 .along {
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 0.9em;
 }
 
@@ -231,10 +350,11 @@ input[type="checkbox"] {
   align-items: start;
 }
 .panel {
-  background: var(--surface-1);
+  background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  padding: 16px;
 }
 .form {
   position: sticky;
@@ -248,11 +368,10 @@ input[type="checkbox"] {
   margin-bottom: 12px;
 }
 h3 {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-secondary);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 .field {
   display: flex;
@@ -263,6 +382,7 @@ h3 {
 .field > span,
 .field > label {
   color: var(--text-secondary);
+  font-size: 12px;
 }
 .field small,
 .muted {
@@ -310,48 +430,13 @@ h3 {
 }
 .chip {
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid transparent;
   border-radius: 999px;
-  padding: 2px 10px;
+  padding: 3px 10px;
+  color: var(--text-secondary);
   font-size: 12px;
   margin-right: 4px;
 }
-.chip.disabled {
-  opacity: 0.5;
-}
-.chip.forced {
-  border-color: var(--good);
-  color: var(--good);
-}
-.chip.excluded {
-  border-color: var(--bad);
-  color: var(--bad);
-  text-decoration: line-through;
-}
-.chip-legend {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-}
-.chip-legend .chip {
-  margin: 0;
-  font-size: 11px;
-}
-.chip-legend > span:last-child {
-  flex-basis: 100%;
-}
-.suggestions {
-  list-style: none;
-  margin: 0;
-  padding: 4px;
-  background: var(--surface-2);
-  border-radius: 6px;
-}
-.suggestions li {
-  padding: 3px 4px;
-}
-
 .result {
   min-width: 0;
 }
@@ -410,9 +495,10 @@ h3 {
   margin-bottom: 14px;
 }
 .tile {
-  background: var(--surface-1);
+  background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -467,9 +553,10 @@ h3 {
 }
 .chart {
   margin: 0;
-  background: var(--surface-1);
+  background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
   padding: 12px;
 }
 .chart figcaption {
@@ -611,10 +698,18 @@ h3 {
 .table tr.clickable:hover td {
   background: var(--surface-2);
 }
-.disclosure {
+button.disclosure,
+button.disclosure:hover:not(:disabled) {
   display: inline-block;
-  width: 1em;
+  width: 1.4em;
+  padding: 0;
+  border: none;
+  background: none;
   color: var(--text-muted);
+  backdrop-filter: none;
+}
+button.disclosure:disabled {
+  opacity: 1;
 }
 .table tr.sub-row td {
   background: var(--surface-1);
@@ -704,9 +799,20 @@ h3 {
   position: relative;
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
-  background: #1b1710;
+  background: var(--surface-0);
+}
+/* The game's map of the zone, softened as the world map (edges faded into the frame). */
+.zone-map-frame img {
+  filter: var(--parchment);
+}
+.zone-map-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 28px 6px var(--surface-0);
 }
 .zone-map-frame img,
 .zone-map-frame svg {
@@ -755,12 +861,12 @@ h3 {
   color: var(--text-primary);
 }
 .sort-arrow {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 .table th[aria-sort="ascending"] .sort-arrow,
 .table th[aria-sort="descending"] .sort-arrow {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .character {
   display: inline-flex;
@@ -790,7 +896,7 @@ h3 {
    dungeon), grey for the rest. */
 .kind {
   --kind: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   padding: 1px 6px;
   border-radius: 4px;
   border: 1px solid color-mix(in srgb, var(--kind) 55%, transparent);
@@ -840,8 +946,10 @@ h3 {
 .sync-step small {
   color: var(--text-muted);
 }
-.settings {
-  max-width: 640px;
+/* Settings: the app's, the project's under them. */
+.settings-grid {
+  display: grid;
+  gap: 14px;
 }
 .clients {
   list-style: none;
@@ -885,7 +993,7 @@ h3 {
   inset: 0;
   border-radius: 999px;
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-edge);
   pointer-events: none;
   transition: background 0.15s;
 }
@@ -901,8 +1009,8 @@ h3 {
   transition: transform 0.15s;
 }
 .switch input:checked + span {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-fill);
+  border-color: var(--accent-edge);
 }
 .switch input:checked + span::after {
   background: #fff;
@@ -917,8 +1025,16 @@ h3 {
 }
 /* Columns, not a grid: panels of different heights leave no holes. */
 .addon-grid {
-  columns: 3 280px;
-  column-gap: 16px;
+  columns: 3 380px;
+  column-gap: 14px;
+}
+/* Narrower lines: the addon's options are mostly switches. */
+.addon-grid .setting {
+  grid-template-columns: minmax(0, 1fr) 90px 56px 22px 58px;
+  gap: 8px;
+}
+.addon-search {
+  margin-bottom: 14px;
 }
 .addon-grid > .panel {
   break-inside: avoid;
@@ -962,7 +1078,8 @@ h3 {
   gap: 12px;
   margin: -20px -20px 14px;
   padding: 14px 20px;
-  background: var(--surface-0);
+  background: color-mix(in srgb, var(--surface-0) 82%, transparent);
+  backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
 .save-bar .actions {
@@ -975,53 +1092,160 @@ h3 {
 .save-bar .unsaved::before {
   content: "● ";
 }
+/* Professions on one line: the two primary ones as choices, then the secondary ones as boxes;
+   a ⚙ beside each one taken opens its goal. */
 .professions {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 4px 12px;
-}
-.professions-group,
-.profession.on {
-  grid-column: 1 / -1;
-}
-.profession {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  min-height: 28px;
-}
-.profession .field-bool {
-  display: flex;
-  gap: 6px;
+  grid-template-columns: max-content minmax(0, 1fr) minmax(0, 1fr) max-content max-content;
+  gap: 8px 12px;
   align-items: center;
 }
-.profession-goal {
+.professions > .muted {
+  font-size: 12px;
+}
+.professions > .secondary-label {
+  margin-left: 16px;
+}
+.profession-slot,
+.profession-check {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+}
+.profession-secondary {
+  display: flex;
+  gap: 6px 14px;
+}
+.profession-check .field-bool {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+@media (max-width: 1100px) {
+  .professions {
+    grid-template-columns: max-content minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .professions > .secondary-label {
+    margin-left: 0;
+  }
+  .profession-secondary {
+    grid-column: 2 / -1;
+    flex-wrap: wrap;
+  }
+}
+.goal {
+  position: relative;
+  flex: none;
+}
+button.goal-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
   color: var(--text-muted);
+  background: transparent;
+  border-color: transparent;
+  backdrop-filter: none;
+}
+button.goal-button:hover:not(:disabled),
+button.goal-button.active {
+  color: var(--text-primary);
+  background: var(--surface-3);
+  border-color: transparent;
+}
+/* A goal changed from the guides' values. */
+button.goal-button.custom {
+  color: var(--accent-text);
+}
+.goal-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-1) 96%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.goal-pop > .muted {
   font-size: 12px;
 }
-.profession-goal input {
+.goal-row {
+  display: flex;
+  gap: 12px;
+}
+.goal-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.goal-row input {
   width: 64px;
-  padding: 2px 6px;
+  padding: 4px 6px;
+}
+/* The skill by level: the milestones dragged on the curve. */
+.goal-curve {
+  display: block;
+  overflow: visible;
+  touch-action: none;
+  user-select: none;
+}
+.goal-curve .series-line {
+  stroke: var(--accent-text);
+}
+.goal-curve .series-dot {
+  fill: var(--accent-text);
+}
+.goal-hit {
+  fill: transparent;
+  cursor: ns-resize;
+  outline: none;
+}
+.goal-dot {
+  pointer-events: none;
+  transition: r 0.1s;
+}
+.goal-dot.active {
+  r: 6;
+}
+.goal-hit:focus-visible + .goal-dot {
+  stroke: var(--accent-text);
+}
+.goal-start {
+  fill: var(--surface-1);
+  stroke: var(--text-muted);
+  stroke-width: 2;
+  cursor: ew-resize;
+  outline: none;
+}
+.goal-start.active,
+.goal-start:focus-visible {
+  stroke: var(--text-primary);
+}
+.goal-label {
+  fill: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--surface-1);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+.goal-pop .link {
+  align-self: flex-start;
+  font-size: 12px;
 }
 .table td.long {
   color: #e0b050;
   font-weight: 600;
-}
-.profession {
-  flex-wrap: wrap;
-}
-.milestones {
-  flex-basis: 100%;
-  margin: 0 0 6px 24px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.milestones summary {
-  cursor: pointer;
 }
 .milestone-grid {
   display: grid;
@@ -1123,9 +1347,9 @@ h3 {
   color: var(--text-primary);
 }
 .wizard-steps li.active .step-num {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--text-primary);
 }
 .wizard-steps li.done {
   color: var(--text-secondary);
@@ -1167,15 +1391,22 @@ button.big {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+/* How to play and dungeons in a column, the zones beside them. */
 .config-columns {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   gap: 14px;
   align-items: start;
 }
+/* Professions, under the character's fields. */
+.character-extras {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
 @media (max-width: 1100px) {
   .config-columns {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .run-box {
@@ -1187,14 +1418,147 @@ button.big {
   margin: 0;
   min-width: 330px;
 }
+/* The run button as high as the computing time choice beside it. */
+.run-box .segmented,
+.run-box button.primary {
+  height: 38px;
+}
+.run-box button.primary {
+  padding: 0 20px;
+  font-size: 13px;
+}
 .config-advanced {
-  columns: 3 320px;
-  column-gap: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
 }
-.config-advanced > * {
-  break-inside: avoid;
-  margin-bottom: 14px;
+@media (max-width: 1100px) {
+  .config-advanced {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
+.settings-search {
+  width: 260px;
+}
+.settings-none {
+  grid-column: 1 / -1;
+}
+/* A section's title: a button folding it, its count of changed settings. */
+.section-head,
+.section-head:hover:not(:disabled) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  backdrop-filter: none;
+}
+.section-head h3 {
+  margin: 0;
+}
+.settings-section.open .section-head {
+  margin-bottom: 8px;
+}
+.section-head .tag {
+  margin-left: 0;
+}
+.section-head .chevron {
+  margin-left: auto;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+.settings-section:not(.open) .chevron {
+  transform: rotate(-90deg);
+}
+/* One setting on a line: name, slider, value, unit, back to the default. */
+.setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px 64px 34px 72px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.setting + .setting {
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+.setting-label {
+  color: var(--text-secondary);
+}
+.setting.changed .setting-label {
+  color: var(--text-primary);
+}
+.setting.changed .setting-label::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 6px 1px 0;
+  border-radius: 50%;
+  background: var(--accent-text);
+}
+/* A switch takes no more room than it needs: the name gets the rest. */
+.setting.setting-bool {
+  grid-template-columns: minmax(0, 1fr) auto 72px;
+}
+.addon-grid .setting.setting-bool {
+  grid-template-columns: minmax(0, 1fr) auto 58px;
+}
+.setting-select select {
+  grid-column: 2 / 5;
+}
+.setting-range {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.setting-range input {
+  width: 100%;
+}
+/* The default's place on the slider. */
+.setting-default {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--text-muted);
+  opacity: 0.7;
+  transform: translate(-1px, -50%);
+  pointer-events: none;
+}
+.setting input[inputmode="decimal"] {
+  padding: 4px 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.setting-unit {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: normal;
+}
+.setting-reset {
+  justify-self: end;
+  white-space: nowrap;
+}
+button.setting-reset {
+  padding: 2px 6px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  backdrop-filter: none;
+}
+button.setting-reset:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--surface-3);
+  border-color: transparent;
+}
+
 .advanced-bar {
   display: flex;
   align-items: center;
@@ -1227,83 +1591,103 @@ button.big {
   display: inline-flex;
   gap: 2px;
   padding: 3px;
-  background: var(--surface-2);
+  background: var(--surface-0);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 999px;
 }
 .view-tabs button {
   border: none;
   background: transparent;
-  padding: 6px 16px;
-  border-radius: 6px;
+  padding: 5px 16px;
+  border-radius: 999px;
   color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.view-tabs button.active {
-  background: var(--surface-0);
+.view-tabs button.active,
+.view-tabs button.active:hover:not(:disabled) {
+  background: var(--surface-3);
   color: var(--text-primary);
   font-weight: 600;
 }
 .badge {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: #fff;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
   padding: 3px 6px;
 }
+/* No glass blur on the options: it would blur the control's outline behind them. */
+.segmented button,
+.edition-switch button {
+  backdrop-filter: none;
+}
+/* No padding and an outline that takes no room: the chosen option's edge lies on the control's,
+   as high as a button beside it. */
 .segmented {
   display: flex;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--control-edge);
+  border-radius: var(--radius-sm);
 }
 .segmented button {
   flex: 1;
   min-width: 0;
-  border: none;
-  border-radius: 0;
-  padding: 8px 6px;
-  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 9px 6px;
+  background: transparent;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.segmented button + button {
-  border-left: 1px solid var(--border);
-}
 .segmented button small {
   display: block;
   color: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
   opacity: 0.8;
 }
-.segmented button.active {
-  background: var(--accent);
-  color: #fff;
+.segmented button.active,
+.segmented button.active:hover:not(:disabled),
+.sidebar .edition-switch button.active,
+.sidebar .edition-switch button.active:hover:not(:disabled) {
+  color: var(--text-primary);
   font-weight: 600;
+  border-color: transparent;
+  background: linear-gradient(var(--surface-1), var(--surface-1)) padding-box, var(--edge) border-box;
 }
 .toggle {
   /* Holds its hidden checkbox (focused on click: placed elsewhere, the page scrolled to it). */
   position: relative;
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
   align-items: start;
-  padding: 10px;
-  margin-bottom: 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  padding: 9px 10px;
+  margin: 0 -10px 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: background 0.12s;
 }
-.toggle.on {
-  border-color: var(--accent);
+.toggle:hover {
+  background: var(--surface-2);
+}
+.toggle > .toggle-text {
+  grid-row: 1;
+  grid-column: 1;
+}
+.toggle > .toggle-switch,
+.toggle > .level-value {
+  grid-row: 1;
+  grid-column: 2;
 }
 .level-value {
   min-width: 36px;
+  text-align: right;
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
 }
@@ -1330,7 +1714,7 @@ button.big {
   margin-top: 1px;
   border-radius: 999px;
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-edge);
   position: relative;
   transition: background 0.15s;
 }
@@ -1346,8 +1730,8 @@ button.big {
   transition: transform 0.15s;
 }
 .toggle.on .toggle-switch {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-fill);
+  border-color: var(--accent-edge);
 }
 .toggle.on .toggle-switch::after {
   background: #fff;
@@ -1358,31 +1742,248 @@ button.big {
   flex-direction: column;
   gap: 2px;
 }
+.toggle-text strong {
+  font-weight: 500;
+}
 .toggle-text small {
   color: var(--text-muted);
   font-size: 12px;
 }
-.zone-pickers > .field {
+/* Zones: the map, the chosen zones beside it. */
+.zones-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 16px;
+  align-items: start;
+  padding: 10px 16px 10px 10px;
+}
+.zones-layout h3 {
+  margin-top: 8px;
+}
+/* The zones' column as high as the map: the chosen zones scroll under the search. */
+.zones-layout > div:last-child {
+  display: flex;
+  flex-direction: column;
+  height: 420px;
+}
+.zones-layout .zone-panel-side {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.zones-layout .zone-panel-side > input {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+/* Dungeons: buttons by level, a click cycling automatic → forced → excluded. */
+.dungeon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+button.dungeon {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 10px;
+  text-align: left;
+  background: var(--surface-0);
+  border-color: var(--border);
+  backdrop-filter: none;
+}
+button.dungeon span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.dungeon small {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+button.dungeon.forced,
+button.dungeon.forced:hover:not(:disabled) {
+  border-color: var(--good);
+  background: color-mix(in srgb, var(--good) 14%, var(--surface-0));
+}
+button.dungeon.excluded,
+button.dungeon.excluded:hover:not(:disabled) {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 12%, var(--surface-0));
+}
+button.dungeon.excluded span {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+button.dungeon b {
+  font-weight: 600;
+}
+button.dungeon.forced b {
+  color: var(--good);
+}
+button.dungeon.excluded b {
+  color: var(--bad);
+}
+@media (max-width: 1000px) {
+  .zones-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.zone-panel-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.zone-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.zone-list li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 4px 10px;
+  border-radius: var(--radius-sm);
+}
+.zone-list li:hover {
+  background: var(--surface-2);
+}
+.zone-list li.muted {
+  padding: 6px 10px;
+}
+.zone-list.results {
+  padding: 4px;
+  margin-top: -8px;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.zone-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.zone-name small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.zone-list button.icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+  backdrop-filter: none;
+}
+.zone-list button.icon:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: transparent;
+  color: var(--text-primary);
+}
+.zone-list button.prefer[aria-pressed="true"] {
+  color: var(--good);
+}
+.zone-list button.exclude[aria-pressed="true"] {
+  color: var(--bad);
+}
+.zone-group-head {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 10px 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+}
+.zone-group.preferred .zone-group-head {
+  color: var(--good);
+}
+.zone-group.excluded .zone-group-head {
+  color: var(--bad);
+}
+/* "?" beside an option: its explanation on hover or focus. */
+.hint {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 6px;
+  vertical-align: 1px;
+  border: 1px solid var(--control-edge);
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: help;
+}
+.hint:hover,
+.hint:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--accent-text);
+}
+/* The hint's bubble, over the whole window (placed by the component). */
+.hint-tip {
+  position: fixed;
+  z-index: 100;
+  max-width: 300px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-1) 94%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
 }
 
 /* World map ------------------------------------------------------------------- */
 .world-map {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  position: relative;
 }
+/* Over the map: its legend and the zone hovered (or how to use it), as glass pills. */
 .map-bar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+  pointer-events: none;
+}
+.map-bar > * {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-0) 70%, transparent);
+  backdrop-filter: blur(8px);
 }
 .route-legend {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-left: 8px;
   color: var(--text-muted);
   font-size: 12px;
 }
@@ -1400,12 +2001,64 @@ button.big {
 .map-frame {
   position: relative;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--radius);
   border: 1px solid var(--border);
-  background: #1b1710;
+  background: var(--surface-0);
   cursor: grab;
   user-select: none;
 }
+/* Our own map: the zones' outlines lit in blue on the night sky. */
+/* Our own map, in the game map's colours made soft: earth tones on a night sea, cream borders. */
+.map-frame.vector {
+  --sea: #0b1424;
+  --coast: #3b3a31;
+  background: radial-gradient(ellipse at 50% 55%, #12203a, transparent 75%), var(--sea);
+}
+.land-mass {
+  fill: var(--coast);
+  stroke: var(--coast);
+}
+.zone-land {
+  --tint: #7d7458;
+  fill: color-mix(in srgb, var(--tint) 62%, var(--surface-1));
+  stroke: rgba(235, 222, 190, 0.32);
+}
+/* Sand, khaki, sage, olive, clay, moss: one per zone. */
+.zone-land.tint-0 {
+  --tint: #a39572;
+}
+.zone-land.tint-1 {
+  --tint: #8f8a62;
+}
+.zone-land.tint-2 {
+  --tint: #7f8c6a;
+}
+.zone-land.tint-3 {
+  --tint: #94866a;
+}
+.zone-land.tint-4 {
+  --tint: #9a7e66;
+}
+.zone-land.tint-5 {
+  --tint: #708268;
+}
+.map-frame.vector .zone-hover {
+  fill: rgba(245, 232, 200, 0.18);
+  stroke: rgba(245, 232, 200, 0.9);
+}
+/* The game's parchment in its own colours made soft (less saturated, a little darker), its edges
+   faded into the frame. */
+.map-frame.parchment image {
+  filter: var(--parchment);
+}
+.map-frame.parchment::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 60px 20px var(--surface-0);
+}
+
 .map-frame:active {
   cursor: grabbing;
 }
@@ -1469,23 +2122,30 @@ button.big {
   pointer-events: none;
 }
 .zone-mark.preferred path {
-  fill: rgba(63, 174, 93, 0.35);
-  stroke: #3fae5d;
+  fill: color-mix(in srgb, var(--good) 32%, transparent);
+  stroke: var(--good);
 }
 .zone-mark.excluded path {
-  fill: rgba(230, 103, 103, 0.35);
-  stroke: #e66767;
+  fill: color-mix(in srgb, var(--bad) 30%, transparent);
+  stroke: var(--bad);
 }
-.zone-mark text {
-  fill: #fff;
-  paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.7);
-  stroke-width: 3px;
-  font-weight: 700;
+.zone-hatch {
+  fill: url(#hatch);
+  stroke: none;
   pointer-events: none;
 }
+.zone-mark circle {
+  stroke: var(--surface-0);
+  stroke-width: 1.5px;
+}
+.zone-mark.preferred circle {
+  fill: var(--good);
+}
+.zone-mark.excluded circle {
+  fill: var(--bad);
+}
 .map-marker circle {
-  fill: #3987e5;
+  fill: var(--accent);
   stroke: #fff;
   stroke-width: 2;
 }
@@ -1512,9 +2172,10 @@ button.big {
   align-items: center;
   gap: 16px;
   padding: 18px 22px;
-  border-radius: 10px;
-  background: linear-gradient(120deg, var(--surface-1), var(--surface-2));
+  border-radius: var(--radius);
+  background: radial-gradient(600px 200px at 0% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 70%), var(--card-bg);
   border: 1px solid var(--border);
+  box-shadow: var(--card-shadow);
 }
 .run-actions {
   display: flex;
@@ -1539,7 +2200,7 @@ button.big {
   height: 10px;
 }
 .progress.big > div {
-  background: linear-gradient(90deg, var(--series-1), #6aa9f0, var(--series-1));
+  background: linear-gradient(90deg, var(--series-1), color-mix(in srgb, var(--series-1) 55%, var(--glow)), var(--series-1));
   background-size: 200% 100%;
   animation: progress-shine 1.6s linear infinite;
 }
@@ -1723,7 +2384,7 @@ button.big {
   padding: 1px 6px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 .required {
@@ -1764,25 +2425,20 @@ button.big {
 .edition-switch {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  padding: 0 4px 14px;
-  margin-bottom: 6px;
-  border-bottom: 1px solid var(--border);
+  margin: 0 0 14px;
+  background: var(--surface-1);
+  box-shadow: inset 0 0 0 1px var(--control-edge);
+  border-radius: var(--radius-sm);
 }
 .sidebar .edition-switch button {
   justify-content: center;
-  padding: 6px 4px;
+  padding: 7px 4px;
   font-size: 12px;
   font-weight: 600;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--text-secondary);
-}
-.sidebar .edition-switch button.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
 }
 .sidebar .edition-switch button:disabled {
   opacity: 0.4;
@@ -1790,9 +2446,6 @@ button.big {
 }
 
 /* Contribute ---------------------------------------------------------------- */
-.contribute {
-  max-width: 860px;
-}
 .contribute-figures small {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1828,7 +2481,8 @@ button.big {
   position: sticky;
   top: -20px;
   z-index: 2;
-  background: var(--surface-0);
+  background: color-mix(in srgb, var(--surface-0) 82%, transparent);
+  backdrop-filter: blur(10px);
   padding: 8px 0;
 }
 .tile strong.pending {
@@ -1996,4 +2650,316 @@ button.big {
 }
 .farm-toggle input[type="text"] {
   margin-left: 6px;
+}
+
+/* Characters ------------------------------------------------------------------------ */
+/* One block per recorded character: who it is, its level and professions, its guide. */
+/* One line per character: who it is, race, class and XP, professions, its guide. */
+.character-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.character-card {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.1fr) minmax(220px, 1.1fr) minmax(0, 1.5fr) minmax(380px, 1.4fr);
+  grid-template-areas:
+    "head who profs guide"
+    "head xp profs guide";
+  align-items: center;
+  gap: 6px 22px;
+}
+.character-card > .character-head {
+  grid-area: head;
+}
+.character-card > .character-who {
+  grid-area: who;
+}
+.character-card > .xp-bar {
+  grid-area: xp;
+}
+.character-card > .character-professions {
+  grid-area: profs;
+}
+.character-card > .character-guide {
+  grid-area: guide;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+@media (max-width: 1200px) {
+  .character-card {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "head" "who" "xp" "profs" "guide";
+  }
+}
+.character-card.has-guide {
+  border-color: color-mix(in srgb, var(--accent-text) 30%, var(--border));
+}
+.character-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.character-name {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.character-name strong {
+  font-size: 15px;
+}
+.character-name small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.character-level {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.character-who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.character-who .muted {
+  margin-left: auto;
+}
+.xp-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--surface-3);
+}
+.xp-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--glow));
+}
+.character-professions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.profession-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.profession-chip strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.character-guide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.character-guide-actions {
+  display: flex;
+  gap: 6px;
+}
+.character-guide-meta {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  font-size: 12px;
+}
+.all-guides {
+  margin-bottom: 10px;
+}
+
+/* Guide actions: icons on the rows of the guides list, beside the labels on a guide's page. */
+.icon-svg {
+  flex: none;
+  vertical-align: -3px;
+}
+.actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.row-icons {
+  text-align: right;
+  white-space: nowrap;
+}
+.row-icons button.icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+  backdrop-filter: none;
+}
+.row-icons button.icon:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--surface-3);
+  border-color: transparent;
+}
+.row-icons button.icon.danger:hover:not(:disabled) {
+  color: var(--bad);
+}
+
+/* The project's Markdown (changelog). */
+.markdown h2 {
+  margin: 22px 0 8px;
+  font-size: 17px;
+}
+.markdown h2:first-child {
+  margin-top: 0;
+}
+.markdown h2 {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.markdown h3 {
+  margin: 14px 0 6px;
+  font-size: 14px;
+}
+.markdown h4 {
+  margin: 12px 0 4px;
+  color: var(--text-secondary);
+}
+.markdown p,
+.markdown li {
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.markdown ul {
+  margin: 4px 0 10px;
+  padding-left: 20px;
+}
+.markdown code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: 12px;
+}
+/* About: its three panels side by side over the page's width. */
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+}
+@media (max-width: 1100px) {
+  .about-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.about-links {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.8;
+}
+.save-status {
+  margin-left: auto;
+}
+
+/* Contribute: the intro, then one panel per way to contribute. */
+.contribute-intro {
+  max-width: 900px;
+  margin: 0 0 14px;
+  line-height: 1.55;
+}
+.contribute-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* A tool on one line: what it is, its steps, its links. */
+.panel.tool {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 0.8fr);
+  gap: 24px;
+  align-items: start;
+}
+.panel.tool p {
+  margin: 0;
+}
+.panel.tool .contribute-steps {
+  margin: 0;
+}
+@media (max-width: 1100px) {
+  .panel.tool {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.contribute-steps {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+/* About, under the settings. */
+.about {
+  margin-top: 22px;
+}
+.about-title {
+  margin-bottom: 10px;
+}
+/* The settings' fields at a readable width, their panel over the page's. */
+.settings-grid .panel > .field,
+.settings-grid .panel > .advanced-settings {
+  max-width: 720px;
+}
+
+/* Money as the game shows it: a number and its coin. */
+.money {
+  display: inline-flex;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.money > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.coin {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+.coin.gold {
+  background: radial-gradient(circle at 35% 35%, #fff1a8, #e2b33c 60%, #9c7414);
+}
+.coin.silver {
+  background: radial-gradient(circle at 35% 35%, #ffffff, #c5ccd6 60%, #7d8693);
+}
+.coin.copper {
+  background: radial-gradient(circle at 35% 35%, #ffc79a, #c4733a 60%, #7c3f17);
+}
+
+/* Read by screen readers only. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.content:focus {
+  outline: none;
+}
+/* The delete icon set apart from the other actions of a row. */
+.row-icons button.icon.danger {
+  margin-left: 10px;
+}
+.list-hint {
+  margin-top: 14px;
 }

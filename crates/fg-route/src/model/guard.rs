@@ -135,7 +135,8 @@ impl Guards {
         let Some(top) = near.iter().map(|m| m.0).max() else {
             return Guard::default();
         };
-        let strong = near.iter().filter(|m| m.0 + Self::LEVELS >= top);
+        // Saturating: levels are stored up to 255 (bosses of unknown level).
+        let strong = near.iter().filter(|m| m.0.saturating_add(Self::LEVELS) >= top);
         if strong.clone().count() < 2 {
             return Guard::default();
         }

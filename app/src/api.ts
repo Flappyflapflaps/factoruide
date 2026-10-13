@@ -178,6 +178,8 @@ export interface StartState {
 
 /** A character found in the game's saved variables. */
 export interface CharacterInfo {
+  /** Full name when the game gives one (WoW Forever: first and last name). */
+  full_name: string | null;
   /** Race key (null: a race this game version does not know). */
   race: string | null;
   class: string;
@@ -207,6 +209,8 @@ export interface Breakdown {
   grind_over?: number;
   /** XP from discovering areas. */
   explore_xp?: number;
+  /** Copper spent on flights (unknown for guides computed before it was kept). */
+  flight_cost?: number;
 }
 
 export interface Step {
@@ -252,6 +256,12 @@ export interface PlanOutcome {
   notes: string[];
 }
 
+/** A dungeon, with the levels of most of its quests. */
+export interface DungeonOption extends NamedId {
+  min_level: number | null;
+  max_level: number | null;
+}
+
 export interface NamedId {
   id: number;
   key: string;
@@ -265,7 +275,7 @@ export interface Options {
   races: { key: string; id: number; name: string; faction: string; classes: string[] }[];
   classes: NamedId[];
   zones: { id: number; name: string; names?: Record<string, string>; continent: number }[];
-  dungeons: NamedId[];
+  dungeons: DungeonOption[];
   class_quests: Record<string, string[]>;
   params: Params;
   /** Level cap of the game version. */
@@ -297,6 +307,10 @@ export interface Settings {
   addon: Record<string, boolean | number | string>;
   /** Language of the guides in the addon (game locale); unset: each guide in the language it was made in. */
   guide_locale?: string | null;
+  /** Offer every guide to every character, not only those of its race and class. */
+  all_guides?: boolean;
+  /** What the addon in the game was installed with (kept as is). */
+  addon_installed?: string | null;
 }
 
 export const api = {
@@ -325,11 +339,19 @@ export const api = {
   mapIndex: () => invoke<MapInfo[]>("map_index"),
   /** Characters the addon recorded in the game client of the current game version, most recently played first. */
   listCharacters: () => invoke<CharacterInfo[]>("list_characters"),
+  /** Which guide each character follows ("Name-Realm" -> guide id). */
+  listAssignments: () => invoke<Record<string, string>>("list_assignments"),
+  /** Make a character follow a guide (null: none) and write the addon; returns its number of guides. */
+  assignGuide: (character: string, guide: string | null) => invoke<number>("assign_guide", { character, guide }),
   mapImage: (id: number) => invoke<string>("map_image", { id }),
   exportRequest: (request: PlanRequest) => invoke<string>("export_request", { request }),
   /** Copies the addon into the game with the installed guides. */
   /** Returns the number of guides installed. */
   installAddon: () => invoke<number>("install_addon"),
+  /** Whether the addon in the game has the current settings. */
+  addonSynced: () => invoke<boolean>("addon_synced"),
+  /** Open a page of the project's repository in the browser. */
+  openLink: (url: string) => invoke<void>("open_link", { url }),
   /** Game version folders (_classic_beta_...) found in a WoW folder. */
   listClients: (wowDir: string) => invoke<string[]>("list_clients", { wowDir }),
   listEditions: () => invoke<EditionInfo[]>("list_editions"),

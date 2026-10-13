@@ -6,6 +6,7 @@ import { useT } from "../i18n";
 import { useWidth } from "./useWidth";
 import type { WorldPoint } from "./WorldMap";
 import { ZoneMap, type NumberedStep } from "./ZoneMap";
+import { Money } from "./Money";
 
 const KIND_LABELS: Record<string, string> = {
   accept: "Prendre",
@@ -306,7 +307,15 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
         <div className="tile">
           <span>{t("Pierres de foyer")}</span>
           <strong>{b.hearths}</strong>
-          <small>{t("{n} vols", { n: flights })}</small>
+          <small>
+            {t("{n} vols", { n: flights })}
+            {flights > 0 && b.flight_cost != null && b.flight_cost > 0 && (
+              <span title={t("Or dépensé en vols")}>
+                {" · "}
+                <Money copper={b.flight_cost} />
+              </span>
+            )}
+          </small>
         </div>
         <XpTile route={route} />
       </div>
@@ -368,15 +377,15 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
                     if (isOpen(i)) keepZoneInView(e.currentTarget);
                     toggle(i);
                   }}
-                  aria-expanded={isOpen(i)}
                 >
                   <td className="num">{fmtTime(s.start)}</td>
                   <td className="num">{duration(s.end - s.start)}</td>
                   <td>{s.fromLevel === s.toLevel ? s.fromLevel : `${s.fromLevel} → ${s.toLevel}`}</td>
                   <td>
-                    <span className="disclosure" aria-hidden>
+                    {/* Its click reaches the row, which opens or closes. */}
+                    <button className="disclosure" aria-expanded={isOpen(i)} aria-label={isOpen(i) ? t("Replier") : t("Déplier")} disabled={!!q}>
                       {isOpen(i) ? "▾" : "▸"}
-                    </span>{" "}
+                    </button>{" "}
                     {s.dungeon && <span className="kind kind-dungeon">{t("Donjon")}</span>} {s.zone ?? <em className="muted">{t("Préparation")}</em>}
                   </td>
                   <td className="num">{steps(s)}</td>

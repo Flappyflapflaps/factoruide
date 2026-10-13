@@ -220,7 +220,13 @@ end
 fire("ADDON_LOADED", "Factoruide")
 fire("PLAYER_LOGIN")
 local char = FactoruideDB.characters["Brouz-Realm"]
-assert(char.guide.route == "gnome-mage", "route picked: " .. tostring(char.guide.route))
+assert(char.guide.route == "gnome-mage", "assigned route followed: " .. tostring(char.guide.route))
+
+--- Assign a route to the character, as the app does in Routes.lua, and follow it.
+local function useRoute(name)
+    FG.Assignments["Brouz-Realm"] = name
+    FG.Guide:FollowAssignment()
+end
 assert(char.guide.step == 1)
 assert(waypoint and waypoint.m == 1426, "waypoint set")
 
@@ -311,7 +317,12 @@ FG.Routes["prof-test"] = {
         { k = "grind", t = "Grind", lvl = 60 },
     },
 }
-SlashCmdList.FACTORUIDE("route prof-test")
+-- No guide assigned: none followed (never picked by race or class); /fg route does not switch.
+useRoute(nil)
+assert(char.guide.route == nil, "no assigned route, got " .. tostring(char.guide.route))
+SlashCmdList.FACTORUIDE("route gnome-mage")
+assert(char.guide.route == nil, "/fg route does not switch, got " .. tostring(char.guide.route))
+useRoute("prof-test")
 assert(char.guide.step == 2, "rank already learned, step " .. char.guide.step)
 cooking = 25
 fire("SKILL_LINES_CHANGED")
@@ -338,7 +349,7 @@ FG.Routes["skip-test"] = {
     },
 }
 completed[5003] = true
-SlashCmdList.FACTORUIDE("route skip-test")
+useRoute("skip-test")
 assert(char.guide.step == 3, "outdated and alternative steps skipped, step " .. char.guide.step)
 SlashCmdList.FACTORUIDE("skip")
 assert(char.guide.step == 5, "current quest skipped by hand, step " .. char.guide.step)
@@ -361,14 +372,14 @@ FG.Routes["other-test"] = {
         { k = "turnin", t = "Turn in Current Quest", q = 5004, lvl = 21 },
     },
 }
-SlashCmdList.FACTORUIDE("route other-test")
+useRoute("other-test")
 assert(char.guide.step == 1 and not char.guide.skippedQuests[5004], "marked in another guide only")
-SlashCmdList.FACTORUIDE("route skip-test")
+useRoute("skip-test")
 assert(char.guide.step == 5 and char.guide.skippedQuests[5004], "back to the first guide")
 char.guide.marks[1] = "skip"
 FG.Routes["skip-test"].time = 2
-SlashCmdList.FACTORUIDE("route other-test")
-SlashCmdList.FACTORUIDE("route skip-test")
+useRoute("other-test")
+useRoute("skip-test")
 assert(not char.guide.marks[1] and char.guide.skippedQuests[5004], "new version")
 print("progress per guide ok")
 
@@ -387,7 +398,7 @@ FG.Routes["abandon-test"] = {
     },
 }
 onQuest[7001] = true
-SlashCmdList.FACTORUIDE("route abandon-test")
+useRoute("abandon-test")
 assert(char.guide.step == 1, "waits while the quest is in the log, step " .. char.guide.step)
 onQuest[7001] = nil
 fire("QUEST_REMOVED", 7001)
@@ -414,7 +425,7 @@ FG.Routes["checkpoint-test"] = {
         { k = "accept", t = "Accept Chain Follow-up", q = 6004, lvl = 22 },
     },
 }
-SlashCmdList.FACTORUIDE("route checkpoint-test")
+useRoute("checkpoint-test")
 assert(char.guide.step == 1, "checkpoint route starts at 1, step " .. char.guide.step)
 FG.Guide:SkipAhead()
 assert(char.guide.marks[1] == "skip" and char.guide.marks[3] == "skip", "filler skipped")
@@ -443,7 +454,7 @@ FG.Routes["turnin-test"] = {
         { k = "accept", t = "Accept Current Quest", q = 6002, lvl = 21 },
     },
 }
-SlashCmdList.FACTORUIDE("route turnin-test")
+useRoute("turnin-test")
 assert(char.guide.step == 3, "turn-in of a never accepted quest skipped, step " .. char.guide.step)
 print("accept-skipped ok")
 
@@ -464,7 +475,7 @@ FG.Routes["bg-test"] = {
         { k = "turnin", t = "Turn in Gold Dust Exchange", q = 7001, lvl = 6 },
     },
 }
-SlashCmdList.FACTORUIDE("route bg-test")
+useRoute("bg-test")
 assert(char.guide.step == 3, "background objective passed, step " .. char.guide.step)
 assert(FG.Guide:NextStepByQuest()[7001].bg, "background quest in progress for the tracker")
 print("background ok")
@@ -513,7 +524,7 @@ FG.Routes["macro-test"] = {
     },
 }
 onQuest[7101] = true
-SlashCmdList.FACTORUIDE("route macro-test")
+useRoute("macro-test")
 SlashCmdList.FACTORUIDE("macro")
 local index = GetMacroIndexByName("FG Cible")
 assert(index > 0, "target macro created")
@@ -556,7 +567,7 @@ FG.Routes["timing-test"] = {
         { k = "accept", t = "Accept", q = 7201, lvl = 3 },
     },
 }
-SlashCmdList.FACTORUIDE("route timing-test")
+useRoute("timing-test")
 FG.Guide:State().levelTimes = { [3] = 240 }
 assert(FG.Timing:Short():find("1 min", 1, true), "timing ahead of plan: " .. FG.Timing:Short())
 print("timing ok")
@@ -583,7 +594,7 @@ FG.Routes["fly-test"] = {
         { k = "fly", t = "Fly to Ironforge", e = "taxi", id = 6, n = "Ironforge", lvl = 3 },
     },
 }
-SlashCmdList.FACTORUIDE("route fly-test")
+useRoute("fly-test")
 for _, f in ipairs(frames) do
     if f.events.TAXIMAP_OPENED and f.OnEvent then f:OnEvent("TAXIMAP_OPENED") end
 end
@@ -604,7 +615,7 @@ FG.Routes["teleport-test"] = {
         { k = "grind", t = "Grind", lvl = 60 },
     },
 }
-SlashCmdList.FACTORUIDE("route teleport-test")
+useRoute("teleport-test")
 fire("QUEST_LOG_UPDATE")
 assert(char.guide.step == 1, "far from it: not there yet, step " .. char.guide.step)
 char.guide.step = 2
@@ -727,7 +738,7 @@ FG.Routes["pickup-test"] = {
     },
 }
 FG:Set("pickupLines", 10)
-SlashCmdList.FACTORUIDE("route pickup-test")
+useRoute("pickup-test")
 local function pickups() return table.concat(FG.Guide:Pickups(FG:Get("pickupLines")), ",") end
 assert(pickups() == "1,5", "only quests that can be taken now: " .. pickups())
 completed[6001] = true
@@ -768,7 +779,7 @@ C_QuestLog.GetNumQuestLogEntries = function() return #log end
 C_QuestLog.GetInfo = function(i) return { questID = log[i], title = "Q" .. log[i], level = 3 } end
 local isComplete = C_QuestLog.IsComplete
 C_QuestLog.IsComplete = function(q) return complete[q] or false end
-SlashCmdList.FACTORUIDE("route pending-test")
+useRoute("pending-test")
 assert(char.guide.step == 1, "not enough XP yet, step " .. char.guide.step)
 complete[7002] = true
 FG.Guide:Advance()
@@ -799,7 +810,7 @@ FG.Routes["xp-test"] = {
     },
 }
 playerLevel = 3
-SlashCmdList.FACTORUIDE("route xp-test")
+useRoute("xp-test")
 onQuest[8001] = true
 FG.Guide:Advance()
 assert(char.guide.step == 2, "step " .. char.guide.step)
@@ -834,14 +845,14 @@ local function dungeonRoute(name, withQuests)
 end
 onQuest[8001] = true
 dungeonRoute("dungeon-test", true)
-SlashCmdList.FACTORUIDE("route dungeon-test")
+useRoute("dungeon-test")
 assert(char.guide.step == 1, "the run first, step " .. char.guide.step)
 inside = true
 fire("ZONE_CHANGED_NEW_AREA")
 assert(char.guide.step == 2, "run done on entering, step " .. char.guide.step)
 inside = false
 dungeonRoute("dungeon-old", false)
-SlashCmdList.FACTORUIDE("route dungeon-old")
+useRoute("dungeon-old")
 inside = true
 fire("ZONE_CHANGED_NEW_AREA")
 assert(char.guide.step == 1, "an old run is not done inside")
@@ -868,7 +879,7 @@ FG.Routes["accept-test"] = {
         { k = "grind", t = "Grind", lvl = 60 },
     },
 }
-SlashCmdList.FACTORUIDE("route accept-test")
+useRoute("accept-test")
 local questID = GetQuestID
 local function taken(q)
     calls.AcceptQuest = nil
@@ -918,7 +929,7 @@ FG.Routes["farm-test"] = {
     time = 1,
     steps = { { k = "grind", t = "Grind", lvl = 60, fk = 3 } },
 }
-SlashCmdList.FACTORUIDE("route farm-test")
+useRoute("farm-test")
 local function kill(source, dest) fire("PARTY_KILL", source, dest) end
 kill("Player-1-2", "Creature-0-1-2-3-299-0000")
 kill("Player-1-2", "Creature-0-1-2-3-299-0001")
@@ -932,7 +943,7 @@ assert(not stepLine:find("2/3", 1, true) and stepLine:find("Grind", 1, true), "t
 print("farm on the way ok")
 
 -- Start over: asks when steps or quests were marked by hand, then undoes them.
-SlashCmdList.FACTORUIDE("route skip-test")
+useRoute("skip-test")
 char.guide.skippedQuests[5004] = true
 char.guide.marks[1] = "skip"
 calls.StaticPopup_Show = nil
@@ -976,7 +987,7 @@ FG.Routes["tracker-test"] = {
         { k = "grind", t = "Grind", lvl = 60 },
     },
 }
-SlashCmdList.FACTORUIDE("route tracker-test")
+useRoute("tracker-test")
 onQuest[7101] = true
 local entries = C_QuestLog.GetNumQuestLogEntries
 C_QuestLog.GetNumQuestLogEntries = function() return 0 end

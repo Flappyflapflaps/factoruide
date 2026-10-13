@@ -48,8 +48,12 @@ export function clearMapCache() {
   images.clear();
 }
 
+/** Our own map gives each zone one of these earth tones (`.tint-N`), as the game's map does. */
+const LAND_TINTS = 6;
+
 /** Continents (game maps), west to east. */
 const CONTINENTS = [1, 0, 530];
+
 
 /** Projects world coordinates (x north, y west) on a map image of `info`. */
 function projector(info: MapInfo) {
@@ -62,7 +66,9 @@ function projector(info: MapInfo) {
 
 interface Panel {
   info: MapInfo;
+  /** Where the map image starts, and the part of it shown (our own map keeps only its land). */
   dx: number;
+  width: number;
   project: (x: number, y: number) => [number, number];
 }
 
@@ -91,6 +97,9 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   const [hover, setHover] = useState<{ id: number; name: string } | null>(null);
+  // Choosing zones: our own map, the zones drawn as they are clicked. A route: the game's
+  // parchment (darkened), its relief and coasts telling why the route goes where it goes.
+  const look = onZoneClick ? "vector" : "parchment";
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -128,24 +137,31 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
       index.filter((m) => m.kind === 2 && m.bounds?.map === map).sort((a, b) => b.width - a.width)[0];
     const wanted = shown.split(",").map(Number);
     const maps = CONTINENTS.filter((c) => wanted.includes(c)).map(base).filter(Boolean);
-    let dx = 0;
+    let at = 0;
     return maps.map((info) => {
-      const p = { info, dx, project: projector(info) };
-      dx += info.width;
+      // Our own map: each continent from its westmost to its eastmost zone, a sea's width apart.
+      const xs = look === "vector" ? index.filter((m) => m.kind === 3 && m.parent === info.id && m.shape?.length).flatMap((m) => m.shape!.flat().map(([x]) => x)) : [];
+      const from = xs.length ? Math.min(...xs) - 40 : 0;
+      const width = xs.length ? Math.max(...xs) + 40 - from : info.width;
+      const p = { info, dx: at - from, width, project: projector(info) };
+      at += width;
       return p;
     });
-  }, [index, shown]);
+  }, [index, shown, look]);
   const key = panels.map((p) => p.info.id).join("+");
 
   useEffect(() => {
     setView({ scale: 1, x: 0, y: 0 });
+  }, [key]);
+  useEffect(() => {
+    if (look !== "parchment") return;
     for (const p of panels) {
       loadImage(p.info.id)
         .then((src) => setLoaded((l) => ({ ...l, [p.info.id]: src })))
         .catch((e) => setError(String(e)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, look]);
 
   const zones = useMemo(
     () =>
@@ -171,8 +187,21 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
   if (error) return <div className="error">{t("Carte indisponible : {error}", { error })}</div>;
   if (!panels.length) return <div className="map-frame" style={{ aspectRatio: "3 / 2" }} />;
 
-  const W = panels.reduce((s, p) => s + p.info.width, 0);
+  const W = panels.reduce((s, p) => s + p.width, 0);
   const H = Math.max(...panels.map((p) => p.info.height));
+  const s = panels.length > 2 ? 2.2 : panels.length > 1 ? 1.6 : 1; // maps side by side are drawn smaller
+  // Our own map is framed on the land (the game's images keep wide seas around it).
+  const outlined = look === "vector" ? zones.filter((r) => r.z.shape?.length) : [];
+  const land = outlined.map((r) => r.d).join("");
+  const box = (() => {
+    if (!outlined.length) return { x: 0, y: 0, w: W, h: H };
+    const xs = outlined.flatMap((r) => r.rings.flat().map(([x]) => x));
+    const ys = outlined.flatMap((r) => r.rings.flat().map(([, y]) => y));
+    const pad = 24 * s;
+    const x = Math.min(...xs) - pad;
+    const y = Math.min(...ys) - pad;
+    return { x, y, w: Math.max(...xs) + pad - x, h: Math.max(...ys) + pad - y };
+  })();
   const panelOf = (map: number) => panels.find((p) => p.info.bounds!.map === map);
   const project = (p: WorldPoint): [number, number] | null => {
     const panel = panelOf(p[0]);
@@ -229,7 +258,6 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
   const path = pieces.join("");
   const lit = highlight?.length ? trace(highlight, 1).pieces[0] : "";
   const k = 1 / view.scale; // keep strokes and labels readable when zoomed
-  const s = panels.length > 2 ? 2.2 : panels.length > 1 ? 1.6 : 1; // maps side by side are drawn smaller
   // Markers too close to be read apart are drawn as one: the first level and how many more
   // (all of them on hover). Groups are a marker apart, so they never overlap.
   const groups: { q: [number, number]; labels: string[]; titles: string[] }[] = [];
@@ -254,8 +282,9 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
         <span className="map-hover">{hover?.name ?? (onZoneClick ? t("Cliquez une zone : privilégiée → exclue → neutre · Ctrl + molette : zoom") : t("Ctrl + molette : zoom · glisser : déplacer · double-clic : vue entière"))}</span>
       </div>
       <div
-        className="map-frame"
-        style={{ aspectRatio: `${W} / ${H}`, maxWidth: height ? (height * W) / H : undefined }}
+        className={`map-frame ${look}`}
+        // Our own map fills the width at the given height (the sky around it); the game's keeps its proportions.
+        style={look === "vector" ? { height } : { aspectRatio: `${box.w} / ${box.h}`, maxWidth: height ? (height * box.w) / box.h : undefined }}
         ref={frameRef}
         onMouseDown={(e) => (drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false })}
         onMouseMove={(e) => {
@@ -281,8 +310,10 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
         <div className="map-inner" style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}>
           <svg
             ref={svgRef}
-            viewBox={`0 0 ${W} ${H}`}
-            preserveAspectRatio="none"
+            role="img"
+            aria-label={onZoneClick ? t("Carte des zones : cliquez une zone, ou utilisez la recherche à côté") : t("Carte du guide")}
+            viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`}
+            preserveAspectRatio={look === "vector" ? "xMidYMid meet" : "none"}
             onClick={(e) => {
               if (!onZoneClick || drag.current?.moved) return;
               const p = toMap(e);
@@ -290,7 +321,23 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
               if (hit) onZoneClick(hit.z.area!, hit.z.name);
             }}
           >
-            {panels.map((p) =>
+            <defs>
+              <pattern id="hatch" patternUnits="userSpaceOnUse" width={8 * s} height={8 * s} patternTransform="rotate(45)">
+                <line x1="0" y1="0" x2="0" y2={8 * s} stroke="rgba(255, 220, 220, 0.75)" strokeWidth={2 * s} />
+              </pattern>
+            </defs>
+            {look === "vector" && (
+              <>
+                {/* The zones' outlines are simplified and leave gaps: a thick stroke under them
+                    joins them into land masses. */}
+                <path d={land} className="land-mass" strokeWidth={9 * s} strokeLinejoin="round" />
+                {outlined.map((r) => (
+                  <path key={r.z.id} d={r.d} className={`zone-land tint-${(r.z.area ?? r.z.id) % LAND_TINTS}`} fillRule="evenodd" strokeWidth={1 * k * s} strokeLinejoin="round" />
+                ))}
+              </>
+            )}
+            {look === "parchment" &&
+              panels.map((p) =>
               loaded[p.info.id] ? (
                 <image key={p.info.id} href={loaded[p.info.id]} x={p.dx} y={0} width={p.info.width} height={p.info.height} preserveAspectRatio="none" />
               ) : (
@@ -298,7 +345,7 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
                   {t("Chargement de la carte…")}
                 </text>
               ),
-            )}
+              )}
             {onZoneClick && hover && (
               <path d={zones.find((r) => r.z.id === hover.id)?.d} className="zone-hover" fillRule="evenodd" strokeWidth={2.5 * k * s} strokeLinejoin="round" />
             )}
@@ -306,11 +353,10 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
               .filter((r) => zoneStates?.[r.z.area!])
               .map((r) => (
                 <g key={r.z.id} className={`zone-mark ${zoneStates![r.z.area!]}`}>
-                  <path d={r.d} fillRule="evenodd" strokeWidth={3 * k * s} strokeLinejoin="round" />
-                  <text x={r.label[0]} y={r.label[1]} fontSize={24 * k * s} textAnchor="middle" dominantBaseline="middle">
-                    {zoneStates![r.z.area!] === "preferred" ? "★ " : "✕ "}
-                    {areaName(r.z)}
-                  </text>
+                  <path d={r.d} fillRule="evenodd" strokeWidth={1.6 * k * s} strokeLinejoin="round" />
+                  {zoneStates![r.z.area!] === "excluded" && <path d={r.d} fillRule="evenodd" className="zone-hatch" />}
+                  {/* No names (the list beside the map has them); a dot shows a zone too small to be seen. */}
+                  {r.area < 900 && <circle cx={r.label[0]} cy={r.label[1]} r={4 * k * s} />}
                 </g>
               ))}
             {jumps && <path d={jumps} className="route-jump" strokeWidth={1.2 * k * s} />}

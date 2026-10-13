@@ -467,7 +467,6 @@ export function GuideEditor({ version, onClose, onSaved }: Props) {
                       if (expanded) keepZoneInView(e.currentTarget);
                       toggle(k);
                     }}
-                    aria-expanded={expanded}
                     onDragOver={(e) => {
                       if (!drag) return;
                       e.preventDefault();
@@ -484,9 +483,9 @@ export function GuideEditor({ version, onClose, onSaved }: Props) {
                     <td className="num">{duration(s.end - s.start)}</td>
                     <td>{s.fromLevel === s.toLevel ? s.fromLevel : `${s.fromLevel} → ${s.toLevel}`}</td>
                     <td colSpan={2}>
-                      <span className="disclosure" aria-hidden>
+                      <button className="disclosure" aria-expanded={expanded} aria-label={expanded ? t("Replier") : t("Déplier")} disabled={!!q}>
                         {expanded ? "▾" : "▸"}
-                      </span>{" "}
+                      </button>{" "}
                       {s.dungeon && <span className="kind kind-dungeon">{t("Donjon")}</span>} {s.zone ?? <em className="muted">{t("Préparation")}</em>}{" "}
                       <span className="muted">· {t("{n} étapes", { n: steps_(s) })}</span>
                       {errors > 0 && <span className="tag invalid">{t("{n} impossible(s)", { n: errors })}</span>}

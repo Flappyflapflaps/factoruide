@@ -8,7 +8,8 @@ const CLASS_COLORS: Record<string, string> = {
   hunter: "#aad372",
   rogue: "#fff468",
   priest: "#ffffff",
-  shaman: "#0070dd",
+  // The game's #0070dd, lightened to read on the dark chips (3.6:1 → 5.4:1).
+  shaman: "#2e8fff",
   mage: "#3fc7eb",
   warlock: "#8788ee",
   druid: "#ff7c0a",

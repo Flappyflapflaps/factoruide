@@ -1,5 +1,6 @@
 import type { CharacterInfo, StartState } from "../api";
 import { useDate, useGameName, useT } from "../i18n";
+import { Hint } from "./Hint";
 
 interface Props {
   /** Characters the addon recorded (null while loading). */
@@ -21,8 +22,19 @@ export function CharacterPicker({ characters, start, onPick }: Props) {
 
   return (
     <div className="field character-picker">
-      <span>{t("Partir d'un personnage")}</span>
-      <select value={start?.name ?? ""} onChange={(e) => pick(e.target.value)}>
+      <span>
+        {t("Partir d'un personnage")}
+        <Hint
+          text={
+            start
+              ? t("Le guide part de ce personnage : ses quêtes faites sont ignorées ; celles de son journal sont reprises si elles servent, sinon abandonnées en première étape. En jeu, /fg profile (ou une déconnexion) met le profil à jour.")
+              : characters?.length === 0
+                ? t("Aucun personnage enregistré : connectez-vous en jeu avec l'addon installé, puis tapez /fg profile.")
+                : t("Choisissez un personnage enregistré en jeu pour reprendre là où il en est.")
+          }
+        />
+      </span>
+      <select aria-label={t("Partir d'un personnage")} value={start?.name ?? ""} onChange={(e) => pick(e.target.value)}>
         <option value="">{t("Nouveau personnage")}</option>
         {start && !latest && <option value={start.name}>{t("{name} (instantané de ce guide)", { name: start.name })}</option>}
         {characters?.map((c) => (
@@ -52,13 +64,6 @@ export function CharacterPicker({ characters, start, onPick }: Props) {
       {start && start.flights.length === 0 && (
         <small className="field-error">{t("Aucun trajet aérien connu : ouvrez la carte d'un maître de vol en jeu pour les enregistrer.")}</small>
       )}
-      <small>
-        {start
-          ? t("Le guide part de ce personnage : ses quêtes faites sont ignorées ; celles de son journal sont reprises si elles servent, sinon abandonnées en première étape. En jeu, /fg profile (ou une déconnexion) met le profil à jour.")
-          : characters?.length === 0
-            ? t("Aucun personnage enregistré : connectez-vous en jeu avec l'addon installé, puis tapez /fg profile.")
-            : t("Choisissez un personnage enregistré en jeu pour reprendre là où il en est.")}
-      </small>
     </div>
   );
 }

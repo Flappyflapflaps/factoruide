@@ -35,3 +35,8 @@ FG.Routes["gnome-mage"] = { race = 7, class = 8, faction = "Alliance", fromLevel
   { k = "accept", t = "Accept Senir's Observations from Grelin Whitebeard", q = 282, m = 1426, x = 25.08, y = 75.71, e = "npc", id = 786, n = "Grelin Whitebeard", lvl = 5 },
   { k = "turnin", t = "Turn in Senir's Observations to Mountaineer Thalos", q = 282, m = 1426, x = 33.48, y = 71.84, e = "npc", id = 1965, n = "Mountaineer Thalos", lvl = 5 },
 } }
+
+-- Which guide each character follows (assigned in the app).
+FG.Assignments = {
+  ["Brouz-Realm"] = "gnome-mage",
+}
