@@ -4,6 +4,7 @@
 -- while `replaceTracker` is on (deferred after combat when the frame is protected).
 
 local _, FG = ...
+local QuestLog = FG.QuestLog
 local Tracker = {}
 FG.Tracker = Tracker
 --- Quest IDs shown at the last refresh, in order.
@@ -112,31 +113,31 @@ local function CollectQuests()
         if seen[q] then return end
         seen[q] = true
         -- The log's line (level, quest item) when it is listed: not under a collapsed header.
-        logIndex = logIndex or (C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(q))
-        local info = logIndex and C_QuestLog.GetInfo(logIndex)
+        logIndex = logIndex or (QuestLog.GetLogIndexForQuestID and QuestLog.GetLogIndexForQuestID(q))
+        local info = logIndex and QuestLog.GetInfo(logIndex)
         if info and info.questID ~= q then
             info, logIndex = nil, nil
         end
         table.insert(quests, {
             id = q,
             index = logIndex,
-            title = info and info.title or C_QuestLog.GetTitleForQuestID(q) or ("#" .. q),
+            title = info and info.title or QuestLog.GetTitleForQuestID(q) or ("#" .. q),
             level = info and info.level,
-            complete = C_QuestLog.IsComplete(q),
-            failed = C_QuestLog.IsFailed and C_QuestLog.IsFailed(q),
-            objectives = C_QuestLog.GetQuestObjectives(q) or {},
+            complete = QuestLog.IsComplete(q),
+            failed = QuestLog.IsFailed and QuestLog.IsFailed(q),
+            objectives = QuestLog.GetQuestObjectives(q) or {},
             step = nextStep[q],
         })
     end
     -- The route's quests in the log, from the route: the same list whatever the quest log
     -- window shows (headers collapsed or expanded while it is open).
     for q, step in pairs(nextStep) do
-        if inProgress(step) and C_QuestLog.IsOnQuest(q) then add(q) end
+        if inProgress(step) and QuestLog.IsOnQuest(q) then add(q) end
     end
     -- The others, from the log, when the whole log is shown.
     if FG:Get("trackerAll") then
-        for i = 1, C_QuestLog.GetNumQuestLogEntries() do
-            local info = C_QuestLog.GetInfo(i)
+        for i = 1, QuestLog.GetNumQuestLogEntries() do
+            local info = QuestLog.GetInfo(i)
             if info and not info.isHeader and not info.isHidden and info.questID then add(info.questID, i) end
         end
     end
@@ -273,11 +274,7 @@ function Tracker:Refresh()
 
     frame.title:SetText("Factoruide · " .. L.title)
     frame.count:SetText(
-        string.format(
-            "%d/%d",
-            #quests,
-            C_QuestLog.GetMaxNumQuestsCanAccept and C_QuestLog.GetMaxNumQuestsCanAccept() or 20
-        )
+        string.format("%d/%d", #quests, QuestLog.GetMaxNumQuestsCanAccept and QuestLog.GetMaxNumQuestsCanAccept() or 20)
     )
     -- Professions: skill against the route's curve for the current level.
     local followed = FG.Guide and FG.Guide.Route and FG.Guide:Route()

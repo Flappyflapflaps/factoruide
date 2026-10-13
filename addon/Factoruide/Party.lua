@@ -2,6 +2,7 @@
 -- the party; the tracker shows theirs next to each objective.
 
 local _, FG = ...
+local QuestLog = FG.QuestLog
 
 local PREFIX = "FGSYNC1"
 local Party = { progress = {} }
@@ -16,7 +17,7 @@ local function Encode()
         local _, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(i)
         if not isHeader and questID and questID > 0 then
             local counts = {}
-            for _, o in ipairs(C_QuestLog.GetQuestObjectives(questID) or {}) do
+            for _, o in ipairs(QuestLog.GetQuestObjectives(questID) or {}) do
                 table.insert(counts, o.finished and "x" or tostring(o.numFulfilled or 0))
             end
             table.insert(parts, questID .. ":" .. table.concat(counts, ","))

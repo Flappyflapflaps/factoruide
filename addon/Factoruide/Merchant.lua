@@ -31,7 +31,7 @@ local function SellJunk()
         for slot = 1, C_Container.GetContainerNumSlots(bag) do
             local info = C_Container.GetContainerItemInfo(bag, slot)
             if info and info.quality == 0 and not info.hasNoValue then
-                local price = select(11, C_Item.GetItemInfo(info.itemID)) or 0
+                local price = select(11, FG.ItemInfo(info.itemID)) or 0
                 total = total + price * (info.stackCount or 1)
                 C_Container.UseContainerItem(bag, slot)
             end
@@ -91,7 +91,7 @@ local function Stock(families, want, budget)
         bought = bought + n
     end
     if bought > 0 then
-        local name = C_Item.GetItemInfo(offer.id) or ("item " .. offer.id)
+        local name = FG.ItemInfo(offer.id) or ("item " .. offer.id)
         FG:Print(fr and "acheté : %d × %s" or "bought: %d × %s", bought, name)
     end
     return bought * offer.unit
@@ -104,7 +104,7 @@ local function Supplies()
     if not NO_MANA[class] then budget = budget - Stock(WATER, FG:Get("suppliesWater"), budget) end
     if class == "HUNTER" then
         local ranged = GetInventoryItemID("player", 18)
-        local subclass = ranged and select(7, C_Item.GetItemInfoInstant(ranged))
+        local subclass = ranged and select(7, FG.ItemInfoInstant(ranged))
         -- Guns (3) shoot bullets; bows (2) and crossbows (18) arrows.
         Stock(subclass == 3 and BULLETS or ARROWS, FG:Get("suppliesAmmo"), budget)
     end

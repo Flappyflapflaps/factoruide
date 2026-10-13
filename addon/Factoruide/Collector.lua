@@ -5,6 +5,7 @@
 --   { seq, time, event, questID, entityType, entityID, uiMapID, x, y, level, data }
 
 local _, FG = ...
+local QuestLog = FG.QuestLog
 local Collector = {}
 FG.Collector = Collector
 
@@ -66,11 +67,11 @@ local function SnapshotCharacter()
     char.class = classFile
     char.faction = UnitFactionGroup("player")
     char.level = UnitLevel("player")
-    local completed = C_QuestLog.GetAllCompletedQuestIDs and C_QuestLog.GetAllCompletedQuestIDs()
+    local completed = QuestLog.GetAllCompletedQuestIDs and QuestLog.GetAllCompletedQuestIDs()
     if completed then char.completed = completed end
     local log = {}
-    for i = 1, C_QuestLog.GetNumQuestLogEntries() do
-        local info = C_QuestLog.GetInfo(i)
+    for i = 1, QuestLog.GetNumQuestLogEntries() do
+        local info = QuestLog.GetInfo(i)
         if info and not info.isHeader and info.questID then table.insert(log, info.questID) end
     end
     char.questLog = log
@@ -149,7 +150,7 @@ end)
 
 FG:On("QUEST_ACCEPTED", function(questID)
     local entityType, entityID = LastInteraction()
-    local info = C_QuestLog.GetInfo(C_QuestLog.GetLogIndexForQuestID(questID) or 0)
+    local info = QuestLog.GetInfo(QuestLog.GetLogIndexForQuestID(questID) or 0)
     Record("accept", questID, entityType, entityID, {
         title = info and info.title,
         level = info and info.level,

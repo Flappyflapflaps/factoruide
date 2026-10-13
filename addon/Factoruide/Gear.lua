@@ -98,7 +98,7 @@ end
 
 --- Whether the character can wear or wield it (at its level).
 function Gear:Usable(link)
-    local _, _, _, equipLoc, _, classID, subclassID = C_Item.GetItemInfoInstant(link)
+    local _, _, _, equipLoc, _, classID, subclassID = FG.ItemInfoInstant(link)
     if not SLOTS[equipLoc] then return false end
     local class = Class()
     if classID == 4 and subclassID and subclassID > 0 then
@@ -118,7 +118,7 @@ function Gear:Upgrade(link)
     if not link or not self:Usable(link) then return nil end
     local new = self:Score(link)
     if not new then return nil end
-    local equipLoc = select(4, C_Item.GetItemInfoInstant(link))
+    local equipLoc = select(4, FG.ItemInfoInstant(link))
     local current
     for _, slot in ipairs(SLOTS[equipLoc]) do
         local worn = GetInventoryItemLink("player", slot)

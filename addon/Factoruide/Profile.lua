@@ -6,6 +6,7 @@
 -- FactoruideDB.profiles["Name-Realm"] = { level, xp, completed = { questID... }, log = {...} ... }
 
 local _, FG = ...
+local QuestLog = FG.QuestLog
 local Profile = {}
 FG.Profile = Profile
 
@@ -20,7 +21,7 @@ local UNKNOWN_FLIGHT = Enum and Enum.FlightPathState and Enum.FlightPathState.Un
 local profile -- this character's saved profile
 
 local function CompletedQuests()
-    if C_QuestLog.GetAllCompletedQuestIDs then return C_QuestLog.GetAllCompletedQuestIDs() or {} end
+    if QuestLog.GetAllCompletedQuestIDs then return QuestLog.GetAllCompletedQuestIDs() or {} end
     local out = {}
     for id, done in pairs(GetQuestsCompleted and GetQuestsCompleted() or {}) do
         if done then table.insert(out, id) end
@@ -30,14 +31,14 @@ local function CompletedQuests()
 end
 
 --- Quests in the log, with what their objectives have so far.
-local function QuestLog()
+local function LogQuests()
     local log = {}
-    for i = 1, C_QuestLog.GetNumQuestLogEntries() do
-        local info = C_QuestLog.GetInfo(i)
+    for i = 1, QuestLog.GetNumQuestLogEntries() do
+        local info = QuestLog.GetInfo(i)
         local id = info and not info.isHeader and info.questID
         if id and id > 0 then
             local objectives = {}
-            for _, o in ipairs(C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(id) or {}) do
+            for _, o in ipairs(QuestLog.GetQuestObjectives and QuestLog.GetQuestObjectives(id) or {}) do
                 table.insert(objectives, {
                     text = o.text or "",
                     done = o.numFulfilled or 0,
@@ -45,7 +46,7 @@ local function QuestLog()
                     finished = o.finished and true or false,
                 })
             end
-            local complete = C_QuestLog.IsComplete and C_QuestLog.IsComplete(id)
+            local complete = QuestLog.IsComplete and QuestLog.IsComplete(id)
             table.insert(log, { id = id, complete = complete and true or false, objectives = objectives })
         end
     end
@@ -132,7 +133,7 @@ function Profile:Snapshot()
         return x and { map = map, x = x, y = y } or nil
     end)
     profile.completed = Part("completed", CompletedQuests)
-    profile.log = Part("log", QuestLog)
+    profile.log = Part("log", LogQuests)
     profile.professions = Part("professions", Professions)
     profile.riding = Part("riding", function() return FG.ProfessionSkill(RIDING) or 0 end)
     profile.gear = Part("gear", Gear)

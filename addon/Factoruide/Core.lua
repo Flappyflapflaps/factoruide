@@ -90,6 +90,61 @@ function FG.SpellName(id)
     return GetSpellInfo and (GetSpellInfo(id))
 end
 
+--- Item info, from C_Item or the older globals.
+function FG.ItemInfo(item)
+    if C_Item and C_Item.GetItemInfo then return C_Item.GetItemInfo(item) end
+    return GetItemInfo(item)
+end
+
+function FG.ItemInfoInstant(item)
+    if C_Item and C_Item.GetItemInfoInstant then return C_Item.GetItemInfoInstant(item) end
+    return GetItemInfoInstant(item)
+end
+
+--- C_QuestLog as the modules use it. The Classic Era client (1.15) lacks the quest log functions
+--- of the newer ones (its log is read through GetQuestLogTitle): they are rebuilt here, in a table
+--- of our own so the other addons, which test whether C_QuestLog has them, see the game as it is.
+local function LogEntry(index)
+    local title, level, _, isHeader, isCollapsed, isComplete, frequency, questID = GetQuestLogTitle(index)
+    if not title then return nil end
+    return {
+        title = title,
+        level = level,
+        isHeader = isHeader and true or false,
+        isCollapsed = isCollapsed and true or false,
+        questID = questID or 0,
+        frequency = frequency,
+        state = isComplete, -- 1 complete, -1 failed
+    }
+end
+
+local function LogIndex(questID)
+    local index = GetQuestLogIndexByID and GetQuestLogIndexByID(questID)
+    return index and index > 0 and index or nil
+end
+
+local function LogState(questID)
+    local index = LogIndex(questID)
+    local entry = index and LogEntry(index)
+    return entry and entry.state
+end
+
+local classicLog = {
+    GetNumQuestLogEntries = function() return (GetNumQuestLogEntries()) end,
+    GetInfo = LogEntry,
+    GetLogIndexForQuestID = LogIndex,
+    GetTitleForQuestID = function(questID)
+        if C_QuestLog.GetQuestInfo then return C_QuestLog.GetQuestInfo(questID) end
+        local index = LogIndex(questID)
+        return index and (GetQuestLogTitle(index))
+    end,
+    IsComplete = function(questID) return LogState(questID) == 1 end,
+    IsFailed = function(questID) return LogState(questID) == -1 end,
+    IsOnQuest = function(questID) return LogIndex(questID) ~= nil end,
+    IsQuestFlaggedCompleted = IsQuestFlaggedCompleted,
+}
+FG.QuestLog = setmetatable({}, { __index = function(_, name) return C_QuestLog[name] or classicLog[name] end })
+
 --- Parse a GUID into its entity type ("npc", "object", "player") and ID.
 function FG.ParseGUID(guid)
     guid = FG.Readable(guid)

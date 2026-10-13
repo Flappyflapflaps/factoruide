@@ -881,6 +881,27 @@ assert(taken(9002), "a quest of the guide is taken")
 SlashCmdList.FACTORUIDE("skip 9003")
 assert(not taken(9003), "a quest marked done by hand is not taken")
 assert(not taken(9999), "a quest out of the guide is not taken")
+-- Classic and TBC have no quests taken on sight (no QuestGetAutoAccept).
+local autoAccept = QuestGetAutoAccept
+QuestGetAutoAccept = nil
+assert(taken(9002), "a quest of the guide is taken on Classic")
+assert(not taken(9999), "a quest out of the guide is not taken on Classic")
+QuestGetAutoAccept = autoAccept
+-- Quest greeting: a quest of the guide is opened; one without ID (older clients) is opened too,
+-- its dialog decides.
+local greeting = {}
+GetNumAvailableQuests = function() return #greeting end
+GetNumActiveQuests = function() return 0 end
+GetAvailableQuestInfo = function(i) return false, 0, false, false, greeting[i] end
+SelectAvailableQuest = record("SelectAvailableQuest")
+local function opened(ids)
+    greeting, calls.SelectAvailableQuest = ids, nil
+    fire("QUEST_GREETING")
+    return calls.SelectAvailableQuest and calls.SelectAvailableQuest[1]
+end
+assert(opened({ 9999, 9002 }) == 2, "the guide's quest opened")
+assert(opened({ 9999 }) == nil, "a quest out of the guide is not opened")
+assert(opened({ 0 }) == 1, "a quest without ID is opened")
 calls.ConfirmAcceptQuest = nil
 fire("QUEST_ACCEPT_CONFIRM", "Friend", "Shared Escort")
 assert(not calls.ConfirmAcceptQuest, "a shared escort is not confirmed")
@@ -978,3 +999,43 @@ InCombatLockdown = function() return false end
 fire("PLAYER_REGEN_ENABLED")
 assert(resized, "resized after the fight")
 print("combat layout ok")
+
+-- Classic Era (1.15) has no C_QuestLog log functions: the quest log is read through the older
+-- globals, and the guide still draws.
+local modern = {}
+for _, name in ipairs({
+    "GetNumQuestLogEntries",
+    "GetInfo",
+    "GetLogIndexForQuestID",
+    "GetTitleForQuestID",
+    "IsComplete",
+}) do
+    modern[name] = C_QuestLog[name]
+    C_QuestLog[name] = nil
+end
+local classicLog = {
+    { "Northshire", nil, nil, true, false, nil, nil, 0 },
+    { "A Threat Within", 1, nil, false, false, 1, nil, 783 },
+    { "Wolves Across the Border", 2, nil, false, false, nil, nil, 33 },
+    { "Lost Necklace", 3, nil, false, false, -1, nil, 85 },
+}
+GetNumQuestLogEntries = function() return #classicLog, 3 end
+GetQuestLogTitle = function(i) return unpack(classicLog[i] or {}) end
+GetQuestLogIndexByID = function(q)
+    for i, e in ipairs(classicLog) do
+        if e[8] == q then return i end
+    end
+    return 0
+end
+local log = FG.QuestLog
+assert(log.GetNumQuestLogEntries() == 4, "entries")
+assert(log.GetInfo(1).isHeader and log.GetInfo(2).questID == 783, "headers and quests")
+assert(log.GetLogIndexForQuestID(33) == 3 and log.GetLogIndexForQuestID(99) == nil, "log index")
+assert(log.GetTitleForQuestID(33) == "Wolves Across the Border", "title")
+assert(log.IsComplete(783) and not log.IsComplete(33) and log.IsFailed(85), "complete and failed")
+FG.Guide:Refresh()
+FG.Tracker:Refresh()
+for name, fn in pairs(modern) do
+    C_QuestLog[name] = fn
+end
+print("classic era quest log ok")

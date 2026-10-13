@@ -44,7 +44,10 @@ FG:On("QUEST_GREETING", function()
     end
     for i = 1, GetNumAvailableQuests() do
         local _, _, isRepeatable, _, questID = GetAvailableQuestInfo(i)
-        if Wanted(questID) and not isRepeatable then
+        -- Without the quest's ID (older clients), it is opened: its dialog tells whether to take it.
+        local known = questID and questID > 0
+        local open = (known and Wanted(questID)) or (not known and FG:Get("autoAccept"))
+        if open and not isRepeatable then
             SelectAvailableQuest(i)
             return
         end
@@ -53,7 +56,8 @@ end)
 
 FG:On("QUEST_DETAIL", function()
     if Skip() then return end
-    if QuestGetAutoAccept() then
+    -- Quests taken on sight came with Cataclysm: Classic and TBC have neither the case nor the function.
+    if QuestGetAutoAccept and QuestGetAutoAccept() then
         AcknowledgeAutoAcceptQuest()
     elseif Wanted(GetQuestID()) then
         AcceptQuest()
@@ -75,7 +79,7 @@ local function BestReward(choices)
     local best, bestPrice = nil, -1
     for i = 1, choices do
         local link = GetQuestItemLink("choice", i)
-        local price = link and select(11, C_Item.GetItemInfo(link))
+        local price = link and select(11, FG.ItemInfo(link))
         if not price then return nil end
         if price > bestPrice then
             best, bestPrice = i, price

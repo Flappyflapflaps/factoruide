@@ -8,6 +8,7 @@
 -- The native waypoint arrow points at the first unfinished task.
 
 local _, FG = ...
+local QuestLog = FG.QuestLog
 local Guide = {}
 FG.Guide = Guide
 
@@ -121,11 +122,11 @@ local Distance -- defined below, used by IsDone
 
 -- Progress -------------------------------------------------------------------
 
-local function QuestTitle(step) return step.q and C_QuestLog.GetTitleForQuestID(step.q) or nil end
+local function QuestTitle(step) return step.q and QuestLog.GetTitleForQuestID(step.q) or nil end
 
 --- Game objective matching the step's target name.
 local function FindObjective(step)
-    local objectives = C_QuestLog.GetQuestObjectives(step.q)
+    local objectives = QuestLog.GetQuestObjectives(step.q)
     if objectives and step.n then
         local name = step.n:lower()
         for _, o in ipairs(objectives) do
@@ -151,8 +152,8 @@ local function AcceptSkipped(step, index)
     local at = acceptIndex[step.q]
     return at ~= nil
         and at < index
-        and not C_QuestLog.IsOnQuest(step.q)
-        and not C_QuestLog.IsQuestFlaggedCompleted(step.q)
+        and not QuestLog.IsOnQuest(step.q)
+        and not QuestLog.IsQuestFlaggedCompleted(step.q)
         and IsDone(route.steps[at], at)
 end
 
@@ -166,11 +167,11 @@ local function PendingXP(step, index)
         last = last + 1
     end
     local xp = 0
-    for i = 1, C_QuestLog.GetNumQuestLogEntries() do
-        local info = C_QuestLog.GetInfo(i)
+    for i = 1, QuestLog.GetNumQuestLogEntries() do
+        local info = QuestLog.GetInfo(i)
         local q = info and not info.isHeader and info.questID
         local at = q and turninIndex[q]
-        if at and at > index and at <= last and route.steps[at].rx and C_QuestLog.IsComplete(q) then
+        if at and at > index and at <= last and route.steps[at].rx and QuestLog.IsComplete(q) then
             xp = xp + route.steps[at].rx
         end
     end
@@ -184,18 +185,18 @@ function IsDone(step, index)
     end
     -- Planned well below our level: left behind (a character resuming the route, a quest
     -- added to the game after we went through that zone), unless the quest is in the log.
-    if step.lvl and UnitLevel("player") - step.lvl >= OUTDATED_LEVELS and not (q and C_QuestLog.IsOnQuest(q)) then
+    if step.lvl and UnitLevel("player") - step.lvl >= OUTDATED_LEVELS and not (q and QuestLog.IsOnQuest(q)) then
         return true
     end
     -- An exclusive alternative (or the quest a breadcrumb leads to) is done or in progress:
     -- this quest cannot be taken any more.
-    if step.alt and not C_QuestLog.IsOnQuest(q) then
+    if step.alt and not QuestLog.IsOnQuest(q) then
         for _, other in ipairs(step.alt) do
-            if C_QuestLog.IsQuestFlaggedCompleted(other) or C_QuestLog.IsOnQuest(other) then return true end
+            if QuestLog.IsQuestFlaggedCompleted(other) or QuestLog.IsOnQuest(other) then return true end
         end
     end
     if step.k == "accept" then
-        if C_QuestLog.IsOnQuest(q) or C_QuestLog.IsQuestFlaggedCompleted(q) then return true end
+        if QuestLog.IsOnQuest(q) or QuestLog.IsQuestFlaggedCompleted(q) then return true end
         -- Profession quest (optional): skipped without the skill it needs.
         if step.line and step.sk then
             local rank = FG.ProfessionSkill(step.line)
@@ -203,17 +204,17 @@ function IsDone(step, index)
         end
         return false
     elseif step.k == "objective" then
-        if C_QuestLog.IsQuestFlaggedCompleted(q) then return true end
+        if QuestLog.IsQuestFlaggedCompleted(q) then return true end
         if AcceptSkipped(step, index or state.step) then return true end
-        if not C_QuestLog.IsOnQuest(q) then return false end
+        if not QuestLog.IsOnQuest(q) then return false end
         local o = FindObjective(step)
         if o then return o.finished end
-        return C_QuestLog.IsComplete(q)
+        return QuestLog.IsComplete(q)
     elseif step.k == "turnin" then
-        return C_QuestLog.IsQuestFlaggedCompleted(q) or AcceptSkipped(step, index or state.step)
+        return QuestLog.IsQuestFlaggedCompleted(q) or AcceptSkipped(step, index or state.step)
     elseif step.k == "abandon" then
         -- Done once the quest has left the log (or was never in it).
-        return not C_QuestLog.IsOnQuest(q)
+        return not QuestLog.IsOnQuest(q)
     elseif step.k == "grind" then
         -- To a level, or to an XP amount in it (grind placed before the end of the level), with
         -- the XP of the quests complete in the log the route turns in before that level.
@@ -262,11 +263,11 @@ end
 local function CanTake(step)
     if step.min and UnitLevel("player") < step.min then return false end
     for _, q in ipairs(step.pre or {}) do
-        if not C_QuestLog.IsQuestFlaggedCompleted(q) then return false end
+        if not QuestLog.IsQuestFlaggedCompleted(q) then return false end
     end
     if step.pa then
         for _, q in ipairs(step.pa) do
-            if C_QuestLog.IsQuestFlaggedCompleted(q) then return true end
+            if QuestLog.IsQuestFlaggedCompleted(q) then return true end
         end
         return false
     end
@@ -319,9 +320,10 @@ end
 local function SetWaypoint(step)
     if not step or not step.m or not FG:Get("waypoints") or step == waypointStep then return end
     waypointStep = step
-    if C_Map.CanSetUserWaypointOnMap(step.m) then
+    -- Map pins need a client that has them (not Classic Era).
+    if C_Map.CanSetUserWaypointOnMap and C_Map.CanSetUserWaypointOnMap(step.m) then
         C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(step.m, step.x / 100, step.y / 100))
-        C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+        if C_SuperTrack then C_SuperTrack.SetSuperTrackedUserWaypoint(true) end
     end
 end
 
@@ -361,7 +363,7 @@ local function StepLine(step, withProgress, index)
     elseif step.k == "objective" then
         text = step.t
         if withProgress then
-            local o = C_QuestLog.IsOnQuest(step.q) and FindObjective(step)
+            local o = QuestLog.IsOnQuest(step.q) and FindObjective(step)
             if o and o.numRequired and o.numRequired > 0 then
                 text = string.format("%s  |cffffffff%d/%d|r", step.n or step.t, o.numFulfilled, o.numRequired)
             end
@@ -599,7 +601,7 @@ local function CreateUI()
         waypointStep = nil
         if on then
             Guide:Refresh()
-        else
+        elseif C_Map.ClearUserWaypoint then
             C_Map.ClearUserWaypoint()
         end
     end)
@@ -617,7 +619,7 @@ local function Ahead()
             local skip = {}
             for index = state.step, c.step - 1 do
                 local step = route.steps[index]
-                local finished = step.k == "turnin" and C_QuestLog.IsOnQuest(step.q) and C_QuestLog.IsComplete(step.q)
+                local finished = step.k == "turnin" and QuestLog.IsOnQuest(step.q) and QuestLog.IsComplete(step.q)
                 if not step.kp and not step.bg and not finished and not IsDone(step, index) then
                     table.insert(skip, index)
                 end
@@ -712,7 +714,7 @@ function Guide:Refresh()
         local step = route.steps[index]
         local done = IsDone(step, index)
         -- A turn-in of a quest not complete yet: its objectives first.
-        if step.k == "turnin" and not done and C_QuestLog.IsOnQuest(step.q) and not C_QuestLog.IsComplete(step.q) then
+        if step.k == "turnin" and not done and QuestLog.IsOnQuest(step.q) and not QuestLog.IsComplete(step.q) then
             for i = 1, index - 1 do
                 local o = route.steps[i]
                 if o.q == step.q and o.k == "objective" and not listed[i] and not IsDone(o, i) then AddRow(i, false) end
@@ -723,7 +725,7 @@ function Guide:Refresh()
     -- Objectives in progress done along the way (left behind, not finished): shown until done.
     for index = 1, state.step - 1 do
         local step = route.steps[index]
-        if step.bg and not listed[index] and C_QuestLog.IsOnQuest(step.q) and not IsDone(step, index) then
+        if step.bg and not listed[index] and QuestLog.IsOnQuest(step.q) and not IsDone(step, index) then
             AddRow(index, false)
         end
     end
@@ -1113,7 +1115,7 @@ function Guide:NextStepByQuest()
     -- Background objectives left behind and not done yet: in progress along the way.
     for i = 1, math.min(state.step - 1, #route.steps) do
         local s = route.steps[i]
-        if s.bg and not out[s.q] and C_QuestLog.IsOnQuest(s.q) and not IsDone(s, i) then
+        if s.bg and not out[s.q] and QuestLog.IsOnQuest(s.q) and not IsDone(s, i) then
             out[s.q] = { index = i, k = s.k, n = s.n, bg = true }
         end
     end
