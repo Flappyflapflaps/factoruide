@@ -9,6 +9,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - macOS: the app now runs on Mac (Apple Silicon and Intel), with automatic updates. Thanks to @csselement.
 - New look: a night-blue theme, explanations in tooltips, readable at the keyboard (visible focus, stronger contrast). The light theme is gone.
 - Characters page: each recorded character with its full name, level and professions, and the guide it follows. A character follows only the guide chosen for it in the app.
+- No character shown? The Characters page tells why: wrong game version chosen, addon not installed, or character not recorded yet (log in, then /reload, log out or quit).
 - New guide: character, professions, dungeons by level and zone map on one screen; profession skill set on a curve.
 - Advanced settings as sliders with their default marked, a search, and folded expert sections.
 - Guides: every action on each row, "Clone" to start a new guide from the same setup, gold spent on flights.
