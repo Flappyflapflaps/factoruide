@@ -66,6 +66,12 @@ local KINDS = {
         color = "40ff40",
         label = fr and "Rendre" or "Turn in",
     },
+    -- The ready check's red cross (in the Forever, Classic Era and TBC clients alike).
+    abandon = {
+        icon = "Interface\\RaidFrame\\ReadyCheck-NotReady",
+        color = "ff4040",
+        label = fr and "Abandonner" or "Abandon",
+    },
     objective = { icon = "Interface\\Icons\\Ability_DualWield", color = "ff9040", label = fr and "Faire" or "Do" },
     fly = { icon = "Interface\\GossipFrame\\TaxiGossipIcon", color = "40c0ff", label = fr and "Vol" or "Fly" },
     flight_master = {
@@ -375,6 +381,11 @@ local function StepLine(step, withProgress, index)
         if step.ml and step.ml >= UnitLevel("player") + 3 then
             text = text .. string.format("  |cffff8040%s %d|r", L.level, step.ml)
         end
+    elseif step.k == "abandon" then
+        -- The quest's name as the game says it, then why in gray: "Abandon X (not in this guide)"
+        -- of the guide's text without its verb, the label says it.
+        local why = step.t and step.t:match("(%b())%s*$")
+        text = title and (title .. (why and ("  |cff9d9d9d" .. why .. "|r") or "")) or step.t
     elseif step.k == "practice" and withProgress then
         local rank = FG.ProfessionSkill(step.id)
         text = step.t .. (rank and string.format("  |cffffffff%d/%d|r", rank, step.sk) or "")

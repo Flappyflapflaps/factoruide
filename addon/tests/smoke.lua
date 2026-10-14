@@ -393,13 +393,25 @@ FG.Routes["abandon-test"] = {
     toLevel = 60,
     time = 1,
     steps = {
-        { k = "abandon", t = "Abandon Unused Quest", q = 7001, lvl = 21 },
+        { k = "abandon", t = "Abandon Unused Quest (not in this guide)", q = 7001, lvl = 21 },
         { k = "accept", t = "Accept Current Quest", q = 5004, lvl = 21 },
     },
 }
 onQuest[7001] = true
+local untitled = C_QuestLog.GetTitleForQuestID
+C_QuestLog.GetTitleForQuestID = function(q) return q == 7001 and "Quête inutile" or nil end
 useRoute("abandon-test")
 assert(char.guide.step == 1, "waits while the quest is in the log, step " .. char.guide.step)
+-- Its label, the game's name of the quest and why, once each.
+local abandonLine = FG.Guide:Box().rows[1].text:GetText()
+assert(
+    abandonLine:find("Abandon", 1, true)
+        and abandonLine:find("Quête inutile", 1, true)
+        and abandonLine:find("(not in this guide)", 1, true)
+        and not abandonLine:find("Unused Quest", 1, true),
+    "abandon line: " .. abandonLine
+)
+C_QuestLog.GetTitleForQuestID = untitled
 onQuest[7001] = nil
 fire("QUEST_REMOVED", 7001)
 assert(char.guide.step == 2, "quest abandoned, step " .. char.guide.step)
