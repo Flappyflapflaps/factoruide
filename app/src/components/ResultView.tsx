@@ -19,6 +19,8 @@ interface Props {
   onEditSteps?: (version: GuideVersion) => void;
   /** Show another version of the guide. */
   onOpenVersion?: (n: number) => void;
+  /** Compare two versions of the guide (`a` the older one). */
+  onCompare?: (a: number, b: number) => void;
   /** Options of the game version (race names and factions), when loaded. */
   options?: Options | null;
 }
@@ -31,7 +33,7 @@ export function Delta({ seconds }: { seconds: number }) {
 }
 
 /** A guide version: its figures, its versions, its map and steps, and what to do with it. */
-export function ResultView({ version, onRerun, onEdit, onClone, onEditSteps, onOpenVersion, options }: Props) {
+export function ResultView({ version, onRerun, onEdit, onClone, onEditSteps, onOpenVersion, onCompare, options }: Props) {
   const t = useT();
   const date = useDate();
   const { meta, outcome } = version;
@@ -144,6 +146,15 @@ export function ResultView({ version, onRerun, onEdit, onClone, onEditSteps, onO
                     <td>{v.total_time_text}</td>
                     <td>{before ? <Delta seconds={v.total_time - before.total_time} /> : ""}</td>
                     <td className="row-actions">
+                      {onCompare && v.version !== meta.version && (
+                        <button
+                          className="link"
+                          title={t("Les étapes des deux versions côte à côte, leurs différences marquées")}
+                          onClick={() => onCompare(Math.min(v.version, meta.version), Math.max(v.version, meta.version))}
+                        >
+                          {t("Comparer")}
+                        </button>
+                      )}
                       {followed !== v.version && (
                         <button className="link" onClick={() => follow(v.version)}>
                           {t("Suivre")}
@@ -180,6 +191,14 @@ export function ResultView({ version, onRerun, onEdit, onClone, onEditSteps, onO
           previous && (
             <>
               <Delta seconds={meta.total_time - previous.total_time} /> {t("vs version {n}", { n: previous.version })}
+              {onCompare && (
+                <>
+                  {" · "}
+                  <button className="link" onClick={() => onCompare(previous.version, meta.version)}>
+                    {t("Comparer")}
+                  </button>
+                </>
+              )}
             </>
           )
         }

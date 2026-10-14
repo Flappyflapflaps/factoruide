@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type GuideSummary, type GuideVersion, type Options, type VersionMeta } from "../api";
 import { Character } from "../components/Character";
+import { CompareView } from "../components/CompareView";
 import { GuideEditor } from "../components/GuideEditor";
 import { ResultView } from "../components/ResultView";
 import { gameLocale, useDate, useGameName, useLang, useT } from "../i18n";
@@ -44,6 +45,8 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
   const [open, setOpen] = useState<GuideVersion | null>(null);
   // The version open in the guide editor.
   const [editing, setEditing] = useState<GuideVersion | null>(null);
+  // Two versions of the open guide compared (from its page, back to it).
+  const [comparing, setComparing] = useState<{ a: number; b: number } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(start?.notice ?? null);
   // Opening `start`: no list in the meantime.
@@ -128,6 +131,24 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
     );
   }
 
+  if (open && comparing) {
+    return (
+      <div>
+        <button className="link" onClick={() => setComparing(null)}>
+          {t("← Version {n}", { n: open.meta.version })}
+        </button>
+        <CompareView
+          key={`${comparing.a}-${comparing.b}`}
+          guide={open.meta.guide}
+          a={comparing.a}
+          b={comparing.b}
+          versions={guides?.find((g) => g.id === open.meta.guide)?.versions ?? []}
+          onChange={(a, b) => setComparing({ a, b })}
+        />
+      </div>
+    );
+  }
+
   if (open) {
     return (
       <div>
@@ -153,6 +174,11 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
           onClone={onClone}
           onEditSteps={setEditing}
           onOpenVersion={(n) => openVersion(open.meta.guide, n)}
+          onCompare={(a, b) => {
+            // The versions made since the list was loaded.
+            load();
+            setComparing({ a, b });
+          }}
         />
       </div>
     );

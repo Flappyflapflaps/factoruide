@@ -2992,3 +2992,119 @@ button.dungeon.excluded b {
 .characters-empty strong {
   color: var(--text-primary);
 }
+
+/* Two versions of a guide side by side: each side a number, a level and the step; a removed
+   step beside an added one, a step in both on one line. */
+.compare-pickers select {
+  max-width: 340px;
+}
+.compare-table col.c-n {
+  width: 52px;
+}
+.compare-table col.c-lv {
+  width: 36px;
+}
+.compare-table th.cmp-split,
+.compare-table td.cmp-split {
+  border-left: 1px solid var(--border-strong);
+}
+.compare-table tr.sub-row td.cmp-removed {
+  background: color-mix(in srgb, var(--bad) 13%, var(--surface-1));
+}
+.compare-table tr.sub-row td.cmp-added {
+  background: color-mix(in srgb, var(--good) 13%, var(--surface-1));
+}
+.compare-table tr.sub-row td.cmp-changed {
+  background: color-mix(in srgb, var(--cat-4) 13%, var(--surface-1));
+}
+.compare-table tr.sub-row td.cmp-moved {
+  background: color-mix(in srgb, var(--cat-7) 15%, var(--surface-1));
+}
+.compare-table tr.sub-row td.cmp-none {
+  background: repeating-linear-gradient(135deg, var(--surface-1) 0 6px, var(--surface-0) 6px 12px);
+}
+.compare-table tr.sub-row td.cmp-flash,
+.compare-table tr.cmp-flash > td {
+  outline: 2px solid var(--accent-text);
+  outline-offset: -2px;
+}
+.compare-table td[id] {
+  scroll-margin-top: 48px;
+}
+mark.cmp-word {
+  background: color-mix(in srgb, var(--cat-4) 40%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+.cmp-change {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--cat-4) 55%, transparent);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+button.link.cmp-jump {
+  margin-left: 8px;
+  font-size: 12px;
+}
+.cmp-run td {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.cmp-same-zones td {
+  background: var(--surface-0);
+}
+.cmp-counts {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.cmp-count-added {
+  color: var(--good);
+}
+.cmp-count-removed {
+  color: var(--bad);
+}
+.cmp-count-changed {
+  color: #e0b050;
+}
+.cmp-count-moved {
+  color: var(--accent-text);
+}
+.tag.cmp-tag {
+  margin-left: 0;
+}
+.tag.cmp-st-changed {
+  border-color: #c98500;
+  color: #e0b050;
+}
+.tag.cmp-st-added {
+  border-color: var(--good);
+  color: var(--good);
+}
+.tag.cmp-st-removed {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.tag.cmp-st-moved,
+.tag.cmp-st-moved_away {
+  border-color: var(--accent-text);
+  color: var(--accent-text);
+}
+.compare-view .route-toolbar label.cmp-only {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cmp-spacer {
+  flex: 1;
+}
+.compare-table td.cmp-n {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}

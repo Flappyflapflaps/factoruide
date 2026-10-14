@@ -1,4 +1,5 @@
 mod audit;
+mod diff;
 mod route;
 mod talents;
 mod travel;
@@ -87,6 +88,19 @@ enum Command {
         name: String,
         #[arg(long)]
         full: bool,
+    },
+    /// Differences between two guides, step by step in their order (added, removed, changed,
+    /// moved steps and zones), with the figures and settings that changed
+    Diff {
+        /// First guide: a version saved by the app (its folder, e.g. .../guides/forever/<guide>/v3,
+        /// or its outcome.json), or a route of `fg route` (file or name). Alone, a guide folder of
+        /// the app: its two latest versions.
+        a: PathBuf,
+        /// Second guide (the newer one)
+        b: Option<PathBuf>,
+        /// The differences as JSON (what the app shows) instead of text
+        #[arg(long)]
+        json: bool,
     },
     /// Regenerate the addon's Routes.lua from routes/*.json
     Addon,
@@ -213,6 +227,7 @@ fn main() -> Result<()> {
             },
         )?,
         Command::Show { name, full } => route::show(&cli.routes, &name, full)?,
+        Command::Diff { a, b, json } => diff::run(&cli.routes, &a, b.as_deref(), json)?,
         Command::Addon => route::write_addon_routes(&open()?, &cli.routes, &cli.addon_dir)?,
         Command::Replay { file, effort } => route::replay(&open()?, &overrides, &file, effort, &cli.routes)?,
         Command::Travel { from, to, faction } => travel::run(&open()?, &overrides, &faction, &from, &to)?,

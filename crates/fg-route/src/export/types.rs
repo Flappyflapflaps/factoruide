@@ -15,7 +15,7 @@ pub struct Target {
 }
 
 /// What a step of the guide asks.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum StepKind {
     #[serde(rename = "accept")]
     Accept,

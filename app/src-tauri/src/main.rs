@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use fg_route::Route;
+use fg_route::export::diff::{self, Change, RouteDiff};
 use fg_route::job::{
     self, EditCatalog, EditReport, Options, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState,
 };
@@ -861,6 +862,69 @@ fn get_guide(state: State<'_, AppState>, id: String) -> CmdResult<GuideSummary> 
     summary(&state, &id)
 }
 
+/// Two versions of a guide compared: both, their differences, and the same as text.
+#[derive(Serialize)]
+struct Comparison {
+    a: GuideVersion,
+    b: GuideVersion,
+    diff: RouteDiff,
+    /// Settings that differ (the request, the game data).
+    settings: Vec<Change>,
+    /// The comparison as text (`fg diff`), to hand to someone looking for what went wrong.
+    text: String,
+}
+
+/// Versions `a` and `b` of a guide compared, written in `locale` (game locale).
+#[tauri::command]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn compare_versions(
+    state: State<'_, AppState>,
+    guide: String,
+    a: u32,
+    b: u32,
+    locale: Option<String>,
+) -> CmdResult<Comparison> {
+    let load = |n: u32| -> CmdResult<GuideVersion> {
+        let mut v = state.version(&guide, n)?;
+        v.outcome.walks = None;
+        v.outcome.plan.clear();
+        Ok(v)
+    };
+    let (mut a, mut b) = (load(a)?, load(b)?);
+    let settings = |v: &GuideVersion| -> CmdResult<serde_json::Value> {
+        let mut value = serde_json::to_value(&v.request).map_err(err)?;
+        if let serde_json::Value::Object(map) = &mut value {
+            map.insert("data".into(), v.meta.data.clone().into());
+        }
+        Ok(value)
+    };
+    let settings = diff::value_changes(&settings(&a)?, &settings(&b)?);
+    // Compared as saved (zones by their English names), shown in `locale`.
+    let d = diff::diff(&a.outcome.route, &b.outcome.route);
+    let names = [format!("v{}", a.meta.version), format!("v{}", b.meta.version)];
+    let text = diff::to_text(
+        &d,
+        &a.outcome.route,
+        &b.outcome.route,
+        [&names[0], &names[1]],
+        &settings,
+    );
+    if let Some(locale) = &locale {
+        a.outcome.route = state.render(&a.outcome.route, Some(locale))?;
+        b.outcome.route = state.render(&b.outcome.route, Some(locale))?;
+    }
+    Ok(Comparison {
+        a,
+        b,
+        diff: d,
+        settings,
+        text,
+    })
+}
+
 #[tauri::command]
 #[expect(
     clippy::needless_pass_by_value,
@@ -1402,6 +1466,7 @@ fn main() {
             list_guides,
             get_guide,
             get_version,
+            compare_versions,
             set_installed,
             delete_version,
             delete_guide,

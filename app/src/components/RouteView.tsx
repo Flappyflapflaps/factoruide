@@ -8,7 +8,7 @@ import type { WorldPoint } from "./WorldMap";
 import { ZoneMap, type NumberedStep } from "./ZoneMap";
 import { Money } from "./Money";
 
-const KIND_LABELS: Record<string, string> = {
+export const KIND_LABELS: Record<string, string> = {
   accept: "Prendre",
   objective: "Faire",
   turnin: "Rendre",

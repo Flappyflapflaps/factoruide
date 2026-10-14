@@ -1,6 +1,7 @@
 //! Turn a planned route into a guide: steps for humans (JSON) and for the addon (Lua).
 
 mod checkpoints;
+pub mod diff;
 pub mod format;
 mod grind_spots;
 mod lua;

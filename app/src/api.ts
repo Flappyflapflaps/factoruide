@@ -329,6 +329,8 @@ export const api = {
   getGuide: (id: string) => invoke<GuideSummary>("get_guide", { id }),
   /** A version, its guide written in `locale` (game locale). */
   getVersion: (guide: string, version: number, locale: string) => invoke<GuideVersion>("get_version", { guide, version, locale }),
+  /** Versions `a` and `b` of a guide compared, written in `locale` (game locale). */
+  compareVersions: (guide: string, a: number, b: number, locale: string) => invoke<Comparison>("compare_versions", { guide, a, b, locale }),
   /** Installs this version of the guide in the addon (`null`: removes the guide from it). */
   setInstalled: (guide: string, version: number | null) => invoke<number>("set_installed", { guide, version }),
   deleteVersion: (guide: string, version: number) => invoke<void>("delete_version", { guide, version }),
@@ -416,6 +418,67 @@ export interface GuideVersion {
   meta: VersionMeta;
   request: PlanRequest;
   outcome: PlanOutcome;
+}
+
+/** First and last steps (indices) of a block of a comparison. */
+export interface DiffSpan {
+  first: number;
+  last: number;
+}
+
+/** What differs between two sides of a step or of a setting (`field`: English, see CompareView). */
+export interface DiffChange {
+  field: string;
+  from: string;
+  to: string;
+}
+
+/** A step of one guide or both (indices in their steps); mirror of `fg_route::export::diff::Row`. */
+export interface DiffRow {
+  op: "same" | "changed" | "removed" | "added";
+  a: number | null;
+  b: number | null;
+  changes?: DiffChange[];
+  /** A removed step done elsewhere in the second guide (its index there), or an added one done elsewhere in the first. */
+  moved?: number;
+}
+
+/**
+ * Consecutive steps in one zone (or a dungeon run), in the order of the second guide: `moved`
+ * at its place there, `moved_away` where it was in the first one (no rows).
+ */
+export interface DiffBlock {
+  status: "same" | "changed" | "added" | "removed" | "moved" | "moved_away";
+  /** English name (the steps give it in the language shown). */
+  zone: string | null;
+  dungeon: boolean;
+  a: DiffSpan | null;
+  b: DiffSpan | null;
+  rows: DiffRow[];
+}
+
+export interface RouteDiff {
+  summary: {
+    added: number;
+    removed: number;
+    changed: number;
+    moved: number;
+    blocks_moved: number;
+    blocks_added: number;
+    blocks_removed: number;
+  };
+  blocks: DiffBlock[];
+}
+
+/** Two versions of a guide compared. */
+export interface Comparison {
+  a: GuideVersion;
+  b: GuideVersion;
+  diff: RouteDiff;
+  /** Settings that differ (request paths like `params.progression`, and `data`). */
+  settings: DiffChange[];
+  /** The same as text (`fg diff`), to hand to someone looking for what went wrong. */
+  text: string;
 }
 
 export interface MapInfo {

@@ -4,6 +4,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 ## Unreleased
 
+- Compare two versions of a guide ("Compare" in its versions, or next to the time difference with the previous one): their steps side by side, aligned as you go, with the steps added, removed, changed or done elsewhere marked, and a zone done at another time shown as one move with its own differences. The settings and game data that changed are listed, and the differences can be copied as text, to look for a mistake or report one. The `fg diff` command prints the same text.
 - Windows: the What's new page shows its titles and lists again (it showed the raw text).
 - Guides no longer walk over the mountains between the south of the Eastern Kingdoms (Stormwind, Elwynn, Stranglethorn) and the north (Dun Morogh, Wetlands, Silverpine): they take the tram, a flight or a boat, and the guide says so.
 - Preferred zones now weigh on the whole guide, not only on its first draft: the guide stays in them unless leaving saves a lot of time ("Weight of the preferred zones" in the advanced settings). Excluded zones are also left out for turn-ins and the hearthstone: a character bound in its start zone is no longer sent back there.
