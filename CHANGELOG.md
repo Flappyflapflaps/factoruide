@@ -30,6 +30,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 ### WoW data
 
+- Quest items no longer drop four times in five for most quests: many had a placeholder chance of 80%. They now drop at about the rate players see on the mobs that drop them best (Mountain Lion Blood about 37%, Bloodscalp Ear about 35%), so guides count the kills these quests really take. Items of class quests, which only their class looks for, keep dropping often.
 - WoW Forever: the undead paladin's Redemption quests (A Lesson in Divinity) are done in their order and are required; other classes no longer get them.
 - WoW Forever: The Adventurer (Deathknell) is taken after The Red Messenger, not on arrival when Executor Arren does not offer it yet.
 - WoW Forever: the priest's Divine Grace, Confounding Flash and Contingency Plan, the druid's cat and bear form quests and the warrior's Skybreaker Bulwark (Defensive Stance) teach a spell: required. TBC: the blood elf and draenei paladins' Redemption, hunters' Beast Training and the blood elf warlock's Voidwalker too.
