@@ -451,9 +451,13 @@ impl Planner<'_> {
     }
 }
 
-/// Whether an event is something done (not the mobs farmed on the way, nor the reward picked).
+/// Whether an event is something done (not the mobs farmed on the way, the reward picked, nor a
+/// shortcut taken on the way: part of the walk to the step, shown but not an edit of its own).
 fn is_action(event: &Event) -> bool {
-    !matches!(event, Event::Farm { .. } | Event::Reward { .. })
+    !matches!(
+        event,
+        Event::Farm { .. } | Event::Reward { .. } | Event::Shortcut { .. }
+    )
 }
 
 /// Whether an event is the step's own action.

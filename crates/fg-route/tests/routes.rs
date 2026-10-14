@@ -2,7 +2,7 @@
 
 use fg_route::job::{self, Bind, LogObjective, LogQuest, MapPos, Overrides, PlanRequest, Prepared, StartState};
 use fg_route::model::{CommonLoot, Guard, Initial, Objective, Spots};
-use fg_route::plan::{Event, Kind, Planner, Stop};
+use fg_route::plan::{Edit, Event, Kind, Outcome, Planner, Stop};
 use fg_route::xp::Edition;
 use rusqlite::Connection;
 use std::path::PathBuf;
@@ -766,6 +766,13 @@ fn mountain_skip_is_one_way_and_a_step_of_the_guide() {
             .iter()
             .any(|t| matches!(t.event, Event::Shortcut { pass } if pass == skip))
     );
+    // In the guide editor, the shortcut is part of the walk to the step, not a step of its own.
+    let edited = planner(&p).explicit().edit(&[Edit::Stop {
+        stop: Stop::quest(0, Kind::Objective(0)),
+        farm: false,
+        spot: None,
+    }]);
+    assert_eq!(edited.steps[0].outcome, Outcome::Done);
 }
 
 /// A link kept to some races (Forever's Skyborne portals) is only in their guides.
