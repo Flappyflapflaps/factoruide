@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type CharacterInfo, type GuideSummary, type Options } from "../api";
 import { ClassName, FactionIcon, raceFaction } from "../components/Character";
 import { Hint } from "../components/Hint";
+import { Icon } from "../components/Icons";
 import { PROFESSIONS } from "../components/ProfessionPicker";
 import { useDate, useGameName, useT } from "../i18n";
 
@@ -66,6 +67,24 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, 
     }
   };
 
+  // A character deleted in game: the game keeps its files and the addon its profile.
+  const forget = async (character: string, name: string) => {
+    if (!confirm(t("Retirer {name} de la liste ? Pour un personnage supprimé en jeu : il revient s'il est joué de nouveau.", { name }))) return;
+    setError(null);
+    setMessage(null);
+    try {
+      await api.forgetCharacter(character);
+      setCharacters((list) => list?.filter((c) => c.profile.name !== character) ?? null);
+      setAssignments((a) => {
+        const next = { ...a };
+        delete next[character];
+        return next;
+      });
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
   const raceName = (race: string | null) => (race ? gameName(options?.races.find((r) => r.key === race)?.name ?? race) : "");
   const professionName = (key: string) => t(PROFESSIONS.find((p) => p.key === key)?.label ?? key);
 
@@ -122,6 +141,9 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, 
                     <small>{realm}</small>
                   </div>
                   <span className="character-level">{t("Niv.")} {p.level}</span>
+                  <button className="icon danger character-forget" title={t("Retirer de la liste")} aria-label={t("Retirer de la liste")} onClick={() => forget(p.name, c.full_name ?? first)}>
+                    <Icon name="delete" />
+                  </button>
                 </header>
                 <div className="character-who">
                   <span>{raceName(c.race)}</span>

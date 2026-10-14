@@ -2719,6 +2719,22 @@ button.dungeon.excluded b {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+.character-head button.character-forget {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+  backdrop-filter: none;
+}
+.character-head button.character-forget:hover:not(:disabled) {
+  color: var(--bad);
+  background: var(--surface-3);
+  border-color: transparent;
+}
 .character-who {
   display: flex;
   flex-wrap: wrap;

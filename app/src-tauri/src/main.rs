@@ -55,6 +55,11 @@ struct Settings {
     /// saves at once, the game gets them when asked.
     #[serde(default)]
     addon_installed: Option<String>,
+    /// Characters taken out of the Characters page ("<edition>/<Name-Realm>" -> the time of the
+    /// profile then): deleted in game, but the game keeps their files and the addon their
+    /// profile. One played again (a newer profile) is back.
+    #[serde(default)]
+    forgotten_characters: BTreeMap<String, i64>,
 }
 
 /// The settings the installed addon depends on (its options, the guides' language).
@@ -82,6 +87,7 @@ impl Default for Settings {
             guide_locale: None,
             all_guides: false,
             addon_installed: None,
+            forgotten_characters: BTreeMap::new(),
         }
     }
 }
@@ -1291,6 +1297,43 @@ fn full_names(files: &[PathBuf]) -> HashMap<String, Vec<String>> {
     out
 }
 
+/// Key of a character in `Settings::forgotten_characters`.
+fn forgotten_key(edition: Edition, character: &str) -> String {
+    format!("{}/{character}", edition.key())
+}
+
+/// Whether a character's profile was taken out of the list (and not played since).
+fn is_forgotten(forgotten: &BTreeMap<String, i64>, edition: Edition, profile: &StartState) -> bool {
+    forgotten
+        .get(&forgotten_key(edition, &profile.name))
+        .is_some_and(|&time| profile.time <= time)
+}
+
+/// Take a character out of the Characters page (deleted in game): it no longer follows a guide.
+/// Played again, it is back.
+#[tauri::command]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn forget_character(state: State<'_, AppState>, character: String) -> CmdResult<()> {
+    let time = characters(&state)?
+        .into_iter()
+        .find(|c| c.profile.name == character)
+        .map_or(i64::MAX, |c| c.profile.time);
+    let mut settings = state.settings();
+    settings
+        .forgotten_characters
+        .insert(forgotten_key(settings.edition, &character), time);
+    write_settings(&state, settings)?;
+    let mut assignments = state.assignments();
+    if assignments.remove(&character).is_some() {
+        state.write_assignments(&assignments)?;
+        install_addon(state)?;
+    }
+    Ok(())
+}
+
 fn characters(state: &AppState) -> CmdResult<Vec<CharacterInfo>> {
     let settings = state.settings();
     let client_dir = settings.wow_dir.join(settings.edition.client_folder());
@@ -1302,6 +1345,7 @@ fn characters(state: &AppState) -> CmdResult<Vec<CharacterInfo>> {
         .map_err(err)?
         .into_iter()
         .filter_map(|json| serde_json::from_value::<StartState>(json).ok())
+        .filter(|profile| !is_forgotten(&settings.forgotten_characters, settings.edition, profile))
         .map(|mut profile| {
             profile.rested = rested_now(&profile, now);
             // Only when the first name is not shared (two characters with the same one).
@@ -1469,6 +1513,7 @@ fn main() {
             delete_guide,
             list_assignments,
             assign_guide,
+            forget_character,
             export_version,
             import_guide,
             map_index,
@@ -1657,4 +1702,25 @@ async fn send_contribution(app: AppHandle) -> CmdResult<String> {
     })
     .await
     .map_err(err)?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A character taken out stays out until it is played again (a newer profile), on its game
+    /// version only.
+    #[test]
+    fn a_forgotten_character_is_back_when_played_again() {
+        let profile = |time| StartState {
+            name: "Finnagnix-ClassicBetaPvP".into(),
+            time,
+            ..StartState::default()
+        };
+        let mut forgotten = BTreeMap::new();
+        forgotten.insert(forgotten_key(Edition::Forever, "Finnagnix-ClassicBetaPvP"), 100);
+        assert!(is_forgotten(&forgotten, Edition::Forever, &profile(100)));
+        assert!(!is_forgotten(&forgotten, Edition::Forever, &profile(101)));
+        assert!(!is_forgotten(&forgotten, Edition::Classic, &profile(100)));
+    }
 }

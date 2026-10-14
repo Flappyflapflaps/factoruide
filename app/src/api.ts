@@ -347,6 +347,8 @@ export const api = {
   listAssignments: () => invoke<Record<string, string>>("list_assignments"),
   /** Make a character follow a guide (null: none) and write the addon; returns its number of guides. */
   assignGuide: (character: string, guide: string | null) => invoke<number>("assign_guide", { character, guide }),
+  /** Take a character out of the list (deleted in game; back if played again): it no longer follows a guide. */
+  forgetCharacter: (character: string) => invoke<void>("forget_character", { character }),
   /** A map image (WebP), as an object URL. */
   mapImage: (id: number) =>
     invoke<ArrayBuffer>("map_image", { id }).then((bytes) =>

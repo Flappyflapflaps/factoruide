@@ -20,6 +20,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - A guide no longer takes a quest, does half of it and abandons it hours later, unless that saves a lot of time ("Cost of an abandoned quest" in the advanced settings).
 - WoW Forever: mobs below your level give the XP of their own level, as measured in game (a level 25 character gets 113 XP from a level 22 mob, not 124): guides no longer count on more XP than they give.
 - Addon: abandon steps have a red cross, their label and the quest's name.
+- Characters page: a character deleted in game can be removed from the list (the game keeps its files): it no longer follows a guide, and comes back if played again.
 - Quest XP is the game's own when your game has seen the quest (its quest cache, sent with contributions): exact rewards, and on WoW Forever each dungeon quest's own bonus.
 
 ### WoW data
