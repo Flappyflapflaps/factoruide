@@ -20,6 +20,7 @@ mod selection;
 mod sources;
 mod types;
 
+pub(crate) use chains::class_sort;
 pub use farm::FarmMobs;
 pub use guard::Guards;
 pub use names::Names;

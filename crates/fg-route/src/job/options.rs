@@ -218,10 +218,58 @@ pub fn options(conn: &Connection, overrides: &Overrides) -> Result<Options> {
         classes,
         zones,
         dungeons,
-        class_quests: overrides.class_quests.clone(),
+        class_quests: class_quests(conn, overrides)?,
         params: overrides.params.clone(),
         max_level: overrides.params.edition.rules().max_level,
     })
+}
+
+/// Class quests teaching a spell from this level on are endgame (see `class_quests`).
+const SPELL_QUESTS_BELOW: i64 = 50;
+
+/// The class quests required by default, by class key: the configured ones
+/// (overrides/class_quests.toml), then the class quests the data says teach a spell (a pet, a
+/// stance, a totem, Redemption...), by level: a guide does not leave a class spell out. The app
+/// lists them, the player takes out those not wanted. Those from level 50 (an epic mount,
+/// Inferno, Ritual of Doom: raids and elite dungeons) are endgame, not leveling.
+pub fn class_quests(conn: &Connection, overrides: &Overrides) -> Result<HashMap<String, Vec<String>>> {
+    let mut out = overrides.class_quests.clone();
+    // Databases built before the column existed: the configured ones only.
+    let known: bool = conn.query_row(
+        "SELECT count(*) > 0 FROM pragma_table_info('m_quest') WHERE name = 'reward_spell'",
+        [],
+        |r| r.get(0),
+    )?;
+    let Ok(mut classes) = conn.prepare("SELECT ID, lower(Filename) FROM client_chrclasses ORDER BY ID") else {
+        return Ok(out);
+    };
+    if !known {
+        return Ok(out);
+    }
+    let classes: Vec<(i64, String)> = classes
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    let mut stmt = conn.prepare(
+        "SELECT name FROM m_quest
+         WHERE reward_spell IS NOT NULL AND status = 'available' AND (classes_mask = ?1 OR zone_or_sort = ?2)
+         GROUP BY name HAVING min(coalesce(min_level, level, 1)) < ?3
+         ORDER BY min(coalesce(min_level, level, 1)), name",
+    )?;
+    for (id, key) in classes.into_iter().filter(|(id, _)| (1..=31).contains(id)) {
+        let names: Vec<String> = stmt
+            .query_map(
+                rusqlite::params![1i64 << (id - 1), -crate::model::class_sort(id), SPELL_QUESTS_BELOW],
+                |r| r.get(0),
+            )?
+            .collect::<rusqlite::Result<_>>()?;
+        let list = out.entry(key).or_default();
+        for name in names {
+            if !list.contains(&name) {
+                list.push(name);
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Classes a race can play (class keys: lowercase file names), from the game's CharBaseInfo.
@@ -236,4 +284,42 @@ pub fn race_classes(conn: &Connection, race_id: i64) -> Result<Vec<String>> {
     Ok(stmt
         .query_map([race_id], |r| r.get(0))?
         .collect::<rusqlite::Result<_>>()?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The class quests teaching a spell join the configured ones, by level, once each name:
+    /// filed under the class (Forever's) or given to it only; removed quests, other classes' and
+    /// endgame ones do not.
+    #[test]
+    fn class_quests_teaching_a_spell_are_required_by_default() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE client_chrclasses (ID, Filename);
+             INSERT INTO client_chrclasses VALUES (2, 'PALADIN'), (3, 'HUNTER');
+             CREATE TABLE m_quest (id, name, level, min_level, classes_mask, zone_or_sort, status, reward_spell);
+             INSERT INTO m_quest VALUES
+               (1, 'The Tome of Divinity', 12, 12, 2, -141, 'available', 7328),
+               (2, 'The Tome of Nobility', 40, 40, 2, -141, 'available', 13819),
+               (3, 'A Lesson in Divinity', 12, 12, NULL, -141, 'available', 7328),
+               (4, 'A Lesson in Divinity', 12, 12, NULL, -141, 'available', NULL),
+               (5, 'The Tome of Valor', 20, 20, 2, -141, 'removed', 5502),
+               (6, 'Seeking the Kor Gem', 25, 25, 2, -141, 'available', NULL),
+               (8, 'Judgment and Redemption', 60, 60, 2, -141, 'available', 23214),
+               (7, 'Taming the Beast', 10, 10, 4, -261, 'available', 1515);",
+        )
+        .unwrap();
+        let mut overrides = Overrides::default();
+        overrides
+            .class_quests
+            .insert("paladin".into(), vec!["The Tome of Divinity".into()]);
+        let quests = class_quests(&conn, &overrides).unwrap();
+        assert_eq!(
+            quests["paladin"],
+            ["The Tome of Divinity", "A Lesson in Divinity", "The Tome of Nobility"]
+        );
+        assert_eq!(quests["hunter"], ["Taming the Beast"]);
+    }
 }

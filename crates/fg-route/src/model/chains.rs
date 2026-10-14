@@ -5,7 +5,7 @@ use crate::params::Params;
 use std::collections::{HashMap, HashSet};
 
 /// QuestSort ID of each class's quests (zoneOrSort = -sort).
-pub(super) fn class_sort(class_id: i64) -> i64 {
+pub(crate) fn class_sort(class_id: i64) -> i64 {
     match class_id {
         1 => 81,   // Warrior
         2 => 141,  // Paladin

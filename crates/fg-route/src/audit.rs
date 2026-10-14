@@ -115,6 +115,7 @@ pub fn audit(
     } else {
         HashMap::new()
     };
+    let class_quests = job::class_quests(conn, overrides)?;
     let trainer_quests = if on("other-class-quests") {
         trainer_quests(conn)?
     } else {
@@ -171,7 +172,7 @@ pub fn audit(
         }
         if on("class-quests") || on("other-class-quests") {
             for class in job::race_classes(conn, def.id)? {
-                let required = on("class-quests") && overrides.class_quests.get(&class).is_some_and(|q| !q.is_empty());
+                let required = on("class-quests") && class_quests.get(&class).is_some_and(|q| !q.is_empty());
                 if !required && !on("other-class-quests") {
                     continue;
                 }
@@ -187,7 +188,8 @@ pub fn audit(
                     }
                 };
                 if required {
-                    class_quests_left_out(&class, &p.profile.required_class_quests, &p.model)
+                    let own = class_quest_ids(conn, p.profile.class_id)?;
+                    class_quests_left_out(&class, &p.profile.required_class_quests, &own, &p.model)
                         .into_iter()
                         .for_each(&mut add);
                 }
@@ -202,14 +204,27 @@ pub fn audit(
     Ok(found.into_values().collect())
 }
 
+/// The quests of a class: filed under it or given to it only (a quest of another kind may have a
+/// required class quest's name: Tirion Fordring's Redemption).
+fn class_quest_ids(conn: &Connection, class_id: i64) -> Result<HashSet<i64>> {
+    let mut stmt = conn.prepare("SELECT id FROM m_quest WHERE classes_mask = ?1 OR zone_or_sort = ?2")?;
+    let ids = stmt
+        .query_map(
+            rusqlite::params![1i64 << (class_id - 1), -crate::model::class_sort(class_id)],
+            |r| r.get(0),
+        )?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(ids)
+}
+
 /// Required class quests of a class (by name) the model leaves out: skipped while building it,
 /// or no longer required because a prerequisite cannot be planned.
-fn class_quests_left_out(class: &str, required: &[String], model: &Model) -> Vec<Finding> {
+fn class_quests_left_out(class: &str, required: &[String], own: &HashSet<i64>, model: &Model) -> Vec<Finding> {
     let skipped = (model.skipped.iter())
-        .filter(|(_, name, why)| required.contains(name) && why != "repeatable")
+        .filter(|(id, name, why)| required.contains(name) && own.contains(id) && why != "repeatable")
         .map(|(id, name, why)| (*id, name, why.as_str()));
     let released = (model.quests.iter())
-        .filter(|q| required.contains(&q.name) && !q.mandatory)
+        .filter(|q| required.contains(&q.name) && own.contains(&q.id) && !q.mandatory)
         .map(|q| (q.id, &q.name, "a prerequisite cannot be planned"));
     skipped
         .chain(released)

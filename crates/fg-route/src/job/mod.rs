@@ -14,7 +14,7 @@ mod start;
 pub use edit::{
     CatalogDungeon, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef, RouteStep, StepReport,
 };
-pub use options::{NamedId, Options, RaceOption, ZoneOption, options, race_classes};
+pub use options::{NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes};
 pub use overrides::{Overrides, RaceDef};
 pub use race::{optimize, optimize_interruptible};
 pub use request::{PlanOutcome, PlanRequest, Prepared};

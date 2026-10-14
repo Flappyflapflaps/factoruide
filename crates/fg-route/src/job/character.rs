@@ -8,6 +8,7 @@ use crate::model::Profile;
 use crate::params::Params;
 use anyhow::{Context, Result, bail};
 use rusqlite::Connection;
+use std::collections::HashMap;
 
 pub(super) fn character(conn: &Connection, overrides: &Overrides, req: &PlanRequest) -> Result<(Profile, Params)> {
     let race_key = req.race.to_lowercase().replace([' ', '-'], "");
@@ -45,7 +46,12 @@ pub(super) fn character(conn: &Connection, overrides: &Overrides, req: &PlanRequ
         start_npc: race.start_npc,
         from_level,
         to_level: req.to_level,
-        required_class_quests: required_class_quests(overrides, req, &class, &group),
+        required_class_quests: required_class_quests(
+            &super::options::class_quests(conn, overrides)?,
+            req,
+            &class,
+            &group,
+        ),
         class_powers: overrides.class_powers.get(&class).cloned().unwrap_or_default(),
         spell_weights: overrides
             .spells
@@ -128,7 +134,7 @@ fn check_playable(conn: &Connection, race: &RaceDef, req: &PlanRequest, class_id
 
 /// The character's class quests (as requested, or the configured ones), then each companion's.
 fn required_class_quests(
-    overrides: &Overrides,
+    defaults: &HashMap<String, Vec<String>>,
     req: &PlanRequest,
     class: &str,
     group: &[(i64, String)],
@@ -136,9 +142,9 @@ fn required_class_quests(
     let mut quests = req
         .required_class_quests
         .clone()
-        .unwrap_or_else(|| overrides.class_quests.get(class).cloned().unwrap_or_default());
+        .unwrap_or_else(|| defaults.get(class).cloned().unwrap_or_default());
     for (_, name) in group {
-        for q in overrides.class_quests.get(&name.to_lowercase()).into_iter().flatten() {
+        for q in defaults.get(&name.to_lowercase()).into_iter().flatten() {
             if !quests.contains(q) {
                 quests.push(q.clone());
             }
