@@ -77,7 +77,7 @@ pub enum RouteStep {
     Grind {
         mobs: u32,
     },
-    /// Kill mobs of the character's level where it stands up to a level.
+    /// Kill mobs of the character's level up to a level, at the camps of its levels.
     GrindTo {
         level: i64,
     },

@@ -25,6 +25,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Cloth and other loot that hundreds of mobs drop (book pages) fill your bags along the guide: a quest asking for sixty Wool Cloth or a page only counts the time to gather or buy what the kills before have not dropped, so the cloth donations of the capitals are in the guides.
 - Quest XP is the game's own when your game has seen the quest (its quest cache, sent with contributions): exact rewards, and on WoW Forever each dungeon quest's own bonus.
 - Mobs killed on the way are those along the path walked (around the mountains, through the passes), not those on a straight line between two steps that the walk does not take.
+- Grinding takes place at a camp of mobs of your level, the trip there counted in the guide's time, instead of wherever the character stood (a capital, a flight path): the grind step shows the camp on the map, and the guide goes on from there.
 
 ### WoW data
 

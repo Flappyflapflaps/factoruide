@@ -8,7 +8,8 @@
 //! Services (calculations, each one need):
 //! - `combat`: kill times, the power an objective requires, mob XP, grinding;
 //! - `travel` (`Trips`): the fastest way between two places;
-//! - `places`: where each stop takes place, `spot`: the place of an objective done in several;
+//! - `places`: where each stop takes place, `spot`: the place of an objective done in several,
+//!   `camp`: where the character grinds;
 //! - `availability`: what the character can do now;
 //! - `growth`: XP, rewards, power, professions;
 //! - `worth`: whether a quest is worth its trip.
@@ -23,6 +24,7 @@
 mod acceptance;
 mod alns;
 mod availability;
+mod camp;
 mod combat;
 mod construct;
 mod edit;
@@ -63,6 +65,7 @@ use crate::params::Params;
 use crate::world::{Pos, World};
 use crate::xp;
 use availability::{Availability, blocks, followers};
+use camp::NearCamps;
 use growth::Growth;
 use on_the_way::FarmWalks;
 use state::{Flags, Landed, Planned, State};
@@ -94,6 +97,8 @@ pub struct Planner<'a> {
     legs: Legs,
     /// Mobs farmed on each walk, by level (see `on_the_way::farm_along`).
     farm_walks: FarmWalks,
+    /// The camps nearest to each place grinding starts at (see `camp::camp`).
+    near_camps: NearCamps,
     /// The next walk kills every normal mob met, beyond `farm_cap` (a step of an edited route).
     farm_all: Cell<bool>,
     /// Where `while_here` looked for quests at hand, recorded while `run` replays a route (see
@@ -155,6 +160,7 @@ impl<'a> Planner<'a> {
             flights: FlightTables::default(),
             legs: Legs::default(),
             farm_walks: FarmWalks::default(),
+            near_camps: NearCamps::default(),
             farm_all: Cell::new(false),
             heres: RefCell::new(None),
             zone_changes: RefCell::new(Vec::new()),

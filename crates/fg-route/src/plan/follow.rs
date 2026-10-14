@@ -2,6 +2,7 @@
 
 use super::Planner;
 use super::state::{Breakdown, Event, Kind, Stop, Timed};
+use super::step::recorder;
 use crate::world::Pos;
 
 /// One step of an imposed route.
@@ -67,21 +68,7 @@ impl Planner<'_> {
                 }
                 Want::Grind(level) => {
                     if s.level < *level {
-                        let (near, zone) = (s.pos, s.zone);
-                        let seconds = self.growth().grind_to(&mut s, *level);
-                        trace.push(Timed {
-                            event: Event::Grind {
-                                to_level: *level,
-                                seconds,
-                                near,
-                                zone,
-                            },
-                            time: s.time,
-                            level: s.level,
-                            xp: s.xp,
-                            power: s.level as f64 + s.bonus,
-                            gear: s.gear_bonus,
-                        });
+                        self.grind_at_camps(&mut s, *level, &mut recorder(&mut Some(&mut trace)));
                     }
                 }
                 Want::Stop(stop) => {

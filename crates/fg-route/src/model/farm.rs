@@ -1,5 +1,5 @@
 //! Mobs anyone can farm on the way: the spawns of normal hostile or neutral mobs, by cell, to
-//! count those met along a walk.
+//! count those met along a walk, and the camps where a character grinds.
 
 use crate::world::{Pos, World};
 use anyhow::Result;
@@ -14,12 +14,17 @@ type Cells = FxHashMap<(i64, i64, i64), Vec<(f32, f32, u8)>>;
 #[derive(Debug, Default)]
 pub struct FarmMobs {
     cells: Cells,
+    /// Camps to grind at, by continent and character level (`camps`).
+    camps: FxHashMap<(i64, u8), Vec<Pos>>,
 }
 
 impl FarmMobs {
     const CELL: f64 = 100.0;
     /// Spawns closer than this are one mob (the sources list some twice).
     const SAME: f64 = 10.0;
+    /// A cell is a camp for a character of a level when it holds this many mobs of that level,
+    /// give or take one.
+    const CAMP_MOBS: usize = 8;
 
     /// Normal mobs (not elite or rare, no gossip, vendor or quest flag) that are not of a faction:
     /// hostile to both, or neutral beasts. None in the capitals (the game's flag 0x100): what the
@@ -34,6 +39,8 @@ impl FarmMobs {
                AND s.zone_id NOT IN (SELECT ID FROM client_areatable WHERE (Flags_0 & 256) != 0)",
         )?;
         let mut cells = Cells::default();
+        // The zone of each spawn, in the order of its cell's (for the camps).
+        let mut zones: FxHashMap<(i64, i64, i64), Vec<i64>> = FxHashMap::default();
         let mut seen = HashSet::new();
         let rows = stmt.query_map([], |r| {
             Ok((
@@ -59,9 +66,57 @@ impl FarmMobs {
                     .entry(Self::cell(&p))
                     .or_default()
                     .push((p.x as f32, p.y as f32, level));
+                zones.entry(Self::cell(&p)).or_default().push(p.zone);
             }
         }
-        Ok(Self { cells })
+        let camps = Self::find_camps(&cells, &zones);
+        Ok(Self { cells, camps })
+    }
+
+    /// The camps of each level: the cells holding `CAMP_MOBS` mobs of the level give or take
+    /// one, each at the spawn of those mobs nearest to their middle (a place a mob stands on),
+    /// in the order of the cells.
+    fn find_camps(cells: &Cells, zones: &FxHashMap<(i64, i64, i64), Vec<i64>>) -> FxHashMap<(i64, u8), Vec<Pos>> {
+        let mut keys: Vec<_> = cells.keys().copied().collect();
+        keys.sort_unstable();
+        let mut camps: FxHashMap<(i64, u8), Vec<Pos>> = FxHashMap::default();
+        for key in keys {
+            let spawns = &cells[&key];
+            let (lo, hi) = spawns
+                .iter()
+                .fold((u8::MAX, 0), |(lo, hi), &(_, _, l)| (lo.min(l), hi.max(l)));
+            for level in lo.saturating_sub(1).max(1)..=hi.saturating_add(1) {
+                let near = |l: u8| l.abs_diff(level) <= 1;
+                let mobs: Vec<usize> = (0..spawns.len()).filter(|&i| near(spawns[i].2)).collect();
+                if mobs.len() < Self::CAMP_MOBS {
+                    continue;
+                }
+                let n = mobs.len() as f64;
+                let (mx, my) = mobs.iter().fold((0.0, 0.0), |(x, y), &i| {
+                    (x + f64::from(spawns[i].0) / n, y + f64::from(spawns[i].1) / n)
+                });
+                let middle = |i: usize| (f64::from(spawns[i].0) - mx).hypot(f64::from(spawns[i].1) - my);
+                let at = mobs.iter().copied().min_by(|&a, &b| middle(a).total_cmp(&middle(b)));
+                if let Some(i) = at {
+                    camps.entry((key.0, level)).or_default().push(Pos {
+                        continent: key.0,
+                        x: f64::from(spawns[i].0),
+                        y: f64::from(spawns[i].1),
+                        zone: zones[&key][i],
+                    });
+                }
+            }
+        }
+        camps
+    }
+
+    /// The camps where a character of `level` grinds on `continent`: places with `CAMP_MOBS`
+    /// mobs of its level give or take one within a cell, none in the capitals.
+    pub fn camps(&self, continent: i64, level: i64) -> &[Pos] {
+        u8::try_from(level)
+            .ok()
+            .and_then(|l| self.camps.get(&(continent, l)))
+            .map_or(&[], Vec::as_slice)
     }
 
     fn cell(p: &Pos) -> (i64, i64, i64) {

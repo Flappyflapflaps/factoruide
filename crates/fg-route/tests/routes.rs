@@ -827,6 +827,31 @@ fn no_farming_in_capitals() {
     assert!(!forest.is_empty(), "no mob met around Goldshire");
 }
 
+/// Grinding takes place at a camp of mobs of the character's level, gone to first: not in a
+/// capital, where no mob lives.
+#[test]
+fn grinding_goes_to_a_camp() {
+    let mut p = prepare("human", "warrior", 4, &["progression=cautious"]);
+    let city = p.world.to_world(1519, 62.4, 34.2).unwrap();
+    p.model.initial.pos = Some((city, 1519));
+    let planner = planner(&p);
+    let mut trace = Vec::new();
+    let (_, spent) = planner.simulate_full(&[], Some(&mut trace)).unwrap();
+    let camps: Vec<_> = (trace.iter())
+        .filter_map(|t| match t.event {
+            Event::Grind { near, zone, .. } => Some((near, zone)),
+            _ => None,
+        })
+        .collect();
+    assert_ne!(camps, []);
+    for (near, zone) in &camps {
+        assert_ne!(*zone, 1519, "grinding in Stormwind");
+        assert!(p.model.farm.around(near, 150.0, 1..=5) >= 8, "no camp at {near:?}");
+    }
+    assert!(spent.travel > 0.0, "no trip to the camp");
+    assert!(spent.grinding > 0.0);
+}
+
 /// The mobs farmed on the way to a step are a count of their own (the addon counts the kills),
 /// not words of its text.
 #[test]
@@ -1207,17 +1232,25 @@ fn mage_teleports_to_a_capital() {
     p.model.initial.accepted = vec![0];
     (p.profile.from_level, p.profile.to_level, p.model.initial.trained) = (25, 30, Some(25));
     let route = [Stop::quest(0, Kind::Objective(0))];
-    let mut trace = Vec::new();
-    let with = planner(&p).simulate_full(&route, Some(&mut trace)).unwrap().1;
-    assert!(trace.iter().any(|t| matches!(t.event, Event::Teleport { .. })));
+    // When the objective is done (the grinding to the target level comes after).
+    let done = |p: &Prepared, teleport: bool| {
+        let mut trace = Vec::new();
+        planner(p).simulate_full(&route, Some(&mut trace)).unwrap();
+        assert_eq!(
+            trace.iter().any(|t| matches!(t.event, Event::Teleport { .. })),
+            teleport
+        );
+        (trace.iter())
+            .find(|t| matches!(t.event, Event::Stop { .. }))
+            .unwrap()
+            .time
+    };
+    let with = done(&p, true);
     p.model.teleports.clear();
-    let without = planner(&p).simulate_full(&route, None).unwrap().1;
-    let travel = |b: &fg_route::plan::Breakdown| b.travel + b.flights;
+    let without = done(&p, false);
     assert!(
-        travel(&with) * 3.0 < travel(&without),
-        "{:.0} s of travel with the teleport, {:.0} s without",
-        travel(&with),
-        travel(&without)
+        with * 3.0 < without,
+        "{with:.0} s to the objective with the teleport, {without:.0} s without"
     );
 }
 

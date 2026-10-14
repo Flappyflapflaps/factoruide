@@ -25,7 +25,8 @@ pub enum Edit {
     Abandon { quest: u32 },
     /// Kill this many mobs of the character's level where it stands.
     Grind { mobs: u32 },
-    /// Kill mobs of the character's level where it stands up to this level.
+    /// Kill mobs of the character's level up to this level, at the camps of its levels (going
+    /// there first).
     GrindTo { level: i64 },
 }
 
@@ -184,17 +185,7 @@ impl Planner<'_> {
                         } else {
                             let mut trace = Some(&mut trace);
                             let mut record = recorder(&mut trace);
-                            let (near, zone) = (s.pos, s.zone);
-                            let seconds = self.growth().grind_to(&mut s, level);
-                            record(
-                                &s,
-                                Event::Grind {
-                                    to_level: level,
-                                    seconds,
-                                    near,
-                                    zone,
-                                },
-                            );
+                            self.grind_at_camps(&mut s, level, &mut record);
                             self.train(&mut s, &mut record);
                             Outcome::Done
                         }

@@ -358,17 +358,7 @@ impl Planner<'_> {
         if gate <= s.level || self.mode == Mode::Replay || self.explicit {
             return;
         }
-        let (near, zone) = (s.pos, s.zone);
-        let seconds = self.growth().grind_to(s, gate);
-        record(
-            s,
-            Event::Grind {
-                to_level: gate,
-                seconds,
-                near,
-                zone,
-            },
-        );
+        self.grind_at_camps(s, gate, record);
         self.train(s, record);
     }
 
@@ -542,17 +532,7 @@ impl Planner<'_> {
     pub(crate) fn finish(&self, s: &mut State, mut trace: Option<&mut Vec<Timed>>) -> f64 {
         let mut record = recorder(&mut trace);
         if s.level < self.profile.to_level {
-            let (near, zone) = (s.pos, s.zone);
-            let seconds = self.growth().grind_to(s, self.profile.to_level);
-            record(
-                s,
-                Event::Grind {
-                    to_level: self.profile.to_level,
-                    seconds,
-                    near,
-                    zone,
-                },
-            );
+            self.grind_at_camps(s, self.profile.to_level, &mut record);
         }
         let missing = self
             .model
