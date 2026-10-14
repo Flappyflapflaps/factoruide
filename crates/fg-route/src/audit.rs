@@ -87,8 +87,10 @@ pub fn accepted(dir: &std::path::Path, edition: crate::xp::Edition) -> Result<Ve
         accept: Vec<Accepted>,
     }
     let mut accepted = Vec::new();
-    let paths = std::iter::once(dir.join("audit.toml"))
-        .chain(edition.overrides_subdir().map(|sub| dir.join(sub).join("audit.toml")));
+    let paths = [
+        dir.join("audit.toml"),
+        dir.join(edition.overrides_subdir()).join("audit.toml"),
+    ];
     for path in paths {
         if let Ok(text) = std::fs::read_to_string(&path) {
             let file: File = toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;

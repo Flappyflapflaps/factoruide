@@ -44,24 +44,51 @@ pub(super) fn parse_toml<T: serde::de::DeserializeOwned + Default>(
     }
 }
 
+/// The text of `own` merged into `common` (TOML), None when one does not parse (then reported
+/// on the two texts one after the other).
+fn merged(common: &str, own: &str) -> Option<String> {
+    let mut common: toml::Table = toml::from_str(common).ok()?;
+    merge(&mut common, toml::from_str(own).ok()?);
+    toml::to_string(&common).ok()
+}
+
+/// `own` into `common`: tables key by key (`[human]` of races.toml, settings of routing.toml),
+/// `own`'s values over `common`'s, and lists of tables (`[[link]]`, `[[pass]]`) one after the
+/// other: an edition's file adds to the one of every game version.
+fn merge(common: &mut toml::Table, own: toml::Table) {
+    for (key, value) in own {
+        match (common.get_mut(&key), value) {
+            (Some(toml::Value::Table(c)), toml::Value::Table(o)) => merge(c, o),
+            (Some(toml::Value::Array(c)), toml::Value::Array(o)) if c.iter().chain(&o).all(toml::Value::is_table) => {
+                c.extend(o);
+            }
+            (_, value) => {
+                common.insert(key, value);
+            }
+        }
+    }
+}
+
 impl Overrides {
     pub fn load(dir: &Path) -> Result<Self> {
         Self::parse(|name| std::fs::read_to_string(dir.join(name)).ok())
     }
 
-    /// Overrides of a game version: `dir/<edition>/<file>` when present, else `dir/<file>`.
+    /// Overrides of a game version: `dir/<file>` (every version's) with `dir/<edition>/<file>`.
     pub fn load_edition(dir: &Path, edition: crate::xp::Edition) -> Result<Self> {
         Self::parse_edition(|name| std::fs::read_to_string(dir.join(name)).ok(), edition)
     }
 
-    /// Overrides of a game version from files by relative path: `<edition>/<file>` when
-    /// present, else `<file>`; the edition's rules set in the parameters.
+    /// Overrides of a game version from files by relative path: each file of every version
+    /// (`<file>`) with the version's own (`<edition>/<file>`) merged in (`merge`); the edition's
+    /// rules set in the parameters.
     pub fn parse_edition(file: impl Fn(&str) -> Option<String>, edition: crate::xp::Edition) -> Result<Self> {
         let mut o = Self::parse(|name| {
-            edition
-                .overrides_subdir()
-                .and_then(|sub| file(&format!("{sub}/{name}")))
-                .or_else(|| file(name))
+            let own = file(&format!("{}/{name}", edition.overrides_subdir()));
+            match (file(name), own) {
+                (Some(common), Some(own)) => Some(merged(&common, &own).unwrap_or_else(|| format!("{common}\n{own}"))),
+                (common, own) => common.or(own),
+            }
         })?;
         o.params.edition = edition;
         o.params.quest_log_size = edition.quest_log_size();
@@ -132,5 +159,48 @@ mod tests {
         let cap = |e| Overrides::load_edition(&dir, e).unwrap().params.farm_cap;
         assert!(cap(Edition::Forever) < cap(Edition::Classic));
         assert!((cap(Edition::Classic) - cap(Edition::Tbc)).abs() < 1e-9);
+    }
+
+    /// The files of every game version hold what they share (races, the tram, the zeppelins);
+    /// each version's folder adds its own (Forever's Skyborne and boats, TBC's draenei and
+    /// Dark Portal, Classic's straight Menethil Harbor boat), never seen by the others.
+    #[test]
+    fn each_edition_adds_its_own_to_the_shared_files() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../overrides");
+        let load = |e| Overrides::load_edition(&dir, e).unwrap();
+        let (forever, classic, tbc) = (load(Edition::Forever), load(Edition::Classic), load(Edition::Tbc));
+        let link = |o: &Overrides, name: &str| o.links.iter().any(|l| l.name == name);
+        for o in [&forever, &classic, &tbc] {
+            assert!(o.races.contains_key("human") && o.races.contains_key("tauren"));
+            assert!(link(o, "Deeprun Tram Ironforge - Stormwind"));
+            assert_eq!(o.teleports.len(), 1);
+        }
+        assert!(forever.races.contains_key("skyborne") && !classic.races.contains_key("skyborne"));
+        assert!(tbc.races.contains_key("draenei") && !forever.races.contains_key("draenei"));
+        assert!(
+            link(&forever, "Boat Stormwind Harbor - Auberdine") && !link(&classic, "Boat Stormwind Harbor - Auberdine")
+        );
+        assert!(
+            !link(&forever, "Boat Menethil Harbor - Auberdine") && link(&classic, "Boat Menethil Harbor - Auberdine")
+        );
+        assert!(link(&tbc, "Dark Portal") && !link(&classic, "Dark Portal"));
+        assert_eq!(classic.races.len(), 8);
+    }
+
+    /// An edition's file adds its lists of tables to the shared one and sets its keys over it.
+    #[test]
+    fn edition_file_merged_into_the_shared_one() {
+        let shared = "farm_cap = 0.1\nrun_speed = 7.0\n[[link]]\nname = \"a\"\n";
+        let own = "farm_cap = 0.2\n[[link]]\nname = \"b\"\n";
+        let merged: toml::Table = toml::from_str(&super::merged(shared, own).unwrap()).unwrap();
+        assert_eq!(merged["farm_cap"].as_float(), Some(0.2));
+        assert_eq!(merged["run_speed"].as_float(), Some(7.0));
+        let names: Vec<&str> = merged["link"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| l["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, ["a", "b"]);
     }
 }

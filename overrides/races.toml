@@ -1,5 +1,7 @@
 # Starting point of each race: the NPC players spawn next to.
 # `id` is the ChrRaces ID; `mask` is the quest race bit (Forever encoding of the quest data).
+#
+# This file: the races of every game version; <edition>/races.toml adds those of one version.
 
 [human]
 id = 1
@@ -20,17 +22,6 @@ start_npc = 658 # Sten Stoutarm, Coldridge Valley
 id = 4
 faction = "Alliance"
 start_npc = 2079 # Conservator Ilthalaine, Shadowglen
-
-# Skyborne play on both sides: High Order (Alliance) and Windshaper (Horde), same starting island.
-[skyborne]
-id = 95
-faction = "Alliance"
-start_npc = 251362 # Ailee Farheart, Zephras Isle (to verify in game)
-
-[skyborne_horde]
-id = 96
-faction = "Horde"
-start_npc = 251362 # Ailee Farheart, Zephras Isle
 
 [orc]
 id = 2

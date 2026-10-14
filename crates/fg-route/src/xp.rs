@@ -66,12 +66,9 @@ impl Edition {
         }
     }
 
-    /// Overrides folder (`overrides/<key>/`), its files replacing those of `overrides/`.
-    pub fn overrides_subdir(self) -> Option<&'static str> {
-        match self {
-            Edition::Forever => None,
-            e => Some(e.key()),
-        }
+    /// Overrides folder (`overrides/<key>/`), its files added to those of `overrides/`.
+    pub fn overrides_subdir(self) -> &'static str {
+        self.key()
     }
 
     /// Quests the log holds.

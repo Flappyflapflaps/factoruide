@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 )]
 struct Cli {
     /// Game version: forever (default), classic, tbc. Sets the database
-    /// (data/<edition>.sqlite.zst) and the overrides (overrides/<edition>/ over overrides/).
+    /// (data/<edition>.sqlite.zst) and the overrides (overrides/, with overrides/<edition>/ added).
     #[arg(long, env = "FG_EDITION", default_value = "forever", global = true)]
     edition: String,
     /// Normalized database (default: the edition's, unpacked from data/<edition>.sqlite.zst)
