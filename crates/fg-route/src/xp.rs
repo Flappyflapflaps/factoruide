@@ -71,7 +71,8 @@ impl Edition {
         self.key()
     }
 
-    /// Quests the log holds.
+    /// Quests the log holds: the client's MAXIMUM_NUM_QUESTS_LOG_CAN_ACCEPT (40 in WoW Forever's
+    /// 1.60 API documentation, QuestLogConstsMainlineCamelot; Classic Era keeps 20, TBC 25).
     pub fn quest_log_size(self) -> usize {
         match self {
             Edition::Forever => 40,
