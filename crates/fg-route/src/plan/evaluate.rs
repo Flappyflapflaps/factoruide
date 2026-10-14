@@ -216,6 +216,7 @@ impl Planner<'_> {
                 if s.level == old.level
                     && s.xp == old.xp
                     && s.rested == old.rested
+                    && s.stock == old.stock
                     && s.known == old.known
                     && s.log == old.log
                     && s.pos == old.pos

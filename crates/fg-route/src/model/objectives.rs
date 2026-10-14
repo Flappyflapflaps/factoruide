@@ -49,6 +49,7 @@ impl Objective {
             alts: vec![],
             after: 0,
             handed_by: vec![],
+            stock: None,
         }
     }
 }

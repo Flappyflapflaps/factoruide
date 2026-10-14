@@ -137,6 +137,9 @@ pub struct Objective {
     /// once one of them is turned in, where they are (the chapters of The Green Hills of
     /// Stranglethorn bound by Barnil Stonepot). Empty for the others.
     pub handed_by: Vec<i64>,
+    /// Common loot the route's kills gather by themselves (index in `Model::loot`): only what
+    /// the bags lack is gathered or bought, `extra` is the time for the whole count.
+    pub stock: Option<u16>,
 }
 
 impl Objective {
@@ -281,6 +284,8 @@ pub struct Model {
     /// Normal mobs anyone can farm: on the way (see `Params::farm_on_way`), and where the
     /// guide sends the character to grind.
     pub farm: super::FarmMobs,
+    /// Common loot quests ask for, and what the kills of each zone drop of it.
+    pub loot: super::CommonLoot,
     /// Character power data (gear, class spells); `None` without the data (TBC).
     pub power: Option<crate::power::PowerModel>,
     /// Items each quest gives (indexes in `power.items`): always, and one of the choices.

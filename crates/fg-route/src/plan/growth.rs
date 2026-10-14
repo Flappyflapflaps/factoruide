@@ -23,6 +23,15 @@ impl<'g> Growth<'g> {
         &self.model.quests[i as usize]
     }
 
+    /// Common loot `kills` normal mobs of `zone` drop (`Model::loot`), into the bags.
+    pub(crate) fn gather(self, s: &mut State, zone: i64, kills: f64) {
+        if let Some(items) = self.model.loot.by_zone.get(&zone) {
+            for &(i, each) in items {
+                s.stock[usize::from(i)] += kills as f32 * each;
+            }
+        }
+    }
+
     /// Levels of power gear, class spells and class quests add (after a level up, new gear,
     /// training, a pet).
     pub(crate) fn refresh_power(self, s: &mut State) {
@@ -177,6 +186,13 @@ impl<'g> Growth<'g> {
             let killed = need - (need / 2).min(s.rested.max(0));
             let over = (need - self.grind_budget(s).max(0)).max(0);
             let time = killed as f64 / rate;
+            let each = self
+                .rules()
+                .mob_xp(s.level, s.level, xp::content_at(s.pos.continent, s.pos.zone))
+                * self.params.group_xp_share();
+            if each > 0.0 {
+                self.gather(s, s.pos.zone, killed as f64 / each);
+            }
             t += time;
             s.spent.grind_over += over as f64 / need as f64 * time;
             s.spent.grind_xp += need;
@@ -208,6 +224,7 @@ impl<'g> Growth<'g> {
                 s.spent.grind_over += time;
             }
             t += time;
+            self.gather(s, s.pos.zone, 1.0);
             s.grind_used += each;
             s.spent.grind_xp += self.gain_kills(s, each);
         }

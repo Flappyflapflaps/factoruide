@@ -1,7 +1,7 @@
 //! Planner behavior on the Classic database: reproductions of the problems met on real guides.
 
 use fg_route::job::{self, Bind, LogObjective, LogQuest, MapPos, Overrides, PlanRequest, Prepared, StartState};
-use fg_route::model::{Guard, Initial, Objective, Spots};
+use fg_route::model::{CommonLoot, Guard, Initial, Objective, Spots};
 use fg_route::plan::{Event, Kind, Planner, Stop};
 use fg_route::xp::Edition;
 use rusqlite::Connection;
@@ -583,6 +583,7 @@ fn gathering_next_to_kills_overlaps_them() {
             alts: vec![],
             after: 0,
             handed_by: vec![],
+            stock: None,
         }];
     }
     p.model.initial.accepted = vec![0, 1];
@@ -592,6 +593,35 @@ fn gathering_next_to_kills_overlaps_them() {
     p.params.gather_overlap = 0.0;
     let apart = fighting(&p);
     assert!(together < apart, "{together:.0} s together, {apart:.0} s apart");
+}
+
+/// Common loot a quest asks for by the stack (cloth for a donation) comes from the route's kills
+/// where it drops: after killing there, only what the bags lack is gathered or bought.
+#[test]
+fn common_loot_comes_from_the_kills_before() {
+    let mut p = quests_at_start(2);
+    // Quest 0 kills 100 mobs at the start, quest 1 asks for 20 cloth (a minute each to gather
+    // or buy), and a mob there drops one cloth in ten.
+    p.model.quests[0].objectives = vec![kills_east_of_start(&p, 0.0, 100.0, 1)];
+    let mut cloth = kills_east_of_start(&p, 0.0, 0.0, 1);
+    (cloth.count, cloth.extra, cloth.stock) = (20.0, 20.0 * 60.0, Some(0));
+    p.model.quests[1].objectives = vec![cloth];
+    p.model.loot = CommonLoot {
+        items: vec![2589],
+        ..CommonLoot::default()
+    };
+    p.model.loot.by_zone.insert(p.model.start.zone, vec![(0, 0.1)]);
+    p.model.initial.accepted = vec![0, 1];
+    // The kills' XP must not end the route before the cloth.
+    p.profile.to_level = 10;
+    let fighting = |route: &[Stop]| planner(&p).simulate_full(route, None).unwrap().1.fighting;
+    let (kill, gather) = (Stop::quest(0, Kind::Objective(0)), Stop::quest(1, Kind::Objective(0)));
+    let first = fighting(&[gather, kill]);
+    let after = fighting(&[kill, gather]);
+    assert!(
+        (first - after - 10.0 * 60.0).abs() < 1.0,
+        "{first:.0} s gathering first, {after:.0} s after the kills"
+    );
 }
 
 /// Each checkpoint has a step where a character behind the route grinds: at the last place
@@ -1318,6 +1348,7 @@ fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Obj
         alts: vec![],
         after: 0,
         handed_by: vec![],
+        stock: None,
     }
 }
 

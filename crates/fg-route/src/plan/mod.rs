@@ -259,6 +259,7 @@ impl<'a> Planner<'a> {
             level,
             xp: init.xp.min(self.rules().to_next_level(level) - 1).max(0),
             rested: init.rested,
+            stock: vec![0.0; self.model.loot.items.len()],
             known: init.known,
             bind: init.bind.unwrap_or(self.model.start_inn),
             hearth_ready: 0.0,

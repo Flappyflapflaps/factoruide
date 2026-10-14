@@ -257,10 +257,13 @@ impl QuestBuilder<'_> {
     }
 
     /// Common loot (cloth, gems, potions dropped by hundreds of mob types): gathered on the way
-    /// or bought at the auction house, not farmed.
+    /// (the route's kills fill the bags, `CommonLoot`) or bought at the auction house, not
+    /// farmed.
     fn common_loot(loc: Loc, text: &str, count: f64, each: f64) -> Objective {
         Objective {
             count,
+            // Indexed with the others once every quest is built (`CommonLoot::load`).
+            stock: Some(0),
             ..Objective::plain(loc, format!("Gather or buy {text}"), count * each)
         }
     }

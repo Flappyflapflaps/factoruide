@@ -210,6 +210,9 @@ pub(crate) struct State {
     pub(crate) xp: i64,
     /// Rested XP left: kills give double up to it.
     pub(crate) rested: i64,
+    /// Common loot in the bags (`Model::loot`), gathered by the kills so far, less what
+    /// objectives took.
+    pub(crate) stock: Vec<f32>,
     pub(crate) known: u128,
     pub(crate) bind: usize,
     pub(crate) hearth_ready: f64,

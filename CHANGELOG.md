@@ -22,6 +22,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Addon: abandon steps have a red cross, their label and the quest's name.
 - Characters page: a character deleted in game can be removed from the list (the game keeps its files): it no longer follows a guide, and comes back if played again.
 - Quests asking for an item that only another quest hands are in the guides (The Green Hills of Stranglethorn and its bound chapters, The Morrow Stone): the item is counted once that quest is turned in, where it is.
+- Cloth and other loot that hundreds of mobs drop (book pages) fill your bags along the guide: a quest asking for sixty Wool Cloth or a page only counts the time to gather or buy what the kills before have not dropped, so the cloth donations of the capitals are in the guides.
 - Quest XP is the game's own when your game has seen the quest (its quest cache, sent with contributions): exact rewards, and on WoW Forever each dungeon quest's own bonus.
 
 ### WoW data

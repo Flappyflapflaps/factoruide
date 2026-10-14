@@ -175,6 +175,7 @@ impl Planner<'_> {
                 * self.rules().mob_xp(s.level, q.start_mob_level, content)
                 * self.params.group_xp_share()) as i64;
             s.spent.mob_xp += self.growth().gain_kills(s, mob_xp);
+            self.growth().gather(s, q.starts[0].zone, q.start_kills);
         }
         s.accepted.set(i as usize, true);
         s.log += 1;
@@ -480,9 +481,24 @@ impl Planner<'_> {
         } else {
             (0.0, o.uses * left)
         };
-        // The fixed time too, by share of the targets left.
+        // The fixed time too, by share of the targets left; common loot only for what the bags
+        // lack.
+        let extra = match o.stock {
+            Some(c) => {
+                let need = (o.count * left) as f32;
+                let have = s.stock[usize::from(c)].min(need).max(0.0);
+                s.stock[usize::from(c)] -= have;
+                if need > 0.0 {
+                    o.extra * left * f64::from((need - have) / need)
+                } else {
+                    0.0
+                }
+            }
+            None => o.extra * left,
+        };
         let kill_work = kills * self.combat().kill_time(s.level, s.bonus, o);
-        let other = uses * self.params.object_time + o.extra * left;
+        let other = uses * self.params.object_time + extra;
+        self.growth().gather(s, o.loc.zone, kills);
         s.time += kill_work + other;
         s.spent.fighting += kill_work + other;
         let mob_xp = (kills * self.combat().mob_xp(s.level, o)) as i64;

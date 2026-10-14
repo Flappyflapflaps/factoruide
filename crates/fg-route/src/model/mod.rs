@@ -10,6 +10,7 @@ mod farm;
 mod givers;
 mod guard;
 mod item;
+mod loot;
 mod names;
 mod objectives;
 mod places;
@@ -23,6 +24,7 @@ mod types;
 pub(crate) use chains::class_sort;
 pub use farm::FarmMobs;
 pub use guard::Guards;
+pub use loot::CommonLoot;
 pub use names::Names;
 pub use types::{
     Dungeon, DungeonDef, EntityKind, ExploreArea, Guard, Initial, Loc, Model, Objective, ProfessionPlan, Profile,
@@ -43,6 +45,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
     let (mut quests, mut skipped) = build_quests(&sources, world, profile, params);
     chains::drop_unhanded(&mut quests, &mut skipped);
     report_skipped_class_quests(&sources, &skipped);
+    let loot = CommonLoot::load(conn, &mut quests)?;
     let places = Places::load(conn, world, &sources.entities, profile, &sources.start)?;
     chains::require_prerequisites(&mut quests);
     chains::release_impossible_class_quests(&mut quests);
@@ -88,6 +91,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         explore,
         explore_by_zone,
         farm,
+        loot,
         power,
         rewards,
         dungeon_loot,

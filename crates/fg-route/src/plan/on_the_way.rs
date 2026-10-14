@@ -190,6 +190,7 @@ impl Planner<'_> {
         s.spent.farming += time;
         s.farm_used += gained;
         s.spent.farm_xp += self.growth().gain_kills(s, gained);
+        self.growth().gather(s, a.zone, killed);
         record(
             s,
             Event::Farm {
