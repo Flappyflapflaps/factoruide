@@ -62,6 +62,24 @@ from = { zone = 148, x = 33.2, y = 40.2 } # approx
 to = { zone = 141, x = 55.0, y = 93.0 }   # approx
 seconds = 150
 
+# The Feathermoon ferry (Feralas), from the client's transport path 303: docks and courses, the
+# ride from their length as the other boats' (the way to the island goes around: longer).
+[[link]]
+name = "Feathermoon Ferry to the coast"
+faction = "Alliance"
+from = { zone = 357, x = 31.0, y = 39.5 }  # path 303: Feathermoon Stronghold's dock
+to = { zone = 357, x = 43.13, y = 42.76 }  # path 303: the coast's dock
+seconds = 100
+one_way = true
+
+[[link]]
+name = "Feathermoon Ferry to Feathermoon Stronghold"
+faction = "Alliance"
+from = { zone = 357, x = 43.13, y = 42.76 }
+to = { zone = 357, x = 31.0, y = 39.5 }
+seconds = 340
+one_way = true
+
 # Rut'theran Village lies at the foot of Teldrassil: only this portal leads up to the top
 # (area triggers 542 up, 527 down, next to each other on the Darnassus side).
 [[link]]

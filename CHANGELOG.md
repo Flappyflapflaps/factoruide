@@ -12,6 +12,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Off-road shortcuts are a step of the guide ("Take the shortcut: ..."), and the Dun Morogh to Wetlands mountain skip is only taken that way (it is a drop, not climbed back).
 - Walks follow the terrain closer: rivers, lakes and the coast are swum, slower than walking; the open sea, where fatigue kills, is never crossed; a cliff low enough is jumped down but never climbed. Islands close to the shore (Feathermoon Stronghold) can be swum to, Teldrassil cannot.
 - Guides are computed about as fast as before with this terrain: long walks go from tile to tile of the map instead of cell by cell.
+- The Feathermoon ferry (Feralas) is in the guides, both ways.
 - Guide editor: an objective done in one of several places opens in the place the guide does it (it could open in another, with another time).
 
 ### WoW data
