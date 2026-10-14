@@ -33,7 +33,7 @@ impl QuestBuilder<'_> {
             level,
             min_level: self.min_level(r, &givers),
             xp: self.xp(r, level),
-            xp_observed: r.xp_observed && r.xp > 0,
+            xp_observed: r.xp_observed,
             time_limit: r.time_limit.filter(|t| *t > 0).map(|t| t as f64),
             starts: givers.starts,
             ends: givers.ends,
@@ -73,7 +73,8 @@ impl QuestBuilder<'_> {
     fn xp(&self, r: &QuestRow, level: i64) -> i64 {
         if self.other_class(r) {
             0
-        } else if r.xp > 0 {
+        } else if r.xp > 0 || r.xp_observed {
+            // The game's own XP, none included (an item handed in for a reward only).
             r.xp
         } else {
             self.sources.default_xp.get(&level).copied().unwrap_or(0)

@@ -125,6 +125,12 @@ pub fn validate(c: &Contribution, now: u64) -> Result<()> {
                 );
                 ensure!((1..10_000).contains(&o.amount), "quest {id}: bad objective amount");
             }
+            if let Some(xp) = q.xp {
+                ensure!(
+                    (-1..=100).contains(&xp.level) && xp.difficulty <= 10 && (0.05..=20.0).contains(&xp.multiplier),
+                    "quest {id}: bad XP reward"
+                );
+            }
         }
     }
 
@@ -201,7 +207,7 @@ pub fn validate(c: &Contribution, now: u64) -> Result<()> {
 mod tests {
     use super::*;
     use crate::collector::{Character, Event};
-    use crate::wdb::{CacheFile, CachedQuest, Objective};
+    use crate::wdb::{CacheFile, CachedQuest, Objective, XpReward};
 
     const NOW: u64 = 1_800_000_000;
 
@@ -215,6 +221,11 @@ mod tests {
                 amount: 10,
             }],
             confirmed: true,
+            xp: Some(XpReward {
+                level: 10,
+                difficulty: 5,
+                multiplier: 1.0,
+            }),
         };
         let event = Event {
             seq: Some(1),
@@ -281,6 +292,12 @@ mod tests {
             .unwrap()
             .objectives[0]
             .amount = 0));
+        assert!(rejected(|c| c.quest_cache[0].quests.get_mut(&155).unwrap().xp =
+            Some(XpReward {
+                level: 10,
+                difficulty: 5,
+                multiplier: f32::NAN,
+            })));
         assert!(rejected(|c| c.collector[0].character = "Brouz-Realm".into()));
         assert!(rejected(|c| c.collector[0].events[0].event = Some("hack".into())));
         assert!(rejected(|c| c.collector[0].events[0].x = Some(f64::NAN)));
