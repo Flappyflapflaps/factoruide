@@ -122,6 +122,8 @@ impl Planner<'_> {
     /// dungeon already run or outleveled. They would hold a log slot forever. Also those gone
     /// gray leading nowhere (`gray_dead_end`): they are no longer turned in, so the route turns
     /// them in before or loses their XP. Checked when the level or the dungeons done change.
+    /// Those the route took count against it (`Params::abandon_weight`); a quest of the
+    /// character's log it does not take was not its choice.
     pub(crate) fn abandon_hopeless(&self, s: &mut State, record: &mut impl FnMut(&State, Event)) {
         if self.explicit || s.abandon_check == (s.level, s.dungeons) {
             return;
@@ -139,6 +141,9 @@ impl Planner<'_> {
                         })
                 });
             if hopeless {
+                if s.planned.flags.get(i).is_some_and(|f| f & 1 != 0) {
+                    s.spent.abandoned += 1;
+                }
                 Self::abandon(s, i as u32, record);
             }
         }

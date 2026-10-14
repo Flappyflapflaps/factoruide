@@ -113,6 +113,9 @@ quest whose objectives are far out of reach is not picked up.
   healing, buff value). The character trains on the way once the new spells make fights
   `train_min_gain` faster, and makes a trip at `train_trip_gain`; the training steps list the
   spells that count, and the addon buys only those. Spells not listed (and talents) do not count.
+- **Required class quests**: those of `overrides/class_quests.toml` and every class quest the data
+  says teaches a spell (`m_quest.reward_spell`), by name; the app lists them, the player can take
+  some out. A quest the route takes and gives up costs it `abandon_weight`.
 - **Class quests** giving a pet or a form (`overrides/class_quests.toml`) add levels of power
   too (a 1.4 times faster fight is 3.2 levels), and count like an upgrade when choosing quests.
 - The data (item stats, quest rewards, boss loot, trainer spells, base stats by level) comes from

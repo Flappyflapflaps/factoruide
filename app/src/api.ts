@@ -77,6 +77,7 @@ export interface Params {
   flight_weight: number;
   gold_weight: number;
   zone_change_weight: number;
+  abandon_weight: number;
   zone_stay: number;
   forced_dungeons: number[];
   excluded_dungeons: number[];

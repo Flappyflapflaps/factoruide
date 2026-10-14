@@ -300,3 +300,27 @@ fn bringing_together_never_makes_it_worse() {
     );
     assert_eq!(kept, apart);
 }
+
+/// A quest the route takes and gives up when it goes gray costs `abandon_weight`: the same route
+/// without it is better by that much (its taking costs only seconds).
+#[test]
+fn a_quest_taken_and_given_up_costs_the_route() {
+    let mut p = quests_at_start(2);
+    p.profile.to_level = 20;
+    // Quest 1 takes the character to level 7: quest 0 (level 1, leading nowhere) is gray then.
+    p.model.quests[1].xp = 11_200;
+    let route = [
+        Stop::quest(0, Kind::Accept),
+        Stop::quest(1, Kind::Accept),
+        Stop::quest(1, Kind::TurnIn),
+    ];
+    let without = [route[1], route[2]];
+    let score = |p: &Prepared, route: &[Stop]| planner(p).simulate_full(route, None).unwrap();
+    p.params.abandon_weight = 600.0;
+    let ((given_up, spent), (left_out, _)) = (score(&p, &route), score(&p, &without));
+    assert_eq!(spent.abandoned, 1);
+    assert!(given_up - left_out > 590.0, "{given_up} vs {left_out}");
+    p.params.abandon_weight = 0.0;
+    let (given_up, _) = score(&p, &route);
+    assert!(given_up - left_out < 30.0, "{given_up} vs {left_out}");
+}

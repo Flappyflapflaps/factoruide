@@ -329,6 +329,9 @@ pub struct Breakdown {
     /// Time spent outside the preferred zones (none preferred: 0).
     #[serde(default)]
     pub outside_preferred: f64,
+    /// Quests the route took and gave up (see `Params::abandon_weight`).
+    #[serde(default)]
+    pub abandoned: u32,
 }
 
 /// Quests a route accepts (bit 1) and turns in (bit 2), and where it first accepts each.

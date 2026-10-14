@@ -254,6 +254,11 @@ pub struct Params {
     pub zone_change_weight: f64,
     /// Cost of a class quest left out (keeps them in the route).
     pub mandatory_penalty: f64,
+    /// Seconds each quest the route takes and gives up costs the optimizer (gone gray, its
+    /// dungeon run without it): taking a quest, killing for one of its objectives and dropping it
+    /// hours later is grinding in disguise in a guide. Finishing it or leaving it out wins
+    /// unless it saves more than that.
+    pub abandon_weight: f64,
     /// How the first route is built.
     pub construction: Construction,
     /// Searches at once (different seeds), whatever the machine's processors: the same guide on
@@ -382,6 +387,7 @@ impl Default for Params {
             flight_weight: 1.0,
             gold_weight: 3600.0,
             zone_change_weight: 240.0,
+            abandon_weight: 600.0,
             dungeon_xp_share: 0.35,
             dungeons: true,
             forced_dungeons: vec![],

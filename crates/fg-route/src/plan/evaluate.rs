@@ -23,7 +23,7 @@ pub(crate) struct Run {
 
 impl Planner<'_> {
     /// Score added to the play time: grinding (beyond its cap even more) and farming on the
-    /// way, flights weighed, gold spent on flights.
+    /// way, flights weighed, gold spent on flights, zone changes, quests given up.
     pub(crate) fn weights(&self, spent: &Breakdown) -> f64 {
         (self.params.grind_weight() - 1.0) * spent.grinding
             + (self.params.grind_over_weight() - self.params.grind_weight()) * spent.grind_over
@@ -32,6 +32,7 @@ impl Planner<'_> {
             + self.params.gold_weight * spent.flight_cost as f64 / 10_000.0
             + self.params.zone_change_weight * f64::from(spent.zone_changes)
             + self.params.preferred_zone_weight * spent.outside_preferred
+            + self.params.abandon_weight * f64::from(spent.abandoned)
     }
 
     /// Time to reach the target level following `route` (plus penalties), or None if invalid.
