@@ -45,6 +45,7 @@ export const loadImage = (id: number) => {
 /** Forget the maps (another game version shows other maps). */
 export function clearMapCache() {
   indexPromise = null;
+  for (const p of images.values()) p.then(URL.revokeObjectURL, () => {});
   images.clear();
 }
 

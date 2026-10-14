@@ -1375,16 +1375,13 @@ fn map_index(state: State<'_, AppState>) -> CmdResult<serde_json::Value> {
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
 )]
-fn map_image(state: State<'_, AppState>, id: i64) -> CmdResult<String> {
-    use base64::Engine;
-    let bytes: Vec<u8> = state
-        .open_db()?
-        .query_row("SELECT jpeg FROM app_map_image WHERE id = ?1", [id], |r| r.get(0))
-        .map_err(err)?;
-    Ok(format!(
-        "data:image/jpeg;base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(bytes)
-    ))
+fn map_image(state: State<'_, AppState>, id: i64) -> CmdResult<tauri::ipc::Response> {
+    let name = format!("{}/{id}.webp", state.edition().key());
+    let (_, bytes) = embedded::MAPS
+        .iter()
+        .find(|(n, _)| *n == name)
+        .ok_or_else(|| format!("no map image {name}"))?;
+    Ok(tauri::ipc::Response::new(bytes.to_vec()))
 }
 
 /// WebKitGTK renders a blank window under WSLg (no usable GPU for DMA-BUF/EGL),

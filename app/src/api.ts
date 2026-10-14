@@ -346,7 +346,11 @@ export const api = {
   listAssignments: () => invoke<Record<string, string>>("list_assignments"),
   /** Make a character follow a guide (null: none) and write the addon; returns its number of guides. */
   assignGuide: (character: string, guide: string | null) => invoke<number>("assign_guide", { character, guide }),
-  mapImage: (id: number) => invoke<string>("map_image", { id }),
+  /** A map image (WebP), as an object URL. */
+  mapImage: (id: number) =>
+    invoke<ArrayBuffer>("map_image", { id }).then((bytes) =>
+      URL.createObjectURL(new Blob([bytes], { type: "image/webp" })),
+    ),
   exportRequest: (request: PlanRequest) => invoke<string>("export_request", { request }),
   /** Copies the addon into the game with the installed guides. */
   /** Returns the number of guides installed. */

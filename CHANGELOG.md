@@ -15,6 +15,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Guides are computed about as fast as before with this terrain: long walks go from tile to tile of the map instead of cell by cell.
 - The Feathermoon ferry (Feralas) is in the guides, both ways.
 - Guide editor: an objective done in one of several places opens in the place the guide does it (it could open in another, with another time).
+- Smaller app: the game data of the three game versions is about 38 MB lighter to download, and each game version takes about 60 MB less on disk once opened. The world maps are lighter images and load faster; the guides are the same.
 
 ### WoW data
 

@@ -40,8 +40,8 @@ fn files(dir: &Path, extensions: &[&str], skip: &[&str], subdirs: bool) -> Strin
     })
 }
 
-/// Embeds the game databases (one per edition, from `fg --edition <e> bundle`), the overrides
-/// and the addon in the app.
+/// Embeds the game databases (one per edition, from `fg --edition <e> bundle`) and their map
+/// images, the overrides and the addon in the app.
 fn main() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let dir = root.join("data");
@@ -66,8 +66,11 @@ fn main() {
     let out = format!(
         "/// (edition, zstd database) of every edition bundled.\n\
          pub const DATABASES: &[(&str, &[u8])] = &[\n{databases}];\n\
+         /// (\"<edition>/<map id>.webp\", image) of every edition's maps.\n\
+         pub const MAPS: &[(&str, &[u8])] = &[\n{}];\n\
          pub const OVERRIDES: &[(&str, &[u8])] = &[\n{}];\n\
          pub const ADDON: &[(&str, &[u8])] = &[\n{}];\n",
+        files(&dir.join("maps"), &["webp"], &[], true),
         files(&root.join("overrides"), &["toml"], &[], true),
         // Routes.lua and Config.lua are written on install; textures are in Media/.
         files(

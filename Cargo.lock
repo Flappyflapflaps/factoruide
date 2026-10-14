@@ -890,7 +890,6 @@ name = "factoruide-app"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
  "fg-contrib",
  "fg-route",
  "getrandom 0.3.4",

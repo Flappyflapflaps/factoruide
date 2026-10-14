@@ -33,11 +33,13 @@ impl Names {
         if locale == "enUS" {
             return Ok(names);
         }
-        // Names seen in the game client first, then the quest data's translations.
-        let mut stmt = conn.prepare(
-            "SELECT entity_type, id, name FROM l10n WHERE locale = ?1 AND name IS NOT NULL AND name != ''
-             ORDER BY CASE source WHEN 'client_cache' THEN 0 ELSE 1 END DESC",
-        )?;
+        // Names seen in the game client first, then the quest data's translations. The app's
+        // database keeps only the preferred one; a full quest database has one per source.
+        let query = "SELECT entity_type, id, name FROM l10n WHERE locale = ?1 AND name IS NOT NULL AND name != ''";
+        let mut stmt = match conn.prepare(&format!("{query} ORDER BY source = 'client_cache'")) {
+            Ok(stmt) => stmt,
+            Err(_) => conn.prepare(query)?,
+        };
         for row in stmt.query_map([locale], |r| {
             Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?))
         })? {
