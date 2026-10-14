@@ -77,7 +77,7 @@ export const sections: Section[] = [
       { key: "run_speed", kind: "number", label: "Vitesse de course", help: "Vitesse à pied, sans monture (7 dans le jeu).", unit: "m/s", min: 5, max: 10, step: 0.1 },
       { key: "mount_level", kind: "number", label: "Niveau de la monture", help: "Niveau où le personnage a sa monture : les trajets au sol vont plus vite ensuite.", min: 1, max: 60, step: 1 },
       { key: "mount_bonus", kind: "number", label: "Bonus de vitesse de la monture", help: "Vitesse en plus avec la monture (60 % pour la première).", unit: "%", scale: 0.01, min: 0, max: 100, step: 5 },
-      { key: "detour", kind: "number", label: "Facteur de détour", help: "Les chemins sont plus longs que la ligne droite.", unit: "×", min: 1, max: 2, step: 0.05 },
+      { key: "detour", kind: "number", label: "Facteur de détour", help: "Les trajets sont plus longs que le chemin calculé sur le terrain (arbres, bâtiments, monstres à contourner). 1 : le chemin du terrain.", unit: "×", min: 1, max: 2, step: 0.05 },
       { key: "shortcuts", kind: "bool", label: "Raccourcis hors route", help: "Escalades et sauts connus (ex. Dun Morogh vers les Paluns par la montagne), déclarés dans overrides/passes.toml." },
       { key: "flight_speed", kind: "number", label: "Vitesse des vols", help: "Vitesse des vols (griffon, wyverne, hippogriffe).", unit: "m/s", min: 10, max: 60, step: 1 },
       { key: "flight_overhead", kind: "number", label: "Temps fixe par vol", help: "Temps ajouté à chaque vol : parler au maître de vol, décollage, atterrissage.", unit: "s", min: 0, max: 120, step: 5 },

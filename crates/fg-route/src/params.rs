@@ -12,7 +12,13 @@ pub struct Params {
     pub mount_bonus: f64,
     /// Flight speed in yards/second.
     pub flight_speed: f64,
-    /// Ground paths are longer than straight lines.
+    /// Walks are this much longer than the terrain's path (`World::walk_distance_at`): what the
+    /// terrain does not model (trees, buildings, mobs run around, mounting). 1: that path alone
+    /// already makes the walks of 1-60 guides 1.27 to 1.31 times the straight line (1.30 to
+    /// 1.41 before optimizing; Forever and Classic, several races and classes), as much as the
+    /// 1.3 of the straight-line model this factor comes from (it was counted twice). And its
+    /// 8-direction cells make the walks it bends about 5 % longer than the line they follow,
+    /// about what it leaves out.
     pub detour: f64,
     /// Overhead of each stop (talking, looting, reading) in seconds.
     pub stop_overhead: f64,
@@ -287,7 +293,7 @@ impl Default for Params {
             mount_level: 40,
             mount_bonus: 0.6,
             flight_speed: 30.0,
-            detour: 1.3,
+            detour: 1.0,
             stop_overhead: 8.0,
             flight_overhead: 25.0,
             kill_time: 24.0,

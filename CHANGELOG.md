@@ -26,6 +26,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Quest XP is the game's own when your game has seen the quest (its quest cache, sent with contributions): exact rewards, and on WoW Forever each dungeon quest's own bonus.
 - Mobs killed on the way are those along the path walked (around the mountains, through the passes), not those on a straight line between two steps that the walk does not take.
 - Grinding takes place at a camp of mobs of your level, the trip there counted in the guide's time, instead of wherever the character stood (a capital, a flight path): the grind step shows the camp on the map, and the guide goes on from there.
+- Walks are no longer counted about 30 % too long: the path over the terrain was lengthened again by a factor meant for straight lines. Guides take fewer flights and are about 9 to 12 hours shorter on a 1-60 ("Detour factor" in the advanced settings, now 1).
 
 ### WoW data
 
