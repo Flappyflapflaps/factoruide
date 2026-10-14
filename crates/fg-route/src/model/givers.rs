@@ -131,6 +131,16 @@ impl QuestBuilder<'_> {
         self.item_rewarded(quest, item)
     }
 
+    /// Where quest `quest` is turned in (its first ender found), None when nowhere known.
+    pub(super) fn ender(&self, quest: i64) -> Option<Loc> {
+        self.sources
+            .relations
+            .get(&quest)?
+            .iter()
+            .filter(|(role, kind, _)| *role == Role::End && *kind != EntityKind::Item)
+            .find_map(|(_, kind, id)| self.locate(*kind, *id, Some(&self.sources.start.pos)))
+    }
+
     fn item_rewarded(&self, quest: i64, item: i64) -> ItemStart {
         let mut places = Vec::new();
         for &giver in self

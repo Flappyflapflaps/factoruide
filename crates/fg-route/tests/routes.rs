@@ -168,6 +168,50 @@ fn elite_camp_needs_a_few_levels_more() {
     assert!(planner.combat().level(q, k as u8, 0.0) <= 28);
 }
 
+/// An item only another quest's turn-in hands (the bound chapters of The Green Hills of
+/// Stranglethorn) is got there once that quest is turned in: the book is planned, and its
+/// chapter cannot be counted before.
+#[test]
+fn item_handed_by_another_quest_waits_for_its_turn_in() {
+    let p = prepare("orc", "warrior", 45, &[]);
+    let planner = planner(&p);
+    let book = quest(&p, 338).expect("The Green Hills of Stranglethorn is planned");
+    let chapter = quest(&p, 342).unwrap();
+    let k = p.model.quests[book as usize]
+        .objectives
+        .iter()
+        .position(|o| o.handed_by == [342])
+        .expect("an objective handed by Chapter IV") as u8;
+    // Welcome to the Jungle comes first.
+    let jungle = quest(&p, 583).unwrap();
+    let take = [
+        Stop::quest(jungle, Kind::Accept),
+        Stop::quest(jungle, Kind::TurnIn),
+        Stop::quest(book, Kind::Accept),
+        Stop::quest(chapter, Kind::Accept),
+    ];
+    let pages: Vec<Stop> = (0..p.model.quests[chapter as usize].objectives.len() as u8)
+        .map(|j| Stop::quest(chapter, Kind::Objective(j)))
+        .collect();
+    let bound = Stop::quest(book, Kind::Objective(k));
+    let early: Vec<Stop> = take.iter().copied().chain([bound]).collect();
+    assert!(
+        planner.simulate_full(&early, None).is_none(),
+        "chapter counted before it is bound"
+    );
+    let route: Vec<Stop> = take
+        .iter()
+        .copied()
+        .chain(pages)
+        .chain([Stop::quest(chapter, Kind::TurnIn), bound])
+        .collect();
+    assert!(
+        planner.simulate_full(&route, None).is_some(),
+        "{:?}",
+        planner.diagnose(&route)
+    );
+}
+
 /// The item starting a quest drops from a mob the character must be able to take on.
 #[test]
 fn item_start_waits_for_its_mob() {
@@ -538,6 +582,7 @@ fn gathering_next_to_kills_overlaps_them() {
             guard: Guard::default(),
             alts: vec![],
             after: 0,
+            handed_by: vec![],
         }];
     }
     p.model.initial.accepted = vec![0, 1];
@@ -1272,6 +1317,7 @@ fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Obj
         guard: Guard::default(),
         alts: vec![],
         after: 0,
+        handed_by: vec![],
     }
 }
 

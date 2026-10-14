@@ -133,6 +133,10 @@ pub struct Objective {
     /// Objectives of the quest done before this one (bits): the item it uses must be got first
     /// (Samuel's Remains looted before they are buried).
     pub after: u8,
+    /// Quests whose turn-in hands the item it asks for, when nothing else gives it: it is got
+    /// once one of them is turned in, where they are (the chapters of The Green Hills of
+    /// Stranglethorn bound by Barnil Stonepot). Empty for the others.
+    pub handed_by: Vec<i64>,
 }
 
 impl Objective {

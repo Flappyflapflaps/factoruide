@@ -95,6 +95,8 @@ impl QuestBuilder<'_> {
                 .collect(),
                 ..first
             }
+        } else if let Some(handed) = self.handed_by(quest.row.id, target, &places) {
+            handed
         } else if !self.params.allow_elite
             && places
                 .sources
@@ -114,6 +116,37 @@ impl QuestBuilder<'_> {
             return Err("objective item source unknown");
         };
         Ok(Some(objective))
+    }
+
+    /// An item nothing gives but the turn-in of other quests (not repeatable ones): got there,
+    /// for no work, once one of them is turned in (`Objective::handed_by`).
+    fn handed_by(&self, quest: i64, item: i64, places: &ItemPlaces) -> Option<Objective> {
+        if !places.sources.is_empty() {
+            return None;
+        }
+        let givers: Vec<i64> = self
+            .sources
+            .reward_of
+            .get(&item)?
+            .iter()
+            .copied()
+            .filter(|g| *g != quest && !self.sources.repeatable.contains(g))
+            .collect();
+        let at = givers.iter().find_map(|g| self.ender(*g))?;
+        let name = self.sources.entities.name(EntityKind::Item, item);
+        Some(Objective {
+            handed_by: givers,
+            ..Objective::plain(
+                Loc {
+                    kind: EntityKind::Item,
+                    id: item,
+                    name: name.clone(),
+                    ..at
+                },
+                name,
+                0.0,
+            )
+        })
     }
 
     fn item_places(&self, quest: &QuestContext<'_>, target: i64, count: f64) -> ItemPlaces {

@@ -5,11 +5,13 @@ use crate::model::{Model, Profile, Quest};
 use crate::params::Params;
 use crate::xp;
 
-/// Quests needing each quest first (it is in their `pre_all` or `pre_any`).
+/// Quests needing each quest first (it is in their `pre_all` or `pre_any`, or hands an item
+/// one of their objectives asks for).
 pub(crate) fn followers(model: &Model) -> Vec<Vec<u32>> {
     let mut out = vec![Vec::new(); model.quests.len()];
     for (f, q) in model.quests.iter().enumerate() {
-        for id in q.pre_all.iter().chain(&q.pre_any) {
+        let handing = q.objectives.iter().flat_map(|o| &o.handed_by);
+        for id in q.pre_all.iter().chain(&q.pre_any).chain(handing) {
             if let Some(&i) = model.index.get(id)
                 && i != f
                 && !out[i].contains(&(f as u32))
@@ -110,8 +112,17 @@ impl Availability<'_> {
     /// after are done).
     pub(crate) fn objective_open(&self, s: &State, i: u32, k: usize) -> bool {
         let done = s.objectives[i as usize];
-        let after = self.quest_at(i).objectives[k].after;
-        done & (1 << k) == 0 && done & after == after
+        let o = &self.quest_at(i).objectives[k];
+        done & (1 << k) == 0 && done & o.after == o.after && self.handed(s, o)
+    }
+
+    /// The item of objective `o` has been handed: one of the quests giving it is turned in (or
+    /// nothing hands it).
+    fn handed(&self, s: &State, o: &crate::model::Objective) -> bool {
+        o.handed_by.is_empty()
+            || o.handed_by
+                .iter()
+                .any(|id| self.model.index.get(id).is_some_and(|&j| s.turned[j]))
     }
 
     pub(crate) fn valid(&self, s: &State, stop: Stop) -> bool {
@@ -135,7 +146,7 @@ impl Availability<'_> {
                 s.accepted[i]
                     && (!s.turned[i] || done)
                     && o.dungeon.is_none()
-                    && (done || s.objectives[i] & o.after == o.after)
+                    && (done || s.objectives[i] & o.after == o.after && self.handed(s, o))
             }
             Kind::TurnIn => s.accepted[i] && !s.turned[i] && self.objectives_done(s, stop.index),
             Kind::LearnFlight => s.known & (1u128 << i) == 0,

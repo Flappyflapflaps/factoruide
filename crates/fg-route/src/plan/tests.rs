@@ -133,6 +133,7 @@ fn quests_at_hand_are_looked_for_where_the_stop_went() {
         guard: Guard::default(),
         alts: vec![],
         after: 0,
+        handed_by: vec![],
     };
     let mut other = objective.clone();
     (other.loc, other.extra) = (far.clone(), 0.0);
@@ -186,6 +187,7 @@ fn objective_started_counts_its_share_at_another_place() {
         guard: Guard::default(),
         alts: vec![],
         after: 0,
+        handed_by: vec![],
     };
     let mut other = objective.clone();
     (other.loc.pos.x, other.kills) = (loc.pos.x + 200.0, 10.0);
@@ -249,6 +251,7 @@ fn camp_of_two_objectives() -> Prepared {
         guard: Guard::default(),
         alts: vec![],
         after: 0,
+        handed_by: vec![],
     };
     let mut gather = Objective {
         text: "Gather 8 objects".into(),

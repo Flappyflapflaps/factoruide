@@ -127,6 +127,33 @@ pub(super) fn require_prerequisites(quests: &mut [Quest]) {
     }
 }
 
+/// Quests asking for an item that only quests left out hand (`Objective::handed_by`) cannot be
+/// finished: left out too, until none is left (a chain of them).
+pub(super) fn drop_unhanded(quests: &mut Vec<Quest>, skipped: &mut Vec<(i64, String, String)>) {
+    loop {
+        let ids: HashSet<i64> = quests.iter().map(|q| q.id).collect();
+        let before = quests.len();
+        quests.retain_mut(|q| {
+            let mut ok = true;
+            for o in q.objectives.iter_mut().filter(|o| !o.handed_by.is_empty()) {
+                o.handed_by.retain(|g| ids.contains(g));
+                ok &= !o.handed_by.is_empty();
+            }
+            if !ok {
+                skipped.push((
+                    q.id,
+                    q.name.clone(),
+                    "objective item handed by quests left out".to_owned(),
+                ));
+            }
+            ok
+        });
+        if quests.len() == before {
+            break;
+        }
+    }
+}
+
 /// A class quest whose prerequisite cannot be planned cannot be required either.
 pub(super) fn release_impossible_class_quests(quests: &mut [Quest]) {
     let mut doable: HashSet<i64> = quests.iter().map(|q| q.id).collect();

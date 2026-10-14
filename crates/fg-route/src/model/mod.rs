@@ -40,7 +40,8 @@ use std::collections::HashMap;
 
 pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params) -> Result<Model> {
     let mut sources = Sources::read(conn, world, profile, params)?;
-    let (mut quests, skipped) = build_quests(&sources, world, profile, params);
+    let (mut quests, mut skipped) = build_quests(&sources, world, profile, params);
+    chains::drop_unhanded(&mut quests, &mut skipped);
     report_skipped_class_quests(&sources, &skipped);
     let places = Places::load(conn, world, &sources.entities, profile, &sources.start)?;
     chains::require_prerequisites(&mut quests);

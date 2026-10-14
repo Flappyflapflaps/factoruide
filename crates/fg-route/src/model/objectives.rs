@@ -48,6 +48,7 @@ impl Objective {
             guard: Guard::default(),
             alts: vec![],
             after: 0,
+            handed_by: vec![],
         }
     }
 }
