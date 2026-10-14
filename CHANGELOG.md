@@ -5,6 +5,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 ## Unreleased
 
 - Windows: the What's new page shows its titles and lists again (it showed the raw text).
+- Guides no longer walk over the mountains between the south of the Eastern Kingdoms (Stormwind, Elwynn, Stranglethorn) and the north (Dun Morogh, Wetlands, Silverpine): they take the tram, a flight or a boat, and the guide says so.
 
 ## 0.8.0 (2026-10-14)
 

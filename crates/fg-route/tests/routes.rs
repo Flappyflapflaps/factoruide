@@ -651,6 +651,21 @@ fn rut_theran_is_left_by_portal_or_boat() {
     assert!(portal.seconds < 30.0, "a portal is taken at once");
 }
 
+/// The passages of the Eastern Kingdoms' south (Stormwind, Elwynn) and north (Dun Morogh,
+/// Silverpine) do not meet: going from one to the other takes the tram, a flight or a boat, never
+/// a walk in a straight line over the mountains.
+#[test]
+fn no_walk_between_the_south_and_north_of_the_eastern_kingdoms() {
+    let p = prepare("gnome", "rogue", 22, &[]);
+    let w = &p.world;
+    let at = |zone, x, y| w.to_world(zone, x, y).unwrap();
+    let stormwind = at(1519, 77.0, 30.3);
+    assert!(w.walk_distance(&stormwind, &at(130, 58.2, 69.9)).is_infinite());
+    assert!(w.walk_distance(&at(12, 42.0, 65.0), &at(38, 35.0, 46.0)).is_infinite());
+    assert!(w.walk_distance(&stormwind, &at(40, 56.0, 47.0)).is_finite());
+    assert!(w.walk_distance(&at(1, 47.0, 52.0), &at(38, 35.0, 46.0)).is_finite());
+}
+
 /// A quest given up is not turned in: it opens no follow-up. Fire Hardened Mail, left in the log
 /// when Razorfen Kraul is not run, does not give Furen's Armor (it used to).
 #[test]

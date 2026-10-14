@@ -251,13 +251,14 @@ impl Planner<'_> {
         if !self.availability().valid(s, stop) {
             return Outcome::Invalid(self.why_invalid(s, stop));
         }
-        // A flight path at hand: a detour to it, as one learned on the way.
-        if self.explicit
+        // A flight path at hand (on foot too): a detour to it, as one learned on the way.
+        let detour = (self.explicit
             && stop.kind == Kind::LearnFlight
             && s.landed == Landed::No
-            && s.pos.dist(&self.world.taxi_nodes[i].pos) <= self.params.flight_learn_radius
-        {
-            let detour = 2.0 * self.trips().walk(&s.pos, &self.world.taxi_nodes[i].pos, s.level) + 5.0;
+            && s.pos.dist(&self.world.taxi_nodes[i].pos) <= self.params.flight_learn_radius)
+            .then(|| 2.0 * self.trips().walk(&s.pos, &self.world.taxi_nodes[i].pos, s.level) + 5.0)
+            .filter(|d| d.is_finite());
+        if let Some(detour) = detour {
             s.time += detour;
             s.spent.travel += detour;
             s.known |= 1u128 << i;

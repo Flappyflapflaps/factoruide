@@ -99,8 +99,11 @@ impl Planner<'_> {
     /// end of the trip just off a flight, boat or teleport step).
     pub(crate) fn train_at(&self, s: &mut State, i: usize, record: &mut impl FnMut(&State, Event)) {
         let trainer = &self.model.trainers[i];
-        if s.landed == Landed::No && s.pos.dist(&trainer.pos) <= self.params.train_radius {
-            let detour = 2.0 * self.trips().walk(&s.pos, &trainer.pos, s.level);
+        // Close as the crow flies, but maybe not on foot (another side of the mountains).
+        let detour = (s.landed == Landed::No && s.pos.dist(&trainer.pos) <= self.params.train_radius)
+            .then(|| 2.0 * self.trips().walk(&s.pos, &trainer.pos, s.level))
+            .filter(|d| d.is_finite());
+        if let Some(detour) = detour {
             s.time += detour;
             s.spent.travel += detour;
         } else {
@@ -382,8 +385,11 @@ impl Planner<'_> {
         if s.known & (1u128 << node) != 0 {
             return;
         }
-        s.known |= 1u128 << node;
         let detour = 2.0 * self.trips().walk(&s.pos, &self.world.taxi_nodes[node].pos, s.level) + 5.0;
+        if !detour.is_finite() {
+            return;
+        }
+        s.known |= 1u128 << node;
         s.time += detour;
         s.spent.travel += detour;
         record(s, Event::LearnFlight { node });

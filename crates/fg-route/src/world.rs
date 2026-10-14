@@ -689,7 +689,8 @@ impl World {
     /// Walking distance (yards): around the steep terrain within a zone, through passages between
     /// zones.
     /// Zones the passage graph does not cover fall back to a straight line, unless one of the
-    /// places is in an enclosed area.
+    /// places is in an enclosed area. Two zones it covers with no passage leading from one to the
+    /// other have no walk between them (only links and flights: the tram, a boat).
     /// Walking distance and the passages used to leave `a`'s zone and enter `b`'s (debugging).
     pub fn walk_route(&self, a: &Pos, b: &Pos) -> (f64, Option<(usize, usize)>) {
         if a.zone == b.zone {
@@ -736,6 +737,11 @@ impl World {
         }
         if best.is_finite() {
             best
+        } else if pa
+            .iter()
+            .all(|&i| pb.iter().all(|&j| self.pass_dist[i][j].is_infinite()))
+        {
+            f64::INFINITY
         } else {
             self.unknown_walk(a, b)
         }
