@@ -845,6 +845,31 @@ impl World {
         }
     }
 
+    /// The points the walk from `a` to `b` of `walk_distance_at` goes through, ends included: the
+    /// passages it takes between zones, the turns around the steep terrain
+    /// (`Terrain::waypoints`). Only the ends when it goes straight, or when no walk goes there.
+    pub fn walk_path(&self, a: &Pos, b: &Pos, level: u8) -> Vec<Pos> {
+        let mut stops = vec![*a];
+        if a.zone != b.zone
+            && a.continent == b.continent
+            && let (Some(pa), Some(pb)) = (self.zone_passes.get(&a.zone), self.zone_passes.get(&b.zone))
+            && let (t, Some((i, j))) = self.through_passes(a, b, pa, pb, level)
+            && t.is_finite()
+        {
+            stops.extend(self.pass_path(i, j).into_iter().map(|k| self.passes[k].pos));
+        }
+        stops.push(*b);
+        let mut path = vec![*a];
+        let last = stops.len() - 2;
+        for (k, leg) in stops.windows(2).enumerate() {
+            // Between passages the walks are known at no danger (`add_passes`).
+            let at = if k == 0 || k == last { level } else { 0 };
+            path.extend(self.terrain.waypoints(&leg[0], &leg[1], at));
+            path.push(leg[1]);
+        }
+        path
+    }
+
     /// Shortest walk from `a` to `b` through the passages of their zones (`pa`, `pb`), or across
     /// the border when shorter, and the first and last passage it takes.
     fn through_passes(&self, a: &Pos, b: &Pos, pa: &[usize], pb: &[usize], level: u8) -> (f64, Option<(usize, usize)>) {

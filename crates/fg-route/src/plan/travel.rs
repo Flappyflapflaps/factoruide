@@ -78,7 +78,7 @@ impl Trips<'_> {
     }
 
     /// The level the danger of walks is counted at (0: it does not count).
-    fn danger_level(&self, level: i64) -> u8 {
+    pub(crate) fn danger_level(&self, level: i64) -> u8 {
         if self.params.danger_weight > 0.0 {
             level.clamp(1, 255) as u8
         } else {

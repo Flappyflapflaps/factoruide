@@ -15,8 +15,9 @@ pub(crate) const CAMP_LOG_MARGIN: usize = 2;
 /// Quests taken at hand: those the route takes within this many stops anyway.
 pub(crate) const CAMP_AHEAD: u32 = 30;
 
-/// A walk: continent and the bits of its ends' coordinates.
-pub(crate) type FarmKey = (i64, [u64; 4]);
+/// A walk: in one word the level its danger counts at (0: none), the continent and its ends'
+/// zones (the passages taken between them), then the bits of its ends' coordinates.
+pub(crate) type FarmKey = (u64, [u64; 4]);
 
 /// Normal mobs met on each walk, by level: (level, count).
 pub(crate) type FarmWalks = std::cell::RefCell<FxHashMap<FarmKey, Rc<[(u8, u16)]>>>;
@@ -148,9 +149,9 @@ impl Planner<'_> {
     }
 
     /// On a walk from `a` to `b`, kill the normal mobs met (`Params::farm_on_way`): those within
-    /// `farm_corridor` of the path whose level is close to the character's, until grinding has
-    /// given its share of the level (`farm_cap`). All of them when the walk is asked to
-    /// (`farm_all`, once).
+    /// `farm_corridor` of the path walked (`World::walk_path`) whose level is close to the
+    /// character's, until grinding has given its share of the level (`farm_cap`). All of them
+    /// when the walk is asked to (`farm_all`, once).
     pub(crate) fn farm_along(&self, s: &mut State, a: &Pos, b: &Pos, record: &mut impl FnMut(&State, Event)) {
         let p = self.params;
         let all = self.farm_all.replace(false);
@@ -161,7 +162,7 @@ impl Planner<'_> {
         if budget <= 0 || s.level >= self.profile.to_level {
             return;
         }
-        let mobs = self.farm_walk(a, b);
+        let mobs = self.farm_walk(a, b, self.trips().danger_level(s.level));
         let content = xp::content_at(a.continent, a.zone);
         let reach = p.reach(s.level, s.bonus);
         let (mut time, mut gained, mut killed) = (0.0, 0.0, 0.0);
@@ -200,16 +201,28 @@ impl Planner<'_> {
         );
     }
 
-    /// Normal mobs by level along a walk, computed once per walk.
-    fn farm_walk(&self, a: &Pos, b: &Pos) -> Rc<[(u8, u16)]> {
-        let key = (
-            a.continent,
-            [a.x.to_bits(), a.y.to_bits(), b.x.to_bits(), b.y.to_bits()],
-        );
+    /// Normal mobs by level along a walk (the terrain's path for a character whose walks count
+    /// the danger at `level`), computed once per walk.
+    fn farm_walk(&self, a: &Pos, b: &Pos, level: u8) -> Rc<[(u8, u16)]> {
+        let farm = || -> Rc<[(u8, u16)]> {
+            let path = self.world.walk_path(a, b, level);
+            self.model.farm.along(&path, self.params.farm_corridor).into()
+        };
+        // Zones on 20 bits and the continent on 16 (the others are not remembered).
+        let (Ok(continent), Ok(za), Ok(zb)) =
+            (u16::try_from(a.continent), u32::try_from(a.zone), u32::try_from(b.zone))
+        else {
+            return farm();
+        };
+        if za >= 1 << 20 || zb >= 1 << 20 {
+            return farm();
+        }
+        let head = (u64::from(level) << 56) | (u64::from(continent) << 40) | (u64::from(za) << 20) | u64::from(zb);
+        let key = (head, [a.x.to_bits(), a.y.to_bits(), b.x.to_bits(), b.y.to_bits()]);
         if let Some(mobs) = self.farm_walks.borrow().get(&key) {
             return mobs.clone();
         }
-        let mobs: Rc<[(u8, u16)]> = self.model.farm.along(a, b, self.params.farm_corridor).into();
+        let mobs = farm();
         let mut memo = self.farm_walks.borrow_mut();
         if memo.len() >= FARM_MEMO {
             memo.clear();

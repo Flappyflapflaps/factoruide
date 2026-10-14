@@ -102,10 +102,15 @@ impl Hasher for Packed {
 /// Answers already given in this thread, by terrain, continent, pair of cells and level: the
 /// planner asks the same walks millions of times. Negative: the straight line; infinite: not
 /// connected; NaN: not known.
-type Memo = FxHashMap<(u32, i64, u64, u8), f32>;
+type MemoKey = (u32, i64, u64, u8);
+type Memo = FxHashMap<MemoKey, f32>;
 thread_local! {
     static MEMO: RefCell<Memo> = RefCell::new(Memo::default());
 }
+/// The turns of the walks already followed (`Terrain::waypoints`), by continent, pair of cells
+/// and level, in shards; a shard is emptied beyond `TURNS_MAX`.
+type Turns = Vec<Mutex<FxHashMap<Key, Arc<[(i32, i32)]>>>>;
+const TURNS_MAX: usize = 1 << 16;
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
 /// The path search's work space, kept from a search to the next in each thread: the cheapest
@@ -552,6 +557,8 @@ pub struct Terrain {
     enclosed: HashSet<(i64, u32)>,
     /// How much the danger counts (`add_danger`; 0: not at all).
     danger_weight: f64,
+    /// The turns of the walks followed (`waypoints`), shared by the threads.
+    turns: Turns,
 }
 
 /// A tile as read: its x and y, steep cells (rows of bits) and cells.
@@ -593,6 +600,7 @@ impl Terrain {
             used: (0..SHARDS).map(|_| Mutex::new(HashSet::new())).collect(),
             enclosed: HashSet::new(),
             danger_weight: 0.0,
+            turns: (0..SHARDS).map(|_| Mutex::default()).collect(),
         };
         let exists: bool = conn.query_row(
             "SELECT count(*) > 0 FROM sqlite_schema WHERE name = 'client_terrain'",
@@ -871,6 +879,12 @@ impl Terrain {
         close(a) || close(b)
     }
 
+    /// The key of a walk between two cells in the thread memos.
+    fn memo_key(&self, map: i64, ca: (i32, i32), cb: (i32, i32), level: u8) -> MemoKey {
+        let pack = |(r, c): (i32, i32)| (u64::from(r as u16) << 16) | u64::from(c as u16);
+        (self.id, map, (pack(ca) << 32) | pack(cb), level)
+    }
+
     /// Walking distance (yards) between two points of the same continent over the terrain (see
     /// the module), for a character of `level` when the danger counts (0: it does not): the
     /// straight line when nothing is in the way, infinite when no walk goes between them
@@ -885,8 +899,7 @@ impl Terrain {
         }
         let level = if self.danger_weight > 0.0 { level } else { 0 };
         let (ca, cb) = (Self::cell(a), Self::cell(b));
-        let pack = |(r, c): (i32, i32)| (u64::from(r as u16) << 16) | u64::from(c as u16);
-        let key = (self.id, a.continent, (pack(ca) << 32) | pack(cb), level);
+        let key = self.memo_key(a.continent, ca, cb, level);
         let known = MEMO.with(|m| m.borrow().get(&key).copied());
         let walk = known.unwrap_or_else(|| {
             let w = self
@@ -925,6 +938,7 @@ impl Terrain {
         self.enclosed.insert((p.continent, area));
         // Answers given before are kept by terrain: this one is another.
         self.id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        self.turns.iter_mut().for_each(|t| t.get_mut().unwrap().clear());
         Some((area, size))
     }
 
@@ -967,6 +981,7 @@ impl Terrain {
         self.fingerprint = self.fingerprint.wrapping_add(h.finish());
         self.walks.bind(self.fingerprint);
         self.id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        self.turns.iter_mut().for_each(|t| t.get_mut().unwrap().clear());
     }
 
     /// The box of a continent's cells: first row and column, rows and columns (rows from the
@@ -1051,13 +1066,7 @@ impl Terrain {
     /// it does not connect, which a tunnel or a bridge may: a small patch, a ledge, a cave, or no
     /// path found).
     fn walk_cells(&self, grid: &Grid, map: i64, ca: (i32, i32), cb: (i32, i32), level: u8) -> Option<f64> {
-        let (ca, cb) = (Self::snap(grid, ca), Self::snap(grid, cb));
-        // No mob strong enough around: the danger does not count (one search for every level).
-        let level = if level > 0 && grid.danger_near(ca, cb, MARGINS[MARGINS.len() - 1], level) {
-            level
-        } else {
-            0
-        };
+        let (ca, cb, level) = Self::walk_ends(grid, ca, cb, level);
         if ca == cb {
             return Some(-1.0);
         }
@@ -1080,21 +1089,128 @@ impl Terrain {
         if let Some(d) = self.walks.get(key) {
             return d.is_finite().then_some(f64::from(d));
         }
-        // Far apart, at no danger: through the tiles' gates; else cell by cell.
-        let far = (ca.0 - cb.0).abs().max((ca.1 - cb.1).abs()) > gates::FAR;
-        let found = if far && level == 0 {
-            grid.through_gates(ca, cb)
-                .or_else(|| self.path(grid, ca, cb, MARGINS[MARGINS.len() - 1], level))
-        } else {
-            MARGINS.iter().find_map(|&m| self.path(grid, ca, cb, m, level))
-        };
+        let found = self.search_walk(grid, ca, cb, level, None);
         self.walks.insert(key, found.map_or(f32::INFINITY, |d| d as f32));
         found
     }
 
+    /// The cells a walk between two cells goes from and to (snapped to a large area), and the
+    /// level its danger counts at: none when no mob strong enough is around (one search for
+    /// every level).
+    fn walk_ends(grid: &Grid, ca: (i32, i32), cb: (i32, i32), level: u8) -> ((i32, i32), (i32, i32), u8) {
+        let (ca, cb) = (Self::snap(grid, ca), Self::snap(grid, cb));
+        let level = if level > 0 && grid.danger_near(ca, cb, MARGINS[MARGINS.len() - 1], level) {
+            level
+        } else {
+            0
+        };
+        (ca, cb, level)
+    }
+
+    /// The walk between two cells of the same area that the straight line does not follow
+    /// (yards), and its cells in `trace` (from `a` to `b`, given): far apart and at no danger,
+    /// through the tiles' gates; else cell by cell.
+    fn search_walk(
+        &self,
+        grid: &Grid,
+        ca: (i32, i32),
+        cb: (i32, i32),
+        level: u8,
+        mut trace: Option<&mut Vec<(i32, i32)>>,
+    ) -> Option<f64> {
+        let far = (ca.0 - cb.0).abs().max((ca.1 - cb.1).abs()) > gates::FAR;
+        if far && level == 0 {
+            grid.through_gates(ca, cb, trace.as_deref_mut())
+                .or_else(|| self.path(grid, ca, cb, MARGINS[MARGINS.len() - 1], level, trace))
+        } else {
+            MARGINS
+                .iter()
+                .find_map(|&m| self.path(grid, ca, cb, m, level, trace.as_deref_mut()))
+        }
+    }
+
+    /// The points a walk between two points of the same continent turns at, in order, its ends
+    /// left out: around the steep terrain (`distance`), the cells where it turns (the tiles'
+    /// gates it goes through for a long walk). Empty
+    /// when it goes straight: nothing in the way (a river swum across), or the terrain does not
+    /// know the way. Searched once for all the threads (the walking memories keep distances
+    /// only).
+    pub fn waypoints(&self, a: &Pos, b: &Pos, level: u8) -> Vec<Pos> {
+        let Some(grid) = self.grids.get(&a.continent) else {
+            return Vec::new();
+        };
+        if a.continent != b.continent {
+            return Vec::new();
+        }
+        let level = if self.danger_weight > 0.0 { level } else { 0 };
+        let (ca, cb) = (Self::cell(a), Self::cell(b));
+        // Most walks go straight, or the terrain does not know the way: the distance asked
+        // before tells it.
+        let distance = self.memo_key(a.continent, ca, cb, level);
+        if MEMO
+            .with(|m| m.borrow().get(&distance).copied())
+            .is_some_and(|w| !(w >= 0.0 && w.is_finite()))
+        {
+            return Vec::new();
+        }
+        let key = (a.continent, ca.0, ca.1, cb.0, cb.1, level);
+        let memo = self.turns.get(shard(key));
+        let known = memo.and_then(|m| m.lock().unwrap().get(&key).cloned());
+        let turns = known.unwrap_or_else(|| {
+            let turns = self.turns(grid, ca, cb, level);
+            if let Some(memo) = memo {
+                let mut memo = memo.lock().unwrap();
+                if memo.len() >= TURNS_MAX {
+                    memo.clear();
+                }
+                memo.insert(key, Arc::clone(&turns));
+            }
+            turns
+        });
+        (turns.iter())
+            .map(|&(r, c)| Pos {
+                x: ORIGIN - (f64::from(r) + 0.5) * CELL,
+                y: ORIGIN - (f64::from(c) + 0.5) * CELL,
+                ..*a
+            })
+            .collect()
+    }
+
+    /// The cells a walk between two cells turns at (`waypoints`).
+    fn turns(&self, grid: &Grid, ca: (i32, i32), cb: (i32, i32), level: u8) -> Arc<[(i32, i32)]> {
+        let (ca, cb, level) = Self::walk_ends(grid, ca, cb, level);
+        if ca == cb || self.line(grid, ca, cb, level).is_some() {
+            return Arc::new([]);
+        }
+        let area = grid.area(ca.0, ca.1);
+        if area == 0 || area != grid.area(cb.0, cb.1) {
+            return Arc::new([]);
+        }
+        let mut cells = Vec::new();
+        if self.search_walk(grid, ca, cb, level, Some(&mut cells)).is_none() {
+            return Arc::new([]);
+        }
+        // Where the direction changes (the walk's ends are the points themselves).
+        (1..cells.len().saturating_sub(1))
+            .filter(|&k| {
+                let (p, q, r) = (cells[k - 1], cells[k], cells[k + 1]);
+                (q.0 - p.0, q.1 - p.1) != (r.0 - q.0, r.1 - q.1)
+            })
+            .map(|k| cells[k])
+            .collect()
+    }
+
     /// Cheapest walk between two cells (yards, danger counted as more of them), within their
-    /// box grown by `margin` cells.
-    fn path(&self, grid: &Grid, a: (i32, i32), b: (i32, i32), margin: i32, level: u8) -> Option<f64> {
+    /// box grown by `margin` cells, and its cells in `trace` (from `a` to `b`).
+    fn path(
+        &self,
+        grid: &Grid,
+        a: (i32, i32),
+        b: (i32, i32),
+        margin: i32,
+        level: u8,
+        trace: Option<&mut Vec<(i32, i32)>>,
+    ) -> Option<f64> {
         let (r0, c0) = (a.0.min(b.0) - margin, a.1.min(b.1) - margin);
         let (rows, cols) = (a.0.max(b.0) + margin - r0 + 1, a.1.max(b.1) + margin - c0 + 1);
         let index = |r: i32, c: i32| ((r - r0) * cols + (c - c0)) as usize;
@@ -1113,7 +1229,42 @@ impl Terrain {
             for bucket in &mut scratch.open {
                 bucket.clear();
             }
-            self.search(grid, a, b, (r0, c0, rows, cols), level, scratch, &index)
+            let found = self.search(grid, a, b, (r0, c0, rows, cols), level, scratch, &index)?;
+            if let Some(trace) = trace {
+                trace.clear();
+                trace.push(b);
+                // Back from `b`: each cell reached from the neighbour whose cost and step make
+                // its own (the first in `DIRECTIONS` when several do), costs going down to `a`.
+                let current = scratch.current;
+                let cost_of = |(r, c): (i32, i32)| {
+                    let inside = r >= r0 && c >= c0 && r < r0 + rows && c < c0 + cols;
+                    (inside && scratch.round[index(r, c)] == current).then(|| scratch.best[index(r, c)])
+                };
+                let mut q = b;
+                while q != a {
+                    let g = cost_of(q)?;
+                    let danger = if Self::near_end(q, a, b) {
+                        0
+                    } else {
+                        self.danger_cost(grid, q, level)
+                    };
+                    let from = DIRECTIONS.iter().find_map(|&(dr, dc)| {
+                        let p = (q.0 - dr, q.1 - dc);
+                        let before = cost_of(p)?;
+                        let height = grid.probe(p.0, p.1).0;
+                        let diagonal = dr != 0 && dc != 0;
+                        let step = grid.step_from(height, q, diagonal)?;
+                        let cut = diagonal
+                            && (grid.step_from(height, (p.0 + dr, p.1), false).is_none()
+                                || grid.step_from(height, (p.0, p.1 + dc), false).is_none());
+                        (!cut && before + step + danger == g).then_some(p)
+                    })?;
+                    trace.push(from);
+                    q = from;
+                }
+                trace.reverse();
+            }
+            Some(found)
         })
     }
 
@@ -1232,6 +1383,34 @@ mod tests {
         // Same side: straight.
         let c = at(30.0, 20.0);
         assert!((t.distance(&a, &c, 0).unwrap() - a.dist(&c)).abs() < 1e-6);
+    }
+
+    /// The points a walk turns at go through the gap of the wall, not across it; a walk with
+    /// nothing in the way turns nowhere.
+    #[test]
+    fn walk_turns_through_the_gap() {
+        let t = terrain(&[60, 61, 62, 63]);
+        let (a, b) = (at(10.0, 20.0), at(10.0, 44.0));
+        let d = t.distance(&a, &b, 0).unwrap();
+        let turns = t.waypoints(&a, &b, 0);
+        assert_ne!(turns, []);
+        let cells: Vec<(i32, i32)> = turns.iter().map(Terrain::cell).collect();
+        let (r, c) = (32 * 64, 32 * 64);
+        assert!(
+            cells.iter().all(|&(cr, cc)| cr - r >= 10 && (cc - c - 32).abs() <= 12),
+            "{cells:?}"
+        );
+        assert!(
+            cells.iter().any(|&(cr, _)| cr - r >= 59),
+            "not through the gap: {cells:?}"
+        );
+        // The polyline is as long as the walk measured.
+        let mut points = vec![a];
+        points.extend(turns);
+        points.push(b);
+        let length: f64 = points.windows(2).map(|w| w[0].dist(&w[1])).sum();
+        assert!((length - d).abs() < 0.1 * d, "{length} for a walk of {d}");
+        assert_eq!(t.waypoints(&a, &at(30.0, 20.0), 0), []);
     }
 
     /// The memory of a terrain, saved (JSON) and given to another load of the same data, spares

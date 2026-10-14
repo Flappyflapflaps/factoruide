@@ -103,41 +103,55 @@ impl FarmMobs {
         n
     }
 
-    /// Mobs within `corridor` of the segment `a`-`b` (same continent), by level: (level, count).
-    pub fn along(&self, a: &Pos, b: &Pos, corridor: f64) -> Vec<(u8, u16)> {
+    /// Mobs within `corridor` of the walk through `path` (its points in order, on the same
+    /// continent), each once, by level: (level, count).
+    pub fn along(&self, path: &[Pos], corridor: f64) -> Vec<(u8, u16)> {
         let mut counts = [0u16; 256];
-        let (lo, hi) = (
-            Self::cell(&Pos {
-                x: a.x.min(b.x) - corridor,
-                y: a.y.min(b.y) - corridor,
-                ..*a
-            }),
-            Self::cell(&Pos {
-                x: a.x.max(b.x) + corridor,
-                y: a.y.max(b.y) + corridor,
-                ..*a
-            }),
-        );
-        for cx in lo.1..=hi.1 {
-            for cy in lo.2..=hi.2 {
-                // Cells farther than the corridor from the segment hold nothing to count.
-                let center = Pos {
-                    x: (cx as f64 + 0.5) * Self::CELL,
-                    y: (cy as f64 + 0.5) * Self::CELL,
+        let Some(first) = path.first() else {
+            return Vec::new();
+        };
+        let legs: Vec<(Pos, Pos)> = match path {
+            [p] => vec![(*p, *p)],
+            _ => path.windows(2).map(|w| (w[0], w[1])).collect(),
+        };
+        let near = |p: &Pos, reach: f64| legs.iter().any(|(a, b)| crate::plan::segment_dist(p, a, b) <= reach);
+        // The cells of the box of each leg grown by the corridor, once each, in order.
+        let mut cells: Vec<(i64, i64)> = Vec::new();
+        for (a, b) in &legs {
+            let (lo, hi) = (
+                Self::cell(&Pos {
+                    x: a.x.min(b.x) - corridor,
+                    y: a.y.min(b.y) - corridor,
                     ..*a
+                }),
+                Self::cell(&Pos {
+                    x: a.x.max(b.x) + corridor,
+                    y: a.y.max(b.y) + corridor,
+                    ..*a
+                }),
+            );
+            cells.extend((lo.1..=hi.1).flat_map(|cx| (lo.2..=hi.2).map(move |cy| (cx, cy))));
+        }
+        cells.sort_unstable();
+        cells.dedup();
+        for (cx, cy) in cells {
+            // Cells farther than the corridor from the walk hold nothing to count.
+            let center = Pos {
+                x: (cx as f64 + 0.5) * Self::CELL,
+                y: (cy as f64 + 0.5) * Self::CELL,
+                ..*first
+            };
+            if !near(&center, corridor + Self::CELL * 0.75) {
+                continue;
+            }
+            for &(x, y, level) in self.cells.get(&(first.continent, cx, cy)).into_iter().flatten() {
+                let p = Pos {
+                    x: f64::from(x),
+                    y: f64::from(y),
+                    ..*first
                 };
-                if crate::plan::segment_dist(&center, a, b) > corridor + Self::CELL * 0.75 {
-                    continue;
-                }
-                for &(x, y, level) in self.cells.get(&(a.continent, cx, cy)).into_iter().flatten() {
-                    let p = Pos {
-                        x: f64::from(x),
-                        y: f64::from(y),
-                        ..*a
-                    };
-                    if crate::plan::segment_dist(&p, a, b) <= corridor {
-                        counts[level as usize] = counts[level as usize].saturating_add(1);
-                    }
+                if near(&p, corridor) {
+                    counts[level as usize] = counts[level as usize].saturating_add(1);
                 }
             }
         }
@@ -147,5 +161,40 @@ impl FarmMobs {
             .filter(|(_, n)| **n > 0)
             .map(|(level, n)| (level as u8, *n))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn at(x: f64, y: f64) -> Pos {
+        Pos {
+            continent: 1,
+            x,
+            y,
+            zone: 0,
+        }
+    }
+
+    /// A walk around a corner meets the mobs along its two legs, each once (the one at the
+    /// corner too), not those on the straight line it does not take.
+    #[test]
+    fn mobs_met_along_the_walk_taken() {
+        let mut farm = FarmMobs::default();
+        for (x, y, level) in [
+            (0.0, 500.0, 10),
+            (250.0, 250.0, 11),
+            (500.0, 500.0, 12),
+            (500.0, 250.0, 13),
+        ] {
+            farm.cells
+                .entry(FarmMobs::cell(&at(x, y)))
+                .or_default()
+                .push((x as f32, y as f32, level));
+        }
+        let (a, corner, b) = (at(0.0, 0.0), at(0.0, 500.0), at(500.0, 500.0));
+        assert_eq!(farm.along(&[a, corner, b], 25.0), vec![(10, 1), (12, 1)]);
+        assert_eq!(farm.along(&[a, b], 25.0), vec![(11, 1), (12, 1)]);
     }
 }

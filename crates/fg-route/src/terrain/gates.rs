@@ -39,6 +39,11 @@ thread_local! {
     static ENDS: RefCell<Ends> = RefCell::new(Ends::default());
 }
 
+/// Cheapest cost found to each gate (tile, index) of a walk, and the gate it came from
+/// (`FROM_A`: the walk's start).
+type Best = HashMap<(usize, usize), (u32, (usize, usize))>;
+const FROM_A: (usize, usize) = (usize::MAX, usize::MAX);
+
 /// Version of the making of the tiles' graphs: graphs stored by another (`Terrain::gate_graphs`)
 /// are made again.
 pub const GATES_VERSION: u32 = 1;
@@ -315,8 +320,13 @@ impl Grid {
     }
 
     /// Walk (yards) from cell `a` to cell `b` through the gates, None when they do not lead
-    /// there.
-    pub(super) fn through_gates(&self, a: (i32, i32), b: (i32, i32)) -> Option<f64> {
+    /// there; its cells in `trace`: `a`, the gates it goes through, `b`.
+    pub(super) fn through_gates(
+        &self,
+        a: (i32, i32),
+        b: (i32, i32),
+        trace: Option<&mut Vec<(i32, i32)>>,
+    ) -> Option<f64> {
         let ((ta, _), (tb, _)) = (self.tile(a.0, a.1)?, self.tile(b.0, b.1)?);
         let (start, goal) = (self.ends(ta, a, false), self.ends(tb, b, true));
         // Estimate: the length to `b`, as cell by cell.
@@ -324,45 +334,46 @@ impl Grid {
             let (dr, dc) = ((r - b.0).unsigned_abs(), (c - b.1).unsigned_abs());
             10 * dr.max(dc) + 4 * dr.min(dc)
         };
-        let mut best: HashMap<(usize, usize), u32> = HashMap::new();
+        let mut best: Best = HashMap::new();
         let mut open = BinaryHeap::new();
-        let reach = |best: &mut HashMap<(usize, usize), u32>,
+        let reach = |best: &mut Best,
                      open: &mut BinaryHeap<Reverse<(u32, u32, usize, usize)>>,
                      node: (usize, usize),
                      g: u32,
-                     at: (i32, i32)| {
-            if best.get(&node).is_none_or(|&known| g < known) {
-                best.insert(node, g);
+                     at: (i32, i32),
+                     from: (usize, usize)| {
+            if best.get(&node).is_none_or(|&(known, _)| g < known) {
+                best.insert(node, (g, from));
                 open.push(Reverse((g + h(at), g, node.0, node.1)));
             }
         };
         for (i, &gate) in self.graph(ta).gates.iter().enumerate() {
             let g = start[i];
             if g != NONE {
-                reach(&mut best, &mut open, (ta, i), g, gate);
+                reach(&mut best, &mut open, (ta, i), g, gate, FROM_A);
             }
         }
-        let mut found = NONE;
+        let (mut found, mut last) = (NONE, FROM_A);
         while let Some(Reverse((f, g, t, i))) = open.pop() {
             if f >= found {
                 break;
             }
-            if best.get(&(t, i)).is_some_and(|&known| g > known) {
+            if best.get(&(t, i)).is_some_and(|&(known, _)| g > known) {
                 continue;
             }
             let graph = self.graph(t);
             let gate = graph.gates[i];
             if t == tb {
                 let rest = goal[i];
-                if rest != NONE {
-                    found = found.min(g + rest);
+                if rest != NONE && g + rest < found {
+                    (found, last) = (g + rest, (t, i));
                 }
             }
             let n = graph.gates.len();
             for (j, &other) in graph.gates.iter().enumerate() {
                 let c = graph.cost[i * n + j];
                 if j != i && c != NONE {
-                    reach(&mut best, &mut open, (t, j), g + c, other);
+                    reach(&mut best, &mut open, (t, j), g + c, other, (t, i));
                 }
             }
             for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
@@ -377,10 +388,24 @@ impl Grid {
                     continue;
                 };
                 if let Ok(j) = self.graph(u).gates.binary_search(&next) {
-                    reach(&mut best, &mut open, (u, j), g + step, next);
+                    reach(&mut best, &mut open, (u, j), g + step, next, (t, i));
                 }
             }
         }
-        (found != NONE).then(|| f64::from(found) / 10.0 * CELL)
+        if found == NONE {
+            return None;
+        }
+        if let Some(trace) = trace {
+            trace.clear();
+            trace.push(b);
+            let mut node = last;
+            while node != FROM_A {
+                trace.push(self.graph(node.0).gates[node.1]);
+                node = best[&node].1;
+            }
+            trace.push(a);
+            trace.reverse();
+        }
+        Some(f64::from(found) / 10.0 * CELL)
     }
 }

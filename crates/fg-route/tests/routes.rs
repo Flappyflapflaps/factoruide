@@ -820,10 +820,10 @@ fn no_farming_in_capitals() {
     let p = orc_warlock();
     let at = |zone, x, y| p.world.to_world(zone, x, y).unwrap();
     // Stormwind: Old Town to the Dwarven District, wide.
-    let city = p.model.farm.along(&at(1519, 72.3, 47.7), &at(1519, 62.4, 34.2), 200.0);
+    let city = p.model.farm.along(&[at(1519, 72.3, 47.7), at(1519, 62.4, 34.2)], 200.0);
     assert!(city.is_empty(), "{city:?}");
     // Elwynn Forest, around Goldshire.
-    let forest = p.model.farm.along(&at(12, 40.0, 60.0), &at(12, 50.0, 75.0), 200.0);
+    let forest = p.model.farm.along(&[at(12, 40.0, 60.0), at(12, 50.0, 75.0)], 200.0);
     assert!(!forest.is_empty(), "no mob met around Goldshire");
 }
 
