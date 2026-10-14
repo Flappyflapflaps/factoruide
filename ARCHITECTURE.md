@@ -142,6 +142,25 @@ and adds a cost for missed goals (a class quest left out, a forced dungeon not r
 A quest gray for the character (no XP) is not taken unless it opens a chain that is not gray, and
 one gone gray in the log is given up instead of being turned in many levels later.
 
+### The score
+
+The guide shown is the route with the lowest score: its play time plus these terms
+(`Planner::weights`, `Planner::finish`; every value is a setting, most in the app's advanced
+settings). They are choices about what a good guide is, not measurements: the play time reported
+stays the real one.
+
+| Term | Default | Why |
+| --- | --- | --- |
+| Grinding: (`grind_weight` − 1) × its time | 1.5 | Most players prefer quests to grinding: a route grinds only where no quest is nearly as fast. At 1 the route grinds wherever it saves a minute; much higher, it makes long trips for one small quest instead. |
+| Farming on the way: the same weight | 1.5 | Mobs killed while walking are grinding too, only cheaper (no trip): weighed the same so that they never win over a quest. |
+| Grinding beyond the cap: (`grind_over_weight` − `grind_weight`) × its time | 4, cap `grind_cap` 10% of each level's XP | Grinding is allowed but limited: past a tenth of a level, quests first whenever there are any. With the cap and farming on the way (`farm_cap`, its own 10%), a 1-60 route went from about 26 h of pure grinding to under 7 h, and was faster overall. |
+| Gold spent on flights: `gold_weight` × gold | 3600 s per gold | Flights cost money a leveling character lacks: an hour per gold makes the route walk or reorder when a flight saves only minutes. `flight_weight` (1) is left at the flight's real time: raising it only turned flights into walks. |
+| Changing zone: `zone_change_weight` per change | 240 s | Finding one's way and the NPCs of another zone: a few quests far away are not worth a detour. |
+| Quest taken and given up: `abandon_weight` each | 600 s | Taking a quest, killing for one of its objectives and dropping it hours later is grinding in disguise. Finishing it or leaving it out wins unless keeping it saves more than ten minutes. |
+| Time outside the preferred zones: `preferred_zone_weight` × its time | 0.5 | Only with preferred zones: the guide stays in them unless leaving saves a lot. |
+| Missing goal: `mandatory_penalty` each | 7200 s | A required class quest left out or a forced dungeon not run: kept in the route unless impossible. |
+
+
 ## 3. The search
 
 ### Construction
