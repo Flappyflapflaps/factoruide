@@ -10,8 +10,9 @@ use std::ops::Range;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Edit {
     /// A stop of the route; `farm`: kill every normal mob met on the way to it, beyond
-    /// `farm_cap`.
-    Stop { stop: Stop, farm: bool },
+    /// `farm_cap`; `spot`: an objective's place (0 its own, then its `alts`; None: the best
+    /// from where the character is).
+    Stop { stop: Stop, farm: bool, spot: Option<u8> },
     /// Fly from a flight path to another (taxi node indexes), both known.
     Fly { from: usize, to: usize },
     /// Boats, zeppelins or trams: board link `first`, leave link `last` (`World::links`).
@@ -126,13 +127,18 @@ impl Planner<'_> {
                 Outcome::Skipped("target level reached")
             } else {
                 match *edit {
-                    Edit::Stop { stop, farm } => {
+                    Edit::Stop { stop, farm, spot } => {
                         s.at = at;
                         s.next = nexts[e].map(|next| self.places().pos(&s, next));
+                        s.spot = match stop.kind {
+                            Kind::Objective(k) => spot.map(|i| (stop.index, k, i)),
+                            _ => None,
+                        };
                         if !farm && let Kind::Objective(_) = stop.kind {
                             farm_all = self.farm_all_estimate(&s, stop);
                         }
                         let outcome = self.edit_stop(&mut s, stop, farm, &mut trace);
+                        s.spot = None;
                         if !matches!(outcome, Outcome::Invalid(_)) {
                             route.push(stop);
                         }
@@ -405,9 +411,14 @@ impl Planner<'_> {
             let mut learned = Vec::new();
             for t in &edited.trace[step.events.clone()] {
                 let next = match t.event {
-                    Event::Stop { stop, .. } => {
-                        let farm = matches!(edit, Edit::Stop { stop: own, farm: true } if *own == stop);
-                        out.push(Edit::Stop { stop, farm });
+                    Event::Stop { stop, ref loc } => {
+                        let farm = matches!(edit, Edit::Stop { stop: own, farm: true, .. } if *own == stop);
+                        // Where it was done: replayed there.
+                        let spot = match stop.kind {
+                            Kind::Objective(k) => self.spot_index(stop.index, k, &loc.pos),
+                            _ => None,
+                        };
+                        out.push(Edit::Stop { stop, farm, spot });
                         out.append(&mut learned);
                         continue;
                     }
@@ -418,6 +429,7 @@ impl Planner<'_> {
                                 kind: Kind::LearnFlight,
                             },
                             farm: false,
+                            spot: None,
                         });
                         continue;
                     }
@@ -427,6 +439,7 @@ impl Planner<'_> {
                             kind: Kind::Hearth,
                         },
                         farm: false,
+                        spot: None,
                     },
                     Event::Fly { from, to } => Edit::Fly { from, to },
                     Event::Link { first, last } => Edit::Link { first, last },

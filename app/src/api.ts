@@ -455,7 +455,7 @@ export interface ContributionPreview {
 export type RouteStep =
   | { kind: "accept"; quest: number }
   /** `farm`: kill every normal mob met on the way to it (beyond the farming cap). */
-  | { kind: "objective"; quest: number; objective: number; farm?: boolean }
+  | { kind: "objective"; quest: number; objective: number; farm?: boolean; spot?: number }
   | { kind: "turn_in"; quest: number }
   /** Learn a flight path (taxi node ID). */
   | { kind: "flight_master"; node: number }

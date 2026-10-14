@@ -26,6 +26,10 @@ pub enum RouteStep {
         objective: u8,
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         farm: bool,
+        /// Where it is done among its places (0 its own, then the others), as computed; none:
+        /// the best from where the character is (guides saved before).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        spot: Option<u8>,
     },
     TurnIn {
         quest: i64,
@@ -88,7 +92,13 @@ pub struct LinkRef {
 
 /// The steps of a route found by the optimizer: each thing its simulation did, a step.
 pub(super) fn route_steps(planner: &Planner<'_>, route: &[Stop]) -> Vec<RouteStep> {
-    let edits: Vec<Edit> = route.iter().map(|&stop| Edit::Stop { stop, farm: false }).collect();
+    let edits: Vec<Edit> = (route.iter())
+        .map(|&stop| Edit::Stop {
+            stop,
+            farm: false,
+            spot: None,
+        })
+        .collect();
     planner
         .expand(&edits)
         .into_iter()
@@ -105,7 +115,7 @@ impl RouteStep {
             to: world.links[i].to_zone,
         };
         match edit {
-            Edit::Stop { stop, farm } => {
+            Edit::Stop { stop, farm, spot } => {
                 let i = stop.index as usize;
                 match stop.kind {
                     Kind::Accept => Self::Accept {
@@ -115,6 +125,7 @@ impl RouteStep {
                         quest: model.quests[i].id,
                         objective,
                         farm,
+                        spot,
                     },
                     Kind::TurnIn => Self::TurnIn {
                         quest: model.quests[i].id,
@@ -165,6 +176,7 @@ impl RouteStep {
         let stop = |index: u32, kind: Kind| Edit::Stop {
             stop: Stop { index, kind },
             farm: false,
+            spot: None,
         };
         let link = |l: &LinkRef| {
             world
@@ -179,6 +191,7 @@ impl RouteStep {
                 quest: id,
                 objective,
                 farm,
+                spot,
             } => {
                 let index = quest(id)?;
                 if usize::from(objective) >= model.quests[index as usize].objectives.len() {
@@ -190,6 +203,7 @@ impl RouteStep {
                         kind: Kind::Objective(objective),
                     },
                     farm,
+                    spot,
                 }
             }
             Self::TurnIn { quest: id } => stop(quest(id)?, Kind::TurnIn),
@@ -423,6 +437,7 @@ impl Editor {
                         quest,
                         objective,
                         farm: false,
+                        spot: None,
                     }
                 }),
                 StepKind::Hearth => Some(RouteStep::Hearth {

@@ -235,6 +235,9 @@ pub(crate) struct State {
     /// with several places is done at the one on the way to it (`Planner::spot`). Set before
     /// each stop, not part of what the state carries on.
     pub(crate) next: Option<Pos>,
+    /// The place imposed on an objective (quest, objective, place: 0 its own, then its
+    /// `alts`): a guide replayed where it was computed (`Edit::Stop`).
+    pub(crate) spot: Option<(u32, u8, u8)>,
     /// Just off a flight, boat or teleport step of an edited guide (`Edit::Fly`, `Edit::Link`,
     /// `Edit::Teleport`): the walk to the next stop ends that trip, as when a trip takes it by
     /// itself (no mob farmed, the zone changed on arriving).

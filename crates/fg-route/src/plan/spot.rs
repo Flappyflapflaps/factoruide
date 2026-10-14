@@ -17,6 +17,12 @@ impl Planner<'_> {
         if o.alts.is_empty() {
             return o;
         }
+        if let Some((sq, sk, i)) = s.spot
+            && (sq, sk) == (quest, k)
+            && let Some(place) = std::iter::once(o).chain(&o.alts).nth(usize::from(i))
+        {
+            return place;
+        }
         let mut best = (f64::INFINITY, o);
         for place in std::iter::once(o).chain(&o.alts) {
             let there = self.spot_work(s, q, place);
@@ -38,6 +44,13 @@ impl Planner<'_> {
             }
         }
         best.1
+    }
+
+    /// Which place of objective `k` of `quest` is at `pos` (0: its own, then its `alts`).
+    pub(crate) fn spot_index(&self, quest: u32, k: u8, pos: &crate::world::Pos) -> Option<u8> {
+        let o = &self.quest(quest).objectives[k as usize];
+        let i = std::iter::once(o).chain(&o.alts).position(|p| p.loc.pos == *pos)?;
+        u8::try_from(i).ok()
     }
 
     /// The objective at its place for an objective stop, None for the other stops.

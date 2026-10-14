@@ -273,6 +273,7 @@ impl<'a> Planner<'a> {
             started: Vec::new(),
             together: state::Together::default(),
             next: None,
+            spot: None,
             landed: Landed::No,
             planned: Rc::new(Planned::default()),
             at: 0,
