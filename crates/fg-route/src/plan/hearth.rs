@@ -250,7 +250,10 @@ impl Planner<'_> {
         // Time saved by going back to the inn before stop `k` rather than travelling to it.
         let saving = |k: usize| {
             let s = &run.states[k];
-            if route[k].kind == Kind::Hearth || !learned(s) {
+            if route[k].kind == Kind::Hearth
+                || !learned(s)
+                || (!recall && self.params.excluded_zones.contains(&self.model.inns[inn_at(k)].zone))
+            {
                 return f64::NEG_INFINITY;
             }
             let target = self.places().pos(s, route[k]);

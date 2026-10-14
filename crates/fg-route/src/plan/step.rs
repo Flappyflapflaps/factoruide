@@ -222,7 +222,13 @@ impl Planner<'_> {
     pub(crate) fn apply(&self, s: &mut State, stop: Stop, mut trace: Option<&mut Vec<Timed>>) {
         let mut record = recorder(&mut trace);
         self.abandon_hopeless(s, &mut record);
+        let before = s.time;
         self.do_apply(s, stop, &mut record);
+        // Counted in the zone the stop ends in.
+        let preferred = &self.params.preferred_zones;
+        if !preferred.is_empty() && !preferred.contains(&s.zone) {
+            s.spent.outside_preferred += s.time - before;
+        }
         self.abandon_hopeless(s, &mut record);
     }
 

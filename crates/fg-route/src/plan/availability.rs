@@ -140,7 +140,10 @@ impl Availability<'_> {
             Kind::TurnIn => s.accepted[i] && !s.turned[i] && self.objectives_done(s, stop.index),
             Kind::LearnFlight => s.known & (1u128 << i) == 0,
             Kind::Bind => s.bind != i && i != self.model.start_inn,
-            Kind::Hearth => i == 0 || (i == 1 && self.model.recall.is_some()),
+            Kind::Hearth => {
+                (i == 0 && !self.params.excluded_zones.contains(&self.model.inns[s.bind].zone))
+                    || (i == 1 && self.model.recall.is_some())
+            }
             Kind::Dungeon => {
                 self.dungeon_allowed(i)
                     && s.dungeons & (1u128 << i) == 0

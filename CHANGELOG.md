@@ -6,6 +6,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 - Windows: the What's new page shows its titles and lists again (it showed the raw text).
 - Guides no longer walk over the mountains between the south of the Eastern Kingdoms (Stormwind, Elwynn, Stranglethorn) and the north (Dun Morogh, Wetlands, Silverpine): they take the tram, a flight or a boat, and the guide says so.
+- Preferred zones now weigh on the whole guide, not only on its first draft: the guide stays in them unless leaving saves a lot of time ("Weight of the preferred zones" in the advanced settings). Excluded zones are also left out for turn-ins and the hearthstone: a character bound in its start zone is no longer sent back there.
 
 ## 0.8.0 (2026-10-14)
 

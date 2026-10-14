@@ -165,9 +165,13 @@ pub struct Params {
     pub excluded_sorts: Vec<i64>,
     /// Quests never planned (manual exceptions).
     pub excluded_quests: Vec<i64>,
-    /// Zones (AreaTable IDs) to favour, and zones never used for quest givers.
+    /// Zones (AreaTable IDs) to favour, and zones never gone to for quest givers, turn-ins or
+    /// with the hearthstone.
     pub preferred_zones: Vec<i64>,
     pub excluded_zones: Vec<i64>,
+    /// Extra weight of the time spent outside `preferred_zones` (0: they only steer the
+    /// construction).
+    pub preferred_zone_weight: f64,
     /// Minimum quest efficiency, relative to grinding, to be worth accepting.
     pub min_efficiency: f64,
     /// Hearthstone cooldown and cast time.
@@ -343,6 +347,7 @@ impl Default for Params {
             excluded_quests: vec![],
             preferred_zones: vec![],
             excluded_zones: vec![],
+            preferred_zone_weight: 0.5,
             min_efficiency: 0.5,
             hearth_cooldown: 3600.0,
             hearth_cast: 10.0,

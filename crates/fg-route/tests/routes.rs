@@ -1031,6 +1031,41 @@ fn hearthstone_is_kept_for_the_longer_trip_back() {
     assert!(planner.simulate(&placed, None) < planner.simulate(&route, None));
 }
 
+/// The hearthstone does not take the character back to an inn of an excluded zone (a character
+/// gone to another continent, bound in its start zone it no longer wants).
+#[test]
+fn hearthstone_avoids_an_excluded_zone() {
+    let mut p = quests_at_start(2);
+    p.model.quests[0].objectives = vec![one_kill_east_of_start(&p, 1500.0)];
+    p.model.quests[1].objectives = vec![one_kill_east_of_start(&p, 3000.0)];
+    p.model.initial.accepted = vec![0, 1];
+    let route = vec![
+        Stop::quest(0, Kind::Objective(0)),
+        Stop::quest(0, Kind::TurnIn),
+        Stop::quest(1, Kind::Objective(0)),
+        Stop::quest(1, Kind::TurnIn),
+    ];
+    p.params.excluded_zones = vec![p.model.inns[p.model.start_inn].zone];
+    let placed = planner(&p).place_hearths(route.clone());
+    assert!(!placed.iter().any(|s| s.kind == Kind::Hearth), "{placed:?}");
+}
+
+/// Time spent outside the preferred zones counts in the route's score: the same route scores
+/// worse when its zone is not the preferred one.
+#[test]
+fn time_outside_the_preferred_zones_counts() {
+    let mut p = quests_at_start(1);
+    p.model.quests[0].objectives = vec![one_kill_east_of_start(&p, 1500.0)];
+    p.model.initial.accepted = vec![0];
+    let route = [Stop::quest(0, Kind::Objective(0)), Stop::quest(0, Kind::TurnIn)];
+    let zone = p.model.inns[p.model.start_inn].zone;
+    p.params.preferred_zones = vec![zone];
+    let inside = planner(&p).simulate(&route, None).unwrap();
+    p.params.preferred_zones = vec![zone + 1];
+    let outside = planner(&p).simulate(&route, None).unwrap();
+    assert!(outside > inside, "{outside} outside, {inside} inside");
+}
+
 /// A mage trained in its teleports goes to a capital with one rather than across the world.
 #[test]
 fn mage_teleports_to_a_capital() {

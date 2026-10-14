@@ -49,6 +49,7 @@ export interface Params {
   excluded_quests: number[];
   preferred_zones: number[];
   excluded_zones: number[];
+  preferred_zone_weight: number;
   min_efficiency: number;
   hearth_cooldown: number;
   hearth_cast: number;

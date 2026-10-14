@@ -93,6 +93,7 @@ export const sections: Section[] = [
       { key: "teleport_cast", kind: "number", label: "Incantation des téléportations", help: "Téléportations du mage vers les capitales, et Rappel astral du chaman.", unit: "s", min: 0, max: 20, step: 1 },
       { key: "gold_weight", kind: "number", label: "Économiser l'or des vols", help: "Temps que vaut une pièce d'or dépensée en vols (0 = vols gratuits). 60 min (défaut) divise par 2 l'or dépensé et regroupe les quêtes par zone sans rallonger la route.", unit: "min", scale: 60, min: 0, max: 240, step: 10 },
       { key: "zone_change_weight", kind: "number", label: "Coût d'un changement de zone", help: "Temps compté en plus du trajet à chaque changement de zone : regroupe les quêtes par zone au lieu d'aller chercher quelques quêtes loin. 4 min par défaut.", unit: "min", scale: 60, min: 0, max: 15, step: 1 },
+      { key: "preferred_zone_weight", kind: "number", label: "Poids des zones privilégiées", help: "Part du temps passé hors des zones privilégiées comptée en plus : 0,5 (défaut) = une heure ailleurs compte comme une heure et demie. 0 = les zones privilégiées guident seulement le début de la recherche.", min: 0, max: 2, step: 0.1 },
       { key: "flight_weight", kind: "number", label: "Poids des vols", help: "1 (défaut) = seul leur temps compte ; plus haut = marche ou réordonne la route plutôt que prendre un vol qui fait gagner peu de temps.", min: 1, max: 5, step: 0.25 },
     ],
   },

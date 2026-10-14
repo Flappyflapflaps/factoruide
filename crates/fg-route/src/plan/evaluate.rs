@@ -31,6 +31,7 @@ impl Planner<'_> {
             + (self.params.flight_weight - 1.0) * spent.flights
             + self.params.gold_weight * spent.flight_cost as f64 / 10_000.0
             + self.params.zone_change_weight * f64::from(spent.zone_changes)
+            + self.params.preferred_zone_weight * spent.outside_preferred
     }
 
     /// Time to reach the target level following `route` (plus penalties), or None if invalid.

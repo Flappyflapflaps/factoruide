@@ -319,6 +319,9 @@ pub struct Breakdown {
     /// Times the character went into another zone.
     #[serde(default)]
     pub zone_changes: u32,
+    /// Time spent outside the preferred zones (none preferred: 0).
+    #[serde(default)]
+    pub outside_preferred: f64,
 }
 
 /// Quests a route accepts (bit 1) and turns in (bit 2), and where it first accepts each.

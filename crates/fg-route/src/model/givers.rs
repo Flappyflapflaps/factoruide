@@ -69,6 +69,7 @@ impl QuestBuilder<'_> {
             }
         }
         givers.starts.retain(|l| !self.params.excluded_zones.contains(&l.zone));
+        givers.ends.retain(|l| !self.params.excluded_zones.contains(&l.zone));
         if givers.starts.is_empty() && rare_start {
             return Err("started by a rare drop");
         }
