@@ -140,6 +140,9 @@ pub struct Params {
     pub common_item_time: f64,
     /// Use off-road shortcuts (climbs, jumps) declared in `passes.toml`.
     pub shortcuts: bool,
+    /// How much walking near hostile mobs stronger than the character costs (0: not at all;
+    /// 1: a mob 3-4 levels above makes each yard near it count three).
+    pub danger_weight: f64,
     /// Average wait before boarding a boat, zeppelin or tram (seconds).
     pub link_wait: f64,
     /// Kill time of an elite compared with a normal mob of the same level.
@@ -331,6 +334,7 @@ impl Default for Params {
             common_item_sources: 100,
             common_item_time: 60.0,
             shortcuts: true,
+            danger_weight: 0.0,
             link_wait: 120.0,
             elite_kill_factor: 3.0,
             approx_sources: false,

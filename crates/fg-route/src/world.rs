@@ -632,6 +632,35 @@ impl Pass {
 }
 
 impl World {
+    /// Count the danger of the mobs hostile to both factions on walks (`Terrain::add_danger`):
+    /// their highest level, 3 more for an elite. Before the passages and links.
+    pub fn add_danger(&mut self, conn: &Connection, weight: f64) -> Result<()> {
+        let mut stmt = conn.prepare(
+            "SELECT s.zone_id, s.x, s.y, coalesce(n.max_level, n.min_level, 1), coalesce(n.rank, 0)
+             FROM m_spawn s JOIN m_npc n ON n.id = s.entity_id
+             WHERE s.entity_type = 'npc' AND s.x >= 0 AND coalesce(n.friendly_to, '') = ''",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, f64>(1)?,
+                r.get::<_, f64>(2)?,
+                r.get::<_, i64>(3)?,
+                r.get::<_, i64>(4)?,
+            ))
+        })?;
+        let mut spawns = Vec::new();
+        for row in rows {
+            let (zone, x, y, level, rank) = row?;
+            if let Some(p) = self.to_world(zone, x, y) {
+                let elite = if rank > 0 { 3 } else { 0 };
+                spawns.push((p, (level + elite).clamp(1, 255) as u8));
+            }
+        }
+        self.terrain.add_danger(spawns, weight);
+        Ok(())
+    }
+
     /// Areas left only by boat, portal or lift: no walk to or from them. Before the passages
     /// (their walks depend on it).
     pub fn enclose(&mut self, defs: &[EnclosedDef]) -> Vec<String> {
@@ -706,7 +735,7 @@ impl World {
             row[i] = 0.0;
             for (j, (cell, b)) in row.iter_mut().zip(&self.passes).enumerate() {
                 if i != j && a.zones.iter().any(|&z| a.leads_to(z) && b.taken_from(z)) {
-                    *cell = self.ground(&a.pos, &b.pos);
+                    *cell = self.ground(&a.pos, &b.pos, 0);
                 }
             }
         }
@@ -760,7 +789,7 @@ impl World {
         if !pa.iter().any(|&i| pb.iter().any(|&j| self.pass_shortcut[i][j])) {
             return Vec::new();
         }
-        match self.through_passes(a, b, pa, pb) {
+        match self.through_passes(a, b, pa, pb, 0) {
             (t, Some((i, j))) if t.is_finite() => (self.pass_path(i, j).into_iter())
                 .filter(|&k| self.passes[k].shortcut)
                 .collect(),
@@ -776,26 +805,32 @@ impl World {
     /// Walking distance and the passages used to leave `a`'s zone and enter `b`'s (debugging).
     pub fn walk_route(&self, a: &Pos, b: &Pos) -> (f64, Option<(usize, usize)>) {
         if a.zone == b.zone {
-            return (self.ground(a, b), None);
+            return (self.ground(a, b, 0), None);
         }
         let (Some(pa), Some(pb)) = (self.zone_passes.get(&a.zone), self.zone_passes.get(&b.zone)) else {
-            return (self.ground(a, b), None);
+            return (self.ground(a, b, 0), None);
         };
-        self.through_passes(a, b, pa, pb)
+        self.through_passes(a, b, pa, pb, 0)
     }
 
     pub fn walk_distance(&self, a: &Pos, b: &Pos) -> f64 {
+        self.walk_distance_at(a, b, 0)
+    }
+
+    /// The same for a character of `level`: the danger of the mobs on the way counts (when
+    /// `add_danger` set it; 0: never).
+    pub fn walk_distance_at(&self, a: &Pos, b: &Pos, level: u8) -> f64 {
         let straight = a.dist(b);
         if !straight.is_finite() {
             return straight;
         }
         if a.zone == b.zone {
-            return self.ground(a, b);
+            return self.ground(a, b, level);
         }
         let (Some(pa), Some(pb)) = (self.zone_passes.get(&a.zone), self.zone_passes.get(&b.zone)) else {
             return self.unknown_walk(a, b);
         };
-        let best = self.through_passes(a, b, pa, pb).0;
+        let best = self.through_passes(a, b, pa, pb, level).0;
         let passes = &self.passes;
         if best.is_finite() {
             best
@@ -812,20 +847,20 @@ impl World {
 
     /// Shortest walk from `a` to `b` through the passages of their zones (`pa`, `pb`), or across
     /// the border when shorter, and the first and last passage it takes.
-    fn through_passes(&self, a: &Pos, b: &Pos, pa: &[usize], pb: &[usize]) -> (f64, Option<(usize, usize)>) {
-        let mut best = (self.across(a, b), None);
+    fn through_passes(&self, a: &Pos, b: &Pos, pa: &[usize], pb: &[usize], level: u8) -> (f64, Option<(usize, usize)>) {
+        let mut best = (self.across(a, b, level), None);
         // Each walk to a passage once (the inner loop would ask them for every passage left).
         let to_b: Vec<f64> = (pb.iter())
             .map(|&j| {
                 if self.passes[j].leads_to(b.zone) {
-                    self.ground(&self.passes[j].pos, b)
+                    self.ground(&self.passes[j].pos, b, level)
                 } else {
                     f64::INFINITY
                 }
             })
             .collect();
         for &i in pa.iter().filter(|&&i| self.passes[i].taken_from(a.zone)) {
-            let da = self.ground(a, &self.passes[i].pos);
+            let da = self.ground(a, &self.passes[i].pos, level);
             for (&j, &db) in pb.iter().zip(&to_b) {
                 let t = da + self.pass_dist[i][j] + db;
                 if t < best.0 {
@@ -848,16 +883,16 @@ impl World {
 
     /// Walk within a zone: around the steep terrain, straight when it does not know the way,
     /// infinite to or from an enclosed area.
-    fn ground(&self, a: &Pos, b: &Pos) -> f64 {
-        self.terrain.distance(a, b).unwrap_or_else(|| a.dist(b))
+    fn ground(&self, a: &Pos, b: &Pos, level: u8) -> f64 {
+        self.terrain.distance(a, b, level).unwrap_or_else(|| a.dist(b))
     }
 
     /// Direct walk between close points of different zones when the terrain knows the way
     /// (a point filed under the neighbouring zone, whose map overlaps), else infinite.
-    fn across(&self, a: &Pos, b: &Pos) -> f64 {
+    fn across(&self, a: &Pos, b: &Pos, level: u8) -> f64 {
         if self.terrain.is_empty() || a.dist(b) > ACROSS_MAX {
             return f64::INFINITY;
         }
-        self.terrain.distance(a, b).unwrap_or(f64::INFINITY)
+        self.terrain.distance(a, b, level).unwrap_or(f64::INFINITY)
     }
 }

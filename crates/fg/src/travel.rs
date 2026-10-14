@@ -49,7 +49,7 @@ pub fn run(conn: &Connection, overrides_dir: &Path, faction: &str, from: &str, t
         println!("the planner walks {planned:.0} yd (straight line where the walk is unknown)");
     }
     if let (Some(ta), Some(tb)) = (world.terrain.area_of(&a), world.terrain.area_of(&b)) {
-        let how = match world.terrain.distance(&a, &b) {
+        let how = match world.terrain.distance(&a, &b, 0) {
             None => "way unknown (straight line assumed)",
             Some(w) if w.is_infinite() => "an enclosed area and another (no walk)",
             Some(w) if (w - a.dist(&b)).abs() < 1e-6 => "straight line clear",

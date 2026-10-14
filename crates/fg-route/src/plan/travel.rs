@@ -52,11 +52,12 @@ impl Hop {
     }
 }
 
-/// The key of point `p` (None when its continent or zone does not fit: not remembered).
-fn pos_key(p: &Pos, flag: bool) -> Option<PosKey> {
+/// The key of point `p` (None when its continent or zone does not fit: not remembered), with a
+/// flag and a level (the danger's, 0 when it does not count).
+fn pos_key(p: &Pos, flag: bool, level: u8) -> Option<PosKey> {
     let continent = u16::try_from(p.continent).ok()?;
     let zone = u32::try_from(p.zone).ok()?;
-    let head = (u64::from(continent) << 33) | (u64::from(zone) << 1) | u64::from(flag);
+    let head = (u64::from(level) << 50) | (u64::from(continent) << 33) | (u64::from(zone) << 1) | u64::from(flag);
     Some([head, p.x.to_bits(), p.y.to_bits()])
 }
 
@@ -73,14 +74,23 @@ pub(crate) struct Trips<'t> {
 
 impl Trips<'_> {
     pub(crate) fn walk(&self, a: &Pos, b: &Pos, level: i64) -> f64 {
-        self.world.walk_distance(a, b) * self.params.detour / self.params.speed(level)
+        self.world.walk_distance_at(a, b, self.danger_level(level)) * self.params.detour / self.params.speed(level)
+    }
+
+    /// The level the danger of walks is counted at (0: it does not count).
+    fn danger_level(&self, level: i64) -> u8 {
+        if self.params.danger_weight > 0.0 {
+            level.clamp(1, 255) as u8
+        } else {
+            0
+        }
     }
 
     /// Fastest trip from `from` to `b` without the hearthstone.
     pub(crate) fn leg(&self, from: &Pos, b: &Pos, level: i64, known: u128) -> (f64, Leg) {
         // The level only matters through the speed: mounted or not.
         let mounted = level >= self.params.mount_level;
-        let (Some(a), Some(z)) = (pos_key(from, mounted), pos_key(b, false)) else {
+        let (Some(a), Some(z)) = (pos_key(from, mounted, self.danger_level(level)), pos_key(b, false, 0)) else {
             return self.compute_leg(from, b, level, known);
         };
         let key = (a, z, known);
@@ -131,8 +141,9 @@ impl Trips<'_> {
         let mut weighted = best.0;
         // The 3 known flight paths nearest on foot (ties: the first). A walk is never shorter
         // than the straight line: the paths are walked to nearest first as the crow flies, until
-        // the next one is farther in a straight line than the third nearest walk.
-        let nearest = |p: &Pos| {
+        // the next one is farther in a straight line than the third nearest walk. Walked to
+        // them from `from`, from them to `b` (`landing`): not the same both ways (drops).
+        let nearest = |p: &Pos, landing: bool| {
             let line = |q: &Pos| p.dist(q) * self.params.detour / self.params.speed(level);
             let mut by_line: Vec<(usize, f64)> = (0..self.world.taxi_nodes.len())
                 .filter(|i| known & (1u128 << i) != 0)
@@ -145,7 +156,12 @@ impl Trips<'_> {
                 if v.len() == 3 && line * (1.0 - 1e-9) > v[2].1 {
                     break;
                 }
-                let walk = self.walk(p, &self.world.taxi_nodes[i].pos, level);
+                let node = &self.world.taxi_nodes[i].pos;
+                let walk = if landing {
+                    self.walk(node, p, level)
+                } else {
+                    self.walk(p, node, level)
+                };
                 if walk.is_finite() {
                     let at = v.partition_point(|x| x.1.total_cmp(&walk).then(x.0.cmp(&i)).is_lt());
                     v.insert(at, (i, walk));
@@ -154,8 +170,8 @@ impl Trips<'_> {
             }
             v
         };
-        let near_b = nearest(b);
-        for (i, wa) in nearest(from) {
+        let near_b = nearest(b, true);
+        for (i, wa) in nearest(from, false) {
             for &(j, wb) in &near_b {
                 if i == j {
                     continue;
@@ -221,10 +237,10 @@ mod tests {
             y: 20.0,
             zone: 14,
         };
-        let key = |p: &Pos, flag| pos_key(p, flag).unwrap();
+        let key = |p: &Pos, flag| pos_key(p, flag, 0).unwrap();
         assert_ne!(key(&p, false), key(&Pos { zone: 15, ..p }, false));
         assert_ne!(key(&p, false), key(&Pos { continent: 0, ..p }, false));
         assert_ne!(key(&p, false), key(&p, true));
-        assert!(pos_key(&Pos { zone: -1, ..p }, false).is_none());
+        assert!(pos_key(&Pos { zone: -1, ..p }, false, 0).is_none());
     }
 }

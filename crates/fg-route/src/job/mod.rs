@@ -201,6 +201,9 @@ fn load_world(
         .filter(|p| params.shortcuts || !p.shortcut)
         .cloned()
         .collect();
+    if params.danger_weight > 0.0 {
+        world.add_danger(conn, params.danger_weight)?;
+    }
     for warning in world.enclose(&overrides.enclosed) {
         progress(&warning);
     }
