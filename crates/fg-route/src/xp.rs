@@ -123,6 +123,9 @@ pub struct Rules {
     kill_base: &'static [f64],
     /// Factor on the XP of the mobs killed in a 5-man dungeon.
     pub dungeon_kill_xp: f64,
+    /// The base XP of a mob below the character's level is taken at the mob's level (Forever),
+    /// not at the character's (Classic).
+    low_kill_base_at_mob_level: bool,
     /// Factor on the XP of the quests done in a 5-man dungeon (their database value is Classic's).
     pub dungeon_quest_xp: f64,
 }
@@ -134,17 +137,22 @@ static CLASSIC: Rules = Rules {
     kill_base: &[45.0],
     dungeon_kill_xp: 1.0,
     dungeon_quest_xp: 1.0,
+    low_kill_base_at_mob_level: false,
 };
 /// Classic rules, except dungeons: their kills give much less XP and their quests much more, so
 /// that players level in the open world (beta, October 2026, values still being tuned):
 /// - kills: 25% of Classic (measured in the Deadmines: 28 → 7 XP, elites 80 → 20), then +20%
 ///   announced on October 8;
 /// - quests: Classic XP + a bonus of 1.375 times it since October 1 (it was 2.75; Edwin
-///   VanCleef: 2600 XP in Classic, 6175 in Forever).
+///   VanCleef: 2600 XP in Classic, 6175 in Forever);
+/// - a mob below the character gives the XP of its own level's base (measured at level 25,
+///   October 14: mobs 19 to 22 give 64, 79, 95, 113, not Classic's 77, 93, 108, 124; at or
+///   above the character's level, Classic's).
 static FOREVER: Rules = Rules {
     edition_name: "WoW Forever",
     dungeon_kill_xp: 0.25 * 1.2,
     dungeon_quest_xp: 2.375,
+    low_kill_base_at_mob_level: true,
     ..CLASSIC
 };
 static TBC: Rules = Rules {
@@ -154,6 +162,7 @@ static TBC: Rules = Rules {
     kill_base: &[45.0, 235.0],
     dungeon_kill_xp: 1.0,
     dungeon_quest_xp: 1.0,
+    low_kill_base_at_mob_level: false,
 };
 
 impl Rules {
@@ -202,13 +211,14 @@ impl Rules {
     /// XP for killing a normal mob of `mob` level, in a zone of expansion `content` (0 =
     /// Azeroth, 1 = Outland...).
     pub fn mob_xp(&self, level: i64, mob: i64, content: usize) -> f64 {
-        let base = (level * 5) as f64 + self.kill_base[content.min(self.kill_base.len() - 1)];
+        let base = |l: i64| (l * 5) as f64 + self.kill_base[content.min(self.kill_base.len() - 1)];
         if mob >= level {
-            base * (1.0 + 0.05 * (mob - level).min(4) as f64)
+            base(level) * (1.0 + 0.05 * (mob - level).min(4) as f64)
         } else if mob <= Self::gray_level(level) {
             0.0
         } else {
-            base * (1.0 - (level - mob) as f64 / Self::zero_difference(level))
+            let at = if self.low_kill_base_at_mob_level { mob } else { level };
+            base(at) * (1.0 - (level - mob) as f64 / Self::zero_difference(level))
         }
     }
 
@@ -280,6 +290,26 @@ mod tests {
         assert_eq!(quest_xp(1000, 10, 25), 100);
         assert!((r.mob_xp(10, 10, 0) - 95.0).abs() < 1e-9);
         assert!(r.mob_xp(10, 3, 0).abs() < 1e-9);
+    }
+
+    /// Kills measured in game on Forever at level 25 (rested XP taken out): below the
+    /// character, the base is the mob's level; at or above it, the character's, as in Classic.
+    #[test]
+    fn forever_kill_xp_below_the_character() {
+        let (forever, classic) = (Edition::Forever.rules(), Edition::Classic.rules());
+        for (mob, measured) in [
+            (19, 64.0),
+            (20, 79.0),
+            (21, 95.0),
+            (22, 113.0),
+            (25, 170.0),
+            (26, 178.0),
+        ] {
+            let xp = forever.mob_xp(25, mob, 0);
+            assert!((xp.floor() - measured).abs() <= 1.0, "mob {mob}: {xp} vs {measured}");
+        }
+        assert!((classic.mob_xp(25, 22, 0) - 170.0 * 8.0 / 11.0).abs() < 1e-9);
+        assert!(forever.mob_xp(25, 18, 0).abs() < 1e-9, "gray");
     }
 
     #[test]

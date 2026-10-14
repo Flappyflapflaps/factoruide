@@ -18,7 +18,8 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Smaller app: the game data of the three game versions is about 38 MB lighter to download, and each game version takes about 60 MB less on disk once opened. The world maps are lighter images and load faster; the guides are the same.
 - Class quests that teach a spell are in the guide by default: Redemption, pets, stances, totems, poisons, demons, forms, mounts... They are listed with the class quests of a new guide: take out those you do not want. Guides made before keep their list (clone one to get the new one).
 - A guide no longer takes a quest, does half of it and abandons it hours later, unless that saves a lot of time ("Cost of an abandoned quest" in the advanced settings).
-- Addon: the XP of each kill is recorded with the rest of what the game shows (sent with contributions), to check how WoW Forever gives XP for mobs below your level.
+- WoW Forever: mobs below your level give the XP of their own level, as measured in game (a level 25 character gets 113 XP from a level 22 mob, not 124): guides no longer count on more XP than they give.
+- Addon: abandon steps have a red cross, their label and the quest's name.
 - Quest XP is the game's own when your game has seen the quest (its quest cache, sent with contributions): exact rewards, and on WoW Forever each dungeon quest's own bonus.
 
 ### WoW data
