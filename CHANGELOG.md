@@ -16,9 +16,16 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - The Feathermoon ferry (Feralas) is in the guides, both ways.
 - Guide editor: an objective done in one of several places opens in the place the guide does it (it could open in another, with another time).
 - Smaller app: the game data of the three game versions is about 38 MB lighter to download, and each game version takes about 60 MB less on disk once opened. The world maps are lighter images and load faster; the guides are the same.
+- Class quests that teach a spell are in the guide by default: Redemption, pets, stances, totems, poisons, demons, forms, mounts... They are listed with the class quests of a new guide: take out those you do not want. Guides made before keep their list (clone one to get the new one).
+- A guide no longer takes a quest, does half of it and abandons it hours later, unless that saves a lot of time ("Cost of an abandoned quest" in the advanced settings).
+- Addon: the XP of each kill is recorded with the rest of what the game shows (sent with contributions), to check how WoW Forever gives XP for mobs below your level.
+- Quest XP is the game's own when your game has seen the quest (its quest cache, sent with contributions): exact rewards, and on WoW Forever each dungeon quest's own bonus.
 
 ### WoW data
 
+- WoW Forever: the undead paladin's Redemption quests (A Lesson in Divinity) are done in their order and are required; other classes no longer get them.
+- WoW Forever: The Adventurer (Deathknell) is taken after The Red Messenger, not on arrival when Executor Arren does not offer it yet.
+- WoW Forever: the priest's Divine Grace, Confounding Flash and Contingency Plan, the druid's cat and bear form quests and the warrior's Skybreaker Bulwark (Defensive Stance) teach a spell: required. TBC: the blood elf and draenei paladins' Redemption, hunters' Beast Training and the blood elf warlock's Voidwalker too.
 - WoW Forever: the class quests of the new race and class pairs are kept to their class: a troll hunter no longer gets the orc mage's Glyphic Parchment nor the troll warlock's Tainted Tablet. The same goes for the gnome priest, undead paladin, human hunter, dwarf shaman and Skyborne hunter and shaman quests, and the druid's cat form quests.
 
 ## 0.8.0 (2026-10-14)
