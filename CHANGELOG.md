@@ -7,6 +7,7 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Windows: the What's new page shows its titles and lists again (it showed the raw text).
 - Guides no longer walk over the mountains between the south of the Eastern Kingdoms (Stormwind, Elwynn, Stranglethorn) and the north (Dun Morogh, Wetlands, Silverpine): they take the tram, a flight or a boat, and the guide says so.
 - Preferred zones now weigh on the whole guide, not only on its first draft: the guide stays in them unless leaving saves a lot of time ("Weight of the preferred zones" in the advanced settings). Excluded zones are also left out for turn-ins and the hearthstone: a character bound in its start zone is no longer sent back there.
+- Off-road shortcuts are a step of the guide ("Take the shortcut: ..."), and the Dun Morogh to Wetlands mountain skip is only taken that way (it is a drop, not climbed back).
 
 ### WoW data
 

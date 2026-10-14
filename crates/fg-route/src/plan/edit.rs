@@ -435,7 +435,9 @@ impl Planner<'_> {
                     Event::Abandon { quest } => Edit::Abandon { quest: quest as u32 },
                     Event::Grind { to_level, .. } => Edit::GrindTo { level: to_level },
                     Event::GrindMobs { mobs, .. } => Edit::Grind { mobs },
-                    Event::Reward { .. } | Event::Farm { .. } | Event::DeathSkip { .. } => continue,
+                    Event::Reward { .. } | Event::Farm { .. } | Event::DeathSkip { .. } | Event::Shortcut { .. } => {
+                        continue;
+                    }
                 };
                 out.push(next);
             }

@@ -87,6 +87,10 @@ pub enum Event {
     LearnFlight {
         node: usize,
     },
+    /// An off-road shortcut taken on a walk (index in `World::passes`).
+    Shortcut {
+        pass: usize,
+    },
     /// Class training: `since` is the level of the previous training.
     Train {
         trainer: usize,

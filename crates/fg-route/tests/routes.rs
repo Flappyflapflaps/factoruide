@@ -666,6 +666,33 @@ fn no_walk_between_the_south_and_north_of_the_eastern_kingdoms() {
     assert!(w.walk_distance(&at(1, 47.0, 52.0), &at(38, 35.0, 46.0)).is_finite());
 }
 
+/// The mountain skip from Dun Morogh into the Wetlands is a drop: taken that way only, and a step
+/// of the guide (it is not on any road).
+#[test]
+fn mountain_skip_is_one_way_and_a_step_of_the_guide() {
+    let mut p = quests_at_start_as("dwarf", "warrior", 1);
+    let w = &p.world;
+    let at = |zone, x, y| w.to_world(zone, x, y).unwrap();
+    let (kharanos, menethil) = (at(1, 47.0, 52.0), at(11, 10.5, 56.0));
+    let skip = w.passes.iter().position(|q| q.name.contains("mountain skip")).unwrap();
+    assert_eq!(w.walk_shortcuts(&kharanos, &menethil), [skip]);
+    assert_eq!(w.walk_shortcuts(&menethil, &kharanos), Vec::<usize>::new());
+    assert!(w.walk_distance(&menethil, &kharanos) > w.walk_distance(&kharanos, &menethil));
+    let mut o = one_kill_east_of_start(&p, 0.0);
+    (o.loc.pos, o.loc.zone) = (menethil, 11);
+    p.model.quests[0].objectives = vec![o];
+    p.model.initial.accepted = vec![0];
+    let mut trace = Vec::new();
+    planner(&p)
+        .simulate_full(&[Stop::quest(0, Kind::Objective(0))], Some(&mut trace))
+        .unwrap();
+    assert!(
+        trace
+            .iter()
+            .any(|t| matches!(t.event, Event::Shortcut { pass } if pass == skip))
+    );
+}
+
 /// A quest given up is not turned in: it opens no follow-up. Fire Hardened Mail, left in the log
 /// when Razorfen Kraul is not run, does not give Furen's Armor (it used to).
 #[test]

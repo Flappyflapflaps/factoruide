@@ -91,7 +91,18 @@ impl Planner<'_> {
                 record(s, Event::Fly { from, to });
             }
             Leg::Link(first, last) => record(s, Event::Link { first, last }),
-            Leg::Walk => {}
+            Leg::Walk => {
+                // A climb or a jump is a step of the guide, recorded on reaching it.
+                if let Some(&pass) = self.world.walk_shortcuts(&from, target).first() {
+                    let walk = self
+                        .trips()
+                        .walk(&from, &self.world.passes[pass].pos, s.level)
+                        .min(left);
+                    spend(s, walk);
+                    left -= walk;
+                    record(s, Event::Shortcut { pass });
+                }
+            }
         }
         spend(s, left);
         // Areas discovered: around the arrival, and along a walk inside the zone.

@@ -68,6 +68,10 @@ pub struct World {
     /// Walkable passages between zones and the shortest walk between any two of them.
     pub passes: Vec<Pass>,
     pub pass_dist: Vec<Vec<f64>>,
+    /// Next passage on the shortest walk from passage i to passage j.
+    pass_next: Vec<Vec<usize>>,
+    /// Whether the shortest walk from passage i to passage j takes a shortcut (them included).
+    pass_shortcut: Vec<Vec<bool>>,
     pub zone_passes: FxHashMap<i64, Vec<usize>>,
     /// Flight master nodes by x (`taxi_near`).
     taxi_by_x: Vec<(f64, usize)>,
@@ -226,6 +230,8 @@ impl World {
             link_chain: Vec::new(),
             passes: Vec::new(),
             pass_dist: Vec::new(),
+            pass_next: Vec::new(),
+            pass_shortcut: Vec::new(),
             zone_passes: FxHashMap::default(),
             taxi_by_x: Vec::new(),
             terrain: crate::terrain::Terrain::load(conn)?,
@@ -580,6 +586,9 @@ pub struct PassDef {
     /// Off-road shortcut (mountain climb, jump...): used only when `Params::shortcuts` is on.
     #[serde(default)]
     pub shortcut: bool,
+    /// Taken only from the first zone to the second (a drop that is not climbed back).
+    #[serde(default)]
+    pub one_way: bool,
 }
 
 /// A large walkable area left only by boat, portal or lift (`[[enclosed]]` of
@@ -595,6 +604,28 @@ pub struct Pass {
     pub name: String,
     pub pos: Pos,
     pub zones: [i64; 2],
+    pub shortcut: bool,
+    pub one_way: bool,
+}
+
+impl Pass {
+    /// Whether the passage is taken from zone `z`.
+    fn taken_from(&self, z: i64) -> bool {
+        if self.one_way {
+            self.zones[0] == z
+        } else {
+            self.zones.contains(&z)
+        }
+    }
+
+    /// Whether the passage leads into zone `z`.
+    fn leads_to(&self, z: i64) -> bool {
+        if self.one_way {
+            self.zones[1] == z
+        } else {
+            self.zones.contains(&z)
+        }
+    }
 }
 
 impl World {
@@ -651,6 +682,8 @@ impl World {
                     name: d.name.clone(),
                     pos,
                     zones: d.zones,
+                    shortcut: d.shortcut,
+                    one_way: d.one_way,
                 }),
                 None => warnings.push(format!("pass {}: zone {zone} has no map", d.name)),
             }
@@ -661,13 +694,15 @@ impl World {
                 self.zone_passes.entry(z).or_default().push(i);
             }
         }
-        // Walking between passages that share a zone, then all-pairs shortest walks.
+        // Walking from a passage to another taken from the zone it leads into, then all-pairs
+        // shortest walks (one-way passages: not the same both ways).
         let n = self.passes.len();
         let mut d = vec![vec![f64::INFINITY; n]; n];
+        let mut next: Vec<Vec<usize>> = (0..n).map(|_| (0..n).collect()).collect();
         for (i, (row, a)) in d.iter_mut().zip(&self.passes).enumerate() {
             row[i] = 0.0;
             for (j, (cell, b)) in row.iter_mut().zip(&self.passes).enumerate() {
-                if i != j && a.zones.iter().any(|z| b.zones.contains(z)) {
+                if i != j && a.zones.iter().any(|&z| a.leads_to(z) && b.taken_from(z)) {
                     *cell = self.ground(&a.pos, &b.pos);
                 }
             }
@@ -678,12 +713,56 @@ impl World {
                     let via = d[i][k] + d[k][j];
                     if via < d[i][j] {
                         d[i][j] = via;
+                        next[i][j] = next[i][k];
                     }
                 }
             }
         }
         self.pass_dist = d;
+        self.pass_next = next;
+        self.pass_shortcut = (0..n)
+            .map(|i| {
+                (0..n)
+                    .map(|j| self.pass_path(i, j).iter().any(|&k| self.passes[k].shortcut))
+                    .collect()
+            })
+            .collect();
         Ok(warnings)
+    }
+
+    /// The passages of the shortest walk from passage `i` to passage `j`, both included (none
+    /// when no walk goes there).
+    pub fn pass_path(&self, i: usize, j: usize) -> Vec<usize> {
+        if self.pass_dist[i][j].is_infinite() {
+            return Vec::new();
+        }
+        let mut path = vec![i];
+        let mut k = i;
+        while k != j {
+            k = self.pass_next[k][j];
+            path.push(k);
+        }
+        path
+    }
+
+    /// The shortcuts (off-road passages) the walk from `a` to `b` takes, in order.
+    pub fn walk_shortcuts(&self, a: &Pos, b: &Pos) -> Vec<usize> {
+        if a.zone == b.zone {
+            return Vec::new();
+        }
+        let (Some(pa), Some(pb)) = (self.zone_passes.get(&a.zone), self.zone_passes.get(&b.zone)) else {
+            return Vec::new();
+        };
+        // Most walks: no shortcut between these zones, the walk itself is not looked for.
+        if !pa.iter().any(|&i| pb.iter().any(|&j| self.pass_shortcut[i][j])) {
+            return Vec::new();
+        }
+        match self.through_passes(a, b, pa, pb) {
+            (t, Some((i, j))) if t.is_finite() => (self.pass_path(i, j).into_iter())
+                .filter(|&k| self.passes[k].shortcut)
+                .collect(),
+            _ => Vec::new(),
+        }
     }
 
     /// Walking distance (yards): around the steep terrain within a zone, through passages between
@@ -699,17 +778,7 @@ impl World {
         let (Some(pa), Some(pb)) = (self.zone_passes.get(&a.zone), self.zone_passes.get(&b.zone)) else {
             return (self.ground(a, b), None);
         };
-        let mut best = (self.across(a, b), None);
-        for &i in pa {
-            let da = self.ground(a, &self.passes[i].pos);
-            for &j in pb {
-                let t = da + self.pass_dist[i][j] + self.ground(&self.passes[j].pos, b);
-                if t < best.0 {
-                    best = (t, Some((i, j)));
-                }
-            }
-        }
-        best
+        self.through_passes(a, b, pa, pb)
     }
 
     pub fn walk_distance(&self, a: &Pos, b: &Pos) -> f64 {
@@ -723,28 +792,45 @@ impl World {
         let (Some(pa), Some(pb)) = (self.zone_passes.get(&a.zone), self.zone_passes.get(&b.zone)) else {
             return self.unknown_walk(a, b);
         };
-        let mut best = self.across(a, b);
-        // Each walk to a passage once (the inner loop would ask them for every passage left).
-        let to_b: Vec<f64> = pb.iter().map(|&j| self.ground(&self.passes[j].pos, b)).collect();
-        for &i in pa {
-            let da = self.ground(a, &self.passes[i].pos);
-            for (&j, &db) in pb.iter().zip(&to_b) {
-                let t = da + self.pass_dist[i][j] + db;
-                if t < best {
-                    best = t;
-                }
-            }
-        }
+        let best = self.through_passes(a, b, pa, pb).0;
+        let passes = &self.passes;
         if best.is_finite() {
             best
-        } else if pa
-            .iter()
-            .all(|&i| pb.iter().all(|&j| self.pass_dist[i][j].is_infinite()))
-        {
+        } else if pa.iter().all(|&i| {
+            pb.iter().all(|&j| {
+                !passes[i].taken_from(a.zone) || !passes[j].leads_to(b.zone) || self.pass_dist[i][j].is_infinite()
+            })
+        }) {
             f64::INFINITY
         } else {
             self.unknown_walk(a, b)
         }
+    }
+
+    /// Shortest walk from `a` to `b` through the passages of their zones (`pa`, `pb`), or across
+    /// the border when shorter, and the first and last passage it takes.
+    fn through_passes(&self, a: &Pos, b: &Pos, pa: &[usize], pb: &[usize]) -> (f64, Option<(usize, usize)>) {
+        let mut best = (self.across(a, b), None);
+        // Each walk to a passage once (the inner loop would ask them for every passage left).
+        let to_b: Vec<f64> = (pb.iter())
+            .map(|&j| {
+                if self.passes[j].leads_to(b.zone) {
+                    self.ground(&self.passes[j].pos, b)
+                } else {
+                    f64::INFINITY
+                }
+            })
+            .collect();
+        for &i in pa.iter().filter(|&&i| self.passes[i].taken_from(a.zone)) {
+            let da = self.ground(a, &self.passes[i].pos);
+            for (&j, &db) in pb.iter().zip(&to_b) {
+                let t = da + self.pass_dist[i][j] + db;
+                if t < best.0 {
+                    best = (t, Some((i, j)));
+                }
+            }
+        }
+        best
     }
 
     /// A walk the passages do not know: the straight line, unless no walk goes between the two

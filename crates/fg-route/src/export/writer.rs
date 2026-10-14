@@ -45,6 +45,7 @@ impl StepWriter<'_> {
             Event::Abandon { quest } => self.abandon(&mut step, *quest),
             Event::Fly { from, to } => self.fly(&mut step, *from, *to),
             Event::Link { first, last } => self.link(&mut step, *first, *last),
+            Event::Shortcut { pass } => self.shortcut(&mut step, *pass),
             Event::LearnFlight { node } => self.learn_flight(&mut step, *node),
             Event::Grind {
                 to_level,
@@ -332,6 +333,15 @@ impl StepWriter<'_> {
             name: b.name.clone(),
         });
         self.place(&a.from, Some(a.from_zone))
+    }
+
+    /// An off-road shortcut: shown as a link (done on reaching the next step's map).
+    fn shortcut(&self, step: &mut Step, pass: usize) -> Place {
+        let pass = &self.planner.world.passes[pass];
+        step.kind = StepKind::Link;
+        step.say
+            .push(Phrase::new("shortcut").arg("pass", Arg::Text(pass.name.clone())));
+        self.place(&pass.pos, Some(pass.pos.zone))
     }
 
     fn learn_flight(&self, step: &mut Step, node: usize) -> Place {

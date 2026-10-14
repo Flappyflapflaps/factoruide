@@ -251,15 +251,18 @@ zones = [490, 1377]
 at = { zone = 490, x = 29.0, y = 22.0 } # approx
 
 # --- Shortcuts (off-road; used when the "shortcuts" setting is on) -------------------
+# A step of the guide tells to take them. `one_way = true`: only from the first zone to the second.
 
 [[pass]]
 # Climb the mountains north-east of Dun Morogh (from ~59.4,42.8 up to the ridge) and walk
 # down into the Wetlands next to Menethil Harbor, skipping Loch Modan and Dun Algaz.
 # Well-known route, see https://www.youtube.com/watch?v=9afQTimaiZQ
+# One way: the drops into the Wetlands are not climbed back.
 name = "Dun Morogh -> Wetlands mountain skip"
 zones = [1, 11] # Dun Morogh, Wetlands
 at = { zone = 1, x = 66.9, y = 8.5 }
 shortcut = true
+one_way = true
 
 # --- Enclosed areas ------------------------------------------------------------------
 # Large walkable areas left only by boat, portal or lift (overrides/travel.toml): no walk to or

@@ -296,6 +296,20 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "shortcut",
+        [
+            "Take the shortcut: {pass}",
+            "Prendre le raccourci : {pass}",
+            "Abkürzung nehmen: {pass}",
+            "Tomar el atajo: {pass}",
+            "Pegar o atalho: {pass}",
+            "Срезать путь: {pass}",
+            "지름길 이용: {pass}",
+            "走捷径：{pass}",
+            "走捷徑：{pass}",
+        ],
+    ),
+    (
         "flight_master",
         [
             "Get the flight path at {place}",
