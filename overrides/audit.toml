@@ -45,3 +45,185 @@ reason = "A Bijou for Zanza takes one of the ten bijous (Zul'Gurub), any of them
 check = "source-items"
 key = "quest 8240 item 19715"
 reason = "A Bijou for Zanza takes one of the ten bijous (Zul'Gurub), any of them"
+
+# Quests given or turned in by a class trainer that any class takes.
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 2861"
+reason = "Tabetha's Task: any class, sent to Tabetha by a mage trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 3002"
+reason = "The Gordunni Orb: any class, turned in to a mage trainer in Orgrimmar"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 3370"
+reason = "In Nightmares: any class, from Rabine Saturna's chain in Moonglade"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 3781"
+reason = "Morrowgrain Research: any class, Moonglade's druid trainers take the Morrowgrain"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 3785"
+reason = "Morrowgrain Research: any class, Moonglade's druid trainers take the Morrowgrain"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 4986"
+reason = "Glyphed Oaken Branch: any class (Feralas), turned in at Moonglade"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 6761"
+reason = "The New Frontier: any class, the way to Moonglade"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 6762"
+reason = "Rabine Saturna: any class, the way to Moonglade"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 7068"
+reason = "Shadowshard Fragments: any class (Maraudon), turned in to a mage trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 2"
+reason = "Sharptalon's Claw: any class, its turn-in is also a paladin trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 3378"
+reason = "Prayer to Elune: any class, turned in at a priest trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 10324"
+reason = "The Great Moongraze Hunt: any class, Azuremyst's hunter trainer gives it"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 9454"
+reason = "The Great Moongraze Hunt: any class, Azuremyst's hunter trainer gives it"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 9453"
+reason = "Find Acteon!: any class, the way to Azuremyst's hunter trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 9283"
+reason = "Rescue the Survivors!: any draenei, at a priest trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 9409"
+reason = "Urgent Delivery!: any class, at a priest trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 6122"
+reason = "The Principal Source: the druid's cure poison quest, at a pet trainer (a hunter's title)"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 6123"
+reason = "Gathering the Cure: the druid's cure poison quest, at a pet trainer (a hunter's title)"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 6124"
+reason = "Curing the Sick: the druid's cure poison quest, at a pet trainer (a hunter's title)"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 78090"
+reason = "A Second Opinion: any class, Katherine the Pure sends to the warlock trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 78091"
+reason = "Earning Your Salt: any class, the warlock trainer's follow-up of A Second Opinion"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 78092"
+reason = "It Must Be Destroyed: any class, the warlock trainer's follow-up of A Second Opinion"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 91758"
+reason = "Follow That Kobold!: any class of the Alliance, Northshire's hunter trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 91772"
+reason = "Shhh! We're Hunting Kobolds: any class of the Alliance, Northshire's hunter trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 94484"
+reason = "Unnerving Silence: Shadowgale Forest's story, given by a druid trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 94491"
+reason = "The Fate of the Den: Shadowgale Forest's story, turned in to a druid trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 95328"
+reason = "Whispering Horror Residue: started by an item, delivered to a priest trainer; no source restricts it"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 96130"
+reason = "Chakuyak: any class of the Horde, Mulgore's hunter trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 97263"
+reason = "Your Package Has Arrived: any class of the Alliance, delivered to a shaman trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 98046"
+reason = "Crown of the Earth: any night elf, at a priest trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 98065"
+reason = "Crown of the Earth: any night elf, at a priest trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 98191"
+reason = "A Friend of the Family: any class of the Alliance, turned in to a paladin trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 98219"
+reason = "The Shamed Lieutenant: any class of the Alliance, given by a paladin trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 98391"
+reason = "The Sisterhood of Elune: any class of the Alliance, given by a priest trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 99108"
+reason = "Sparring Match: for those who are not warriors, given by a warrior trainer"
+
+[[accept]]
+check = "other-class-quests"
+key = "quest 99158"
+reason = "Dawn in the Mountains: any class of the Alliance, given by a priest trainer"

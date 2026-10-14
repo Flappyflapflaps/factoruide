@@ -8,6 +8,10 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Guides no longer walk over the mountains between the south of the Eastern Kingdoms (Stormwind, Elwynn, Stranglethorn) and the north (Dun Morogh, Wetlands, Silverpine): they take the tram, a flight or a boat, and the guide says so.
 - Preferred zones now weigh on the whole guide, not only on its first draft: the guide stays in them unless leaving saves a lot of time ("Weight of the preferred zones" in the advanced settings). Excluded zones are also left out for turn-ins and the hearthstone: a character bound in its start zone is no longer sent back there.
 
+### WoW data
+
+- WoW Forever: the class quests of the new race and class pairs are kept to their class: a troll hunter no longer gets the orc mage's Glyphic Parchment nor the troll warlock's Tainted Tablet. The same goes for the gnome priest, undead paladin, human hunter, dwarf shaman and Skyborne hunter and shaman quests, and the druid's cat form quests.
+
 ## 0.8.0 (2026-10-14)
 
 The app on Mac, a new look, a Characters page, and class quests planned again.

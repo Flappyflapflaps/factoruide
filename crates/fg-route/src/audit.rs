@@ -43,6 +43,12 @@ pub const CHECKS: &[Check] = &[
         error: true,
     },
     Check {
+        name: "other-class-quests",
+        what: "quests in a guide of a class given or turned in by another class's trainer: a \
+               class quest whose class the data does not know, planned for every class",
+        error: true,
+    },
+    Check {
         name: "terrain-gaps",
         what: "areas with places of quests the terrain does not connect to their continent's \
                mainland, even through the passages: the planner walks there in a straight line. \
@@ -107,6 +113,11 @@ pub fn audit(
     } else {
         HashMap::new()
     };
+    let trainer_quests = if on("other-class-quests") {
+        trainer_quests(conn)?
+    } else {
+        HashMap::new()
+    };
     for (race, def) in &overrides.races {
         // Classic Era comparison databases have no class list: any class goes.
         let class = job::race_classes(conn, def.id)?
@@ -156,20 +167,32 @@ pub fn audit(
                 .into_iter()
                 .for_each(&mut add);
         }
-        if on("class-quests") {
+        if on("class-quests") || on("other-class-quests") {
             for class in job::race_classes(conn, def.id)? {
-                if overrides.class_quests.get(&class).is_none_or(Vec::is_empty) {
+                let required = on("class-quests") && overrides.class_quests.get(&class).is_some_and(|q| !q.is_empty());
+                if !required && !on("other-class-quests") {
                     continue;
                 }
                 let request = PlanRequest {
                     class: class.clone(),
                     ..request.clone()
                 };
-                match job::prepare(conn, overrides, &request, &|_| {}) {
-                    Ok(p) => class_quests_left_out(&class, &p.profile.required_class_quests, &p.model)
+                let p = match job::prepare(conn, overrides, &request, &|_| {}) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        progress(&format!("{race} {class}: {e}"));
+                        continue;
+                    }
+                };
+                if required {
+                    class_quests_left_out(&class, &p.profile.required_class_quests, &p.model)
                         .into_iter()
-                        .for_each(&mut add),
-                    Err(e) => progress(&format!("{race} {class}: {e}")),
+                        .for_each(&mut add);
+                }
+                if on("other-class-quests") {
+                    other_class_quests(&class, &p.model, &trainer_quests)
+                        .into_iter()
+                        .for_each(&mut add);
                 }
             }
         }
@@ -193,6 +216,44 @@ fn class_quests_left_out(class: &str, required: &[String], model: &Model) -> Vec
             key: format!("{class} quest {id}"),
             detail: format!("{name} ({id}): {why}"),
             races: Vec::new(),
+        })
+        .collect()
+}
+
+/// Classes (keys) whose trainers give or take each quest, from the trainers' titles
+/// ("Mage Trainer"; "Pet Trainer": the hunter's).
+fn trainer_quests(conn: &Connection) -> Result<HashMap<i64, Vec<String>>> {
+    let mut stmt = conn.prepare(
+        "WITH t AS (SELECT r.quest_id, lower(substr(n.subname, 1, length(n.subname) - 8)) AS title
+           FROM m_quest_relation r JOIN m_npc n ON n.id = r.entity_id
+           WHERE r.entity_type = 'npc' AND n.subname LIKE '% Trainer')
+         SELECT DISTINCT quest_id, CASE title WHEN 'pet' THEN 'hunter' ELSE title END AS class FROM t
+         WHERE class IN (SELECT lower(Filename) FROM client_chrclasses)",
+    )?;
+    let mut out: HashMap<i64, Vec<String>> = HashMap::new();
+    for row in stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))? {
+        let (quest, class) = row?;
+        out.entry(quest).or_default().push(class);
+    }
+    Ok(out)
+}
+
+/// Quests of the model of `class` that only other classes' trainers give or take.
+fn other_class_quests(class: &str, model: &Model, trainer_quests: &HashMap<i64, Vec<String>>) -> Vec<Finding> {
+    (model.quests.iter())
+        .filter_map(|q| {
+            let classes = trainer_quests.get(&q.id)?;
+            (!classes.iter().any(|c| c == class)).then(|| Finding {
+                check: "other-class-quests",
+                key: format!("quest {}", q.id),
+                detail: format!(
+                    "{} ({}): {} trainer, in the {class}'s guide",
+                    q.name,
+                    q.id,
+                    classes.join("/")
+                ),
+                races: Vec::new(),
+            })
         })
         .collect()
 }
