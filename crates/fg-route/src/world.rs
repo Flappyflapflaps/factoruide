@@ -490,6 +490,9 @@ pub struct LinkDef {
     /// Taken at once (portal, orb, lift): no wait for a departure (`Params::link_wait`).
     #[serde(default)]
     pub instant: bool,
+    /// Races allowed (keys of `races.toml`; empty: every race of the faction).
+    #[serde(default)]
+    pub races: Vec<String>,
 }
 
 /// A directed transport link.

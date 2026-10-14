@@ -693,6 +693,24 @@ fn mountain_skip_is_one_way_and_a_step_of_the_guide() {
     );
 }
 
+/// A link kept to some races (Forever's Skyborne portals) is only in their guides.
+#[test]
+fn link_kept_to_a_race() {
+    let mut o = overrides();
+    let mut tram = (o.links.iter())
+        .find(|l| l.name.starts_with("Deeprun Tram"))
+        .unwrap()
+        .clone();
+    (tram.name, tram.races) = ("Gnomes only".into(), vec!["gnome".into()]);
+    o.links.push(tram);
+    let has = |race: &str| {
+        let p = job::prepare(&database(), &o, &request(race, "warrior", 2, &[]), &|_| {}).unwrap();
+        p.world.links.iter().any(|l| l.name == "Gnomes only")
+    };
+    assert!(has("gnome"));
+    assert!(!has("human"));
+}
+
 /// A quest given up is not turned in: it opens no follow-up. Fire Hardened Mail, left in the log
 /// when Razorfen Kraul is not run, does not give Furen's Armor (it used to).
 #[test]

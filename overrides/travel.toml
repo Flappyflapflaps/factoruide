@@ -1,7 +1,8 @@
 # Transport links (boats, zeppelins, trams, portals) used by the route planner.
 # Coordinates are zone percent coordinates (AreaTable zone ID, x, y) of where you board.
 # `seconds` = ride (the average wait `link_wait` is added, except with `instant = true`: portals,
-# orbs, lifts). Links work both ways unless `one_way = true`.
+# orbs, lifts). Links work both ways unless `one_way = true`. `races` (keys of races.toml): only
+# those races can take it (default: every race of `faction`).
 #
 # Positions marked "npc" come from the zeppelin/ship masters' spawns in the database;
 # "approx" ones are estimates to replace with values recorded in game (`transit` events
@@ -44,12 +45,45 @@ from = { zone = 1537, x = 84.1, y = 53.1 }  # dungeon entrances of the quest dat
 to = { zone = 1519, x = 71.98, y = 27.61 } # dungeon entrances of the quest data
 seconds = 120
 
+# Forever's boats (their docks and courses from the client's transport paths, TaxiPathNode;
+# rides from their length, as the Classic boats'). Menethil Harbor's boat sails a loop:
+# Menethil Harbor, Southshore, Auberdine, back to Menethil Harbor without stopping.
 [[link]]
-name = "Boat Menethil Harbor - Auberdine"
+name = "Boat Menethil Harbor - Southshore"
 faction = "Alliance"
-from = { zone = 11, x = 4.6, y = 57.1 }  # approx
-to = { zone = 148, x = 32.4, y = 43.8 }  # approx
+from = { zone = 11, x = 4.48, y = 56.64 }   # path 11167
+to = { zone = 267, x = 50.68, y = 70.45 }
+seconds = 360
+one_way = true
+
+[[link]]
+name = "Boat Southshore - Auberdine"
+faction = "Alliance"
+from = { zone = 267, x = 50.68, y = 70.45 } # path 11167
+to = { zone = 148, x = 32.35, y = 44.14 }
 seconds = 210
+one_way = true
+
+[[link]]
+name = "Boat Auberdine - Menethil Harbor"
+faction = "Alliance"
+from = { zone = 148, x = 32.35, y = 44.14 } # path 11167
+to = { zone = 11, x = 4.48, y = 56.64 }
+seconds = 190
+one_way = true
+
+[[link]]
+name = "Boat Stormwind Harbor - Auberdine"
+faction = "Alliance"
+from = { zone = 1519, x = 21.81, y = 56.82 } # path 11616
+to = { zone = 148, x = 30.53, y = 40.89 }
+seconds = 150
+
+[[link]]
+name = "Boat Steamwheedle Port - Powderfuse Port"
+from = { zone = 440, x = 68.58, y = 23.0 }   # path 11391
+to = { zone = 16591, x = 80.6, y = 54.6 }    # Riverglades
+seconds = 170
 
 [[link]]
 name = "Boat Menethil Harbor - Theramore"
@@ -95,12 +129,26 @@ to = { zone = 215, x = 33.4, y = 22.5 }       # Alaana Stormwalker
 seconds = 30
 one_way = true
 
+# Dalaran and Stormwind's Wizard's Sanctum: portals for the Skyborne only (players report that
+# other races cannot take them; not checked in game).
 [[link]]
 name = "Skyborne Portal to Stormwind"
 faction = "Alliance"
+races = ["skyborne"]
 from = { zone = 36, x = 12.04, y = 56.21 } # portal object
 to = { zone = 1519, x = 74.0, y = 45.0 }   # approx: arrival in Stormwind
 seconds = 15
+instant = true
+one_way = true
+
+[[link]]
+name = "Skyborne Portal to Dalaran"
+faction = "Alliance"
+races = ["skyborne"]
+from = { zone = 1519, x = 50.4, y = 86.0 } # approx: Wizard's Sanctum, by Larimaine Purdue
+to = { zone = 36, x = 12.04, y = 56.21 }   # approx: the Sky Enclave, by the portal back
+seconds = 15
+instant = true
 one_way = true
 
 # --- Class teleports a quest teaches ---

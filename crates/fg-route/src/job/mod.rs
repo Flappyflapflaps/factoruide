@@ -207,8 +207,18 @@ fn load_world(
     for warning in world.add_passes(conn, &passes)? {
         progress(&warning);
     }
+    // Links kept to some races (the Skyborne's portals): those of the character's race.
+    let links: Vec<_> = (overrides.links.iter())
+        .filter(|l| {
+            l.races.is_empty()
+                || l.races
+                    .iter()
+                    .any(|r| overrides.races.get(r).is_some_and(|d| d.id == profile.race_id))
+        })
+        .cloned()
+        .collect();
     world.add_links(
-        &overrides.links,
+        &links,
         profile.faction,
         params.run_speed / params.detour,
         params.link_wait,
