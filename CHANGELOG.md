@@ -2,7 +2,11 @@
 
 Each version's tag message (`scripts/release.sh`), shown in the app's update prompt, is kept short: a link to this file.
 
-## Unreleased
+## 0.9.0 (2026-10-14)
+
+Guides closer to the game: walks no longer counted too long, quest items at their real drop rate, cloth donations, grinding at camps, and a comparison of a guide's versions.
+
+### App
 
 - Compare two versions of a guide ("Compare" in its versions, or next to the time difference with the previous one): their steps side by side, aligned as you go, with the steps added, removed, changed or done elsewhere marked, and a zone done at another time shown as one move with its own differences. The settings and game data that changed are listed, and the differences can be copied as text, to look for a mistake or report one. The `fg diff` command prints the same text.
 - Windows: the What's new page shows its titles and lists again (it showed the raw text).
