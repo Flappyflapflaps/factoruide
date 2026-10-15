@@ -220,6 +220,87 @@ impl Spots {
             points,
         })
     }
+
+    /// Other places to look for them than around `first` (world x, y): the centres of up to
+    /// `max` groups of spawns away from it and from each other, densest first, then ordered
+    /// from the closest to `first`. For the guide, when nothing is found where it points.
+    #[must_use]
+    pub fn groups(&self, first: (f64, f64), max: usize) -> Vec<(f64, f64)> {
+        /// Spawns this close to a group's centre belong to it (yards).
+        const RADIUS: f64 = 100.0;
+        /// Places this close to another are the same place (yards): beyond, the mob may be
+        /// there and not here.
+        const APART: f64 = 150.0;
+        let dist = |a: (f64, f64), b: (f64, f64)| (a.0 - b.0).hypot(a.1 - b.1);
+        let mut left: Vec<(f64, f64)> = self
+            .points
+            .iter()
+            .copied()
+            .filter(|p| dist(*p, first) > APART)
+            .collect();
+        let mut out = Vec::new();
+        while out.len() < max && !left.is_empty() {
+            // Large sets: sample candidates to bound the quadratic cost.
+            let step = (left.len() / 300).max(1);
+            let Some(center) = left
+                .iter()
+                .step_by(step)
+                .map(|p| {
+                    let members: Vec<_> = left.iter().filter(|q| dist(*p, **q) <= RADIUS).collect();
+                    let n = members.len() as f64;
+                    (
+                        members.len(),
+                        (
+                            members.iter().map(|q| q.0).sum::<f64>() / n,
+                            members.iter().map(|q| q.1).sum::<f64>() / n,
+                        ),
+                    )
+                })
+                .max_by_key(|(n, _)| *n)
+                .map(|(_, c)| c)
+            else {
+                break;
+            };
+            left.retain(|p| dist(*p, center) > APART);
+            if out.iter().all(|o| dist(*o, center) > APART) {
+                out.push(center);
+            }
+        }
+        out.sort_by(|a, b| dist(*a, first).total_cmp(&dist(*b, first)));
+        out
+    }
+}
+
+#[cfg(test)]
+mod spots_tests {
+    use super::Spots;
+
+    #[test]
+    fn other_groups_away_from_the_first_closest_first() {
+        let points = vec![
+            (0.0, 0.0),
+            (10.0, 0.0),
+            (1000.0, 0.0),
+            (1010.0, 5.0),
+            (400.0, 0.0),
+            (5000.0, 0.0),
+        ];
+        let spots = Spots {
+            continent: 0,
+            min: (0.0, 0.0),
+            max: (5000.0, 5.0),
+            points,
+        };
+        let groups = spots.groups((0.0, 0.0), 5);
+        assert_eq!(groups.len(), 3, "{groups:?}");
+        assert_eq!(groups[0], (400.0, 0.0));
+        assert!(
+            (groups[1].0 - 1005.0).abs() < 1e-9,
+            "the two spawns together: {groups:?}"
+        );
+        assert_eq!(groups[2], (5000.0, 0.0));
+        assert_eq!(spots.groups((0.0, 0.0), 1).len(), 1, "at most max");
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -244,6 +325,10 @@ pub struct Quest {
     pub start_kills: f64,
     pub start_mob_level: i64,
     pub start_uses: f64,
+    /// The mob dropping the item that starts the quest (ID, name), for the guide to name it,
+    /// and its spawns (the guide's other places to look for it).
+    pub start_mob: Option<(i64, String)>,
+    pub start_spots: Option<Spots>,
     /// Class quests: always planned, the optimizer cannot drop them.
     pub mandatory: bool,
     /// Required because its zone is forced (`Params::forced_zones`), or as a prerequisite of

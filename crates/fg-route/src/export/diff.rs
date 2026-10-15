@@ -840,6 +840,7 @@ mod tests {
             power: None,
             gear: None,
             keep: false,
+            spots: Vec::new(),
         }
     }
 

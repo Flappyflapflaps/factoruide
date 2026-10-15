@@ -4,13 +4,16 @@
 use super::builder::{QuestBuilder, Skip};
 use super::entities::best_cluster;
 use super::sources::{QuestRow, Role, SourceKind};
-use super::types::{EntityKind, Loc};
+use super::types::{EntityKind, Loc, Spots};
 
 pub(super) struct Givers {
     pub(super) starts: Vec<Loc>,
     pub(super) ends: Vec<Loc>,
     /// Work to get the item that starts the quest: kills, at mob level, object uses.
     pub(super) start_work: (f64, i64, f64),
+    /// The mob dropping that item (ID, name), when it is looted from one, and its spawns.
+    pub(super) start_mob: Option<(i64, String)>,
+    pub(super) start_spots: Option<Spots>,
     /// Quests that must be done first to hold the item that starts this one.
     pub(super) item_pre: Vec<i64>,
 }
@@ -20,6 +23,9 @@ enum ItemStart {
     Looted {
         at: Loc,
         work: (f64, i64, f64),
+        /// The mob it drops from (ID, name) and its spawns; none from an object.
+        mob: Option<(i64, String)>,
+        spots: Option<Spots>,
     },
     /// The reward of another quest (a tome handed by the class trainer): got from whoever turns
     /// that quest in, after it (unless it can be asked again).
@@ -36,6 +42,8 @@ impl QuestBuilder<'_> {
             starts: Vec::new(),
             ends: Vec::new(),
             start_work: (0.0, 0, 0.0),
+            start_mob: None,
+            start_spots: None,
             item_pre: Vec::new(),
         };
         let mut rare_start = false;
@@ -54,9 +62,11 @@ impl QuestBuilder<'_> {
                 continue;
             }
             match self.item_start(r.id, *id) {
-                ItemStart::Looted { at, work } => {
+                ItemStart::Looted { at, work, mob, spots } => {
                     givers.starts.push(at);
                     givers.start_work = work;
+                    givers.start_mob = mob;
+                    givers.start_spots = spots;
                 }
                 ItemStart::Rewarded(places) => {
                     for (loc, pre) in places {
@@ -116,6 +126,8 @@ impl QuestBuilder<'_> {
             return ItemStart::Looted {
                 at: looted(pos, zone),
                 work: (0.0, 0, 1.0),
+                mob: None,
+                spots: None,
             };
         }
         if let Some((npc, chance)) = mobs.iter().copied().max_by(|a, b| a.1.total_cmp(&b.1)) {
@@ -124,6 +136,8 @@ impl QuestBuilder<'_> {
                 Some((pos, zone, _)) => ItemStart::Looted {
                     at: looted(pos, zone),
                     work: (1.0 / chance, entities.npc_level(npc), 0.0),
+                    mob: Some((npc, entities.name(EntityKind::Npc, npc))),
+                    spots: Spots::new(&points, &pos),
                 },
                 None => ItemStart::Nowhere,
             };

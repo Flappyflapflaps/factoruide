@@ -585,11 +585,16 @@ assert(
     macros[index].body:find("/targetexact Kobold Vermin", 1, true),
     "macro targets the step's mobs: " .. macros[index].body
 )
+-- The skull: WoW Forever blocks SetRaidTarget from a macro's /run (Classic Era and TBC do not).
+assert(FG.Edition == "forever" and not macros[index].body:find("/run", 1, true), "no skull on Forever")
+FG.Edition = "classic"
 SlashCmdList.FACTORUIDE("next")
 assert(
     macros[index].body:find("/targetexact Marshal McBride", 1, true),
     "macro follows the step: " .. macros[index].body
 )
+assert(macros[index].body:find("SetRaidTarget", 1, true), "skull on Classic")
+FG.Edition = "forever"
 print("target macro ok")
 
 -- Talent plan: the next talent follows the class plan (mage: Improved Frostbolt x5, then
@@ -721,6 +726,59 @@ assert(close(FG.Arrow.Angle(0, 10, 0), math.pi / 2), "west, facing north: to the
 assert(close(FG.Arrow.Angle(0, -10, math.pi / 2), math.pi), "east, facing west: behind")
 assert(close(FG.Arrow.Angle(0, 10, math.pi / 2), 0), "west, facing west: ahead")
 print("arrow ok")
+
+-- A step whose mobs live in several places: the arrow moves on from a place where the character
+-- waited out of combat (nothing there), and on /fg spot; around again once all are visited.
+do
+    local now, fighting = 100, false
+    local realTime, realCombat = GetTime, UnitAffectingCombat
+    GetTime = function() return now end
+    UnitAffectingCombat = function() return fighting end
+    FG.Routes["spots"] = {
+        race = 7,
+        class = 8,
+        faction = "Alliance",
+        fromLevel = 1,
+        toLevel = 2,
+        steps = {
+            {
+                k = "objective",
+                t = "Kill Lost Stalker",
+                q = 900,
+                o = 1,
+                m = 1426,
+                x = 29.93,
+                y = 71.2,
+                lvl = 1,
+                spots = { { m = 1426, x = 50, y = 50 }, { m = 1426, x = 10, y = 10 } },
+            },
+        },
+    }
+    onQuest[900] = true
+    local before, beforeStep = char.guide.route, char.guide.step
+    useRoute("spots")
+    FG.Guide:Refresh()
+    assert(waypoint.x == 0.2993, "its own place first")
+    now, fighting = 130, true
+    FG.Guide:Refresh()
+    now, fighting = 145, false
+    FG.Guide:Refresh()
+    assert(waypoint.x == 0.2993, "fighting there: something to find, stays")
+    now = 170
+    FG.Guide:Refresh()
+    assert(waypoint.x == 0.5 and waypoint.y == 0.5, "waited there out of combat: the closest other place")
+    SlashCmdList.FACTORUIDE("spot")
+    assert(waypoint.x == 0.1, "/fg spot: the next one")
+    SlashCmdList.FACTORUIDE("spot")
+    assert(waypoint.x == 0.2993, "all visited: around again from the closest")
+    local places, at = FG.Guide:SpotPlaces()
+    assert(#places == 3 and at == 1, "the places for the map pins")
+    onQuest[900] = nil
+    useRoute(before)
+    FG.Guide:Go(beforeStep)
+    GetTime, UnitAffectingCombat = realTime, realCombat
+    print("spots ok")
+end
 
 -- Profile: what the app plans a guide from, saved at login, logout and on /fg profile.
 local profile = FactoruideDB.profiles["Brouz-Realm"]

@@ -328,7 +328,7 @@ SlashCmdList.FACTORUIDE = function(msg)
         FG.Profile:Save()
     elseif FG.Guide then
         FG:Print(
-            "/fg config | guide | next | prev | step <n> | skip [id] | restart | lines <n> | route | macro | waypoint | scale [size] | status | reset | profile | debug"
+            "/fg config | guide | next | prev | step <n> | skip [id] | restart | lines <n> | route | macro | spot | waypoint | scale [size] | status | reset | profile | debug"
         )
     else
         FG:Print("/fg status | reset | profile | debug")

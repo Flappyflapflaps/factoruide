@@ -97,6 +97,16 @@ pub fn to_lua(routes: &[Route]) -> String {
             if let Some(m) = &s.map {
                 fields.push(format!("m = {}, x = {}, y = {}", m.ui_map, m.x, m.y));
             }
+            if !s.spots.is_empty() {
+                fields.push(format!(
+                    "spots = {{ {} }}",
+                    s.spots
+                        .iter()
+                        .map(|p| format!("{{ m = {}, x = {}, y = {} }}", p.ui_map, p.x, p.y))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
             if let Some(t) = &s.target {
                 fields.push(format!(
                     "e = {}, id = {}, n = {}",

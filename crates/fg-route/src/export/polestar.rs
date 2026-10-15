@@ -174,6 +174,23 @@ impl Goal {
         self
     }
 
+    /// Where its mobs are when they live in several places: its own place, then the others on
+    /// its map (Polestar goes to the closest, and on to another by hand).
+    fn spots(mut self, step: &Step) -> Self {
+        /// Radius of a place (yards).
+        const RADIUS: u32 = 40;
+        let Some(m) = &step.map else { return self };
+        let others: Vec<_> = step.spots.iter().filter(|p| p.ui_map == m.ui_map).collect();
+        if !others.is_empty() {
+            let spots: Vec<String> = std::iter::once((m.x, m.y))
+                .chain(others.iter().map(|p| (p.x, p.y)))
+                .map(|(x, y)| format!("{{ x = {x}, y = {y}, r = {RADIUS} }}"))
+                .collect();
+            self.fields.push(format!("spots = {{ {} }}", spots.join(", ")));
+        }
+        self
+    }
+
     fn text(self, step: &Step) -> Self {
         let text = step.text.trim();
         if text.is_empty() { self } else { self.str("text", text) }
@@ -297,7 +314,7 @@ fn goals(step: &Step, english: bool) -> Vec<Goal> {
         goal.text(step)
     };
     if !matches!(goal.join, Join::Before) {
-        goal = goal.place(step);
+        goal = goal.place(step).spots(step);
         goal.title = target
             .filter(|t| matches!(t.kind, TargetKind::Npc | TargetKind::Object))
             .map(|t| t.name.clone())
@@ -592,6 +609,24 @@ mod tests {
         assert!(steps[0][0].starts_with("{ t = \"note\", text = \"abandon\""));
         assert!(steps[0][1].contains("target = \"objective\""));
         assert!(!steps.concat().iter().any(|g| g.contains("\"\"")));
+    }
+
+    #[test]
+    fn mobs_in_several_places_have_spots_on_the_goal_map() {
+        let r = route(
+            &[step(
+                json!({ "kind": "objective", "quest": 5, "quest_name": "Q", "objective": 0,
+                "target": npc(299, "Young Wolf"), "say": [{ "k": "objective.kill" }], "map": at(20.0),
+                "spots": [{ "ui_map": 1426, "x": 40.0, "y": 60.0 }, { "ui_map": 1429, "x": 1.0, "y": 2.0 }],
+                "text": "Young Wolf x10" }),
+            )],
+            "enUS",
+        );
+        let steps = steps(&guide("g", &r));
+        assert!(
+            steps[0][0].contains("spots = { { x = 20, y = 50, r = 40 }, { x = 40, y = 60, r = 40 } }"),
+            "{steps:?}"
+        );
     }
 
     #[test]

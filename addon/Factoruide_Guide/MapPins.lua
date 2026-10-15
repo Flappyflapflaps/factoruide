@@ -6,14 +6,18 @@ FGStepPinMixin = CreateFromMixins and CreateFromMixins(MapCanvasPinMixin or {}) 
 
 function FGStepPinMixin:OnLoad() self:UseFrameLevelType("PIN_FRAME_LEVEL_AREA_POI") end
 
-function FGStepPinMixin:OnAcquired(x, y, n, text, current)
+--- `kind`: "current" (the step to do), "spot" (another place of its mobs, `shown` the one the
+--- arrow points at), else a next step.
+function FGStepPinMixin:OnAcquired(x, y, n, text, kind, shown)
     self:SetPosition(x, y)
     self.Number:SetText(n)
     self.text = text
-    local size = current and 22 or 18
+    local size = kind == "current" and 22 or (kind == "spot" and 12 or 18)
     self:SetSize(size, size)
-    if current then
+    if kind == "current" then
         self.Dot:SetVertexColor(1, 0.82, 0)
+    elseif kind == "spot" then
+        self.Dot:SetVertexColor(shown and 1 or 0.75, shown and 0.82 or 0.75, shown and 0 or 0.75)
     else
         self.Dot:SetVertexColor(0.22, 0.53, 0.9)
     end
@@ -58,11 +62,17 @@ function Provider:RefreshAllData()
             n = n + 1
             local x, y = PositionOn(step, mapID)
             if x then
-                self:GetMap():AcquirePin("FGStepPinTemplate", x, y, n, step.t, i == first)
+                self:GetMap():AcquirePin("FGStepPinTemplate", x, y, n, step.t, i == first and "current" or nil)
                 shown = shown + 1
             end
             if n >= FG:Get("mapPinsCount") then break end
         end
+    end
+    -- The other places of the mobs of the step the arrow points at.
+    local places, at = FG.Guide:SpotPlaces()
+    for i, place in ipairs(places or {}) do
+        local x, y = PositionOn(place, mapID)
+        if x and place.alt then self:GetMap():AcquirePin("FGStepPinTemplate", x, y, "", place.t, "spot", i == at) end
     end
 end
 

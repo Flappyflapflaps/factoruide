@@ -68,6 +68,20 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "accept.item.mob",
+        [
+            "Kill {mob} and loot {who} to start {quest}",
+            "Tuer {mob} et looter {who} pour démarrer {quest}",
+            "{mob} töten und {who} looten, um {quest} zu beginnen",
+            "Matar a {mob} y despojar {who} para empezar {quest}",
+            "Matar {mob} e saquear {who} para iniciar {quest}",
+            "Убить: {mob} и добыть {who}, чтобы начать «{quest}»",
+            "{mob} 처치 후 {who} 획득하여 {quest} 시작",
+            "击杀{mob}并拾取{who}以开始{quest}",
+            "擊殺{mob}並拾取{who}以開始{quest}",
+        ],
+    ),
+    (
         "turnin",
         [
             "Turn in {quest} to {who}",

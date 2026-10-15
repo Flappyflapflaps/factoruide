@@ -222,6 +222,40 @@ fn item_start_waits_for_its_mob() {
     assert!(p.model.quests[owatanka as usize].min_level >= 22);
 }
 
+/// The accept step of a quest started by an item a mob drops names that mob, and gives it to the
+/// addon's target macro: the place alone shows nothing to loot.
+#[test]
+fn item_start_names_its_mob() {
+    let p = orc_warlock();
+    let owatanka = &p.model.quests[quest(p, 884).unwrap() as usize];
+    let Some((mob, name)) = owatanka.start_mob.clone() else {
+        panic!("Owatanka's Tailspike drops from a mob")
+    };
+    let planner = planner(p);
+    let route = planner.construct(|_| {});
+    let guide = fg_route::export::build(&planner, &p.profile, &route);
+    let looted: Vec<_> = guide
+        .steps
+        .iter()
+        .filter(|s| s.kind == fg_route::export::StepKind::Accept)
+        .filter_map(|s| Some((s, p.model.quests[p.model.index[&s.quest?]].start_mob.clone()?)))
+        .collect();
+    assert!(!looted.is_empty(), "a quest started by a dropped item in the route");
+    for (step, (id, mob)) in looted {
+        assert!(step.text.starts_with(&format!("Kill {mob} and loot ")), "{}", step.text);
+        assert_eq!((&step.mobs, &step.mob_ids), (&vec![mob.clone()], &vec![id]));
+    }
+    // Mobs living in several places: the others, for when nothing is at the step's.
+    assert!(
+        guide
+            .steps
+            .iter()
+            .any(|s| s.kind == fg_route::export::StepKind::Objective && !s.spots.is_empty()),
+        "objectives with other places"
+    );
+    assert!(mob > 0 && !name.is_empty());
+}
+
 /// A quest started by an item dropping less than 10% of the time is luck, not a plan.
 #[test]
 fn rare_drop_start_is_left_out() {

@@ -17,7 +17,9 @@ local function Body(names)
         table.insert(lines, "/targetexact " .. name)
         table.insert(lines, "/cleartarget [dead]")
     end
-    if FG:Get("targetMark") then
+    -- WoW Forever restricts SetRaidTarget: from a macro's /run the game blocks it (a popup
+    -- naming "ForceTaint_Strong"), and /tm would take the skull off at the next press.
+    if FG:Get("targetMark") and FG.Edition ~= "forever" then
         table.insert(
             lines,
             '/run if UnitExists("target") and not GetRaidTargetIndex("target") then SetRaidTarget("target",8) end'

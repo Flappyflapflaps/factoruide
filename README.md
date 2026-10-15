@@ -129,7 +129,9 @@ under "Suggest guides from" on the "Guide packs" page: it offers each character 
 race and class.
 
 - Guide: follows the guide chosen for the character in the app and advances by itself; `/fg guide`,
-  `/fg next`, `/fg prev`, `/fg step <n>`, `/fg route` (shows it), `/fg waypoint`.
+  `/fg next`, `/fg prev`, `/fg step <n>`, `/fg route` (shows it), `/fg waypoint`. Mobs living in
+  several places: the arrow moves on to another place when nothing is found at one (`/fg spot`
+  at once), and the world map shows them all.
 - Size: Ctrl + mouse wheel over a window, or `/fg scale <size>`.
 - Helpers: a big arrow towards the current step (green ahead, red behind, distance below),
   targeting macro "FG Cible" (`/fg macro`), quest item button (key binding in the game's

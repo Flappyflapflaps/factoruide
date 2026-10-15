@@ -58,7 +58,7 @@ const OPTIONS: { title: string; options: Option[] }[] = [
     title: "Macro de ciblage",
     options: [
       { key: "targetMacro", kind: "bool", label: "Mettre à jour la macro « FG Cible »", help: "Elle cible les mobs ou le PNJ de l'étape en cours. Tapez /fg macro en jeu, posez-la sur une barre et associez-lui un raccourci.", default: true },
-      { key: "targetMark", kind: "bool", label: "Marquer la cible d'un crâne", help: "Pose un crâne sur la cible de la macro pour la repérer.", default: true },
+      { key: "targetMark", kind: "bool", label: "Marquer la cible d'un crâne", help: "Pose un crâne sur la cible de la macro pour la repérer (WoW Classic et TBC ; WoW Forever l'interdit aux macros).", default: true },
     ],
   },
   {

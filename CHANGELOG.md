@@ -2,8 +2,15 @@
 
 Each version's tag message (`scripts/release.sh`), shown in the app's update prompt, is kept short: a link to this file.
 
-## Unreleased
+## 0.10.0 (2026-10-15)
 
+Polestar can show your guides on WoW Forever, the addon comes in two parts, reputation goals and forced zones, anonymous contributions, and steps that name the mob to find and its other places.
+
+### App
+
+- Addon, WoW Forever: the target macro no longer puts a skull on the target. The game blocks it there and showed a popup ("ForceTaint_Strong has been blocked from an action only available to the Blizzard UI"). Classic Era and TBC keep the skull.
+- Guides: a quest started by an item a mob drops says which mob to kill ("Kill Lost Stalker and loot Ira's Dagger to start Ira's Dagger"), and the addon's target macro targets it; the step only showed a place with nothing to loot.
+- Guides: steps on mobs living in several places (mobs to kill or loot, the mob dropping a quest's item) know up to five other places, closest first. The addon shows them on the world map; after 20 seconds at the place shown without a fight (nothing there), its arrow moves on to the closest one not visited yet, and `/fg spot` moves on at once. Polestar gets them too.
 - The addon is now two addons: Factoruide_Profile records your character and what the game shows, Factoruide_Guide shows the guide. Installing from the app replaces the former Factoruide addon and carries its saved data over; restart WoW once afterwards so that it finds the new addons.
 - WoW Forever: the Addon page can have Polestar show your guides instead of the Factoruide addon. The guides your characters follow are installed as a Polestar guide pack, Factoruide (choose it under "Suggest guides from" on Polestar's "Guide packs" page), and the Factoruide addon then only records, for your guides and contributions.
 - Guide settings: reputation goals (none by default). Pick factions and the standing to reach (Friendly to Exalted) by the end of the guide: the guide does the quests giving that reputation until the goal is met, going on past its target level if needed, as long as they are worth it ("Worth of a missing reputation point" in the advanced settings), and says where each faction ends. The start is the character's reputation when the guide starts from a character, else the race's (humans' Diplomacy counted). A goal the quests cannot reach is reported with the points missing (GitHub #15).
@@ -16,8 +23,11 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 - Addon, Classic Era and TBC Anniversary: a quest taken is recorded under its own number, not its place in the quest log (two quests had wrong givers in the data); turn-ins at NPCs without a dialogue list are recorded too.
 - Addon: the quest items fast loot takes are recorded as well (most were missed), each with the corpse it came from.
 - Addon, WoW Forever: no error when the game hides a target's level.
-- Game data: the names and ranks of the creatures and objects the game client has met fill what the other sources miss (about 660 more objects on WoW Forever); the NPC levels the addon saw only widen a known range.
 - Guide editor: grinding up several levels moves from camp to camp without stopping the editor with an error.
+
+### WoW data
+
+- Game data: the names and ranks of the creatures and objects the game client has met fill what the other sources miss (about 660 more objects on WoW Forever); the NPC levels the addon saw only widen a known range.
 - WoW Forever: about 720 more quests have their XP, and about 100 have WoW Forever's own value instead of Classic's: guides count on about 6% more quest XP and grind less. Quest levels and required levels follow WoW Forever's changes.
 - WoW Forever: mobs Forever made elite or rare are known as such (Jasperlode Mine's spiders, the capitals' guards): guides keep away from them like from other elites.
 - WoW Forever: the class quests that teach a spell are in their class's guides, like Classic's: Rediscovering the Light (Holy Light, undead paladins: left out until now, its Injured Deathguard healed, not killed) and about 25 others whose spell the data lacked (Taming the Beast and Training the Beast, Call of Earth, Fire and Water, The Binding, Divine Grace, Confounding Flash, Contingency Plan). Darnassus's Contingency Plan is turned in to High Priestess Mims in Ironforge (GitHub #17).

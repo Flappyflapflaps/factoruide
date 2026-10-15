@@ -46,6 +46,8 @@ impl QuestBuilder<'_> {
             start_kills: givers.start_work.0,
             start_mob_level: givers.start_work.1,
             start_uses: givers.start_work.2,
+            start_mob: givers.start_mob,
+            start_spots: givers.start_spots,
             mandatory: zone_forced
                 || group_class_quest && self.profile.required_class_quests.iter().any(|n| n == &r.name),
             zone_forced,

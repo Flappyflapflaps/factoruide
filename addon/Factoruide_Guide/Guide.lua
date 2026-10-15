@@ -53,6 +53,8 @@ local L = {
         or "quest marked as done: %s (/fg skip %d to undo)",
     unskipped = fr and "quête de nouveau à faire : %s" or "quest to do again: %s",
     stepSkipped = fr and "étape marquée comme faite" or "step marked as done",
+    spot = fr and "endroit %d/%d (/fg spot : suivant)" or "spot %d/%d (/fg spot: next)",
+    noSpot = fr and "cette étape n'a pas d'autre endroit" or "this step has no other spot",
 }
 
 local KINDS = {
@@ -324,6 +326,74 @@ function Distance(step)
     local x1, y1 = w1:GetXY()
     local x2, y2 = w2:GetXY()
     return math.sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2)
+end
+
+-- Other places ---------------------------------------------------------------
+-- A step whose mobs live in several places (`spots`, the closest first): the arrow points at
+-- its own place, then at the closest one not visited yet once the character has stood at the
+-- shown one a while without fighting (nothing there), or on `/fg spot`. For the session only.
+
+-- At a place within this many yards; moved on after this many seconds there out of combat.
+local SPOT_NEAR, SPOT_WAIT = 40, 20
+local spot = { index = nil, at = 1, visited = {}, since = nil }
+local placesOf = setmetatable({}, { __mode = "k" })
+
+--- A step's places: itself, then its spots (same text and zone).
+local function Places(step)
+    local places = placesOf[step]
+    if not places then
+        places = { step }
+        for _, p in ipairs(step.spots or {}) do
+            table.insert(places, { m = p.m, x = p.x, y = p.y, n = step.n, zone = step.zone, t = step.t, alt = true })
+        end
+        placesOf[step] = places
+    end
+    return places
+end
+
+--- Point at the closest place not visited yet (all visited: around again).
+local function NextSpot(places)
+    spot.visited[spot.at] = true
+    local best, bestDistance
+    for pass = 1, 2 do
+        for i, p in ipairs(places) do
+            if not spot.visited[i] then
+                local d = Distance(p) or math.huge
+                if not best or d < bestDistance then
+                    best, bestDistance = i, d
+                end
+            end
+        end
+        if best then break end
+        spot.visited = { [spot.at] = true }
+    end
+    spot.at, spot.since = best or 1, nil
+end
+
+--- Where to point for step `index`: the place shown among its own and its spots, moving on
+--- when the character has waited at it out of combat.
+local function SpotTarget(step, index)
+    if not step.spots then return step end
+    local places = Places(step)
+    if spot.index ~= index then
+        spot.index, spot.at, spot.visited, spot.since = index, 1, {}, nil
+    end
+    local d = Distance(places[spot.at])
+    if d and d < SPOT_NEAR and not UnitAffectingCombat("player") then
+        spot.since = spot.since or GetTime()
+        if GetTime() - spot.since >= SPOT_WAIT then NextSpot(places) end
+    else
+        spot.since = nil
+    end
+    return places[spot.at]
+end
+
+--- The places of the step pointed at (its own, then its spots) and the one shown; nil when it
+--- has no other place.
+function Guide:SpotPlaces()
+    local step = route and spot.index and route.steps[spot.index]
+    if not step or not step.spots then return nil end
+    return Places(step), spot.at
 end
 
 local function SetWaypoint(step)
@@ -692,7 +762,7 @@ function Guide:Refresh()
     end
 
     local group = CurrentGroup()
-    local target
+    local target, targetIndex
     local todo = {}
     local rows = 0
     local listed = {}
@@ -722,7 +792,9 @@ function Guide:Refresh()
         row.check:SetShown(done)
         row.text:SetText(StepLine(step, true, index))
         row.text:SetAlpha(done and 0.45 or 1)
-        if not done and not target then target = step end
+        if not done and not target then
+            target, targetIndex = step, index
+        end
     end
     for _, index in ipairs(group) do
         local step = route.steps[index]
@@ -748,9 +820,15 @@ function Guide:Refresh()
     if FG.TargetMacro then FG.TargetMacro:SetSteps(todo) end
     if FG.ItemButton then FG.ItemButton:SetSteps(todo) end
     if FG.MapPins then FG.MapPins:Refresh() end
-    target = target or route.steps[state.step]
+    if not target then
+        target, targetIndex = route.steps[state.step], state.step
+    end
     if pointed and (not route.steps[pointed] or IsDone(route.steps[pointed], pointed)) then pointed = nil end
-    if pointed then target = route.steps[pointed] end
+    if pointed then
+        target, targetIndex = route.steps[pointed], pointed
+    end
+    local hasSpots = target.spots ~= nil
+    target = SpotTarget(target, targetIndex)
 
     local level = UnitLevel("player")
     local planned = route.steps[state.step].lvl
@@ -771,6 +849,7 @@ function Guide:Refresh()
     local footer = target.m and string.format("%.1f, %.1f", target.x, target.y) or ""
     local d = Distance(target)
     if d then footer = footer .. string.format("  ·  %d %s", d, L.yards) end
+    if hasSpots then footer = footer .. "  ·  " .. string.format(L.spot, spot.at, #Places(route.steps[spot.index])) end
     todoBox.footer:SetText(footer)
     SetWaypoint(target)
     if FG.Arrow then FG.Arrow:SetTarget(target) end
@@ -1090,6 +1169,14 @@ function Guide:Command(cmd, arg)
         FG.Timing:Print()
     elseif cmd == "macro" then
         FG.TargetMacro:Pickup()
+    elseif cmd == "spot" then
+        local places = self:SpotPlaces()
+        if places then
+            NextSpot(places)
+            self:Refresh()
+        else
+            FG:Print(L.noSpot)
+        end
     elseif cmd == "waypoint" then
         FG:Set("waypoints", not FG:Get("waypoints"))
         FG:Print("waypoints %s", FG:Get("waypoints") and "on" or "off")

@@ -3,8 +3,8 @@
 //! takes place.
 
 use super::phrase::{Arg, Phrase};
-use super::types::{Step, StepKind, Target, TargetKind};
-use crate::model::{EntityKind, Loc, Objective};
+use super::types::{MapPointOut, Step, StepKind, Target, TargetKind};
+use crate::model::{EntityKind, Loc, Objective, Spots};
 use crate::plan::{Event, Kind, Planner, Stop, Timed};
 use crate::world::{MapPoint, Pos};
 use std::collections::HashSet;
@@ -210,6 +210,7 @@ impl StepWriter<'_> {
             zone: None,
             zone_id: None,
             map: None,
+            spots: Vec::new(),
             world: None,
             skill: None,
             line: None,
@@ -229,6 +230,33 @@ impl StepWriter<'_> {
             gear: power.map(|_| (t.gear * 10.0).round() / 10.0),
             keep: false,
         }
+    }
+
+    /// The other places of mobs whose spawns are `spots`, away from `first`, on the map of the
+    /// step's zone `zone` when they are on it (a spawn by the border), else of their own.
+    fn spots(&self, spots: Option<&Spots>, first: &Pos, zone: i64) -> Vec<MapPointOut> {
+        /// Places shown at most besides the step's own.
+        const MAX: usize = 5;
+        let Some(spots) = spots.filter(|s| s.continent == first.continent) else {
+            return Vec::new();
+        };
+        spots
+            .groups((first.x, first.y), MAX)
+            .into_iter()
+            .filter_map(|(x, y)| {
+                let pos = Pos {
+                    continent: spots.continent,
+                    x,
+                    y,
+                    zone: 0,
+                };
+                let inside = |(m, _): &(MapPoint, Pos)| (0.0..=100.0).contains(&m.x) && (0.0..=100.0).contains(&m.y);
+                self.place(&pos, Some(zone))
+                    .filter(inside)
+                    .or_else(|| self.place(&pos, None))
+                    .map(|(m, _)| m.into())
+            })
+            .collect()
     }
 
     fn place(&self, p: &Pos, zone: Option<i64>) -> Place {
@@ -577,12 +605,20 @@ impl StepWriter<'_> {
                 step.pre.clone_from(&q.pre_all);
                 step.pre_any.clone_from(&q.pre_any);
                 step.min_level = Some(q.min_level);
-                let key = if loc.kind == EntityKind::Item {
-                    "accept.item"
-                } else {
-                    "accept"
+                // An item dropped by a mob: named, targeted by the addon's macro, and its other
+                // places.
+                let say = match &q.start_mob {
+                    Some((id, name)) if loc.kind == EntityKind::Item => {
+                        step.mobs.push(name.clone());
+                        step.mob_ids.push(*id);
+                        step.mob_level = (q.start_mob_level > 0).then_some(q.start_mob_level);
+                        step.spots = self.spots(q.start_spots.as_ref(), &loc.pos, loc.zone);
+                        Phrase::new("accept.item.mob").arg("mob", Arg::Npc(*id, name.clone()))
+                    }
+                    _ if loc.kind == EntityKind::Item => Phrase::new("accept.item"),
+                    _ => Phrase::new("accept"),
                 };
-                step.say.push(Phrase::new(key).arg("quest", quest).arg("who", who));
+                step.say.push(say.arg("quest", quest).arg("who", who));
                 if let Some(limit) = q.time_limit {
                     step.say
                         .push(Phrase::new("suffix.timed").arg("minutes", num((limit / 60.0).round() as i64)));
@@ -601,7 +637,11 @@ impl StepWriter<'_> {
             }
             Kind::Objective(k) => {
                 // At the place the route went to (one of its alternatives).
-                Self::objective(step, q.objectives[k as usize].nearest(&loc.pos), k);
+                let o = q.objectives[k as usize].nearest(&loc.pos);
+                Self::objective(step, o, k);
+                if o.dungeon.is_none() {
+                    step.spots = self.spots(o.spots.as_ref(), &loc.pos, loc.zone);
+                }
                 step.bg = self.background.contains(&(stop.index, k));
             }
             Kind::TurnIn => {
