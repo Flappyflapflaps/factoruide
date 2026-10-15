@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Draw the addon's guide arrow (addon/Factoruide/Media/Arrow.tga): a light grey arrow pointing
+"""Draw the addon's guide arrow (addon/Factoruide_Guide/Media/Arrow.tga): a light grey arrow pointing
 up, shaded in relief (a lit left face and a darker right face along its ridge, rounded edges, a
 dark outline and a soft drop shadow), on a transparent 256x256 canvas. The addon tints it (green
 ahead, red behind) and turns it. `--preview out.png` also writes it tinted green on grey."""
@@ -132,6 +132,6 @@ if __name__ == "__main__":
         preview = args[i + 1]
         del args[i : i + 2]
     image = render()
-    write_tga(args[0] if args else "addon/Factoruide/Media/Arrow.tga", image)
+    write_tga(args[0] if args else "addon/Factoruide_Guide/Media/Arrow.tga", image)
     if preview:
         write_preview(preview, image)

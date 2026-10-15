@@ -1036,6 +1036,25 @@ button.disclosure:disabled {
 .addon-search {
   margin-bottom: 14px;
 }
+/* What shows the guides in game: above the options, as wide as two of their columns. */
+.guide-addon {
+  max-width: 780px;
+  margin-bottom: 16px;
+}
+.guide-addon .segmented {
+  max-width: 420px;
+}
+.guide-addon p {
+  margin: 8px 0 0;
+}
+.polestar-steps {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.5;
+}
+.polestar-steps li + li {
+  margin-top: 6px;
+}
 .addon-grid > .panel {
   break-inside: avoid;
   margin-bottom: 16px;

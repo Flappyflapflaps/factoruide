@@ -1,7 +1,7 @@
 -- Safety (hardcore): warnings on dangerous targets (elites, mobs 3+ levels above, skulls) and
 -- low health. The guide also tags elite objectives and mobs well above the character.
 
-local _, FG = ...
+local FG = Factoruide
 
 local fr = GetLocale() == "frFR"
 

@@ -2,13 +2,13 @@
 -- is ahead, red when it is behind, the distance below. Drag it to move it (unless frames are
 -- locked). Without a position (instances) or on another continent it only says so.
 
-local _, FG = ...
+local FG = Factoruide
 
 local Arrow = {}
 FG.Arrow = Arrow
 
 local fr = GetLocale() == "frFR"
-local TEXTURE = "Interface\\AddOns\\Factoruide\\Media\\Arrow"
+local TEXTURE = "Interface\\AddOns\\Factoruide_Guide\\Media\\Arrow"
 local ARRIVED = 8 -- yards
 local TWO_PI = 2 * math.pi
 

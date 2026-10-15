@@ -20,7 +20,9 @@ pub use overrides::{Overrides, RaceDef};
 pub use race::{optimize, optimize_interruptible};
 pub use reputation::race_base;
 pub use request::{PlanOutcome, PlanRequest, Prepared};
-pub use routes::{load_routes, render_routes, save_route, slug, write_addon_config, write_addon_routes};
+pub use routes::{
+    load_routes, render_routes, save_route, slug, write_addon_config, write_addon_routes, write_polestar_pack,
+};
 pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};
 
 use crate::export;

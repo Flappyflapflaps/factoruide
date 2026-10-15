@@ -1,7 +1,7 @@
 -- Quest item button: the item a current step's quest asks to use, one click (or one key: see
 -- the game's key bindings, "Factoruide") away. Secure attributes only change out of combat.
 
-local _, FG = ...
+local FG = Factoruide
 
 local fr = GetLocale() == "frFR"
 BINDING_HEADER_FACTORUIDE = "Factoruide"

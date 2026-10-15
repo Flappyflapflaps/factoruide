@@ -1,7 +1,7 @@
 -- Target macro: a character macro kept up to date with what the current steps need (mobs to
 -- kill or to loot, NPC to talk to). Bind it to a key: one press targets the nearest one.
 
-local _, FG = ...
+local FG = Factoruide
 
 local fr = GetLocale() == "frFR"
 local NAME = "FG Cible"

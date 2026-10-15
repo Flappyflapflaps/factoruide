@@ -2,7 +2,7 @@
 -- tweaks (+/- on the box under the guide) only last for the session; the window size, the tab of
 -- that box and whether it is shown are saved (the same for every character).
 
-local _, FG = ...
+local FG = Factoruide
 
 FG.defaults = {
     guideShown = true,

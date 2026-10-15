@@ -16,7 +16,8 @@ const UNKNOWN_FLIGHT: i64 = 2;
 pub fn read(files: &[PathBuf]) -> Result<Vec<serde_json::Value>> {
     let mut out = Vec::new();
     for file in files {
-        if !file.ends_with("Factoruide.lua") {
+        // The renamed addon's file has no profiles.
+        if file.ends_with("BrouzQuest.lua") {
             continue;
         }
         let lua = lua::new_lua();

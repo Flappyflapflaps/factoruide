@@ -1,7 +1,7 @@
 -- Group sync: members running Factoruide send their quest progress (objectives fulfilled) to
 -- the party; the tracker shows theirs next to each objective.
 
-local _, FG = ...
+local FG = Factoruide
 local QuestLog = FG.QuestLog
 
 local PREFIX = "FGSYNC1"

@@ -9,7 +9,7 @@
 -- talents), "button" (a text button), "icon" (a quest item button: `.icon`, maybe `.cooldown`).
 -- Windows and panels have `.header` (title strip texture) and `.title`.
 
-local _, FG = ...
+local FG = Factoruide
 
 local Skin = { frames = {} }
 FG.Skin = Skin
@@ -78,7 +78,7 @@ if ElvUI then
     local E = unpack(ElvUI)
     local S = E and E.GetModule and E:GetModule("Skins", true)
     if S and S.AddCallbackForAddon then
-        S:AddCallbackForAddon("Factoruide", "Factoruide", function()
+        S:AddCallbackForAddon("Factoruide_Guide", "Factoruide", function()
             elv.ready = true
             Refresh()
         end)

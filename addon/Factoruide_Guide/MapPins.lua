@@ -1,6 +1,6 @@
 -- World map: numbered pins on the next steps of the guide (zone and continent maps).
 
-local _, FG = ...
+local FG = Factoruide
 
 FGStepPinMixin = CreateFromMixins and CreateFromMixins(MapCanvasPinMixin or {}) or {}
 

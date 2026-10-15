@@ -1,7 +1,7 @@
 -- At a merchant: sell grey items, repair, and buy the food, water and ammo of the character's
 -- level (classic vendor items), within a budget.
 
-local _, FG = ...
+local FG = Factoruide
 
 local fr = GetLocale() == "frFR"
 

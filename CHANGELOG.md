@@ -4,6 +4,8 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 ## Unreleased
 
+- The addon is now two addons: Factoruide_Profile records your character and what the game shows, Factoruide_Guide shows the guide. Installing from the app replaces the former Factoruide addon and carries its saved data over; restart WoW once afterwards so that it finds the new addons.
+- WoW Forever: the Addon page can have Polestar show your guides instead of the Factoruide addon. The guides your characters follow are installed as a Polestar guide pack, Factoruide (choose it under "Suggest guides from" on Polestar's "Guide packs" page), and the Factoruide addon then only records, for your guides and contributions.
 - Guide settings: reputation goals (none by default). Pick factions and the standing to reach (Friendly to Exalted) by the end of the guide: the guide does the quests giving that reputation until the goal is met, going on past its target level if needed, as long as they are worth it ("Worth of a missing reputation point" in the advanced settings), and says where each faction ends. The start is the character's reputation when the guide starts from a character, else the race's (humans' Diplomacy counted). A goal the quests cannot reach is reported with the points missing (GitHub #15).
 - Addon: records the character's reputations with its profile, for the reputation goals.
 - Zones can be forced (a click on the map: preferred → forced → excluded → neutral, or ⚑ in the list): every quest of the zone is done, worth it or not, with the quests they need, and the guide goes on past its target level until they are done. Quests taken only after the target level and dungeon quests are left out; those that cannot be planned are listed.

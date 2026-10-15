@@ -346,6 +346,8 @@ export interface Settings {
   language?: string | null;
   /** Addon behaviour, written to Config.lua on install. */
   addon: Record<string, boolean | number | string>;
+  /** What shows the guides in game on WoW Forever: the addon, or Polestar with a guide pack of them (elsewhere always the addon). */
+  guide_addon?: "factoruide" | "polestar";
   /** Language of the guides in the addon (game locale); unset: each guide in the language it was made in. */
   guide_locale?: string | null;
   /** Offer every guide to every character, not only those of its race and class. */
@@ -397,6 +399,8 @@ export const api = {
   /** Copies the addon into the game with the installed guides. */
   /** Returns the number of guides installed. */
   installAddon: () => invoke<number>("install_addon"),
+  /** Whether Polestar is installed in WoW Forever. */
+  polestarInstalled: () => invoke<boolean>("polestar_installed"),
   /** Whether the addon in the game has the current settings. */
   addonSynced: () => invoke<boolean>("addon_synced"),
   /** Open a page of the project's repository in the browser. */

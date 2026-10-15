@@ -1,4 +1,4 @@
-//! What the Factoruide addon recorded in game (its `Factoruide.lua` SavedVariables): quest
+//! What the Factoruide addon recorded in game (its `Factoruide_Profile.lua` SavedVariables): quest
 //! accepts and turn-ins with the NPC and position, objectives progress, NPCs seen...
 
 #[cfg(feature = "local")]
@@ -44,20 +44,24 @@ pub struct Character {
 }
 
 #[cfg(feature = "local")]
-/// Every `Factoruide.lua` SavedVariables file under the client's WTF folder (or, for an account
-/// that has not run the renamed addon yet, its former `BrouzQuest.lua`).
+/// Every `Factoruide_Profile.lua` SavedVariables file under the client's WTF folder (or, for an
+/// account that has not run the split addon yet, the former `Factoruide.lua`, or `BrouzQuest.lua`
+/// before the rename). Of the two last names, the newest: the game writes the files of the addons
+/// it has loaded, the old one until it restarts.
 pub fn find_saved_variables(client_dir: &Path) -> Vec<PathBuf> {
     let mut found = Vec::new();
     let Ok(accounts) = std::fs::read_dir(client_dir.join("WTF/Account")) else {
         return found;
     };
+    let modified = |f: &Path| std::fs::metadata(f).and_then(|m| m.modified()).ok();
     for account in accounts.flatten() {
         let dir = account.path().join("SavedVariables");
-        if let Some(file) = ["Factoruide.lua", "BrouzQuest.lua"]
+        let newest = ["Factoruide_Profile.lua", "Factoruide.lua"]
             .iter()
             .map(|n| dir.join(n))
-            .find(|f| f.exists())
-        {
+            .filter(|f| f.exists())
+            .max_by_key(|f| modified(f));
+        if let Some(file) = newest.or_else(|| Some(dir.join("BrouzQuest.lua")).filter(|f| f.exists())) {
             found.push(file);
         }
     }
@@ -179,6 +183,37 @@ pub fn parse_row(row: &str) -> Event {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "local")]
+    #[test]
+    fn saved_variables_of_the_split_addon_or_the_newest_old_one() {
+        use std::time::{Duration, SystemTime};
+        let client = std::env::temp_dir().join(format!("fg-saved-variables-{}", std::process::id()));
+        let dir = |account: &str| client.join("WTF/Account").join(account).join("SavedVariables");
+        let write = |account: &str, name: &str, age: u64| {
+            std::fs::create_dir_all(dir(account)).unwrap();
+            let file = std::fs::File::create(dir(account).join(name)).unwrap();
+            file.set_modified(SystemTime::now() - Duration::from_secs(age)).unwrap();
+        };
+        // Migrated, then the game still running the old addon wrote its file: the old one.
+        write("A", "Factoruide_Profile.lua", 100);
+        write("A", "Factoruide.lua", 10);
+        write("B", "Factoruide_Profile.lua", 10);
+        write("B", "Factoruide.lua", 100);
+        write("C", "BrouzQuest.lua", 10);
+        write("D", "Other.lua", 10);
+        let mut found = find_saved_variables(&client);
+        found.sort();
+        std::fs::remove_dir_all(&client).unwrap();
+        assert_eq!(
+            found,
+            [
+                dir("A").join("Factoruide.lua"),
+                dir("B").join("Factoruide_Profile.lua"),
+                dir("C").join("BrouzQuest.lua"),
+            ]
+        );
+    }
 
     #[test]
     fn reads_a_compact_row() {

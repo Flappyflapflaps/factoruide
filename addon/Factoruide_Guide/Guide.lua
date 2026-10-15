@@ -7,7 +7,7 @@
 --   log).
 -- The native waypoint arrow points at the first unfinished task.
 
-local _, FG = ...
+local FG = Factoruide
 local QuestLog = FG.QuestLog
 local Guide = {}
 FG.Guide = Guide

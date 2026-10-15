@@ -46,6 +46,9 @@ struct Settings {
     /// Addon behaviour, written to the addon's Config.lua on install.
     #[serde(default)]
     addon: serde_json::Map<String, serde_json::Value>,
+    /// What shows the guides in game on WoW Forever (see `guide_addon`).
+    #[serde(default)]
+    guide_addon: GuideAddon,
     /// Language the guides are written in in the addon (game locale); unset: each guide in the
     /// language it was made in.
     #[serde(default)]
@@ -64,10 +67,31 @@ struct Settings {
     forgotten_characters: BTreeMap<String, i64>,
 }
 
-/// The settings the installed addon depends on (its options, the guides' language).
+/// The settings the installed addon depends on (its options, the guides' language, what shows
+/// the guides).
 fn addon_snapshot(settings: &Settings) -> String {
-    serde_json::to_string(&(&settings.addon, &settings.guide_locale)).unwrap_or_default()
+    serde_json::to_string(&(
+        &settings.addon,
+        &settings.guide_locale,
+        settings.guide_addon(settings.edition),
+    ))
+    .unwrap_or_default()
 }
+
+/// What shows the guides in game: the addon's guide part, or Polestar (WoW Forever only) with a
+/// guide pack of them; the addon's profile part records in both cases.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum GuideAddon {
+    #[default]
+    Factoruide,
+    Polestar,
+}
+
+/// The addon's two parts (folders under Interface/AddOns): the profile and recordings, always
+/// installed, and the guide, which depends on it.
+const PROFILE_ADDON: &str = "Factoruide_Profile";
+const GUIDE_ADDON: &str = "Factoruide_Guide";
 
 impl Default for Settings {
     fn default() -> Self {
@@ -86,6 +110,7 @@ impl Default for Settings {
             contributor: None,
             auto_contribute: false,
             addon: serde_json::Map::new(),
+            guide_addon: GuideAddon::Factoruide,
             guide_locale: None,
             all_guides: false,
             addon_installed: None,
@@ -95,15 +120,21 @@ impl Default for Settings {
 }
 
 impl Settings {
-    /// The addon folder of the edition's game client.
-    fn installed_addon(&self) -> PathBuf {
-        self.addon_dir(self.edition)
+    /// The addons folder of a game version's client.
+    fn addons_dir(&self, edition: Edition) -> PathBuf {
+        self.wow_dir.join(edition.client_folder()).join("Interface/AddOns")
     }
-    /// The addon folder of a game version's client.
-    fn addon_dir(&self, edition: Edition) -> PathBuf {
-        self.wow_dir
-            .join(edition.client_folder())
-            .join("Interface/AddOns/Factoruide")
+    /// The folder of the addon's profile part (its recordings, Sent.lua) in a game version's client.
+    fn profile_addon(&self, edition: Edition) -> PathBuf {
+        self.addons_dir(edition).join(PROFILE_ADDON)
+    }
+    /// What shows the guides in a game version: Polestar exists on WoW Forever only.
+    fn guide_addon(&self, edition: Edition) -> GuideAddon {
+        if edition == Edition::Forever {
+            self.guide_addon
+        } else {
+            GuideAddon::Factoruide
+        }
     }
 }
 
@@ -1089,42 +1120,52 @@ fn assign_guide(state: State<'_, AppState>, character: String, guide: Option<Str
 )]
 fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
     let settings = state.settings();
-    let dest = settings.installed_addon();
-    migrate_legacy_addon(&dest);
-    std::fs::create_dir_all(&dest).map_err(err)?;
-    for entry in std::fs::read_dir(&dest).map_err(err)?.flatten() {
-        let p = entry.path();
-        if p.extension().is_some_and(|e| e == "lua" || e == "toc" || e == "xml") {
-            std::fs::remove_file(p).map_err(err)?;
-        }
-    }
-    for (name, bytes) in embedded::ADDON {
-        let path = dest.join(name);
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(err)?;
-        }
-        std::fs::write(path, bytes).map_err(err)?;
-    }
-    let assigned = state.assigned_routes();
-    let mut routes = assigned
-        .values()
-        .map(|r| state.render(r, settings.guide_locale.as_deref()))
-        .collect::<CmdResult<Vec<_>>>()?;
-    routes.sort_by(|a, b| a.name.cmp(&b.name));
-    // The addon finds a character's route by its name.
-    let mut lua = fg_route::export::to_lua(&routes);
-    lua.push_str("\n-- Which guide each character follows (assigned in the app).\nFG.Assignments = {\n");
-    for (character, guide) in state.assignments() {
-        if let Some(route) = assigned.get(&guide) {
-            let _ = writeln!(lua, "  [{}] = {},", lua_string(&character), lua_string(&route.name));
-        }
-    }
-    lua.push_str("}\n");
-    std::fs::write(dest.join("Routes.lua"), lua).map_err(err)?;
-    job::write_addon_config(&dest, &settings.addon).map_err(err)?;
+    let addons = settings.addons_dir(settings.edition);
+    migrate_legacy_addon(&addons);
+    let profile = addons.join(PROFILE_ADDON);
+    write_addon_files(&profile, embedded::PROFILE_ADDON)?;
     // Made again from what was sent, so a reinstall never brings back events already sent.
     let sent = read_send_record(&send_record_file(&state.data_dir, settings.edition)).unwrap_or_default();
-    write_sent_lua(&dest, &sent.state).map_err(err)?;
+    write_sent_lua(&profile, &sent.state).map_err(err)?;
+    let assigned = state.assigned_routes();
+    let render = |r: &Route| state.render(r, settings.guide_locale.as_deref());
+    let count = match settings.guide_addon(settings.edition) {
+        GuideAddon::Factoruide => {
+            remove_addon(&addons.join(fg_route::export::polestar::ADDON))?;
+            let dest = addons.join(GUIDE_ADDON);
+            write_addon_files(&dest, embedded::GUIDE_ADDON)?;
+            let mut routes = assigned.values().map(render).collect::<CmdResult<Vec<_>>>()?;
+            routes.sort_by(|a, b| a.name.cmp(&b.name));
+            // The addon finds a character's route by its name.
+            let mut lua = fg_route::export::to_lua(&routes);
+            lua.push_str("\n-- Which guide each character follows (assigned in the app).\nFG.Assignments = {\n");
+            for (character, guide) in state.assignments() {
+                if let Some(route) = assigned.get(&guide) {
+                    let _ = writeln!(lua, "  [{}] = {},", lua_string(&character), lua_string(&route.name));
+                }
+            }
+            lua.push_str("}\n");
+            std::fs::write(dest.join("Routes.lua"), lua).map_err(err)?;
+            job::write_addon_config(&dest, &settings.addon).map_err(err)?;
+            routes.len()
+        }
+        // Polestar picks each character's guide by its race, class and level.
+        GuideAddon::Polestar => {
+            remove_addon(&addons.join(GUIDE_ADDON))?;
+            let guides = assigned
+                .iter()
+                .map(|(id, r)| Ok((id.clone(), render(r)?)))
+                .collect::<CmdResult<Vec<_>>>()?;
+            let dest = addons.join(fg_route::export::polestar::ADDON);
+            let files = fg_route::export::polestar::pack(&guides, env!("CARGO_PKG_VERSION"));
+            remove_addon(&dest)?;
+            std::fs::create_dir_all(&dest).map_err(err)?;
+            for (name, content) in files {
+                std::fs::write(dest.join(name), content).map_err(err)?;
+            }
+            guides.len()
+        }
+    };
     write_settings(
         &state,
         Settings {
@@ -1132,7 +1173,49 @@ fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
             ..settings
         },
     )?;
-    Ok(routes.len())
+    Ok(count)
+}
+
+/// Put an addon's files into its folder, those of the version before removed (but the files the
+/// app writes, written next).
+fn write_addon_files(dest: &Path, files: &[(&str, &[u8])]) -> CmdResult<()> {
+    std::fs::create_dir_all(dest).map_err(err)?;
+    for entry in std::fs::read_dir(dest).map_err(err)?.flatten() {
+        let p = entry.path();
+        if p.extension().is_some_and(|e| e == "lua" || e == "toc" || e == "xml") {
+            std::fs::remove_file(p).map_err(err)?;
+        }
+    }
+    for (name, bytes) in files {
+        let path = dest.join(name);
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(err)?;
+        }
+        std::fs::write(path, bytes).map_err(err)?;
+    }
+    Ok(())
+}
+
+/// Remove an addon the app installed (nothing when it is not there).
+fn remove_addon(dir: &Path) -> CmdResult<()> {
+    match std::fs::remove_dir_all(dir) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(err(e)),
+        _ => Ok(()),
+    }
+}
+
+/// Whether Polestar is installed in WoW Forever (it shows guides there only).
+#[tauri::command]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn polestar_installed(state: State<'_, AppState>) -> bool {
+    state
+        .settings()
+        .addons_dir(Edition::Forever)
+        .join("Polestar/Polestar.toc")
+        .exists()
 }
 
 /// Whether the addon in the game has the current settings (else it is to be installed again).
@@ -1143,7 +1226,14 @@ fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
 )]
 fn addon_synced(state: State<'_, AppState>) -> bool {
     let settings = state.settings();
-    settings.installed_addon().join("Config.lua").exists()
+    let addons = settings.addons_dir(settings.edition);
+    let shown_by = match settings.guide_addon(settings.edition) {
+        GuideAddon::Factoruide => addons.join(GUIDE_ADDON).join("Config.lua"),
+        GuideAddon::Polestar => addons.join(fg_route::export::polestar::ADDON).join("Guides.lua"),
+    };
+    addons.join(PROFILE_ADDON).join("Sent.lua").exists()
+        && shown_by.exists()
+        && !addons.join("Factoruide").exists()
         && settings.addon_installed.as_deref() == Some(addon_snapshot(&settings).as_str())
 }
 
@@ -1196,27 +1286,44 @@ fn lua_string(text: &str) -> String {
     out
 }
 
-/// The addon was called BrouzQuest: drop its folder (the game would load both) and carry its
-/// SavedVariables over to the new name, once.
-fn migrate_legacy_addon(dest: &Path) {
-    let Some(addons) = dest.parent() else { return };
+/// The addon was called BrouzQuest, then was a single addon, Factoruide, before its profile and
+/// guide parts: drop their folders (the game would load them too) and carry their SavedVariables
+/// over to the profile part. `addons`: the client's Interface/AddOns folder.
+fn migrate_legacy_addon(addons: &Path) {
     let _ = std::fs::remove_dir_all(addons.join("BrouzQuest"));
-    let Some(client) = addons.parent().and_then(Path::parent) else {
-        return;
-    };
+    let _ = std::fs::remove_dir_all(addons.join("Factoruide"));
+    if let Some(client) = addons.parent().and_then(Path::parent) {
+        migrate_saved_variables(client);
+    }
+}
+
+/// The SavedVariables of the former addons, carried over to the profile part, unless that one
+/// has newer ones (a game still running the old addon writes its file until it restarts: carried
+/// over again then). The old files are kept as `.migrated`.
+fn migrate_saved_variables(client: &Path) {
     let Ok(accounts) = std::fs::read_dir(client.join("WTF/Account")) else {
         return;
     };
+    let modified = |f: &Path| std::fs::metadata(f).and_then(|m| m.modified()).ok();
     for account in accounts.flatten() {
         let dir = account.path().join("SavedVariables");
-        let (old, new) = (dir.join("BrouzQuest.lua"), dir.join("Factoruide.lua"));
-        if new.exists() {
-            continue;
-        }
-        if let Ok(text) = std::fs::read_to_string(&old)
-            && std::fs::write(&new, text.replace("BrouzQuestDB", "FactoruideDB")).is_ok()
+        let (brouzquest, single, profile) = (
+            dir.join("BrouzQuest.lua"),
+            dir.join("Factoruide.lua"),
+            dir.join(format!("{PROFILE_ADDON}.lua")),
+        );
+        if !single.exists()
+            && !profile.exists()
+            && let Ok(text) = std::fs::read_to_string(&brouzquest)
+            && std::fs::write(&single, text.replace("BrouzQuestDB", "FactoruideDB")).is_ok()
         {
-            let _ = std::fs::rename(&old, dir.join("BrouzQuest.lua.migrated"));
+            let _ = std::fs::rename(&brouzquest, dir.join("BrouzQuest.lua.migrated"));
+        }
+        if single.exists()
+            && (!profile.exists() || modified(&single) > modified(&profile))
+            && std::fs::copy(&single, &profile).is_ok()
+        {
+            let _ = std::fs::rename(&single, dir.join("Factoruide.lua.migrated"));
         }
     }
 }
@@ -1550,6 +1657,7 @@ fn main() {
             export_request,
             install_addon,
             addon_synced,
+            polestar_installed,
             open_link,
             list_clients,
             list_editions,
@@ -1967,7 +2075,7 @@ fn send(state: &AppState, url: &str, out: Outgoing, now: u64, automatic: bool) -
     let (posted, record) = deliver(out, now, automatic, |body| post_contribution(url, body))?;
     if posted.accepted() {
         // A failure only delays the purge: Sent.lua is written again with the addon.
-        let _ = write_sent_lua(&state.settings().addon_dir(edition), &record.state);
+        let _ = write_sent_lua(&state.settings().profile_addon(edition), &record.state);
     }
     Ok((posted, record))
 }

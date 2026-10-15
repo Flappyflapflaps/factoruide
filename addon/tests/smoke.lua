@@ -1,6 +1,8 @@
 -- Smoke test of the addon outside the game: minimal WoW API stubs, load files in TOC
 -- order, fire login and quest events, check the guide advances.
 -- Run from the repository root: luajit addon/tests/smoke.lua
+-- `luajit addon/tests/smoke.lua profile`: Factoruide_Profile alone (the guide is another addon's).
+local profileOnly = arg and arg[1] == "profile"
 
 local onQuest, completed = {}, {}
 local playerLevel = 1
@@ -209,20 +211,26 @@ C_GossipInfo = {
 GetQuestID = function() return 179 end
 SlashCmdList = {}
 
-local FG = {}
-for line in io.lines("addon/Factoruide/Factoruide.toc") do
-    -- Config.lua, Routes.lua and Sent.lua are written by the app and not versioned.
-    if line == "Config.lua" then
-        FG.Config = {}
-    elseif line == "Sent.lua" then
-        FactoruideSent = nil
-    elseif line == "Routes.lua" then
-        assert(loadfile("addon/tests/fixtures/Routes.lua"))("Factoruide", FG)
-    elseif line:match("%.lua$") then
-        local chunk = assert(loadfile("addon/Factoruide/" .. line))
-        chunk("Factoruide", FG)
+-- Each addon gets its own private table; the guide uses the profile's, the global `Factoruide`.
+local function load(addon)
+    local private = {}
+    for line in io.lines("addon/" .. addon .. "/" .. addon .. ".toc") do
+        -- Config.lua, Routes.lua and Sent.lua are written by the app and not versioned.
+        if line == "Config.lua" then
+            Factoruide.Config = {}
+        elseif line == "Sent.lua" then
+            FactoruideSent = nil
+        elseif line == "Routes.lua" then
+            assert(loadfile("addon/tests/fixtures/Routes.lua"))(addon, private)
+        elseif line:match("%.lua$") then
+            local chunk = assert(loadfile("addon/" .. addon .. "/" .. line))
+            chunk(addon, private)
+        end
     end
 end
+load("Factoruide_Profile")
+if not profileOnly then load("Factoruide_Guide") end
+local FG = Factoruide
 
 local function fire(event, ...)
     for _, f in ipairs(frames) do
@@ -230,9 +238,29 @@ local function fire(event, ...)
     end
 end
 
-fire("ADDON_LOADED", "Factoruide")
+fire("ADDON_LOADED", "Factoruide_Profile")
+if not profileOnly then fire("ADDON_LOADED", "Factoruide_Guide") end
 fire("PLAYER_LOGIN")
 local char = FactoruideDB.characters["Brouz-Realm"]
+
+-- Another addon shows the guide: this one only records, and does nothing else.
+if profileOnly then
+    assert(FG.Guide == nil and FG.Routes == nil and FG.Get == nil, "no guide without Factoruide_Guide")
+    onQuest[179] = true
+    fire("QUEST_DETAIL", 0)
+    fire("QUEST_ACCEPTED", 179)
+    assert(#char.events >= 2, "collector recorded events")
+    assert(char.guide == nil and waypoint == nil, "no guide state, no waypoint")
+    assert(next(calls) == nil, "nothing done in game: " .. tostring(next(calls)))
+    SlashCmdList.FACTORUIDE("")
+    SlashCmdList.FACTORUIDE("help")
+    FG.Profile:Snapshot()
+    local profile = FactoruideDB.profiles["Brouz-Realm"]
+    assert(profile and profile.level == 1 and profile.class == "MAGE", "profile saved")
+    assert(next(FactoruideDB.errors or {}) == nil, "no error: " .. tostring(next(FactoruideDB.errors or {})))
+    print("profile only ok: " .. #char.events .. " events")
+    os.exit(0)
+end
 assert(char.guide.route == "gnome-mage", "assigned route followed: " .. tostring(char.guide.route))
 
 --- Assign a route to the character, as the app does in Routes.lua, and follow it.

@@ -9,7 +9,7 @@ type Option =
   | { key: string; kind: "number"; label: string; help?: string; default: number; min: number; max: number; step: number; percent?: boolean }
   | { key: string; kind: "select"; label: string; help?: string; default: string; options: { value: string; label: string }[] };
 
-/** Mirror of `FG.defaults` in addon/Factoruide/Settings.lua. */
+/** Mirror of `FG.defaults` in addon/Factoruide_Guide/Settings.lua. */
 const OPTIONS: { title: string; options: Option[] }[] = [
   {
     title: "Guide",
@@ -119,10 +119,15 @@ export function AddonPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [polestar, setPolestar] = useState(false);
 
-  // Every option with its value (the default when unset), and the guide language.
+  // Every option with its value (the default when unset), the guide language and what shows the guides.
   const snapshot = (s: Settings) =>
-    JSON.stringify([OPTIONS.flatMap((g) => g.options.map((o) => s.addon[o.key] ?? o.default)), s.guide_locale ?? gameLocale(lang)]);
+    JSON.stringify([
+      OPTIONS.flatMap((g) => g.options.map((o) => s.addon[o.key] ?? o.default)),
+      s.guide_locale ?? gameLocale(lang),
+      s.guide_addon ?? "factoruide",
+    ]);
   useEffect(() => {
     api
       .getSettings()
@@ -132,6 +137,10 @@ export function AddonPage() {
       })
       .catch((e) => setError(String(e)));
     checkSynced();
+    api
+      .polestarInstalled()
+      .then(setPolestar)
+      .catch(() => setPolestar(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -142,7 +151,7 @@ export function AddonPage() {
     try {
       const addon: Record<string, boolean | number | string> = {};
       for (const g of OPTIONS) for (const o of g.options) addon[o.key] = s.addon[o.key] ?? o.default;
-      const next = { ...s, addon, guide_locale: s.guide_locale ?? gameLocale(lang) };
+      const next = { ...s, addon, guide_locale: s.guide_locale ?? gameLocale(lang), guide_addon: s.guide_addon ?? "factoruide" };
       await api.setSettings(next);
       setSaved(snapshot(next));
       setMessage(null);
@@ -180,6 +189,14 @@ export function AddonPage() {
   };
   // Guides in the app language until another one is chosen.
   const guideLocale = settings.guide_locale ?? gameLocale(lang);
+  // Polestar shows guides on WoW Forever only.
+  const forever = settings.edition === "forever";
+  const shownBy = forever ? (settings.guide_addon ?? "factoruide") : "factoruide";
+  const withPolestar = shownBy === "polestar";
+  const choices = [
+    { value: "factoruide" as const, label: t("Addon Factoruide"), disabled: false },
+    { value: "polestar" as const, label: "Polestar", disabled: !polestar && !withPolestar },
+  ];
 
   return (
     <div className="addon-page">
@@ -196,9 +213,46 @@ export function AddonPage() {
         )}
       </div>
       {error && <div className="error">{error}</div>}
-      <input type="search" className="settings-search addon-search" placeholder={t("Rechercher un réglage…")} value={query} onChange={(e) => setQuery(e.target.value)} />
-      <div className="addon-grid">
-        {!query.trim() && (
+      {forever && (
+        <section className="panel guide-addon">
+          <div className="field">
+            <span>
+              {t("Guide en jeu")}
+              <Hint text={t("L'addon qui vous guide dans le jeu. Avec Polestar, l'addon Factoruide ne fait plus qu'enregistrer votre personnage et ce que le jeu montre, pour créer vos guides et contribuer.")} />
+            </span>
+            <div className="segmented" role="radiogroup" aria-label={t("Guide en jeu")}>
+              {choices.map((c) => (
+                <button
+                  key={c.value}
+                  role="radio"
+                  aria-checked={c.value === shownBy}
+                  className={c.value === shownBy ? "active" : ""}
+                  disabled={c.disabled}
+                  onClick={() => {
+                    setMessage(null);
+                    setSettings({ ...settings, guide_addon: c.value });
+                  }}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {!polestar && <p className="muted">{t("Polestar n'est pas installé dans WoW Forever.")}</p>}
+          <p className="muted">{t("Après un changement ici, installez dans le jeu puis redémarrez WoW : le jeu ne découvre un nouvel addon qu'au démarrage.")}</p>
+        </section>
+      )}
+      {withPolestar ? (
+        <div className="addon-grid">
+          <section className="panel">
+            <h3>{t("Vos guides dans Polestar")}</h3>
+            <ul className="polestar-steps">
+              <li>{t("Les guides suivis par vos personnages sont installés comme un pack de guides de Polestar, « Factoruide », dans la langue choisie ci-dessous.")}</li>
+              <li>{t("Dans Polestar, page « Guide packs », choisissez Factoruide sous « Suggest guides from » : Polestar propose alors à chaque personnage le guide de sa race et de sa classe.")}</li>
+              <li>{t("Deux personnages de même race et classe qui suivent des guides différents se voient proposer les deux : choisissez-le dans la liste des guides de Polestar.")}</li>
+              <li>{t("L'automatisation (quêtes, entraîneurs, vols) et l'affichage se règlent dans les options de Polestar.")}</li>
+            </ul>
+          </section>
           <section className="panel">
             <h3>{t("Langue")}</h3>
             <SettingRow
@@ -214,24 +268,47 @@ export function AddonPage() {
               }}
             />
           </section>
-        )}
-        {OPTIONS.map((g) => {
-          const options = g.options.filter(matches);
-          if (!options.length) return null;
-          return (
-            <section className="panel" key={g.title}>
-              <h3>{t(g.title)}</h3>
-              {options.map((o) => {
-                const common = { label: o.label, help: o.help, value: value(o), initial: o.default, onChange: (v: boolean | number | string) => update(o.key, v) };
-                if (o.kind === "bool") return <SettingRow key={o.key} {...common} kind="bool" />;
-                if (o.kind === "select") return <SettingRow key={o.key} {...common} kind="select" options={o.options} />;
-                return <SettingRow key={o.key} {...common} kind="number" min={o.min} max={o.max} step={o.step} {...(o.percent ? { unit: "%", scale: 0.01, min: o.min * 100, max: o.max * 100, step: o.step * 100 } : {})} />;
-              })}
-            </section>
-          );
-        })}
-        {query.trim() && !OPTIONS.some((g) => g.options.some(matches)) && <p className="muted">{t("Aucun réglage trouvé.")}</p>}
-      </div>
+        </div>
+      ) : (
+        <>
+          <input type="search" className="settings-search addon-search" placeholder={t("Rechercher un réglage…")} value={query} onChange={(e) => setQuery(e.target.value)} />
+          <div className="addon-grid">
+            {!query.trim() && (
+              <section className="panel">
+                <h3>{t("Langue")}</h3>
+                <SettingRow
+                  kind="select"
+                  label="Langue des guides dans l'addon"
+                  help="Phrases du guide et noms des quêtes, PNJ, objets et zones ; anglais quand une traduction manque. Un guide calculé par une ancienne version de l'application garde sa langue."
+                  options={LANGS.map((l) => ({ value: l.locale, label: l.label }))}
+                  value={guideLocale}
+                  initial={gameLocale(lang)}
+                  onChange={(v) => {
+                    setMessage(null);
+                    setSettings({ ...settings, guide_locale: String(v) });
+                  }}
+                />
+              </section>
+            )}
+            {OPTIONS.map((g) => {
+              const options = g.options.filter(matches);
+              if (!options.length) return null;
+              return (
+                <section className="panel" key={g.title}>
+                  <h3>{t(g.title)}</h3>
+                  {options.map((o) => {
+                    const common = { label: o.label, help: o.help, value: value(o), initial: o.default, onChange: (v: boolean | number | string) => update(o.key, v) };
+                    if (o.kind === "bool") return <SettingRow key={o.key} {...common} kind="bool" />;
+                    if (o.kind === "select") return <SettingRow key={o.key} {...common} kind="select" options={o.options} />;
+                    return <SettingRow key={o.key} {...common} kind="number" min={o.min} max={o.max} step={o.step} {...(o.percent ? { unit: "%", scale: 0.01, min: o.min * 100, max: o.max * 100, step: o.step * 100 } : {})} />;
+                  })}
+                </section>
+              );
+            })}
+            {query.trim() && !OPTIONS.some((g) => g.options.some(matches)) && <p className="muted">{t("Aucun réglage trouvé.")}</p>}
+          </div>
+        </>
+      )}
     </div>
   );
 }

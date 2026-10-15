@@ -1,3 +1,6 @@
+-- The addon comes in two parts sharing this namespace (the global `Factoruide`): Factoruide_Profile
+-- (this core, the recordings and the character's profile, always installed) and Factoruide_Guide
+-- (the guide and everything around it, which depends on it).
 local addonName, FG = ...
 _G.Factoruide = FG
 
@@ -32,7 +35,7 @@ end
 --- messages, so what fails on one client shows up in its SavedVariables.
 local MAX_ERRORS = 20
 function FG:Error(where, err)
-    local msg = (where .. ": " .. tostring(err)):gsub("Interface[/\\]AddOns[/\\]Factoruide[/\\]", ""):sub(1, 200)
+    local msg = (where .. ": " .. tostring(err)):gsub("Interface[/\\]AddOns[/\\]Factoruide[%w_]*[/\\]", ""):sub(1, 200)
     self:Debug("error in %s", msg)
     if type(FactoruideDB) ~= "table" then return end
     local errors = FactoruideDB.errors or {}
@@ -86,7 +89,7 @@ function FG.CanLayout(frame) return not (InCombatLockdown() and frame:IsProtecte
 local blocked = {}
 for _, event in ipairs({ "ADDON_ACTION_BLOCKED", "ADDON_ACTION_FORBIDDEN" }) do
     FG:On(event, function(addon, func)
-        if addon ~= addonName or blocked[func] then return end
+        if type(addon) ~= "string" or not addon:find("^Factoruide") or blocked[func] then return end
         blocked[func] = true
         FG:Print("%s: %s", event, tostring(func))
         if debugstack then print(debugstack(2, 6, 0)) end
@@ -319,13 +322,15 @@ SlashCmdList.FACTORUIDE = function(msg)
         FG.Collector:PrintStatus()
     elseif FG.Collector and cmd == "reset" then
         FG.Collector:Reset()
-    elseif cmd == "scale" then
+    elseif FG.ScaleCommand and cmd == "scale" then
         FG:ScaleCommand(arg)
     elseif FG.Profile and (cmd == "profile" or cmd == "profil") then
         FG.Profile:Save()
-    else
+    elseif FG.Guide then
         FG:Print(
             "/fg config | guide | next | prev | step <n> | skip [id] | restart | lines <n> | route | macro | waypoint | scale [size] | status | reset | profile | debug"
         )
+    else
+        FG:Print("/fg status | reset | profile | debug")
     end
 end

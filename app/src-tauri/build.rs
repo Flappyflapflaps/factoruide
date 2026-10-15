@@ -69,14 +69,22 @@ fn main() {
          /// (\"<edition>/<map id>.webp\", image) of every edition's maps.\n\
          pub const MAPS: &[(&str, &[u8])] = &[\n{}];\n\
          pub const OVERRIDES: &[(&str, &[u8])] = &[\n{}];\n\
-         pub const ADDON: &[(&str, &[u8])] = &[\n{}];\n",
+         /// The addon's two parts: the profile and recordings, and the guide.\n\
+         pub const PROFILE_ADDON: &[(&str, &[u8])] = &[\n{}];\n\
+         pub const GUIDE_ADDON: &[(&str, &[u8])] = &[\n{}];\n",
         files(&dir.join("maps"), &["webp"], &[], true),
         files(&root.join("overrides"), &["toml"], &[], true),
         // Routes.lua, Config.lua and Sent.lua are written on install; textures are in Media/.
         files(
-            &root.join("addon/Factoruide"),
+            &root.join("addon/Factoruide_Profile"),
+            &["lua", "toc", "xml"],
+            &["Sent.lua"],
+            false
+        ),
+        files(
+            &root.join("addon/Factoruide_Guide"),
             &["lua", "toc", "xml", "tga"],
-            &["Routes.lua", "Config.lua", "Sent.lua"],
+            &["Routes.lua", "Config.lua"],
             true
         ),
     );

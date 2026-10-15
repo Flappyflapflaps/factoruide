@@ -1,6 +1,6 @@
 # Skinning the Factoruide addon
 
-The addon draws its frames in one place, `Factoruide/Skin.lua`, and picks their look with the
+The addon draws its frames in one place, `Factoruide_Guide/Skin.lua`, and picks their look with the
 `uiTheme` setting (Addon page of the app):
 
 - `auto` (default): the style of a loaded UI suite, else the game's own style;
@@ -11,7 +11,7 @@ The addon draws its frames in one place, `Factoruide/Skin.lua`, and picks their 
 
 | Suite | How |
 |---|---|
-| ElvUI | `Skins:AddCallbackForAddon("Factoruide", ...)`, then `SetTemplate("Transparent")`, `HandleButton`, `HandleItemButton`, `FontTemplate` |
+| ElvUI | `Skins:AddCallbackForAddon("Factoruide_Guide", ...)`, then `SetTemplate("Transparent")`, `HandleButton`, `HandleItemButton`, `FontTemplate` |
 | EllesmereUI | `EllesmereUI.RegisterSkin("Factoruide", ...)`: `Shell`, `Panel`, `Button`, `SquareIcon`, `Font` |
 | SpartanUI | `SUI.Skins:Register("Factoruide", ...)`: `SetTemplate`, `SkinObj("Button", ...)` |
 

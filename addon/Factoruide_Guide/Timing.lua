@@ -2,7 +2,7 @@
 -- guide's plan (`levels` of the route). Shown in the guide header; `/fg time` for the detail
 -- and the estimated end.
 
-local _, FG = ...
+local FG = Factoruide
 
 local fr = GetLocale() == "frFR"
 

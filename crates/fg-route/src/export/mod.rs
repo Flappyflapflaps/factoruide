@@ -6,6 +6,7 @@ pub mod format;
 mod grind_spots;
 mod lua;
 mod phrase;
+pub mod polestar;
 mod templates;
 mod types;
 mod writer;

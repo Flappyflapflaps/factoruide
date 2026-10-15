@@ -215,7 +215,10 @@ that wins. A longer calculation gives a shorter guide.
 ## 4. The guide
 
 `export/` turns the best route into steps: a guide for the app (JSON) and a route for the addon
-(Lua). The app shows the route improving live while the search runs.
+(Lua). The app shows the route improving live while the search runs. On WoW Forever the guides can
+also go to Polestar as a guide pack (`export/polestar.rs`, its pack format 1): a goal per step,
+the goals at one NPC in one step, and travels and notes in the step of the goal after them, since
+Polestar counts a travel done once a later goal of its step is (place names differ by language).
 
 A saved guide has no language. Each step keeps its sentences as phrases: a template key
 (`accept`, `objective.kill`, `grind.xp`...) and its arguments (quests, NPCs, objects, items and

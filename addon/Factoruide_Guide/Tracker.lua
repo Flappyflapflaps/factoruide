@@ -3,7 +3,7 @@
 -- buttons. Blizzard's tracker (QuestWatchFrame on Classic, ObjectiveTrackerFrame later) is hidden
 -- while `replaceTracker` is on (deferred after combat when the frame is protected).
 
-local _, FG = ...
+local FG = Factoruide
 local QuestLog = FG.QuestLog
 local Tracker = {}
 FG.Tracker = Tracker

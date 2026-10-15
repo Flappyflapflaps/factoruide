@@ -2,7 +2,7 @@
 -- slot. Shown in item tooltips and on quest rewards; the automatic reward choice takes the
 -- best upgrade first.
 
-local _, FG = ...
+local FG = Factoruide
 
 local fr = GetLocale() == "frFR"
 

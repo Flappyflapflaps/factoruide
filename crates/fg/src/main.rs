@@ -27,7 +27,7 @@ struct Cli {
     #[arg(long, env = "FG_ROUTES", default_value = "routes", global = true)]
     routes: PathBuf,
     /// Addon directory receiving Routes.lua
-    #[arg(long, env = "FG_ADDON_DIR", default_value = "addon/Factoruide", global = true)]
+    #[arg(long, env = "FG_ADDON_DIR", default_value = "addon/Factoruide_Guide", global = true)]
     addon_dir: PathBuf,
     #[command(subcommand)]
     command: Command,
@@ -104,6 +104,12 @@ enum Command {
     },
     /// Regenerate the addon's Routes.lua from routes/*.json
     Addon,
+    /// Write the guide pack for the Polestar addon (WoW Forever) from every route JSON
+    Polestar {
+        /// The pack's addon folder (e.g. <WoW>/_classic_beta_/Interface/AddOns/Factoruide_Polestar)
+        #[arg(long, default_value = "Factoruide_Polestar")]
+        out: PathBuf,
+    },
     /// Replay a request exported by the app (debug/request-*.json)
     Replay {
         file: PathBuf,
@@ -229,12 +235,16 @@ fn main() -> Result<()> {
         Command::Show { name, full } => route::show(&cli.routes, &name, full)?,
         Command::Diff { a, b, json } => diff::run(&cli.routes, &a, b.as_deref(), json)?,
         Command::Addon => route::write_addon_routes(&open()?, &cli.routes, &cli.addon_dir)?,
+        Command::Polestar { out } => {
+            let n = fg_route::job::write_polestar_pack(&open()?, &cli.routes, &out, env!("CARGO_PKG_VERSION"))?;
+            eprintln!("wrote {} ({n} guides)", out.display());
+        }
         Command::Replay { file, effort } => route::replay(&open()?, &overrides, &file, effort, &cli.routes)?,
         Command::Travel { from, to, faction } => travel::run(&open()?, &overrides, &faction, &from, &to)?,
         Command::Audit { checks, all } => audit::run(&open()?, &overrides, &checks, all)?,
         Command::Talents { out } => talents::run(
             &open()?,
-            &out.unwrap_or_else(|| PathBuf::from(format!("addon/Factoruide/TalentBuilds_{}.lua", edition.key()))),
+            &out.unwrap_or_else(|| PathBuf::from(format!("addon/Factoruide_Guide/TalentBuilds_{}.lua", edition.key()))),
             edition,
         )?,
     }

@@ -3,7 +3,7 @@
 -- the gap and the band's XP in the bar's tooltip. Without a known XP bar (another UI), a thin
 -- bar of its own under the guide.
 
-local _, FG = ...
+local FG = Factoruide
 
 local XpMarker = {}
 FG.XpMarker = XpMarker

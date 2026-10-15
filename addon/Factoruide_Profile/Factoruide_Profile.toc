@@ -1,0 +1,12 @@
+## Interface: 11508, 11509, 16001, 20505, 20506
+## Title: Factoruide Profile
+## Notes: Records your character (level, quests, professions, reputations) for the Factoruide app, and the quest data you choose to share.
+## Notes-frFR: Enregistre votre personnage (niveau, quêtes, métiers, réputations) pour l'application Factoruide, et les données de quêtes que vous choisissez de partager.
+## Author: Joel Wurtz
+## Version: 0.5.0
+## SavedVariables: FactoruideDB
+
+Core.lua
+Sent.lua
+Collector.lua
+Profile.lua

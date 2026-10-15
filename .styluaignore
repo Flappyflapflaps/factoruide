@@ -1,4 +1,4 @@
-addon/Factoruide/Routes.lua
-addon/Factoruide/Config.lua
-addon/Factoruide/Sent.lua
+addon/Factoruide_Guide/Routes.lua
+addon/Factoruide_Guide/Config.lua
+addon/Factoruide_Profile/Sent.lua
 addon/tests/fixtures/

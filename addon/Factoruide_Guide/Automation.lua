@@ -1,7 +1,7 @@
 -- Quest dialog automation (accept, turn in, rewards) and fast looting.
 -- Holding Shift while talking to an NPC disables the quest automation.
 
-local _, FG = ...
+local FG = Factoruide
 
 local function Skip() return IsShiftKeyDown() end
 

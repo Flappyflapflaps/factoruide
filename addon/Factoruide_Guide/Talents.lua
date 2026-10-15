@@ -2,7 +2,7 @@
 -- game's trees by `fg talents`), shown under the guide while points are unspent; learned in one
 -- click, or automatically.
 
-local _, FG = ...
+local FG = Factoruide
 
 local fr = GetLocale() == "frFR"
 
