@@ -194,8 +194,10 @@ impl Planner<'_> {
             };
             let actions: Vec<usize> = (first..trace.len()).filter(|&n| is_action(&trace[n].event)).collect();
             // Each step of the guide editor does one thing: anything else is a step of its own.
+            // Grinding up several levels is one step, recorded at each camp it moves to.
+            let one = actions.len() <= 1 || matches!(edit, Edit::GrindTo { .. });
             assert!(
-                !self.explicit || actions.len() <= 1 && actions.iter().all(|&n| is_own(*edit, &trace[n].event)),
+                !self.explicit || one && actions.iter().all(|&n| is_own(*edit, &trace[n].event)),
                 "step {e} ({edit:?}) does more than its own action: {:?}",
                 actions.iter().map(|&n| &trace[n].event).collect::<Vec<_>>()
             );

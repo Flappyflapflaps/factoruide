@@ -2,6 +2,10 @@
 
 Each version's tag message (`scripts/release.sh`), shown in the app's update prompt, is kept short: a link to this file.
 
+## Unreleased
+
+- Guide editor: grinding up several levels moves from camp to camp without stopping the editor with an error.
+
 ## 0.9.0 (2026-10-14)
 
 Guides closer to the game: walks no longer counted too long, quest items at their real drop rate, cloth donations, grinding at camps, and a comparison of a guide's versions.

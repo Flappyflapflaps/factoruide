@@ -775,6 +775,17 @@ fn mountain_skip_is_one_way_and_a_step_of_the_guide() {
     assert_eq!(edited.steps[0].outcome, Outcome::Done);
 }
 
+/// In the guide editor, grinding up several levels is one step even when it moves from camp to
+/// camp (each level at the camp of its mobs).
+#[test]
+fn editor_grind_over_several_camps_is_one_step() {
+    let p = human_warrior();
+    let edited = planner(p).explicit().edit(&[Edit::GrindTo { level: 12 }]);
+    let grinds = edited.trace.iter().filter(|t| matches!(t.event, Event::Grind { .. })).count();
+    assert!(grinds > 1, "one camp only: nothing checked");
+    assert_eq!(edited.steps[0].outcome, Outcome::Done);
+}
+
 /// A link kept to some races (Forever's Skyborne portals) is only in their guides.
 #[test]
 fn link_kept_to_a_race() {
