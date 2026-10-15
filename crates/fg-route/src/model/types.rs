@@ -246,6 +246,9 @@ pub struct Quest {
     pub start_uses: f64,
     /// Class quests: always planned, the optimizer cannot drop them.
     pub mandatory: bool,
+    /// Required because its zone is forced (`Params::forced_zones`), or as a prerequisite of
+    /// such a quest: `mandatory` too, reported apart from the class quests.
+    pub zone_forced: bool,
     /// Profession quest: index in `Model::professions` and skill needed to accept it.
     pub skill: Option<(usize, i64)>,
     /// Class quest making the character stronger: index in `Profile::class_powers` (quests of

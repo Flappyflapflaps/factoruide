@@ -7,6 +7,15 @@ use std::collections::HashSet;
 impl Planner<'_> {
     /// Class quests the route does not turn in, with why they could not be placed.
     pub fn missing_class_quests(&self, route: &[Stop]) -> Vec<String> {
+        self.missing_required(route, false)
+    }
+
+    /// Quests of the forced zones the route does not turn in, with why.
+    pub fn missing_zone_quests(&self, route: &[Stop]) -> Vec<String> {
+        self.missing_required(route, true)
+    }
+
+    fn missing_required(&self, route: &[Stop], zone: bool) -> Vec<String> {
         self.model
             .quests
             .iter()
@@ -19,6 +28,7 @@ impl Planner<'_> {
                         .is_some_and(|&j| route.iter().any(|s| s.kind == Kind::TurnIn && s.index as usize == j))
                 };
                 q.mandatory
+                    && q.zone_forced == zone
                     && !route.iter().any(|s| s.kind == Kind::TurnIn && s.index as usize == *i)
                     && !q.exclusive.iter().any(done)
             })

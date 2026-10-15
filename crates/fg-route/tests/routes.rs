@@ -119,6 +119,7 @@ fn quests_at_start_as(race: &str, class: &str, n: usize) -> Prepared {
             (q.pre_all, q.pre_any, q.exclusive, q.breadcrumb_for) = (vec![], vec![], vec![], None);
             (q.start_kills, q.start_uses, q.mandatory, q.skill, q.power) = (0.0, 0.0, false, None, None);
             (q.start_guard, q.end_guard) = (Guard::default(), Guard::default());
+            (q.reputation, q.zone_forced) = (vec![], false);
             q
         })
         .collect();
@@ -259,6 +260,74 @@ fn reputation_goal_takes_its_factions_quests() {
         ((true, false), vec![4250.0])
     );
     assert_eq!(taken(vec![]), ((false, false), vec![]));
+}
+
+/// A forced zone's quests are all required: those filed under it or a subzone (Shadowglen's in
+/// Teldrassil), class quests given there (the night elf warrior's Simple Sigil), not those
+/// taken after the target level nor another zone's.
+#[test]
+fn forced_zone_quests_are_required() {
+    let p = prepare("nightelf", "warrior", 8, &["forced_zones=[141]"]);
+    let forced = |id| {
+        quest(&p, id).is_some_and(|i| {
+            let q = &p.model.quests[i as usize];
+            q.zone_forced && q.mandatory
+        })
+    };
+    assert!(forced(456) && forced(916), "Shadowglen's");
+    assert!(forced(2459), "Teldrassil's");
+    assert!(forced(3116), "a class quest given in Shadowglen");
+    assert!(!forced(941), "taken from level 9");
+    assert!(!forced(983), "Darkshore's");
+    let none = prepare("nightelf", "warrior", 8, &[]);
+    assert!(none.model.quests.iter().all(|q| !q.zone_forced));
+}
+
+/// The guide goes on past the target level until the quests of the forced zones are done: a
+/// quest after the level is reached counts, where a class quest there does not.
+#[test]
+fn forced_zone_goes_past_the_target_level() {
+    let missing = |zone: bool| {
+        let mut p = quests_at_start(2);
+        p.model.quests[0].xp = 10_000;
+        p.model.quests[1].mandatory = true;
+        p.model.quests[1].zone_forced = zone;
+        let planner = planner(&p);
+        let route: Vec<Stop> = [
+            (0, Kind::Accept),
+            (0, Kind::TurnIn),
+            (1, Kind::Accept),
+            (1, Kind::TurnIn),
+        ]
+        .into_iter()
+        .map(|(i, k)| Stop::quest(i, k))
+        .collect();
+        let (_, b) = planner.simulate_full(&route, None).unwrap();
+        (b.missing_class_quests, b.missing_zone_quests)
+    };
+    assert_eq!(missing(true), (0, 0));
+    assert_eq!(missing(false), (1, 0));
+}
+
+/// A reputation goal not met at the target level keeps the guide going: the reputation of a
+/// quest done after the level is reached counts, as long as the goal is not met.
+#[test]
+fn reputation_goal_goes_past_the_target_level() {
+    let reached = |target: i64| {
+        let mut p = quests_at_start(3);
+        p.model.quests[0].xp = 10_000;
+        p.model.quests[1].reputation = vec![(72, 250.0)];
+        p.model.quests[2].reputation = vec![(72, 250.0)];
+        p.model.initial.reputation = vec![4000.0];
+        p.params.reputation_goals = vec![ReputationGoal { faction: 72, target }];
+        let planner = planner(&p);
+        let route: Vec<Stop> = (0..3)
+            .flat_map(|i| [Stop::quest(i, Kind::Accept), Stop::quest(i, Kind::TurnIn)])
+            .collect();
+        planner.reputation_reached(&route)[0]
+    };
+    assert_eq!(reached(4100), 4250.0, "the guide ends once the goal is met");
+    assert_eq!(reached(9000), 4500.0, "every quest after the level counts towards it");
 }
 
 /// Creatures acted on without being killed (`talk` objectives: healed, talked to) are visited,

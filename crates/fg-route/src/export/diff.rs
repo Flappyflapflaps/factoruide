@@ -764,6 +764,11 @@ fn breakdown_changes(a: &Breakdown, b: &Breakdown) -> Vec<String> {
             i64::from(a.missing_class_quests),
             i64::from(b.missing_class_quests),
         ),
+        (
+            "zone quests missed",
+            i64::from(a.missing_zone_quests),
+            i64::from(b.missing_zone_quests),
+        ),
         ("quest xp", a.quest_xp, b.quest_xp),
         ("mob xp", a.mob_xp, b.mob_xp),
         ("grind xp", a.grind_xp, b.grind_xp),

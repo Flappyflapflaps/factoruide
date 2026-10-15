@@ -27,6 +27,7 @@ impl QuestBuilder<'_> {
                 .fold(super::types::Guard::default(), super::types::Guard::max)
         };
         let (start_guard, end_guard) = (guard(&givers.starts), guard(&givers.ends));
+        let zone_forced = self.zone_forced(r, &givers, &objectives);
         Quest {
             id: r.id,
             name: r.name.clone(),
@@ -45,7 +46,9 @@ impl QuestBuilder<'_> {
             start_kills: givers.start_work.0,
             start_mob_level: givers.start_work.1,
             start_uses: givers.start_work.2,
-            mandatory: group_class_quest && self.profile.required_class_quests.iter().any(|n| n == &r.name),
+            mandatory: zone_forced
+                || group_class_quest && self.profile.required_class_quests.iter().any(|n| n == &r.name),
+            zone_forced,
             skill: skill.flatten(),
             power: class_quest
                 .then(|| self.profile.class_powers.iter().position(|(n, _)| n == &r.name))
@@ -58,6 +61,22 @@ impl QuestBuilder<'_> {
                 .into_iter()
                 .map(|(f, v)| (f, v as f64 * self.profile.reputation_rate()))
                 .collect(),
+        }
+    }
+
+    /// Whether the quest is one of a forced zone: filed under it (or a subzone), else given
+    /// there (class and profession quests); taken before the target level, outside dungeons.
+    fn zone_forced(&self, r: &QuestRow, givers: &Givers, objectives: &[Objective]) -> bool {
+        let zones = &self.params.forced_zones;
+        if zones.is_empty()
+            || objectives.iter().any(|o| o.dungeon.is_some())
+            || self.min_level(r, givers) > self.profile.to_level
+        {
+            return false;
+        }
+        match r.sort.filter(|s| *s > 0) {
+            Some(area) => self.sources.in_zones(area, zones),
+            None => givers.starts.iter().any(|l| self.sources.in_zones(l.zone, zones)),
         }
     }
 

@@ -178,6 +178,10 @@ pub struct Params {
     /// with the hearthstone.
     pub preferred_zones: Vec<i64>,
     pub excluded_zones: Vec<i64>,
+    /// Zones whose every quest is done, worth it or not (those reachable before the target
+    /// level, dungeons left to their setting): a quest filed under the zone or one of its
+    /// subzones, else given there.
+    pub forced_zones: Vec<i64>,
     /// Extra weight of the time spent outside `preferred_zones` (0: they only steer the
     /// construction).
     pub preferred_zone_weight: f64,
@@ -367,6 +371,7 @@ impl Default for Params {
             excluded_quests: vec![],
             preferred_zones: vec![],
             excluded_zones: vec![],
+            forced_zones: vec![],
             preferred_zone_weight: 0.5,
             reputation_goals: vec![],
             reputation_weight: 10.0,

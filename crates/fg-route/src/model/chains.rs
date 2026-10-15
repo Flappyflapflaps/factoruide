@@ -121,6 +121,7 @@ pub(super) fn require_prerequisites(quests: &mut [Quest]) {
                 && !quests[j].mandatory
             {
                 quests[j].mandatory = true;
+                quests[j].zone_forced = quests[i].zone_forced;
                 stack.push(j);
             }
         }
@@ -170,10 +171,13 @@ pub(super) fn release_impossible_class_quests(quests: &mut [Quest]) {
                 changed = true;
                 if q.mandatory {
                     eprintln!(
-                        "  class quest impossible: {} ({}): prerequisite not plannable",
-                        q.name, q.id
+                        "  {} quest impossible: {} ({}): prerequisite not plannable",
+                        if q.zone_forced { "zone" } else { "class" },
+                        q.name,
+                        q.id
                     );
                     q.mandatory = false;
+                    q.zone_forced = false;
                 }
             }
         }

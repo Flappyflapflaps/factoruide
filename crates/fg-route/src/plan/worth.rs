@@ -19,6 +19,7 @@ pub(crate) struct Worth<'w> {
     pub(crate) trips: Trips<'w>,
     pub(crate) growth: Growth<'w>,
     pub(crate) availability: Availability<'w>,
+    pub(crate) to_level: i64,
 }
 
 impl Worth<'_> {
@@ -86,7 +87,17 @@ impl Worth<'_> {
                 && level <= dungeon.max_level
                 && level + self.params.dungeon_pickup_ahead >= dungeon.min_level;
         }
-        let worth = self.quest_worth(i, level) + self.growth.gear_xp(s, i, level) + self.reputation_xp(s, i, level);
+        // Past the target level (forced zones, reputation goals), XP is worth nothing: only the
+        // reputation the goals still miss is.
+        let past = s.level >= self.to_level;
+        let worth = if past {
+            self.reputation_xp(s, i, level)
+        } else {
+            self.quest_worth(i, level) + self.growth.gear_xp(s, i, level) + self.reputation_xp(s, i, level)
+        };
+        if past && worth <= 0.0 {
+            return false;
+        }
         let efficiency = worth / (trip + self.quest_cost(i, level, bonus)).max(1.0);
         // Grinding weighs grind_weight times its duration: compare with its effective rate.
         efficiency
@@ -95,24 +106,29 @@ impl Worth<'_> {
     }
 
     /// What the reputation a quest gives towards the goals not reached yet is worth, in XP: the
-    /// score time it saves (`Params::reputation_weight` per point), at the rate grinding fills
-    /// score time.
+    /// score time it saves (`Params::reputation_weight` per point, and a required quest's
+    /// penalty when it meets a goal), at the rate grinding fills score time.
     pub(crate) fn reputation_xp(&self, s: &State, i: u32, level: i64) -> f64 {
         let goals = &self.params.reputation_goals;
         if goals.is_empty() {
             return 0.0;
         }
-        let points: f64 = (goals.iter().zip(&s.reputation))
+        let seconds: f64 = (goals.iter().zip(&s.reputation))
             .map(|(goal, &have)| {
                 let gain: f64 = (self.quest(i).reputation.iter())
                     .filter(|(f, _)| *f == goal.faction)
                     .map(|(_, v)| v)
                     .sum();
-                gain.min((goal.target as f64 - f64::from(have)).max(0.0))
+                let missing = (goal.target as f64 - f64::from(have)).max(0.0);
+                let met = if missing > 0.0 && gain >= missing {
+                    self.params.mandatory_penalty
+                } else {
+                    0.0
+                };
+                gain.min(missing) * self.params.reputation_weight + met
             })
             .sum();
-        points * self.params.reputation_weight * self.combat.grind_rate(level, s.bonus, &s.pos)
-            / self.params.grind_weight().max(1.0)
+        seconds * self.combat.grind_rate(level, s.bonus, &s.pos) / self.params.grind_weight().max(1.0)
     }
 
     /// Accept weight from the quest's XP per second compared with grinding: the better the

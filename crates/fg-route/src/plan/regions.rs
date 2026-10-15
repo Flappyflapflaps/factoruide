@@ -245,7 +245,7 @@ impl Planner<'_> {
     fn work_group(&self, s: &mut State, route: &mut Vec<Stop>, groups: &Groups, g: usize) {
         let group = &groups.list[g];
         loop {
-            if s.level >= self.profile.to_level {
+            if self.ended(s) {
                 return;
             }
             let mut best: Option<(f64, Stop)> = None;
@@ -332,7 +332,7 @@ impl Planner<'_> {
         // Groups where nothing progressed, ignored until the next level.
         let mut stuck: Vec<bool> = vec![false; groups.list.len()];
         let mut stuck_level = s.level;
-        while s.level < self.profile.to_level && !self.aborted() {
+        while !self.ended(&s) && !self.aborted() {
             if s.level != stuck_level {
                 stuck.fill(false);
                 stuck_level = s.level;

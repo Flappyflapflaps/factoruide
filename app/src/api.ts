@@ -49,6 +49,8 @@ export interface Params {
   excluded_quests: number[];
   preferred_zones: number[];
   excluded_zones: number[];
+  /** Zones whose every quest is done, worth it or not (the guide goes past its level for them). */
+  forced_zones: number[];
   preferred_zone_weight: number;
   /** Reputations to reach by the end of the guide (none by default: reputation weighs nothing). */
   reputation_goals: ReputationGoal[];
@@ -205,6 +207,8 @@ export interface Breakdown {
   training: number;
   hearths: number;
   missing_class_quests: number;
+  /** Quests of the forced zones the guide does not do. */
+  missing_zone_quests?: number;
   dungeons: number;
   dungeon_runs: number;
   quest_xp: number;

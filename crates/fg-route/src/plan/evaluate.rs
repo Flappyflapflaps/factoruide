@@ -77,7 +77,7 @@ impl Planner<'_> {
         let mut s = self.initial_state();
         s.planned = self.planned(route);
         for (k, &stop) in route.iter().enumerate() {
-            if s.level >= self.profile.to_level {
+            if self.ended(&s) {
                 break;
             }
             if !self.availability().valid(&s, stop) {
@@ -112,7 +112,7 @@ impl Planner<'_> {
         states.push(s.clone());
         here_at.push(0);
         for (k, &stop) in route.iter().enumerate() {
-            if s.level >= self.profile.to_level {
+            if self.ended(&s) {
                 break;
             }
             if !self.availability().valid(&s, stop) {
@@ -127,7 +127,7 @@ impl Planner<'_> {
             states.push(s.clone());
             here_at.push(recorded());
         }
-        let reached = s.level >= self.profile.to_level;
+        let reached = self.ended(&s);
         let total = self.finish(&mut s, None);
         Some(Run {
             states,
@@ -210,7 +210,7 @@ impl Planner<'_> {
         s.planned = planned;
         let mut k = start;
         while k < candidate.len() {
-            if s.level >= self.profile.to_level {
+            if self.ended(&s) {
                 break;
             }
             if !self.availability().valid(&s, candidate[k]) {
@@ -252,6 +252,7 @@ impl Planner<'_> {
                     && s.grind_used == old.grind_used
                     && s.farm_used == old.farm_used
                     && s.reputation == old.reputation
+                    && s.forced_left == old.forced_left
                     && Self::same_timers(&s, old)
                     && s.together == old.together
                 {
@@ -284,7 +285,7 @@ impl Planner<'_> {
         let mut s = self.initial_state();
         s.planned = self.planned(route);
         for (n, &stop) in route.iter().enumerate() {
-            if s.level >= self.profile.to_level {
+            if self.ended(&s) {
                 break;
             }
             let label = if stop.is_quest() {

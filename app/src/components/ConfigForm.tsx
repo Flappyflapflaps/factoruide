@@ -183,16 +183,20 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
   const zoneStates = useMemo(() => {
     const s: Record<number, ZoneState> = {};
     for (const z of params.preferred_zones) s[z] = "preferred";
+    for (const z of params.forced_zones) s[z] = "forced";
     for (const z of params.excluded_zones) s[z] = "excluded";
     return s;
-  }, [params.preferred_zones, params.excluded_zones]);
+  }, [params.preferred_zones, params.forced_zones, params.excluded_zones]);
+  // A click goes neutral → preferred → forced → excluded → neutral.
   const cycleZone = (area: number) => {
     const state = zoneStates[area];
     const preferred = params.preferred_zones.filter((z) => z !== area);
+    const forced = params.forced_zones.filter((z) => z !== area);
     const excluded = params.excluded_zones.filter((z) => z !== area);
     if (!state) preferred.push(area);
-    else if (state === "preferred") excluded.push(area);
-    setParams((p) => ({ ...p, preferred_zones: preferred, excluded_zones: excluded }));
+    else if (state === "preferred") forced.push(area);
+    else if (state === "forced") excluded.push(area);
+    setParams((p) => ({ ...p, preferred_zones: preferred, forced_zones: forced, excluded_zones: excluded }));
   };
 
   // The pace preset whose values are all in use, if any.
@@ -488,8 +492,9 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
                   <ZonePanel
                     zones={options.zones}
                     preferred={params.preferred_zones}
+                    forced={params.forced_zones}
                     excluded={params.excluded_zones}
-                    onChange={(preferred_zones, excluded_zones) => setParams((p) => ({ ...p, preferred_zones, excluded_zones }))}
+                    onChange={(preferred_zones, forced_zones, excluded_zones) => setParams((p) => ({ ...p, preferred_zones, forced_zones, excluded_zones }))}
                   />
                 </div>
               </section>

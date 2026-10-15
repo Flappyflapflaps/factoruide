@@ -297,6 +297,7 @@ impl<'a> Planner<'a> {
             reputation: (0..self.params.reputation_goals.len())
                 .map(|g| init.reputation.get(g).copied().unwrap_or(0.0) as f32)
                 .collect(),
+            forced_left: 0,
             spent: Breakdown::default(),
         };
         for &i in &init.turned {
@@ -326,7 +327,16 @@ impl<'a> Planner<'a> {
             }
         }
         self.growth().refresh_power(&mut s);
+        s.forced_left = (self.model.quests.iter().enumerate())
+            .filter(|(i, q)| q.zone_forced && !s.turned[*i])
+            .count() as u32;
         s
+    }
+
+    /// Whether the guide is over: the target level reached, the quests of the forced zones
+    /// done and the reputation goals met.
+    pub(crate) fn ended(&self, s: &State) -> bool {
+        s.level >= self.profile.to_level && s.forced_left == 0 && self.reputation_missing(s) <= 0.0
     }
 
     /// Experience rules of the guide's game version.
@@ -359,6 +369,7 @@ impl<'a> Planner<'a> {
             trips: self.trips(),
             growth: self.growth(),
             availability: self.availability(),
+            to_level: self.profile.to_level,
         }
     }
 

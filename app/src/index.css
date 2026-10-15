@@ -1915,6 +1915,12 @@ button.dungeon.excluded b {
 .zone-group.excluded .zone-group-head {
   color: var(--bad);
 }
+.zone-group.forced .zone-group-head {
+  color: var(--accent-text);
+}
+.zone-list button.force[aria-pressed="true"] {
+  color: var(--accent-text);
+}
 /* "?" beside an option: its explanation on hover or focus. */
 .hint {
   position: relative;
@@ -2129,6 +2135,10 @@ button.dungeon.excluded b {
   fill: color-mix(in srgb, var(--bad) 30%, transparent);
   stroke: var(--bad);
 }
+.zone-mark.forced path {
+  fill: color-mix(in srgb, var(--accent-text) 34%, transparent);
+  stroke: var(--accent-text);
+}
 .zone-hatch {
   fill: url(#hatch);
   stroke: none;
@@ -2143,6 +2153,9 @@ button.dungeon.excluded b {
 }
 .zone-mark.excluded circle {
   fill: var(--bad);
+}
+.zone-mark.forced circle {
+  fill: var(--accent-text);
 }
 .map-marker circle {
   fill: var(--accent);

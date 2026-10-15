@@ -92,10 +92,11 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
         b.quest_xp, b.mob_xp, b.grind_xp, b.farm_xp, b.explore_xp
     );
     eprintln!(
-        "  training {} | hearthstones {} | class quests missing {}",
+        "  training {} | hearthstones {} | class quests missing {} | zone quests missing {}",
         m(b.training),
         b.hearths,
-        b.missing_class_quests
+        b.missing_class_quests,
+        b.missing_zone_quests
     );
     eprintln!("  dungeons: {} runs, {}", b.dungeon_runs, m(b.dungeons));
     for r in &route.reputation {

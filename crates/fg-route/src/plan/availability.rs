@@ -90,13 +90,21 @@ impl Availability<'_> {
             && !self.gray_dead_end(s, q, i)
     }
 
+    /// Whether quest `q` gives reputation a goal still misses.
+    fn missing_reputation_of(&self, s: &State, q: &Quest) -> bool {
+        (self.params.reputation_goals.iter().zip(&s.reputation)).any(|(goal, &have)| {
+            f64::from(have) < goal.target as f64 && q.reputation.iter().any(|(f, v)| *f == goal.faction && *v > 0.0)
+        })
+    }
+
     /// A quest gray for the character (no XP worth the trip, turned in whenever the route passes
     /// by) that leads to nothing better: not taken, and given up when it goes gray in the log. A
-    /// gray quest opening a chain that is not gray stays; class quests always do. An imposed
-    /// route being replayed takes what it says.
+    /// gray quest opening a chain that is not gray stays; class quests always do, and those giving
+    /// reputation a goal still misses. An imposed route being replayed takes what it says.
     pub(crate) fn gray_dead_end(&self, s: &State, q: &Quest, i: u32) -> bool {
         let gray = xp::Rules::gray_level(s.level);
         !q.mandatory
+            && !self.missing_reputation_of(s, q)
             && !self.replaying
             && !self.params.keep_gray
             && q.level <= gray

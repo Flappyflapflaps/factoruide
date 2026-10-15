@@ -59,6 +59,7 @@ fn quests_at_start(n: usize) -> Prepared {
             (q.pre_all, q.pre_any, q.exclusive, q.breadcrumb_for) = (vec![], vec![], vec![], None);
             (q.start_kills, q.start_uses, q.mandatory, q.skill, q.power) = (0.0, 0.0, false, None, None);
             (q.start_guard, q.end_guard) = (Guard::default(), Guard::default());
+            (q.reputation, q.zone_forced) = (vec![], false);
             q
         })
         .collect();

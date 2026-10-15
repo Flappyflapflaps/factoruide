@@ -15,7 +15,7 @@ impl Planner<'_> {
         let mut held: Option<i64> = None;
         let mut detoured = false;
         let n = self.model.quests.len() as u32;
-        while s.level < self.profile.to_level && !self.aborted() {
+        while !self.ended(&s) && !self.aborted() {
             let pull = match self.params.zone_detour[..] {
                 [after, level, zone] if !detoured && changes.len() as i64 >= after => {
                     if s.level < level {
@@ -259,7 +259,7 @@ impl Planner<'_> {
             if stop.is_quest() && dropped[i] {
                 continue;
             }
-            if s.level >= self.profile.to_level {
+            if self.ended(&s) {
                 out.extend(
                     route[pos..]
                         .iter()
@@ -369,30 +369,73 @@ impl Planner<'_> {
         route
     }
 
-    /// Class quests not reached yet (gated by level or prerequisites): insert them where they fit.
+    /// Required quests not turned in yet (gated by level or prerequisites, or taken and left in
+    /// the log when the construction reached the target level): inserted whole where they fit.
     pub(crate) fn insert_missing_mandatory(&self, mut route: Vec<Stop>) -> Vec<Stop> {
         let n = self.model.quests.len() as u32;
+        let turned = |route: &[Stop], i: u32| route.iter().any(|s| s.kind == Kind::TurnIn && s.index == i);
         let mut missing: Vec<u32> = (0..n)
-            .filter(|&i| self.quest(i).mandatory && !route.iter().any(|s| s.is_quest() && s.index == i))
+            .filter(|&i| self.quest(i).mandatory && !turned(&route, i))
             .collect();
-        missing.sort_by_key(|&i| self.quest(i).min_level);
+        // Prerequisites first (a chain of quests of one level, a forced zone's), then by level.
+        let depth = self.chain_depths();
+        missing.sort_by_key(|&i| (depth[i as usize], self.quest(i).min_level));
         for q in missing {
-            let Some(run) = self.run(&route) else { break };
+            let Some(total) = self.simulate(&route, None) else {
+                break;
+            };
+            let mut candidate: Vec<Stop> = route
+                .iter()
+                .copied()
+                .filter(|s| !s.is_quest() || s.index != q)
+                .collect();
+            let Some(run) = self.run(&candidate) else { continue };
             // Not before the level it needs, nor before its prerequisites.
             let quest = self.quest(q);
             let after = run
                 .states
                 .iter()
                 .position(|st| st.level >= quest.min_level && self.availability().prereqs_met(st, quest))
-                .unwrap_or(route.len())
-                .min(route.len());
-            let mut candidate = route.clone();
+                .unwrap_or(candidate.len())
+                .min(candidate.len());
             self.insert_quest_after(&mut candidate, q, after);
-            if self.simulate(&candidate, None).is_some_and(|c| c < run.total) {
+            if self.simulate(&candidate, None).is_some_and(|c| c < total) {
                 route = candidate;
             }
         }
         route
+    }
+
+    /// How many quests come before each one in its chain (prerequisites of prerequisites...).
+    fn chain_depths(&self) -> Vec<u32> {
+        fn of(
+            i: usize,
+            quests: &[crate::model::Quest],
+            index: &std::collections::HashMap<i64, usize>,
+            depth: &mut [Option<u32>],
+            seen: u32,
+        ) -> u32 {
+            if let Some(d) = depth[i] {
+                return d;
+            }
+            // A cycle in the data stops here.
+            if seen > 64 {
+                return 0;
+            }
+            let q = &quests[i];
+            let d = (q.pre_all.iter().chain(&q.pre_any))
+                .filter_map(|p| index.get(p))
+                .map(|&j| of(j, quests, index, depth, seen + 1) + 1)
+                .max()
+                .unwrap_or(0);
+            depth[i] = Some(d);
+            d
+        }
+        let quests = &self.model.quests;
+        let mut depth: Vec<Option<u32>> = vec![None; quests.len()];
+        (0..quests.len())
+            .map(|i| of(i, quests, &self.model.index, &mut depth, 0))
+            .collect()
     }
 
     /// Index right after the stop closest to `pos`, not before `after`.

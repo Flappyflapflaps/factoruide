@@ -3,7 +3,7 @@ import { api, type MapInfo } from "../api";
 import { useAreaName, useT } from "../i18n";
 
 export type WorldPoint = [number, number, number];
-export type ZoneState = "preferred" | "excluded";
+export type ZoneState = "preferred" | "forced" | "excluded";
 
 export interface MapMarker {
   at: WorldPoint;
@@ -280,7 +280,7 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
             {t("début")} <i style={{ background: RAMP_CSS }} /> {t("fin")}
           </span>
         )}
-        <span className="map-hover">{hover?.name ?? (onZoneClick ? t("Cliquez une zone : privilégiée → exclue → neutre · Ctrl + molette : zoom") : t("Ctrl + molette : zoom · glisser : déplacer · double-clic : vue entière"))}</span>
+        <span className="map-hover">{hover?.name ?? (onZoneClick ? t("Cliquez une zone : privilégiée → forcée → exclue → neutre · Ctrl + molette : zoom") : t("Ctrl + molette : zoom · glisser : déplacer · double-clic : vue entière"))}</span>
       </div>
       <div
         className={`map-frame ${look}`}

@@ -323,6 +323,7 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
       {b.missing_class_quests > 0 && (
         <div className="notice warn">{t("Quêtes de classe obligatoires manquées : {n}", { n: b.missing_class_quests })}</div>
       )}
+      {(b.missing_zone_quests ?? 0) > 0 && <div className="notice warn">{t("Quêtes des zones forcées manquées : {n}", { n: b.missing_zone_quests ?? 0 })}</div>}
       {(route.reputation ?? []).map((r) => {
         const standing = (points: number) => {
           const s = standingOf(points);

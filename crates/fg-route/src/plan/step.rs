@@ -196,6 +196,13 @@ impl Planner<'_> {
         s.spent.quest_xp += reward;
         self.growth().gain(s, reward);
         self.growth().gain_power(s, i);
+        if s.forced_left > 0 {
+            let closed = (q.exclusive.iter())
+                .filter_map(|x| self.model.index.get(x))
+                .filter(|&&j| self.model.quests[j].zone_forced && !s.turned[j])
+                .count() as u32;
+            s.forced_left = s.forced_left.saturating_sub(u32::from(q.zone_forced) + closed);
+        }
         for (g, goal) in self.params.reputation_goals.iter().enumerate() {
             for &(faction, points) in &q.reputation {
                 if faction == goal.faction {
@@ -541,14 +548,14 @@ impl Planner<'_> {
         if s.level < self.profile.to_level {
             self.grind_at_camps(s, self.profile.to_level, &mut record);
         }
-        let missing = self
-            .model
-            .quests
-            .iter()
-            .enumerate()
-            .filter(|(i, q)| q.mandatory && !s.rewarded(*i) && !self.availability().alternative_done(s, q))
-            .count();
+        let (mut missing, mut zone) = (0, 0);
+        for (i, q) in self.model.quests.iter().enumerate() {
+            if q.mandatory && !s.rewarded(i) && !self.availability().alternative_done(s, q) {
+                if q.zone_forced { zone += 1 } else { missing += 1 }
+            }
+        }
         s.spent.missing_class_quests = missing as u32;
+        s.spent.missing_zone_quests = zone as u32;
         let dungeons = (0..self.model.dungeons.len())
             .filter(|&d| {
                 self.availability().dungeon_forced(d)
@@ -563,8 +570,16 @@ impl Planner<'_> {
         // flights and missing goals cost.
         s.time
             + self.weights(&s.spent)
-            + (missing + dungeons) as f64 * self.params.mandatory_penalty
+            + (missing + zone + dungeons + self.reputation_goals_unmet(s)) as f64 * self.params.mandatory_penalty
             + s.spent.reputation_missing * self.params.reputation_weight
+    }
+
+    /// Reputation goals not met: each costs like a required quest left out, besides its missing
+    /// points, so that a goal within reach is met.
+    pub(crate) fn reputation_goals_unmet(&self, s: &State) -> usize {
+        (self.params.reputation_goals.iter().zip(&s.reputation))
+            .filter(|(goal, have)| f64::from(**have) < goal.target as f64)
+            .count()
     }
 
     /// Reputation points the goals miss.

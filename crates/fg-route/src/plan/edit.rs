@@ -124,7 +124,7 @@ impl Planner<'_> {
             let (start, xp, first) = (s.time, self.total_xp(&s), trace.len());
             let farm_xp = s.spent.farm_xp;
             let mut farm_all = None;
-            let outcome = if s.level >= self.profile.to_level {
+            let outcome = if self.ended(&s) {
                 Outcome::Skipped("target level reached")
             } else {
                 match *edit {
@@ -448,6 +448,17 @@ impl Planner<'_> {
                 out.push(next);
             }
             out.append(&mut learned);
+        }
+        // The trip to the final grind (no step of its own: done after the last one) is one:
+        // the explicit planner goes on foot otherwise.
+        let tail = edited.steps.last().map_or(0, |step| step.events.end);
+        for t in edited.trace.get(tail..).unwrap_or_default() {
+            match t.event {
+                Event::Fly { from, to } => out.push(Edit::Fly { from, to }),
+                Event::Link { first, last } => out.push(Edit::Link { first, last }),
+                Event::Teleport { to } => out.push(Edit::Teleport { to }),
+                _ => {}
+            }
         }
         out
     }

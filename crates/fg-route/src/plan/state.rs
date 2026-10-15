@@ -272,6 +272,9 @@ pub(crate) struct State {
     /// Points with the faction of each reputation goal (`Params::reputation_goals`; none
     /// without goals).
     pub(crate) reputation: Vec<f32>,
+    /// Quests of the forced zones not done yet (nor closed by an exclusive one): the guide
+    /// goes on past the target level until they are.
+    pub(crate) forced_left: u32,
     pub(crate) spent: Breakdown,
 }
 
@@ -338,6 +341,9 @@ pub struct Breakdown {
     /// Quests the route took and gave up (see `Params::abandon_weight`).
     #[serde(default)]
     pub abandoned: u32,
+    /// Quests of the forced zones the route does not do (see `Params::forced_zones`).
+    #[serde(default)]
+    pub missing_zone_quests: u32,
     /// Reputation points the goals still miss at the end (see `Params::reputation_goals`).
     #[serde(default)]
     pub reputation_missing: f64,

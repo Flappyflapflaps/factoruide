@@ -135,6 +135,8 @@ pub(super) struct Sources {
     /// Items without any known source that several quests ask for (marks of honor, tokens,
     /// crafted goods): not a gap in the drop data, never approximated by mobs.
     pub(super) tokens: HashSet<i64>,
+    /// Parent of each area (AreaTable), when zones are forced (`Params::forced_zones`).
+    pub(super) area_parents: HashMap<i64, i64>,
 }
 
 impl Sources {
@@ -173,8 +175,33 @@ impl Sources {
             objectives,
             item_origins,
             drop_chance,
+            area_parents: if params.forced_zones.is_empty() {
+                HashMap::new()
+            } else {
+                area_parents(conn)?
+            },
         })
     }
+
+    /// Whether area `area` is one of `zones` or lies in one of them.
+    pub(super) fn in_zones(&self, mut area: i64, zones: &[i64]) -> bool {
+        for _ in 0..8 {
+            if zones.contains(&area) {
+                return true;
+            }
+            match self.area_parents.get(&area) {
+                Some(&parent) if parent > 0 => area = parent,
+                _ => return false,
+            }
+        }
+        false
+    }
+}
+
+fn area_parents(conn: &Connection) -> Result<HashMap<i64, i64>> {
+    let mut stmt = conn.prepare("SELECT ID, ParentAreaID FROM client_areatable WHERE ParentAreaID > 0")?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
 fn start_place(entities: &Entities, world: &World, profile: &Profile) -> Result<Loc> {
