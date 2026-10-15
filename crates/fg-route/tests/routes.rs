@@ -781,7 +781,11 @@ fn mountain_skip_is_one_way_and_a_step_of_the_guide() {
 fn editor_grind_over_several_camps_is_one_step() {
     let p = human_warrior();
     let edited = planner(p).explicit().edit(&[Edit::GrindTo { level: 12 }]);
-    let grinds = edited.trace.iter().filter(|t| matches!(t.event, Event::Grind { .. })).count();
+    let grinds = edited
+        .trace
+        .iter()
+        .filter(|t| matches!(t.event, Event::Grind { .. }))
+        .count();
     assert!(grinds > 1, "one camp only: nothing checked");
     assert_eq!(edited.steps[0].outcome, Outcome::Done);
 }
