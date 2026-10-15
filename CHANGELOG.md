@@ -4,6 +4,12 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 Writing an entry: one short line per change, saying what the player sees or gets (not how it works inside), grouped under App, Guides, Addon and WoW data. Numbers and examples only when they tell the change better than words; details go to the commit.
 
+## Unreleased
+
+### WoW data
+
+- WoW Forever: quests of a chain are taken in the order the game offers them (Walton and Vrang in the Barrens, Mankrik's Olgra, the Scourge paladin's quests…).
+
 ## 0.10.0 (2026-10-15)
 
 Polestar integration on WoW Forever, reputation goals, forced zones, and anonymous contributions.

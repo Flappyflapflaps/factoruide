@@ -47,7 +47,7 @@ mod travel;
 mod worth;
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use alns::ALNS_OPS;
 pub use combat::Combat;

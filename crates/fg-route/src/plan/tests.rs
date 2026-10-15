@@ -31,7 +31,7 @@ fn database() -> Connection {
 
 /// Level 1 human warrior with only `n` quests of its own: taken and turned in at the start NPC,
 /// nothing to do, no XP (each test sets what it checks). Nothing done on the way.
-fn quests_at_start(n: usize) -> Prepared {
+pub(crate) fn quests_at_start(n: usize) -> Prepared {
     let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Classic).unwrap();
     let request = PlanRequest {
         race: "human".into(),

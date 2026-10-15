@@ -57,6 +57,15 @@ pub const CHECKS: &[Check] = &[
                in passes.toml, with its ways out in travel.toml",
         error: false,
     },
+    Check {
+        name: "chain-order",
+        what: "WoW Forever quests new to it (not in the 1.12 data) with no prerequisite known, \
+               given by an NPC who takes back another quest of the guide: the guide may take \
+               them before the game offers them (a chain the sources lack). Check the quest's \
+               series on Wowhead or in game: a missing prerequisite is fixed in the quest data, \
+               a quest offered from the start is accepted",
+        error: false,
+    },
 ];
 
 /// One problem found.
@@ -116,6 +125,14 @@ pub fn audit(
         HashMap::new()
     };
     let class_quests = job::class_quests(conn, overrides)?;
+    // Forever only: it reworked zones with quests the sources often know without their chain;
+    // TBC's new quests have Questie's.
+    let chain_order_on = on("chain-order") && overrides.params.edition == crate::xp::Edition::Forever;
+    let old_quests = if chain_order_on {
+        old_quests(conn)?
+    } else {
+        HashSet::new()
+    };
     let trainer_quests = if on("other-class-quests") {
         trainer_quests(conn)?
     } else {
@@ -164,6 +181,9 @@ pub fn audit(
             terrain_gaps(&prepared.world, &prepared.model)
                 .into_iter()
                 .for_each(&mut add);
+        }
+        if chain_order_on {
+            chain_order(&prepared.model, &old_quests).into_iter().for_each(&mut add);
         }
         if on("source-items") {
             uncovered_source_items(&prepared.model, &source_items)
@@ -546,4 +566,96 @@ fn uncovered_source_items(model: &Model, source_items: &HashMap<i64, SourceItems
         }
     }
     out
+}
+
+/// The quests of the 1.12 data (VMaNGOS): the server's own prerequisites, complete.
+fn old_quests(conn: &Connection) -> Result<HashSet<i64>> {
+    let mut stmt = conn.prepare("SELECT id FROM m_quest WHERE ',' || sources || ',' LIKE '%,vmangos,%'")?;
+    let ids = stmt.query_map([], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+    Ok(ids)
+}
+
+/// Quests of the guide not in the 1.12 data, with no prerequisite, given by an NPC who takes back
+/// another quest of the guide not linked to them: Walton gave Trouble in the Valley only after The
+/// Hermit Tanner, which no source said (the guide took it first).
+fn chain_order(model: &Model, old_quests: &HashSet<i64>) -> Vec<Finding> {
+    let before = |id: i64| {
+        let mut seen = HashSet::new();
+        let mut todo = vec![id];
+        while let Some(q) = todo.pop() {
+            let Some(&i) = model.index.get(&q) else { continue };
+            for &p in model.quests[i].pre_all.iter().chain(&model.quests[i].pre_any) {
+                if seen.insert(p) {
+                    todo.push(p);
+                }
+            }
+        }
+        seen
+    };
+    let npc = |l: &crate::model::Loc| (l.kind == EntityKind::Npc).then_some(l.id);
+    let mut out = Vec::new();
+    for b in &model.quests {
+        if old_quests.contains(&b.id) || !b.pre_all.is_empty() || !b.pre_any.is_empty() {
+            continue;
+        }
+        for start in b.starts.iter().filter_map(|l| npc(l).map(|id| (id, &l.name))) {
+            let taken_back: Vec<String> = (model.quests.iter())
+                .filter(|a| {
+                    let linked = a.id == b.id
+                        || a.exclusive.contains(&b.id)
+                        || b.exclusive.contains(&a.id)
+                        || a.breadcrumb_for == Some(b.id)
+                        || b.breadcrumb_for == Some(a.id)
+                        || before(a.id).contains(&b.id);
+                    !linked && a.min_level <= b.min_level && a.ends.iter().any(|l| npc(l) == Some(start.0))
+                })
+                .map(|a| format!("{} ({})", a.name, a.id))
+                .collect();
+            if taken_back.is_empty() {
+                continue;
+            }
+            out.push(Finding {
+                check: "chain-order",
+                key: format!("quest {}", b.id),
+                detail: format!(
+                    "{} ({}) from {}, who takes back {}: no prerequisite known",
+                    b.name,
+                    b.id,
+                    start.1,
+                    taken_back.join(", ")
+                ),
+                races: Vec::new(),
+            });
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::plan::tests::quests_at_start;
+
+    /// Walton's case: two quests of one NPC, one he also takes back, no link between them. Found
+    /// until the data links them, or when the quest is in the 1.12 data.
+    #[test]
+    fn a_quest_given_by_the_npc_taking_back_another_is_found_until_linked() {
+        let mut p = quests_at_start(2);
+        let (hermit, trouble) = (p.model.quests[0].id, p.model.quests[1].id);
+        let found = |model: &Model, old: &HashSet<i64>| -> Vec<String> {
+            chain_order(model, old).into_iter().map(|f| f.key).collect()
+        };
+        // Each is given by the NPC who takes back the other.
+        assert_eq!(
+            found(&p.model, &HashSet::new()),
+            [format!("quest {hermit}"), format!("quest {trouble}")]
+        );
+        assert_eq!(found(&p.model, &HashSet::from([hermit])), [format!("quest {trouble}")]);
+        p.model.quests[1].pre_all = vec![hermit];
+        assert!(found(&p.model, &HashSet::new()).is_empty(), "linked both ways");
+        // A quest asking a lower level cannot need one asking a higher one.
+        p.model.quests[1].pre_all.clear();
+        p.model.quests[0].min_level = 10;
+        assert_eq!(found(&p.model, &HashSet::new()), [format!("quest {hermit}")]);
+    }
 }
