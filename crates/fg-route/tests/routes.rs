@@ -1928,6 +1928,27 @@ fn druid_bear_form_through_moonglade() {
     );
 }
 
+/// A dungeon whose quests are filed under it is listed even when the sources place nothing its
+/// quests need inside (WoW Forever's Ruins of Lordaeron, GitHub #18): here The Deadmines with every
+/// spawn inside removed.
+#[test]
+fn dungeons_with_quests_filed_under_them() {
+    let path = std::env::temp_dir().join(format!("fg-dungeons-{}.sqlite", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+    database().execute("VACUUM INTO ?1", [path.to_str().unwrap()]).unwrap();
+    let conn = Connection::open(&path).unwrap();
+    conn.execute(
+        "DELETE FROM m_spawn WHERE zone_id IN (SELECT area FROM dungeon WHERE name = 'The Deadmines'
+           UNION SELECT j.value FROM dungeon, json_each(coalesce(alt_areas, '[]')) j WHERE name = 'The Deadmines')",
+        [],
+    )
+    .unwrap();
+    let options = job::options(&conn, &overrides()).unwrap();
+    drop(conn);
+    std::fs::remove_file(&path).ok();
+    assert!(options.dungeons.iter().any(|d| d.name == "The Deadmines"));
+}
+
 /// Dungeons whose zone the game files under the continent (Blackrock Depths, Blackrock Spire,
 /// the Sunken Temple) are found through their instance map.
 #[test]

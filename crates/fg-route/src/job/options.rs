@@ -144,7 +144,9 @@ pub fn options(conn: &Connection, overrides: &Overrides) -> Result<Options> {
         .collect::<rusqlite::Result<_>>()?
     };
     // Dungeons with quests of this game version: something a quest needs lives inside (a mob or
-    // object, or one dropping a quest item), plus those declared in dungeons.toml.
+    // object, or one dropping a quest item), or quests are filed under it (done by running it,
+    // even when the sources place nothing inside: Forever's Ruins of Lordaeron, GitHub #18),
+    // plus those declared in dungeons.toml.
     let dungeons = {
         let mut stmt = conn.prepare(
             "WITH needed(entity_type, entity_id) AS (
@@ -164,7 +166,8 @@ pub fn options(conn: &Connection, overrides: &Overrides) -> Result<Options> {
                WHERE (s.entity_type, s.entity_id) IN needed)
              SELECT d.area, d.name, coalesce(d.alt_areas, '[]') FROM dungeon d JOIN client_areatable a ON a.ID = d.area
              JOIN client_map m ON m.InstanceType = 1 AND (m.ID = a.ContinentID OR m.AreaTableID = d.area)
-             WHERE d.area IN found
+             WHERE d.area IN found OR d.area IN (SELECT i.dungeon FROM inside i JOIN m_quest q ON q.zone_or_sort = i.zone
+                                                 WHERE q.status = 'available' AND q.level <= ?1)
              GROUP BY d.area",
         )?;
         let max_level = overrides.params.edition.rules().max_level + 2;

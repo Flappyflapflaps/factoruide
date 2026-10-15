@@ -6,6 +6,10 @@ Writing an entry: one short line per change, saying what the player sees or gets
 
 ## Unreleased
 
+### App
+
+- WoW Forever: the dungeon list shows the new dungeons with quests: Ruins of Lordaeron, Excavation Site: Wetlands, City of Dalaran (GitHub #18).
+
 ### WoW data
 
 - WoW Forever: quests of a chain are taken in the order the game offers them (Walton and Vrang in the Barrens, Mankrik's Olgra, the Scourge paladin's quests…).
