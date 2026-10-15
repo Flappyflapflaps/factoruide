@@ -2,6 +2,7 @@
 
 use fg_route::job::{self, Bind, LogObjective, LogQuest, MapPos, Overrides, PlanRequest, Prepared, StartState};
 use fg_route::model::{CommonLoot, EntityKind, Guard, Initial, Objective, Spots};
+use fg_route::params::ReputationGoal;
 use fg_route::plan::{Edit, Event, Kind, Outcome, Planner, Stop};
 use fg_route::xp::Edition;
 use rusqlite::Connection;
@@ -227,6 +228,37 @@ fn rare_drop_start_is_left_out() {
         quest(human_warrior(), 136).is_none(),
         "Captain Sanders' Hidden Treasure"
     );
+}
+
+/// A reputation goal brings in the quests giving that reputation, even worth nothing else (no
+/// XP); a quest of another faction stays out, as every one does without goals. The character
+/// starts with its race's points (Stormwind: a human's 4000).
+#[test]
+fn reputation_goal_takes_its_factions_quests() {
+    let goal = r#"reputation_goals=[{"faction":72,"target":9000}]"#;
+    assert_eq!(
+        prepare("human", "warrior", 2, &[goal]).model.initial.reputation,
+        vec![4000.0]
+    );
+    let taken = |goals: Vec<ReputationGoal>| {
+        let mut p = quests_at_start(2);
+        p.model.quests[0].reputation = vec![(72, 250.0)];
+        p.model.quests[1].reputation = vec![(69, 250.0)];
+        p.model.initial.reputation = vec![4000.0; goals.len()];
+        p.params.reputation_goals = goals;
+        let planner = planner(&p);
+        let route = planner.construct(|_| {});
+        let turned = |i| route.iter().any(|s| s.index == i && s.kind == Kind::TurnIn);
+        ((turned(0), turned(1)), planner.reputation_reached(&route))
+    };
+    assert_eq!(
+        taken(vec![ReputationGoal {
+            faction: 72,
+            target: 9000
+        }]),
+        ((true, false), vec![4250.0])
+    );
+    assert_eq!(taken(vec![]), ((false, false), vec![]));
 }
 
 /// Creatures acted on without being killed (`talk` objectives: healed, talked to) are visited,

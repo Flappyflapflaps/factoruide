@@ -86,12 +86,33 @@ impl Worth<'_> {
                 && level <= dungeon.max_level
                 && level + self.params.dungeon_pickup_ahead >= dungeon.min_level;
         }
-        let worth = self.quest_worth(i, level) + self.growth.gear_xp(s, i, level);
+        let worth = self.quest_worth(i, level) + self.growth.gear_xp(s, i, level) + self.reputation_xp(s, i, level);
         let efficiency = worth / (trip + self.quest_cost(i, level, bonus)).max(1.0);
         // Grinding weighs grind_weight times its duration: compare with its effective rate.
         efficiency
             >= self.params.min_efficiency * self.combat.grind_rate(level, bonus, &s.pos)
                 / self.params.grind_weight().max(1.0)
+    }
+
+    /// What the reputation a quest gives towards the goals not reached yet is worth, in XP: the
+    /// score time it saves (`Params::reputation_weight` per point), at the rate grinding fills
+    /// score time.
+    pub(crate) fn reputation_xp(&self, s: &State, i: u32, level: i64) -> f64 {
+        let goals = &self.params.reputation_goals;
+        if goals.is_empty() {
+            return 0.0;
+        }
+        let points: f64 = (goals.iter().zip(&s.reputation))
+            .map(|(goal, &have)| {
+                let gain: f64 = (self.quest(i).reputation.iter())
+                    .filter(|(f, _)| *f == goal.faction)
+                    .map(|(_, v)| v)
+                    .sum();
+                gain.min((goal.target as f64 - f64::from(have)).max(0.0))
+            })
+            .sum();
+        points * self.params.reputation_weight * self.combat.grind_rate(level, s.bonus, &s.pos)
+            / self.params.grind_weight().max(1.0)
     }
 
     /// Accept weight from the quest's XP per second compared with grinding: the better the
@@ -100,8 +121,9 @@ impl Worth<'_> {
         if self.params.efficiency_power <= 0.0 {
             return 1.0;
         }
-        let efficiency = (self.quest_worth(i, level) + self.growth.gear_xp(s, i, level))
-            / self.quest_cost(i, level, s.bonus).max(1.0);
+        let efficiency =
+            (self.quest_worth(i, level) + self.growth.gear_xp(s, i, level) + self.reputation_xp(s, i, level))
+                / self.quest_cost(i, level, s.bonus).max(1.0);
         let reference = self.combat.grind_rate(level, s.bonus, &s.pos) * 2.0;
         (reference / efficiency.max(1e-6))
             .powf(self.params.efficiency_power)

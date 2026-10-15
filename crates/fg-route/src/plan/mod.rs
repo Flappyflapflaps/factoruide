@@ -294,6 +294,9 @@ impl<'a> Planner<'a> {
             log: 0,
             grind_used: 0,
             farm_used: 0,
+            reputation: (0..self.params.reputation_goals.len())
+                .map(|g| init.reputation.get(g).copied().unwrap_or(0.0) as f32)
+                .collect(),
             spent: Breakdown::default(),
         };
         for &i in &init.turned {

@@ -61,7 +61,19 @@ impl Planner<'_> {
         Rc::new(planned)
     }
 
-    pub fn simulate_full(&self, route: &[Stop], mut trace: Option<&mut Vec<Timed>>) -> Option<(f64, Breakdown)> {
+    pub fn simulate_full(&self, route: &[Stop], trace: Option<&mut Vec<Timed>>) -> Option<(f64, Breakdown)> {
+        self.simulate_state(route, trace).map(|(total, s)| (total, s.spent))
+    }
+
+    /// Points with the faction of each reputation goal at the end of `route`.
+    pub fn reputation_reached(&self, route: &[Stop]) -> Vec<f64> {
+        self.simulate_state(route, None)
+            .map(|(_, s)| s.reputation.iter().map(|&v| f64::from(v)).collect())
+            .unwrap_or_default()
+    }
+
+    /// The score of `route` and the character's state at its end.
+    fn simulate_state(&self, route: &[Stop], mut trace: Option<&mut Vec<Timed>>) -> Option<(f64, State)> {
         let mut s = self.initial_state();
         s.planned = self.planned(route);
         for (k, &stop) in route.iter().enumerate() {
@@ -79,7 +91,7 @@ impl Planner<'_> {
             }
         }
         let total = self.finish(&mut s, trace);
-        Some((total, s.spent))
+        Some((total, s))
     }
 
     /// Replay a route keeping the state before each stop, for incremental evaluation.
@@ -239,6 +251,7 @@ impl Planner<'_> {
                     && s.explored == old.explored
                     && s.grind_used == old.grind_used
                     && s.farm_used == old.farm_used
+                    && s.reputation == old.reputation
                     && Self::same_timers(&s, old)
                     && s.together == old.together
                 {

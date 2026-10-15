@@ -16,10 +16,7 @@ pub(super) fn pvp_quests(conn: &Connection, rows: &[QuestRow], objectives: &Obje
         .query_map([], |r| r.get(0))?
         .collect::<rusqlite::Result<_>>()?;
     let factions = |r: &QuestRow| -> Vec<i64> {
-        r.reputation
-            .as_deref()
-            .and_then(|j| serde_json::from_str::<Vec<(i64, i64)>>(j).ok())
-            .unwrap_or_default()
+        r.reputations()
             .into_iter()
             .filter(|(_, v)| *v > 0)
             .map(|(f, _)| f)

@@ -7,6 +7,7 @@ import { DungeonPanel } from "./DungeonPanel";
 import { Hint } from "./Hint";
 import { ParamField } from "./ParamField";
 import { ProfessionPicker } from "./ProfessionPicker";
+import { ReputationPanel } from "./ReputationPanel";
 import { WorldMap, type ZoneState } from "./WorldMap";
 import { ZonePanel } from "./ZonePanel";
 import { useGameName, useT } from "../i18n";
@@ -421,6 +422,15 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
                   onChange={(v) => set("crowded", v)}
                 />
               </section>
+
+              <ReputationPanel
+                factions={options.factions}
+                raceId={raceInfo?.id}
+                side={raceInfo?.faction}
+                start={start}
+                goals={params.reputation_goals}
+                onChange={(reputation_goals) => setParams((p) => ({ ...p, reputation_goals }))}
+              />
 
               <section className="panel">
                 <h3>

@@ -196,6 +196,13 @@ impl Planner<'_> {
         s.spent.quest_xp += reward;
         self.growth().gain(s, reward);
         self.growth().gain_power(s, i);
+        for (g, goal) in self.params.reputation_goals.iter().enumerate() {
+            for &(faction, points) in &q.reputation {
+                if faction == goal.faction {
+                    s.reputation[g] += points as f32;
+                }
+            }
+        }
         let p = self.model.power.as_ref()?;
         let (fixed, choices) = &self.model.rewards[i as usize];
         let mut changed = false;
@@ -550,10 +557,21 @@ impl Planner<'_> {
             })
             .count();
         s.spent.missing_dungeons = dungeons as u32;
+        s.spent.reputation_missing = self.reputation_missing(s);
         s.spent.total = s.time;
         // Optimizer score: grinding and flights weigh more than their real time, gold spent on
         // flights and missing goals cost.
-        s.time + self.weights(&s.spent) + (missing + dungeons) as f64 * self.params.mandatory_penalty
+        s.time
+            + self.weights(&s.spent)
+            + (missing + dungeons) as f64 * self.params.mandatory_penalty
+            + s.spent.reputation_missing * self.params.reputation_weight
+    }
+
+    /// Reputation points the goals miss.
+    pub(crate) fn reputation_missing(&self, s: &State) -> f64 {
+        (self.params.reputation_goals.iter().zip(&s.reputation))
+            .map(|(goal, &have)| (goal.target as f64 - f64::from(have)).max(0.0))
+            .sum()
     }
 }
 

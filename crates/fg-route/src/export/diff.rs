@@ -871,6 +871,7 @@ mod tests {
             locale: None,
             spells: Vec::new(),
             checkpoints: Vec::new(),
+            reputation: Vec::new(),
             steps,
         }
     }

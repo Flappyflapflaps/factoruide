@@ -244,6 +244,60 @@ function FG.ProfessionSkill(line)
     return nil
 end
 
+-- The reputation panel's rows (Forever: C_Reputation; Classic Era and TBC: the older globals):
+-- faction ID, points, header, collapsed, header with points of its own, name.
+local function ReputationAPI()
+    if C_Reputation and C_Reputation.GetFactionDataByIndex and C_Reputation.GetNumFactions then
+        return C_Reputation.GetNumFactions,
+            function(i)
+                local d = C_Reputation.GetFactionDataByIndex(i)
+                if d then
+                    return d.factionID, d.currentStanding, d.isHeader, d.isCollapsed, d.isHeaderWithRep, d.name
+                end
+            end,
+            C_Reputation.ExpandFactionHeader,
+            C_Reputation.CollapseFactionHeader
+    end
+    if GetNumFactions and GetFactionInfo then
+        return GetNumFactions,
+            function(i)
+                local name, _, _, _, _, value, _, _, header, collapsed, hasRep, _, _, id = GetFactionInfo(i)
+                return id, value, header, collapsed, hasRep, name
+            end,
+            ExpandFactionHeader,
+            CollapseFactionHeader
+    end
+end
+
+--- Points with every faction the reputation panel lists, counted from the bottom of Neutral:
+--- { { id = factionID, value = points }... }. Collapsed headers hide their factions: opened for
+--- the reading and closed again, unless the panel is open (the player is using it).
+function FG.Reputations()
+    local count, row, expand, collapse = ReputationAPI()
+    if not count then return {} end
+    local panel = ReputationFrame and ReputationFrame:IsVisible()
+    local opened, out = {}, {}
+    local i = 1
+    while i <= count() do
+        local id, value, header, collapsed, hasRep, name = row(i)
+        if header and collapsed and expand and not panel then
+            expand(i)
+            opened[id or name or i] = true
+        end
+        value = FG.Readable(value)
+        if id and value and (not header or hasRep) then table.insert(out, { id = id, value = value }) end
+        i = i + 1
+    end
+    if collapse then
+        -- From the last row: closing a header leaves the rows before it where they are.
+        for k = count(), 1, -1 do
+            local id, _, header, _, _, name = row(k)
+            if header and opened[id or name or k] then collapse(k) end
+        end
+    end
+    return out
+end
+
 FG:On("ADDON_LOADED", function(name)
     if name ~= addonName then return end
     FactoruideDB = FactoruideDB or {}

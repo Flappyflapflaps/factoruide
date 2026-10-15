@@ -46,6 +46,11 @@ pub fn race_bit(race_id: i64) -> i64 {
 }
 
 impl Profile {
+    /// Reputation gained for each point a quest gives: humans' Diplomacy adds 10%.
+    pub fn reputation_rate(&self) -> f64 {
+        if self.race_id == 1 { 1.1 } else { 1.0 }
+    }
+
     /// Quest race bit of the character.
     pub fn race_bit(&self) -> i64 {
         race_bit(self.race_id)
@@ -249,6 +254,9 @@ pub struct Quest {
     /// Hostile mobs around its givers and its turn-ins (the hardest of them).
     pub start_guard: Guard,
     pub end_guard: Guard,
+    /// Reputation points its turn-in gives the character, by Faction ID (the human's Diplomacy
+    /// counted).
+    pub reputation: Vec<(i64, f64)>,
 }
 
 pub struct Model {
@@ -277,6 +285,8 @@ pub struct Model {
     pub initial: Initial,
     /// Names in the guide's language.
     pub names: Names,
+    /// Names of the factions of the reputation goals (Faction ID -> name in the database).
+    pub faction_names: HashMap<i64, String>,
     /// Areas that give XP when discovered.
     pub explore: Vec<ExploreArea>,
     /// Indexes into `explore` by zone.
@@ -355,6 +365,8 @@ pub struct Initial {
     /// The log of a character met in game (ID, name): its quests are left to the guide as if
     /// never taken (it takes again those it wants), the others are abandoned at its start.
     pub log: Vec<(i64, String)>,
+    /// Points with the faction of each reputation goal (`Params::reputation_goals`) at the start.
+    pub reputation: Vec<f64>,
 }
 
 impl Initial {

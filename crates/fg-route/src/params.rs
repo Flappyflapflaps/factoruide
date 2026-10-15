@@ -181,6 +181,11 @@ pub struct Params {
     /// Extra weight of the time spent outside `preferred_zones` (0: they only steer the
     /// construction).
     pub preferred_zone_weight: f64,
+    /// Reputations to reach by the end of the guide (none: reputation weighs nothing).
+    pub reputation_goals: Vec<ReputationGoal>,
+    /// Seconds of the guide each reputation point missing from `reputation_goals` at its end is
+    /// worth: quests giving the reputation are planned until the goal is reached.
+    pub reputation_weight: f64,
     /// Minimum quest efficiency, relative to grinding, to be worth accepting.
     pub min_efficiency: f64,
     /// Hearthstone cooldown and cast time.
@@ -363,6 +368,8 @@ impl Default for Params {
             preferred_zones: vec![],
             excluded_zones: vec![],
             preferred_zone_weight: 0.5,
+            reputation_goals: vec![],
+            reputation_weight: 10.0,
             min_efficiency: 0.5,
             hearth_cooldown: 3600.0,
             hearth_cast: 10.0,
@@ -529,6 +536,15 @@ impl Params {
         }
         Ok(serde_json::from_value(json)?)
     }
+}
+
+/// A reputation to reach: the faction (Faction ID) and the points to have with it, counted
+/// from the bottom of Neutral as the game does (Friendly 3000, Honored 9000, Revered 21000,
+/// Exalted 42000).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReputationGoal {
+    pub faction: i64,
+    pub target: i64,
 }
 
 /// `crowded`: a number from 0 to 1, or a boolean (settings saved before the scale).

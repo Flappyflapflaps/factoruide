@@ -7,6 +7,7 @@ mod notes;
 mod options;
 mod overrides;
 mod race;
+mod reputation;
 mod request;
 mod routes;
 mod start;
@@ -14,12 +15,13 @@ mod start;
 pub use edit::{
     CatalogDungeon, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef, RouteStep, StepReport,
 };
-pub use options::{NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes};
+pub use options::{FactionOption, NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes};
 pub use overrides::{Overrides, RaceDef};
 pub use race::{optimize, optimize_interruptible};
+pub use reputation::race_base;
 pub use request::{PlanOutcome, PlanRequest, Prepared};
 pub use routes::{load_routes, render_routes, save_route, slug, write_addon_config, write_addon_routes};
-pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, StartState};
+pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};
 
 use crate::export;
 use crate::model::{self, Profile};
@@ -174,6 +176,13 @@ pub fn prepare(
             model.initial.log.len()
         ));
     }
+    model.initial.reputation = reputation::starting(
+        conn,
+        &params.reputation_goals,
+        &profile,
+        req.start.as_ref(),
+        &mut start_notes,
+    )?;
     let mut notes = notes::model_notes(&model, &world, progress);
     notes.extend(start_notes);
     Ok(Prepared {

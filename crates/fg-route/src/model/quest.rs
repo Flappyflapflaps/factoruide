@@ -53,6 +53,11 @@ impl QuestBuilder<'_> {
                 .map(|k| (k as u8, self.profile.class_powers[k].1)),
             start_guard,
             end_guard,
+            reputation: r
+                .reputations()
+                .into_iter()
+                .map(|(f, v)| (f, v as f64 * self.profile.reputation_rate()))
+                .collect(),
         }
     }
 

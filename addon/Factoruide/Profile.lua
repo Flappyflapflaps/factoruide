@@ -1,6 +1,6 @@
 -- The character's profile, read by the app to plan a guide from where the character stands:
 -- level and XP, quests done and in the log (with their objectives), position, hearthstone,
--- flight paths, professions, riding, gear, spells and money. Saved at each logout and reload;
+-- flight paths, professions, riding, gear, spells, reputations and money. Saved at each logout and reload;
 -- `/fg profile` saves it at once (the interface reloads to write it to disk).
 --
 -- FactoruideDB.profiles["Name-Realm"] = { level, xp, completed = { questID... }, log = {...} ... }
@@ -130,6 +130,7 @@ function Profile:Snapshot()
     profile.riding = Part("riding", function() return FG.ProfessionSkill(RIDING) or 0 end)
     profile.gear = Part("gear", Gear)
     profile.spells = Part("spells", Spells)
+    profile.reputation = Part("reputation", FG.Reputations)
     profile.flights = profile.flights or {}
     Part("bind", function() UpdateBind(false) end)
     profile.time = time()

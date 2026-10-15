@@ -88,6 +88,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         skipped,
         initial: Initial::default(),
         names: Names::load(conn, profile.locale.as_deref().unwrap_or("enUS"))?,
+        faction_names: faction_names(conn, params),
         explore,
         explore_by_zone,
         farm,
@@ -96,6 +97,25 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         rewards,
         dungeon_loot,
     })
+}
+
+/// Names of the factions of the reputation goals.
+fn faction_names(conn: &Connection, params: &Params) -> HashMap<i64, String> {
+    let mut out = HashMap::new();
+    for goal in &params.reputation_goals {
+        let name: Option<String> = conn
+            .query_row(
+                "SELECT Name_lang FROM client_faction WHERE ID = ?1",
+                [goal.faction],
+                |r| r.get(0),
+            )
+            .ok();
+        out.insert(
+            goal.faction,
+            name.unwrap_or_else(|| format!("Faction {}", goal.faction)),
+        );
+    }
+    out
 }
 
 /// Every quest the character can do, and the others with why they are left out.

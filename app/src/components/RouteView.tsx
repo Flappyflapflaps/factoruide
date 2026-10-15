@@ -7,6 +7,7 @@ import { useWidth } from "./useWidth";
 import type { WorldPoint } from "./WorldMap";
 import { ZoneMap, type NumberedStep } from "./ZoneMap";
 import { Money } from "./Money";
+import { standingOf } from "./ReputationPanel";
 
 export const KIND_LABELS: Record<string, string> = {
   accept: "Prendre",
@@ -322,6 +323,24 @@ export function RouteView({ route, notes, compare, onHighlight }: Props) {
       {b.missing_class_quests > 0 && (
         <div className="notice warn">{t("Quêtes de classe obligatoires manquées : {n}", { n: b.missing_class_quests })}</div>
       )}
+      {(route.reputation ?? []).map((r) => {
+        const standing = (points: number) => {
+          const s = standingOf(points);
+          return `${t(s.name)} ${s.into}/${s.of}`;
+        };
+        const missing = r.target - r.reached;
+        return (
+          <div key={r.faction} className={`notice${missing > 0 ? " warn" : ""}`}>
+            {t("Réputation {faction} : {start} → {reached} (objectif : {target})", {
+              faction: r.name,
+              start: standing(r.start),
+              reached: standing(r.reached),
+              target: t(standingOf(r.target).name),
+            })}
+            {missing > 0 && ` — ${t("{n} points manquants : le guide n'a pas assez de quêtes de cette faction", { n: Math.round(missing) })}`}
+          </div>
+        );
+      })}
 
       <div className="charts">
         <LevelChart steps={route.steps} fromLevel={route.from_level} toLevel={route.to_level} />

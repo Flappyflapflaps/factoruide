@@ -98,6 +98,12 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
         b.missing_class_quests
     );
     eprintln!("  dungeons: {} runs, {}", b.dungeon_runs, m(b.dungeons));
+    for r in &route.reputation {
+        eprintln!(
+            "  reputation {}: {} -> {} (goal {})",
+            r.name, r.start, r.reached, r.target
+        );
+    }
     job::save_route(&opts.routes_dir, route)?;
     write_addon_routes(conn, &opts.routes_dir, &opts.addon_dir)
 }

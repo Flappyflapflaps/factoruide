@@ -743,6 +743,67 @@ FG.Profile:Snapshot()
 assert(not profile.errors, "no error left")
 print("profile parts ok")
 
+-- Reputations: every faction of the panel, those under a collapsed header too (opened for the
+-- reading, closed again), headers without points of their own left out.
+local factionRows = {
+    { name = "Alliance", header = true, id = 469 },
+    { name = "Darnassus", id = 69, value = 4200, parent = "Alliance" },
+    { name = "Other", header = true, collapsed = true, id = 169 },
+    { name = "Booty Bay", id = 21, value = 2900, parent = "Other" },
+}
+local function visibleFactions()
+    local out, hidden = {}, {}
+    for _, f in ipairs(factionRows) do
+        if f.header and f.collapsed then hidden[f.name] = true end
+        if not (f.parent and hidden[f.parent]) then table.insert(out, f) end
+    end
+    return out
+end
+local function setCollapsed(i, collapsed) visibleFactions()[i].collapsed = collapsed end
+C_Reputation = {
+    GetNumFactions = function() return #visibleFactions() end,
+    GetFactionDataByIndex = function(i)
+        local f = visibleFactions()[i]
+        return f
+            and {
+                factionID = f.id,
+                name = f.name,
+                currentStanding = f.value or 0,
+                isHeader = f.header or false,
+                isCollapsed = f.collapsed or false,
+                isHeaderWithRep = false,
+            }
+    end,
+    ExpandFactionHeader = function(i) setCollapsed(i, false) end,
+    CollapseFactionHeader = function(i) setCollapsed(i, true) end,
+}
+FG.Profile:Snapshot()
+local function points(list)
+    local out = {}
+    for _, r in ipairs(list or {}) do
+        out[r.id] = r.value
+    end
+    return out
+end
+local seen = points(profile.reputation)
+assert(seen[69] == 4200 and seen[21] == 2900 and not seen[469] and not seen[169], "reputations, collapsed ones too")
+assert(factionRows[3].collapsed, "the collapsed header closed again")
+C_Reputation = nil
+-- Classic Era and TBC: the older globals.
+GetNumFactions = function() return #visibleFactions() end
+GetFactionInfo = function(i)
+    local f = visibleFactions()[i]
+    return f.name, "", 4, 0, 0, f.value or 0, false, false, f.header, f.collapsed, false, false, f.parent ~= nil, f.id
+end
+ExpandFactionHeader = function(i) setCollapsed(i, false) end
+CollapseFactionHeader = function(i) setCollapsed(i, true) end
+factionRows[2].value = 4300
+FG.Profile:Snapshot()
+seen = points(profile.reputation)
+assert(seen[69] == 4300 and seen[21] == 2900 and factionRows[3].collapsed, "reputations on Classic")
+GetNumFactions, GetFactionInfo, ExpandFactionHeader, CollapseFactionHeader = nil, nil, nil, nil
+print("reputations ok")
+
 -- Quests to pick up: the next accepts not done that can be taken now (quests needed done,
 -- level reached), the hand-picked one pointed at until done.
 playerLevel = 21

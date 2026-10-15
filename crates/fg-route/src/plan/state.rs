@@ -269,6 +269,9 @@ pub(crate) struct State {
     /// and `Params::farm_cap`).
     pub(crate) grind_used: i64,
     pub(crate) farm_used: i64,
+    /// Points with the faction of each reputation goal (`Params::reputation_goals`; none
+    /// without goals).
+    pub(crate) reputation: Vec<f32>,
     pub(crate) spent: Breakdown,
 }
 
@@ -335,6 +338,9 @@ pub struct Breakdown {
     /// Quests the route took and gave up (see `Params::abandon_weight`).
     #[serde(default)]
     pub abandoned: u32,
+    /// Reputation points the goals still miss at the end (see `Params::reputation_goals`).
+    #[serde(default)]
+    pub reputation_missing: f64,
 }
 
 /// Quests a route accepts (bit 1) and turns in (bit 2), and where it first accepts each.

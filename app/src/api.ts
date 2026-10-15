@@ -50,6 +50,10 @@ export interface Params {
   preferred_zones: number[];
   excluded_zones: number[];
   preferred_zone_weight: number;
+  /** Reputations to reach by the end of the guide (none by default: reputation weighs nothing). */
+  reputation_goals: ReputationGoal[];
+  /** Seconds each point missing from the goals at the end of the guide is worth. */
+  reputation_weight: number;
   min_efficiency: number;
   hearth_cooldown: number;
   hearth_cast: number;
@@ -172,6 +176,8 @@ export interface StartState {
   riding: number;
   gear: number[];
   spells: number[];
+  /** Points with each faction the game lists (none: recorded by an older addon). */
+  reputation?: { id: number; value: number }[];
   /** Copper. */
   money: number;
   /** When it was recorded (unix seconds). */
@@ -250,6 +256,8 @@ export interface Route {
   total_time_text: string;
   quests: number;
   breakdown: Breakdown;
+  /** The reputation goals and how far the guide gets (none without goals). */
+  reputation?: ReputationReached[];
   steps: Step[];
 }
 
@@ -259,6 +267,31 @@ export interface PlanOutcome {
 }
 
 /** A dungeon, with the levels of most of its quests. */
+/** A reputation to reach: points counted from the bottom of Neutral (Honored: 9000). */
+export interface ReputationGoal {
+  faction: number;
+  target: number;
+}
+
+/** A faction quests give reputation with: its side (null: neutral) and each race's start. */
+export interface FactionOption {
+  id: number;
+  name: string;
+  side: string | null;
+  quests: number;
+  /** ChrRaces ID -> starting points. */
+  starts: Record<string, number>;
+}
+
+/** Where a guide starts and ends with the faction of a reputation goal. */
+export interface ReputationReached {
+  faction: number;
+  name: string;
+  start: number;
+  reached: number;
+  target: number;
+}
+
 export interface DungeonOption extends NamedId {
   min_level: number | null;
   max_level: number | null;
@@ -278,6 +311,8 @@ export interface Options {
   classes: NamedId[];
   zones: { id: number; name: string; names?: Record<string, string>; continent: number }[];
   dungeons: DungeonOption[];
+  /** Factions quests give reputation with, most quests first. */
+  factions: FactionOption[];
   class_quests: Record<string, string[]>;
   params: Params;
   /** Level cap of the game version. */

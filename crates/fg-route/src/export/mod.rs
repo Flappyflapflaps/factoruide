@@ -14,7 +14,9 @@ pub use format::{FORMAT, read_route};
 pub use lua::to_lua;
 pub use phrase::{Arg, Phrase};
 pub use templates::Lang;
-pub use types::{Checkpoint, MapPointOut, Route, RouteProfession, Step, StepKind, Target, TargetKind};
+pub use types::{
+    Checkpoint, MapPointOut, ReputationReached, Route, RouteProfession, Step, StepKind, Target, TargetKind,
+};
 
 use crate::model::{Names, Profile};
 use crate::plan::{Breakdown, Event, Kind, Planner, Stop, Timed, fmt_time};
@@ -230,6 +232,30 @@ fn route_of(
             })
             .collect(),
         checkpoints,
+        reputation: reputation_reached(planner, route),
         steps,
     }
+}
+
+fn reputation_reached(planner: &Planner<'_>, route: &[Stop]) -> Vec<ReputationReached> {
+    let goals = &planner.params.reputation_goals;
+    if goals.is_empty() {
+        return Vec::new();
+    }
+    let reached = planner.reputation_reached(route);
+    let model = &planner.model;
+    goals
+        .iter()
+        .enumerate()
+        .map(|(g, goal)| {
+            let start = model.initial.reputation.get(g).copied().unwrap_or(0.0);
+            ReputationReached {
+                faction: goal.faction,
+                name: model.faction_names.get(&goal.faction).cloned().unwrap_or_default(),
+                start: start.round() as i64,
+                reached: reached.get(g).copied().unwrap_or(start).round() as i64,
+                target: goal.target,
+            }
+        })
+        .collect()
 }

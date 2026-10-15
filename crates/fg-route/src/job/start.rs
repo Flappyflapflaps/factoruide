@@ -44,8 +44,19 @@ pub struct StartState {
     pub spells: Vec<i64>,
     /// Copper.
     pub money: i64,
+    /// Points with each faction the game lists for the character (none: recorded by an older
+    /// addon).
+    pub reputation: Vec<Standing>,
     /// When it was recorded (unix seconds).
     pub time: i64,
+}
+
+/// Points with a faction (Faction ID), counted from the bottom of Neutral.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Standing {
+    pub id: i64,
+    pub value: i64,
 }
 
 /// A quest of the log.

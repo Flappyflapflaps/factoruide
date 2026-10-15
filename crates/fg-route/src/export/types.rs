@@ -270,7 +270,20 @@ pub struct Route {
     pub spells: Vec<i64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub checkpoints: Vec<Checkpoint>,
+    /// The reputation goals: where the character starts and ends with each faction.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reputation: Vec<ReputationReached>,
     pub steps: Vec<Step>,
+}
+
+/// A reputation goal and how far the guide gets: points counted from the bottom of Neutral.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReputationReached {
+    pub faction: i64,
+    pub name: String,
+    pub start: i64,
+    pub reached: i64,
+    pub target: i64,
 }
 
 /// A profession followed along the route, with its skill target per character level.

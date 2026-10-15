@@ -477,6 +477,14 @@ pub(super) struct QuestRow {
 }
 
 impl QuestRow {
+    /// The reputations its turn-in gives: (Faction ID, points).
+    pub(super) fn reputations(&self) -> Vec<(i64, i64)> {
+        self.reputation
+            .as_deref()
+            .and_then(|j| serde_json::from_str(j).ok())
+            .unwrap_or_default()
+    }
+
     /// A quest of that class: filed under the class, or given to that class only (Forever files
     /// some under their zone: the dwarf's Call of Earth under Dun Morogh).
     pub(super) fn of_class(&self, class_id: i64) -> bool {

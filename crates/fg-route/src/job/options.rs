@@ -14,6 +14,8 @@ pub struct Options {
     pub classes: Vec<NamedId>,
     pub zones: Vec<ZoneOption>,
     pub dungeons: Vec<DungeonOption>,
+    /// Factions quests give reputation with, for the guides' reputation goals.
+    pub factions: Vec<FactionOption>,
     pub class_quests: HashMap<String, Vec<String>>,
     pub params: Params,
     /// Level cap of the game version.
@@ -52,6 +54,19 @@ pub struct DungeonOption {
     /// Levels of most of its quests (the lowest and highest few left out), when it has some.
     pub min_level: Option<i64>,
     pub max_level: Option<i64>,
+}
+
+/// A faction quests give reputation with.
+#[derive(Debug, Clone, Serialize)]
+pub struct FactionOption {
+    pub id: i64,
+    pub name: String,
+    /// The side it belongs to (none: neutral, like the Argent Dawn).
+    pub side: Option<crate::faction::Faction>,
+    /// Quests giving reputation with it.
+    pub quests: usize,
+    /// Points each race starts with (ChrRaces ID -> points from the bottom of Neutral).
+    pub starts: BTreeMap<i64, i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -213,15 +228,79 @@ pub fn options(conn: &Connection, overrides: &Overrides) -> Result<Options> {
         });
         list
     };
+    let factions = factions(conn, &races)?;
     Ok(Options {
         races,
         classes,
         zones,
         dungeons,
+        factions,
         class_quests: class_quests(conn, overrides)?,
         params: overrides.params.clone(),
         max_level: overrides.params.edition.rules().max_level,
     })
+}
+
+/// The factions available quests give reputation with, most quests first, with each race's
+/// starting points (the race's entry of the Faction row, any class).
+fn factions(conn: &Connection, races: &[RaceOption]) -> Result<Vec<FactionOption>> {
+    let mut counts: HashMap<i64, usize> = HashMap::new();
+    let mut stmt = conn.prepare(
+        "SELECT reputation_reward FROM m_quest WHERE status = 'available' AND reputation_reward IS NOT NULL",
+    )?;
+    for row in stmt.query_map([], |r| r.get::<_, String>(0))? {
+        let rewards: Vec<(i64, i64)> = serde_json::from_str(&row?).unwrap_or_default();
+        for (faction, points) in rewards {
+            if points > 0 {
+                *counts.entry(faction).or_default() += 1;
+            }
+        }
+    }
+    let Ok(mut stmt) = conn.prepare("SELECT ID, Name_lang, ParentFactionID FROM client_faction") else {
+        return Ok(Vec::new());
+    };
+    let rows: HashMap<i64, (String, i64)> = stmt
+        .query_map([], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                (
+                    r.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                    r.get::<_, Option<i64>>(2)?.unwrap_or(0),
+                ),
+            ))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    let side = |mut id: i64| {
+        for _ in 0..8 {
+            match id {
+                469 => return Some(crate::faction::Faction::Alliance),
+                67 => return Some(crate::faction::Faction::Horde),
+                _ => id = rows.get(&id).map_or(0, |r| r.1),
+            }
+        }
+        None
+    };
+    let mut out = Vec::new();
+    for (&id, &quests) in &counts {
+        let Some((name, _)) = rows.get(&id).filter(|(name, _)| !name.is_empty()) else {
+            continue;
+        };
+        let mut starts = BTreeMap::new();
+        for race in races {
+            if let Some(points) = super::race_base(conn, id, crate::model::race_bit(race.id), -1)? {
+                starts.insert(race.id, points);
+            }
+        }
+        out.push(FactionOption {
+            id,
+            name: name.clone(),
+            side: side(id),
+            quests,
+            starts,
+        });
+    }
+    out.sort_by(|a, b| b.quests.cmp(&a.quests).then_with(|| a.name.cmp(&b.name)));
+    Ok(out)
 }
 
 /// Class quests teaching a spell from this level on are endgame (see `class_quests`).
@@ -321,5 +400,64 @@ mod tests {
             ["The Tome of Divinity", "A Lesson in Divinity", "The Tome of Nobility"]
         );
         assert_eq!(quests["hunter"], ["Taming the Beast"]);
+    }
+
+    /// The factions available quests give reputation with, most quests first, with their side
+    /// (up the parents to the Alliance or the Horde; none: neutral) and each race's start.
+    #[test]
+    fn factions_of_the_quests_with_their_side_and_starts() {
+        let conn = Connection::open_in_memory().unwrap();
+        let mut columns = vec!["ID".to_owned(), "Name_lang".to_owned(), "ParentFactionID".to_owned()];
+        for k in 0..4 {
+            columns.extend([
+                format!("ReputationRaceMasks{k}_0"),
+                format!("ReputationRaceMasks{k}_1"),
+                format!("ReputationClassMask_{k}"),
+                format!("ReputationBase_{k}"),
+            ]);
+        }
+        conn.execute_batch(&format!(
+            "CREATE TABLE client_faction ({});
+             INSERT INTO client_faction VALUES
+               (469, 'Alliance', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+               (1118, 'Classic', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+               (891, 'Alliance Forces', 469, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+               (69, 'Darnassus', 469, 8, 0, 0, 4000, 1309324210, -1440044374, 0, -42000, 0, 0, 0, 0, 0, 0, 0, 0),
+               (729, 'Frostwolf Clan', 67, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+               (529, 'Argent Dawn', 1118, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+             CREATE TABLE m_quest (status, reputation_reward);
+             INSERT INTO m_quest VALUES ('available', '[[69,100]]'), ('available', '[[69,250],[529,50]]'),
+               ('removed', '[[729,500]]'), ('available', '[[891,-10]]'), ('available', NULL);",
+            columns.join(", ")
+        ))
+        .unwrap();
+        let race = |id, key: &str, faction| RaceOption {
+            key: key.into(),
+            id,
+            name: key.into(),
+            faction,
+            classes: vec![],
+        };
+        let races = [
+            race(4, "nightelf", crate::faction::Faction::Alliance),
+            race(2, "orc", crate::faction::Faction::Horde),
+        ];
+        let found: Vec<_> = factions(&conn, &races)
+            .unwrap()
+            .into_iter()
+            .map(|f| (f.id, f.side, f.quests, f.starts.into_iter().collect::<Vec<_>>()))
+            .collect();
+        assert_eq!(
+            found,
+            [
+                (
+                    69,
+                    Some(crate::faction::Faction::Alliance),
+                    2,
+                    vec![(2, -42000), (4, 4000)]
+                ),
+                (529, None, 1, vec![(2, 0), (4, 0)]),
+            ]
+        );
     }
 }
