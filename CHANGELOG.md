@@ -5,6 +5,10 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 ## Unreleased
 
 - Guide editor: grinding up several levels moves from camp to camp without stopping the editor with an error.
+- WoW Forever: about 720 more quests have their XP, and about 100 have WoW Forever's own value instead of Classic's: guides count on about 6% more quest XP and grind less. Quest levels and required levels follow WoW Forever's changes.
+- WoW Forever: mobs Forever made elite or rare are known as such (Jasperlode Mine's spiders, the capitals' guards): guides keep away from them like from other elites.
+- WoW Forever: the Skyborne can take the quests of their side that are kept to some races; the library books' quests are in the guides, one after the other.
+- TBC Anniversary: quest items drop at the rate of a player on the quest, not one diluted by all the players killing the same mobs (median 35% -> 55%, e.g. Tender Strider Meat 1% -> 10%): fewer kills to plan.
 
 ## 0.9.0 (2026-10-14)
 
