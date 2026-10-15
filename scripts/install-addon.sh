@@ -30,7 +30,7 @@ fi
 for old in "$wow_dir/$client"/WTF/Account/*/SavedVariables/Factoruide.lua; do
     [ -e "$old" ] || continue
     new="$(dirname "$old")/Factoruide_Profile.lua"
-    if [ ! -e "$new" ] || [ "$old" -nt "$new" ]; then
+    if [ ! -e "$new" ] || [ -n "$(find "$old" -newer "$new")" ]; then
         cp "$old" "$new" && mv "$old" "$old.migrated"
     fi
 done

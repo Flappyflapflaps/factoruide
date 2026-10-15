@@ -2,76 +2,85 @@
 
 Each version's tag message (`scripts/release.sh`), shown in the app's update prompt, is kept short: a link to this file.
 
+Writing an entry: one short line per change, saying what the player sees or gets (not how it works inside), grouped under App, Guides, Addon and WoW data. Numbers and examples only when they tell the change better than words; details go to the commit.
+
 ## 0.10.0 (2026-10-15)
 
-Polestar can show your guides on WoW Forever, the addon comes in two parts, reputation goals and forced zones, anonymous contributions, and steps that name the mob to find and its other places.
+Polestar on WoW Forever, reputation goals, forced zones, and anonymous contributions.
 
 ### App
 
-- Addon, WoW Forever: the target macro no longer puts a skull on the target. The game blocks it there and showed a popup ("ForceTaint_Strong has been blocked from an action only available to the Blizzard UI"). Classic Era and TBC keep the skull.
-- Guides: a quest started by an item a mob drops says which mob to kill ("Kill Lost Stalker and loot Ira's Dagger to start Ira's Dagger"), and the addon's target macro targets it; the step only showed a place with nothing to loot.
-- Guides: steps on mobs living in several places (mobs to kill or loot, the mob dropping a quest's item) know up to five other places, closest first. The addon shows them on the world map; after 20 seconds at the place shown without a fight (nothing there), its arrow moves on to the closest one not visited yet, and `/fg spot` moves on at once. Polestar gets them too.
-- The addon is now two addons: Factoruide_Profile records your character and what the game shows, Factoruide_Guide shows the guide. Installing from the app replaces the former Factoruide addon and carries its saved data over; restart WoW once afterwards so that it finds the new addons.
-- WoW Forever: the Addon page can have Polestar show your guides instead of the Factoruide addon. The guides your characters follow are installed as a Polestar guide pack, Factoruide (choose it under "Suggest guides from" on Polestar's "Guide packs" page), and the Factoruide addon then only records, for your guides and contributions.
-- Guide settings: reputation goals (none by default). Pick factions and the standing to reach (Friendly to Exalted) by the end of the guide: the guide does the quests giving that reputation until the goal is met, going on past its target level if needed, as long as they are worth it ("Worth of a missing reputation point" in the advanced settings), and says where each faction ends. The start is the character's reputation when the guide starts from a character, else the race's (humans' Diplomacy counted). A goal the quests cannot reach is reported with the points missing (GitHub #15).
-- Addon: records the character's reputations with its profile, for the reputation goals.
-- Zones can be forced (a click on the map: preferred → forced → excluded → neutral, or ⚑ in the list): every quest of the zone is done, worth it or not, with the quests they need, and the guide goes on past its target level until they are done. Quests taken only after the target level and dungeon quests are left out; those that cannot be planned are listed.
-- Required class quests the guide had taken but not turned in when it reached its level are now done (the druid's Body and Heart from Teldrassil).
-- Guide editor: a guide ending with a flight to its last grinding spot replays to the time it was computed (the flight was walked).
-- Contribute page: send what your game saw (its quest cache and the addon's recordings) to the Factoruide server, only what is new since the last send. Anonymous: no character name, no account, no time of day, only game data; a random id of the install counts the different players; the server keeps no IP address. Automatic sending, once a day at most for every game version installed (hourly while a backlog does not fit in one send), can be turned on there or in the settings (off by default). The addon then drops the recordings the server has.
-- Addon: records what the guides need to get closer to the game, at little cost (one short line per event, about 30 KB per hour of play, dropped once the server has it): each fight's length, kills and XP, quest objectives as they progress, every looted corpse with the quantities, flights, and the time each guide step took against its estimate. Its errors are now counted in its saved data instead of passing unseen.
-- Addon, Classic Era and TBC Anniversary: a quest taken is recorded under its own number, not its place in the quest log (two quests had wrong givers in the data); turn-ins at NPCs without a dialogue list are recorded too.
-- Addon: the quest items fast loot takes are recorded as well (most were missed), each with the corpse it came from.
-- Addon, WoW Forever: no error when the game hides a target's level.
-- Guide editor: grinding up several levels moves from camp to camp without stopping the editor with an error.
+- WoW Forever: Polestar can show your guides instead of the Factoruide addon (Addon page).
+- Reputation goals: pick factions and the standing to reach by the end of the guide (GitHub #15).
+- Forced zones: every quest of the zone is done, even past the guide's target level (click the zone on the map, or ⚑ in the list).
+- Contribute page: send what your game saw to the Factoruide server, anonymously, by hand or once a day.
+- Guide editor: grinding over several camps no longer fails.
+
+### Guides
+
+- A quest started by an item a mob drops names the mob to kill.
+- Mobs living in several places: the guide knows up to five other places to find them.
+- Required class quests still in the log at the guide's end are now turned in (the druid's Body and Heart).
+
+### Addon
+
+- The addon is now two addons, Factoruide_Profile and Factoruide_Guide. Installing from the app replaces the old one and keeps your data; restart WoW once.
+- The arrow moves on to another place when a mob's place is empty (or at once with `/fg spot`).
+- WoW Forever: the target macro no longer marks the target with a skull (the game blocked it with a popup).
+- Records your reputations, and what helps guides match the game (fights, loot, time per step): about 30 KB per hour of play, dropped once sent.
+- Classic Era and TBC: quests taken and turned in are recorded right.
+- WoW Forever: no error when the game hides a target's level.
 
 ### WoW data
 
-- Game data: the names and ranks of the creatures and objects the game client has met fill what the other sources miss (about 660 more objects on WoW Forever); the NPC levels the addon saw only widen a known range.
-- WoW Forever: about 720 more quests have their XP, and about 100 have WoW Forever's own value instead of Classic's: guides count on about 6% more quest XP and grind less. Quest levels and required levels follow WoW Forever's changes.
-- WoW Forever: mobs Forever made elite or rare are known as such (Jasperlode Mine's spiders, the capitals' guards): guides keep away from them like from other elites.
-- WoW Forever: the class quests that teach a spell are in their class's guides, like Classic's: Rediscovering the Light (Holy Light, undead paladins: left out until now, its Injured Deathguard healed, not killed) and about 25 others whose spell the data lacked (Taming the Beast and Training the Beast, Call of Earth, Fire and Water, The Binding, Divine Grace, Confounding Flash, Contingency Plan). Darnassus's Contingency Plan is turned in to High Priestess Mims in Ironforge (GitHub #17).
-- WoW Forever: the Skyborne can take the quests of their side that are kept to some races; the library books' quests are in the guides, one after the other.
-- TBC Anniversary: quest items drop at the rate of a player on the quest, not one diluted by all the players killing the same mobs (median 35% -> 55%, e.g. Tender Strider Meat 1% -> 10%): fewer kills to plan.
+- WoW Forever: about 720 more quests have their XP, and 100 have WoW Forever's own value: less grinding.
+- WoW Forever: mobs Forever made elite or rare are avoided like other elites.
+- WoW Forever: class quests teaching a spell are in their class's guides (Holy Light for undead paladins, Taming the Beast, totems...) (GitHub #17).
+- WoW Forever: the Skyborne get their side's race-restricted quests; the library books' quests are in the guides.
+- TBC: quest items drop at the rate of a player on the quest: fewer kills planned.
+- Creatures and objects seen by the game client fill names and ranks missing elsewhere.
 
 ## 0.9.0 (2026-10-14)
 
-Guides closer to the game: walks no longer counted too long, quest items at their real drop rate, cloth donations, grinding at camps, and a comparison of a guide's versions.
+Guides closer to the game: shorter walks, real drop rates, grinding at camps, and a comparison of a guide's versions.
 
 ### App
 
-- Compare two versions of a guide ("Compare" in its versions, or next to the time difference with the previous one): their steps side by side, aligned as you go, with the steps added, removed, changed or done elsewhere marked, and a zone done at another time shown as one move with its own differences. The settings and game data that changed are listed, and the differences can be copied as text, to look for a mistake or report one. The `fg diff` command prints the same text.
-- Windows: the What's new page shows its titles and lists again (it showed the raw text).
-- Guides no longer walk over the mountains between the south of the Eastern Kingdoms (Stormwind, Elwynn, Stranglethorn) and the north (Dun Morogh, Wetlands, Silverpine): they take the tram, a flight or a boat, and the guide says so.
-- Preferred zones now weigh on the whole guide, not only on its first draft: the guide stays in them unless leaving saves a lot of time ("Weight of the preferred zones" in the advanced settings). Excluded zones are also left out for turn-ins and the hearthstone: a character bound in its start zone is no longer sent back there.
-- WoW Forever: the new boats are in the guides: Stormwind Harbor to Auberdine, Menethil Harbor's loop through Southshore and Auberdine (back to Menethil without stopping), and Steamwheedle Port to Powderfuse Port.
-- WoW Forever: the portals between Dalaran and Stormwind's Wizard's Sanctum are for the Skyborne only, both ways; other races no longer take them.
-- Off-road shortcuts are a step of the guide ("Take the shortcut: ..."), and the Dun Morogh to Wetlands mountain skip is only taken that way (it is a drop, not climbed back).
-- Walks follow the terrain closer: rivers, lakes and the coast are swum, slower than walking; the open sea, where fatigue kills, is never crossed; a cliff low enough is jumped down but never climbed. Islands close to the shore (Feathermoon Stronghold) can be swum to, Teldrassil cannot.
-- Guides are computed about as fast as before with this terrain: long walks go from tile to tile of the map instead of cell by cell.
-- The Feathermoon ferry (Feralas) is in the guides, both ways.
-- Guide editor: an objective done in one of several places opens in the place the guide does it (it could open in another, with another time).
-- Smaller app: the game data of the three game versions is about 38 MB lighter to download, and each game version takes about 60 MB less on disk once opened. The world maps are lighter images and load faster; the guides are the same.
-- Class quests that teach a spell are in the guide by default: Redemption, pets, stances, totems, poisons, demons, forms, mounts... They are listed with the class quests of a new guide: take out those you do not want. Guides made before keep their list (clone one to get the new one).
-- A guide no longer takes a quest, does half of it and abandons it hours later, unless that saves a lot of time ("Cost of an abandoned quest" in the advanced settings).
-- WoW Forever: mobs below your level give the XP of their own level, as measured in game (a level 25 character gets 113 XP from a level 22 mob, not 124): guides no longer count on more XP than they give.
-- Addon: abandon steps have a red cross, their label and the quest's name.
-- Characters page: a character deleted in game can be removed from the list (the game keeps its files): it no longer follows a guide, and comes back if played again.
-- Quests asking for an item that only another quest hands are in the guides (The Green Hills of Stranglethorn and its bound chapters, The Morrow Stone): the item is counted once that quest is turned in, where it is.
-- Cloth and other loot that hundreds of mobs drop (book pages) fill your bags along the guide: a quest asking for sixty Wool Cloth or a page only counts the time to gather or buy what the kills before have not dropped, so the cloth donations of the capitals are in the guides.
-- Quest XP is the game's own when your game has seen the quest (its quest cache, sent with contributions): exact rewards, and on WoW Forever each dungeon quest's own bonus.
-- Mobs killed on the way are those along the path walked (around the mountains, through the passes), not those on a straight line between two steps that the walk does not take.
-- Grinding takes place at a camp of mobs of your level, the trip there counted in the guide's time, instead of wherever the character stood (a capital, a flight path): the grind step shows the camp on the map, and the guide goes on from there.
-- Walks are no longer counted about 30 % too long: the path over the terrain was lengthened again by a factor meant for straight lines. Guides take fewer flights and are about 9 to 12 hours shorter on a 1-60 ("Detour factor" in the advanced settings, now 1).
-- Guide editor: a step reached by an off-road shortcut (the mountain skip into the Wetlands) no longer stops the editor with an error.
+- Compare two versions of a guide side by side ("Compare" in its versions).
+- Characters page: a character deleted in game can be removed.
+- Smaller app: about 38 MB lighter to download, 60 MB less on disk per game version.
+- Windows: the What's new page displays correctly again.
+- Guide editor: two fixes (off-road shortcuts, objectives in several places).
+
+### Guides
+
+- Walks were counted about 30% too long: 1-60 guides are 9 to 12 hours shorter.
+- Walks follow the terrain: rivers swum, the open sea avoided, cliffs jumped down but never climbed.
+- No more walking over the mountains between the south and north of the Eastern Kingdoms: tram, flight or boat instead.
+- Off-road shortcuts are steps of their own ("Take the shortcut: ...").
+- Grinding happens at a camp of mobs of your level, shown on the map.
+- Preferred zones weigh on the whole guide; excluded zones are no longer used for turn-ins or the hearthstone.
+- Class quests teaching a spell are in by default (Redemption, pets, totems, forms...): untick those you do not want.
+- No more quests taken, half done and abandoned hours later.
+- Cloth donations and quests asking for common loot are in the guides: what earlier kills dropped counts.
+- Quests needing an item another quest hands are in the guides (The Green Hills of Stranglethorn).
+- Mobs killed on the way are those along the path really walked.
+- Quest XP is the game's own when your game has seen the quest.
+- WoW Forever: mobs below your level give the XP the game gives.
+
+### Addon
+
+- Abandon steps show a red cross and the quest's name.
 
 ### WoW data
 
-- Quest items no longer drop four times in five for most quests: many had a placeholder chance of 80%. They now drop at about the rate players see on the mobs that drop them best (Mountain Lion Blood about 37%, Bloodscalp Ear about 35%), so guides count the kills these quests really take. Items of class quests, which only their class looks for, keep dropping often.
-- WoW Forever: the undead paladin's Redemption quests (A Lesson in Divinity) are done in their order and are required; other classes no longer get them.
-- WoW Forever: The Adventurer (Deathknell) is taken after The Red Messenger, not on arrival when Executor Arren does not offer it yet.
-- WoW Forever: the priest's Divine Grace, Confounding Flash and Contingency Plan, the druid's cat and bear form quests and the warrior's Skybreaker Bulwark (Defensive Stance) teach a spell: required. TBC: the blood elf and draenei paladins' Redemption, hunters' Beast Training and the blood elf warlock's Voidwalker too.
-- WoW Forever: the class quests of the new race and class pairs are kept to their class: a troll hunter no longer gets the orc mage's Glyphic Parchment nor the troll warlock's Tainted Tablet. The same goes for the gnome priest, undead paladin, human hunter, dwarf shaman and Skyborne hunter and shaman quests, and the druid's cat form quests.
+- Quest items drop at their real rate, not a placeholder 80%: guides count the kills quests really take.
+- The Feathermoon ferry (Feralas) is in the guides.
+- WoW Forever: the new boats are in the guides (Stormwind Harbor, Menethil Harbor's loop, Steamwheedle Port).
+- WoW Forever: the Dalaran to Stormwind portals are for the Skyborne only.
+- WoW Forever: class quests of the new race and class pairs stay with their class (a troll hunter no longer gets the orc mage's quests).
+- WoW Forever: the undead paladin's Redemption quests are done in order; The Adventurer is taken after The Red Messenger.
+- More class quests teaching a spell are required: priest, druid forms, warrior's Defensive Stance, and TBC paladins, hunters and warlocks.
 
 ## 0.8.0 (2026-10-14)
 
