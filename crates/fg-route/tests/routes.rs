@@ -1,7 +1,7 @@
 //! Planner behavior on the Classic database: reproductions of the problems met on real guides.
 
 use fg_route::job::{self, Bind, LogObjective, LogQuest, MapPos, Overrides, PlanRequest, Prepared, StartState};
-use fg_route::model::{CommonLoot, Guard, Initial, Objective, Spots};
+use fg_route::model::{CommonLoot, EntityKind, Guard, Initial, Objective, Spots};
 use fg_route::plan::{Edit, Event, Kind, Outcome, Planner, Stop};
 use fg_route::xp::Edition;
 use rusqlite::Connection;
@@ -227,6 +227,26 @@ fn rare_drop_start_is_left_out() {
         quest(human_warrior(), 136).is_none(),
         "Captain Sanders' Hidden Treasure"
     );
+}
+
+/// Creatures acted on without being killed (`talk` objectives: healed, talked to) are visited,
+/// not fought: no kills, one use each among their places, with the step's own text (Forever's
+/// Rediscovering the Light, GitHub #17). Here Kobold Camp Cleanup's vermin, made such a target
+/// in a copy of the objectives that shadows the database's.
+#[test]
+fn talked_to_creatures_are_not_killed() {
+    let conn = database();
+    conn.execute_batch(
+        "CREATE TEMP TABLE m_quest_objective AS SELECT * FROM main.m_quest_objective;
+         UPDATE temp.m_quest_objective SET type = 'talk', text = 'Heal Kobold Vermin' WHERE quest_id = 7;",
+    )
+    .unwrap();
+    let p = job::prepare(&conn, &overrides(), &request("human", "warrior", 6, &[]), &|_| {}).unwrap();
+    let o = &p.model.quests[quest(&p, 7).unwrap() as usize].objectives;
+    assert_eq!(o.len(), 1);
+    assert_eq!((o[0].kills, o[0].uses, o[0].count), (0.0, 10.0, 10.0));
+    assert_eq!((o[0].loc.kind, o[0].loc.id), (EntityKind::Npc, 6));
+    assert_eq!(o[0].text, "Heal Kobold Vermin");
 }
 
 /// The warlock's imp is taken first: it makes every fight that follows easier.

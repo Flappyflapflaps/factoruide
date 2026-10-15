@@ -176,7 +176,8 @@ impl QuestBuilder<'_> {
             ObjectiveKind::Creature | ObjectiveKind::KillCredit => self
                 .kill_or_talk(quest, kind, target, text, extra.as_deref(), amount)
                 .map(Some),
-            ObjectiveKind::Object => self.use_object(quest, target, text, amount).map(Some),
+            ObjectiveKind::Object => self.use_at(quest, EntityKind::Object, target, text, amount).map(Some),
+            ObjectiveKind::Talk => self.use_at(quest, EntityKind::Npc, target, text, amount).map(Some),
             ObjectiveKind::Item => self.get_item(quest, target, text, amount),
             ObjectiveKind::Trigger => self.explore(quest, text, extra.as_deref()).map(Some),
             ObjectiveKind::Other => Err("reputation/spell objective"),
@@ -222,12 +223,16 @@ impl QuestBuilder<'_> {
             .and_then(|s| self.sources.dungeon_by_area.get(&s).copied());
         let kind = *kind;
         let d = match kind {
-            ObjectiveKind::Creature | ObjectiveKind::KillCredit | ObjectiveKind::Object | ObjectiveKind::Item
+            ObjectiveKind::Creature
+            | ObjectiveKind::KillCredit
+            | ObjectiveKind::Talk
+            | ObjectiveKind::Object
+            | ObjectiveKind::Item
                 if quest_dungeon.is_some() =>
             {
                 quest_dungeon
             }
-            ObjectiveKind::Creature | ObjectiveKind::KillCredit | ObjectiveKind::Object => {
+            ObjectiveKind::Creature | ObjectiveKind::KillCredit | ObjectiveKind::Talk | ObjectiveKind::Object => {
                 if self.has_points(kind.entity(), target) {
                     None
                 } else {
@@ -351,26 +356,40 @@ impl QuestBuilder<'_> {
         })
     }
 
-    fn use_object(
+    /// Use objects, or act on creatures without killing them (heal them, talk to them): one use
+    /// each, among their places.
+    fn use_at(
         &self,
         quest: &QuestContext<'_>,
+        kind: EntityKind,
         target: i64,
         text: Option<String>,
         amount: Option<f64>,
     ) -> Result<Objective, Skip> {
         let entities = &self.sources.entities;
-        let points = entities.points(self.world, EntityKind::Object, target);
-        let (pos, zone, _) = best_cluster(&points, Some(&quest.anchor))
-            .or(quest.approx)
-            .ok_or("objective object location unknown")?;
-        let name = entities.name(EntityKind::Object, target);
+        let points = entities.points(self.world, kind, target);
+        let (pos, zone, _) =
+            best_cluster(&points, Some(&quest.anchor))
+                .or(quest.approx)
+                .ok_or(if kind == EntityKind::Object {
+                    "objective object location unknown"
+                } else {
+                    "objective creature location unknown"
+                })?;
+        let name = entities.name(kind, target);
         let uses = amount.or_else(|| count_for(&quest.requirements, &name)).unwrap_or(1.0);
-        let text = text.unwrap_or_else(|| format!("Use {name}"));
+        let text = text.unwrap_or_else(|| {
+            if kind == EntityKind::Object {
+                format!("Use {name}")
+            } else {
+                format!("Talk to {name}")
+            }
+        });
         let at = |pos: Pos, zone: i64| {
             let loc = Loc {
                 pos,
                 zone,
-                kind: EntityKind::Object,
+                kind,
                 id: target,
                 name: name.clone(),
             };

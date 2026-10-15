@@ -259,7 +259,9 @@ impl StepWriter<'_> {
         let n = o.count.round().max(1.0) as i64;
         // The database's text (English) says it best in English, and for dungeons and areas.
         let text = Arg::Text(o.text.clone());
-        let say = if o.dungeon.is_some() || o.loc.kind == EntityKind::Area {
+        // Creatures acted on (healed, a spell cast on them: uses, no kills) too: talking is not it.
+        let acted_on = o.loc.kind == EntityKind::Npc && o.kills <= 0.0 && o.uses > 0.0;
+        let say = if o.dungeon.is_some() || o.loc.kind == EntityKind::Area || acted_on {
             Phrase::new("objective.text").arg("text", text)
         } else {
             let (key, counted) = match o.loc.kind {

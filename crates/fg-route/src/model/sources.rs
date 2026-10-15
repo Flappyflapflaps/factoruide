@@ -60,6 +60,8 @@ pub(super) enum ObjectiveKind {
     Creature,
     /// Kill one of several creatures giving credit.
     KillCredit,
+    /// Act on a creature without killing it: talk to it, heal it, use a spell on it.
+    Talk,
     Object,
     Item,
     /// Reach an area.
@@ -82,6 +84,7 @@ impl ObjectiveKind {
         match name {
             "creature" => Self::Creature,
             "killcredit" => Self::KillCredit,
+            "talk" => Self::Talk,
             "object" => Self::Object,
             "item" => Self::Item,
             "trigger" => Self::Trigger,
