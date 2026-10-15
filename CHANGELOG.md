@@ -6,7 +6,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 
 ## 0.10.0 (2026-10-15)
 
-Polestar on WoW Forever, reputation goals, forced zones, and anonymous contributions.
+Polestar integration on WoW Forever, reputation goals, forced zones, and anonymous contributions.
 
 ### App
 
