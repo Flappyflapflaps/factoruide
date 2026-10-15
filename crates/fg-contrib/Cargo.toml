@@ -7,6 +7,7 @@ license = "MIT"
 
 [dependencies]
 anyhow = "1"
+getrandom = { version = "0.3", optional = true }
 mlua = { version = "0.11", features = ["lua51", "vendored", "send"], optional = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -15,7 +16,7 @@ serde_json = "1"
 default = ["local"]
 # Reading a game client folder (SavedVariables need Lua). Without it, only the contribution
 # format and its validation (what the contribution server needs).
-local = ["dep:mlua"]
+local = ["dep:mlua", "dep:getrandom"]
 
 [lints]
 workspace = true

@@ -53,7 +53,11 @@ pub fn to_lua(routes: &[Route]) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         );
+        // Steps carry the time they are planned to take (`d`, seconds): `time` is when each is done.
+        let mut previous = 0.0;
         for s in &r.steps {
+            let duration = (s.time - previous).max(0.0).round();
+            previous = s.time;
             let mut fields = vec![
                 format!("k = {}", lua_str(s.kind.as_str())),
                 format!("t = {}", lua_str(&s.text)),
@@ -135,6 +139,9 @@ pub fn to_lua(routes: &[Route]) -> String {
                 fields.push("kp = true".into());
             }
             fields.push(format!("lvl = {}", s.level));
+            if duration >= 1.0 {
+                fields.push(format!("d = {duration}"));
+            }
             if let Some(xp) = s.route_xp {
                 fields.push(format!("px = {xp}"));
             }

@@ -9,11 +9,19 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-const MEMORY_LIMIT: usize = 1 << 30;
+/// Memory a file may take: a real SavedVariables takes a few times its size.
+const BASE_MEMORY: usize = 64 << 20;
+const MEMORY_PER_BYTE: usize = 32;
+const MAX_MEMORY: usize = 1 << 30;
 /// Instructions a file may run: a real SavedVariables runs about 0.05 per byte.
 const BASE_INSTRUCTIONS: u64 = 10_000_000;
 const INSTRUCTIONS_PER_BYTE: u64 = 100;
-const HOOK_STEP: u32 = 10_000;
+const HOOK_STEP: u32 = 1_000;
+/// Some instructions cost far more than others (joining long strings): a time limit too.
+const MAX_SECONDS: u64 = 30;
+/// Text a converted value may hold, per byte of the file (a string referenced many times is
+/// copied each time).
+const TEXT_PER_BYTE: usize = 16;
 /// The addon's SavedVariables nest less than ten tables deep.
 const MAX_DEPTH: usize = 64;
 
@@ -142,15 +150,27 @@ impl Val {
 /// Converts a Lua value; tables nested too deep or met twice (cycles, shared tables that would
 /// expand exponentially) are refused.
 pub fn convert(v: &LV) -> Result<Val> {
-    convert_at(v, 0, &mut HashSet::new())
+    convert_within(v, MAX_MEMORY)
 }
 
-fn convert_at(v: &LV, depth: usize, seen: &mut HashSet<usize>) -> Result<Val> {
+/// `convert`, holding at most `text` bytes of strings.
+fn convert_within(v: &LV, text: usize) -> Result<Val> {
+    convert_at(v, 0, &mut HashSet::new(), &mut { text })
+}
+
+/// A Lua string, counted against the text left.
+fn take_text(s: &mlua::String, text: &mut usize) -> Result<String> {
+    let s = s.to_string_lossy();
+    *text = text.checked_sub(s.len()).context("Lua data too large once converted")?;
+    Ok(s)
+}
+
+fn convert_at(v: &LV, depth: usize, seen: &mut HashSet<usize>, text: &mut usize) -> Result<Val> {
     Ok(match v {
         LV::Boolean(b) => Val::Bool(*b),
         LV::Integer(i) => Val::Num(*i as f64),
         LV::Number(n) => Val::Num(*n),
-        LV::String(s) => Val::Str(s.to_string_lossy().clone()),
+        LV::String(s) => Val::Str(take_text(s, text)?),
         LV::Table(t) => {
             anyhow::ensure!(depth < MAX_DEPTH, "Lua tables nested too deep");
             anyhow::ensure!(seen.insert(t.to_pointer() as usize), "Lua table met twice");
@@ -160,10 +180,10 @@ fn convert_at(v: &LV, depth: usize, seen: &mut HashSet<usize>) -> Result<Val> {
                 let key = match k {
                     LV::Integer(i) => Key::Int(i),
                     LV::Number(n) if n.fract() == 0.0 => Key::Int(n as i64),
-                    LV::String(s) => Key::Str(s.to_string_lossy().clone()),
+                    LV::String(s) => Key::Str(take_text(&s, text)?),
                     other => Key::Str(format!("{other:?}")),
                 };
-                map.insert(key, convert_at(&v, depth + 1, seen)?);
+                map.insert(key, convert_at(&v, depth + 1, seen, text)?);
             }
             Val::Table(map)
         }
@@ -174,7 +194,7 @@ fn convert_at(v: &LV, depth: usize, seen: &mut HashSet<usize>) -> Result<Val> {
 /// A state for untrusted data files: no libraries, bounded memory.
 pub fn new_lua() -> Lua {
     let lua = Lua::new_with(StdLib::NONE, LuaOptions::default()).expect("creating Lua state");
-    lua.set_memory_limit(MEMORY_LIMIT).expect("limiting Lua memory");
+    lua.set_memory_limit(MAX_MEMORY).expect("limiting Lua memory");
     lua
 }
 
@@ -184,9 +204,11 @@ pub fn new_lua() -> Lua {
 fn sandboxed(lua: &Lua, path: &Path) -> Result<(mlua::Chunk<'static>, Table)> {
     let src = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
     let budget = BASE_INSTRUCTIONS + INSTRUCTIONS_PER_BYTE * src.len() as u64;
+    lua.set_memory_limit(MAX_MEMORY.min(BASE_MEMORY + MEMORY_PER_BYTE * src.len()))?;
     let run = AtomicU64::new(0);
+    let start = std::time::Instant::now();
     lua.set_hook(HookTriggers::new().every_nth_instruction(HOOK_STEP), move |_, _| {
-        if run.fetch_add(u64::from(HOOK_STEP), Ordering::Relaxed) > budget {
+        if run.fetch_add(u64::from(HOOK_STEP), Ordering::Relaxed) > budget || start.elapsed().as_secs() >= MAX_SECONDS {
             return Err(mlua::Error::runtime("Lua file runs too long"));
         }
         Ok(VmState::Continue)
@@ -204,14 +226,24 @@ fn sandboxed(lua: &Lua, path: &Path) -> Result<(mlua::Chunk<'static>, Table)> {
 pub fn eval_file(lua: &Lua, path: &Path) -> Result<Val> {
     let (chunk, _) = sandboxed(lua, path)?;
     let v: LV = chunk.eval().with_context(|| format!("evaluating {}", path.display()))?;
-    convert(&v)
+    convert_within(&v, text_budget(path))
+}
+
+/// Text the data of a file may hold once converted.
+fn text_budget(path: &Path) -> usize {
+    let size = std::fs::metadata(path).map_or(0, |m| m.len() as usize);
+    MAX_MEMORY.min(BASE_MEMORY + TEXT_PER_BYTE * size)
 }
 
 /// Run a SavedVariables-like file (assigns globals) and return the named globals.
 pub fn load_globals(lua: &Lua, path: &Path, names: &[&str]) -> Result<Vec<Val>> {
     let (chunk, env) = sandboxed(lua, path)?;
     chunk.exec().with_context(|| format!("executing {}", path.display()))?;
-    names.iter().map(|n| convert(&env.get::<LV>(*n)?)).collect()
+    let text = text_budget(path);
+    names
+        .iter()
+        .map(|n| convert_within(&env.get::<LV>(*n)?, text))
+        .collect()
 }
 
 #[cfg(test)]
@@ -268,5 +300,19 @@ mod tests {
     #[test]
     fn bounds_memory() {
         assert!(load(b"local t = {} for i = 1, 1e10 do t[i] = i end").is_err());
+        // A few long strings joined again and again: memory after the file's size, and time.
+        let start = std::time::Instant::now();
+        assert!(
+            load(b"local s = 'x' for i = 1, 26 do s = s .. s end for i = 1, 2000000 do local y = s .. s end").is_err()
+        );
+        assert!(start.elapsed().as_secs() < 10);
+    }
+
+    #[test]
+    fn bounds_a_string_shared_many_times() {
+        assert!(
+            load(b"local s = 'x' for i = 1, 20 do s = s .. s end local t = {} for i = 1, 100000 do t[i] = s end DB = {big = t}")
+                .is_err()
+        );
     }
 }

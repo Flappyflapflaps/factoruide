@@ -1615,6 +1615,29 @@ fn accept_steps_carry_what_the_quest_needs() {
     );
 }
 
+/// Each step carries the time it is planned to take (the addon records it next to the time the
+/// player took): the steps' times add up to the route's.
+#[test]
+fn steps_carry_their_planned_time() {
+    let p = human_warrior();
+    let planner = planner(p);
+    let route = planner.construct(|_| {});
+    let guide = fg_route::export::build(&planner, &p.profile, &route);
+    let lua = fg_route::export::to_lua(std::slice::from_ref(&guide));
+    let durations: Vec<f64> = lua
+        .lines()
+        .filter_map(|line| line.split(", d = ").nth(1))
+        .map(|rest| rest.split([',', ' ']).next().unwrap().parse().unwrap())
+        .collect();
+    assert!(durations.len() > guide.steps.len() / 2, "most steps take some time");
+    let end = guide.steps.last().unwrap().time;
+    let sum: f64 = durations.iter().sum();
+    assert!(
+        (sum - end).abs() <= guide.steps.len() as f64,
+        "planned times {sum} s, route {end} s"
+    );
+}
+
 /// Blackrock Menace (axes from Blackrock orcs, Redridge): its spot near the giver holds only a
 /// few orcs standing in pairs, one point for a Grunt or an Outrunner taking turns. The pairs
 /// make it harder than lone orcs, the ~22 kills wait for respawns, more on a crowded server.

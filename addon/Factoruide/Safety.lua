@@ -14,15 +14,17 @@ FG:On("PLAYER_TARGET_CHANGED", function()
     if
         not FG:Get("safetyAlerts")
         or not UnitExists("target")
-        or UnitIsDead("target")
-        or not UnitCanAttack("player", "target")
+        or FG.Readable(UnitIsDead("target"))
+        or not FG.Readable(UnitCanAttack("player", "target"))
     then
         return
     end
-    if UnitIsPlayer("target") then return end
-    local level, mine = UnitLevel("target"), UnitLevel("player")
-    local kind = UnitClassification("target")
-    local name = UnitName("target") or ""
+    if FG.Readable(UnitIsPlayer("target")) then return end
+    -- The target's level, kind and name can be secret on Forever: not compared then.
+    local level, mine = FG.Readable(UnitLevel("target")), UnitLevel("player")
+    local kind = FG.Readable(UnitClassification("target"))
+    local name = FG.Readable(UnitName("target")) or ""
+    if not level then return end
     if level == -1 or kind == "worldboss" then
         Warn(string.format(fr and "DANGER : %s (niveau ??)" or "DANGER: %s (level ??)", name))
     elseif kind == "elite" or kind == "rareelite" then

@@ -61,7 +61,8 @@ zones to do, the level to reach before moving on from each, and where the XP is.
   character as it is now: it becomes a new version of the guide, with the difference from the previous
   one, and you choose the version its characters follow.
 - The guides learn from the game: the XP and positions the addon records replace the estimates,
-  and the "Contribute" page lists the tools that send what your game sees to the community's quest
+  and the "Contribute" page sends what your game sees to the Factoruide server (anonymous, only what
+  is new, automatically if you turn it on) and lists the other tools that feed the community's quest
   databases.
 - Rework a guide by hand: move, remove or add steps (a quest, the hearthstone, a flight, mobs to
   kill), the guide replayed after each change with its new time and the steps that are no longer

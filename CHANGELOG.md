@@ -4,6 +4,12 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 ## Unreleased
 
+- Contribute page: send what your game saw (its quest cache and the addon's recordings) to the Factoruide server, only what is new since the last send. Anonymous: no character name, no account, no time of day, only game data; a random id of the install counts the different players; the server keeps no IP address. Automatic sending, once a day at most for every game version installed (hourly while a backlog does not fit in one send), can be turned on there or in the settings (off by default). The addon then drops the recordings the server has.
+- Addon: records what the guides need to get closer to the game, at little cost (one short line per event, about 30 KB per hour of play, dropped once the server has it): each fight's length, kills and XP, quest objectives as they progress, every looted corpse with the quantities, flights, and the time each guide step took against its estimate. Its errors are now counted in its saved data instead of passing unseen.
+- Addon, Classic Era and TBC Anniversary: a quest taken is recorded under its own number, not its place in the quest log (two quests had wrong givers in the data); turn-ins at NPCs without a dialogue list are recorded too.
+- Addon: the quest items fast loot takes are recorded as well (most were missed), each with the corpse it came from.
+- Addon, WoW Forever: no error when the game hides a target's level.
+- Game data: the names and ranks of the creatures and objects the game client has met fill what the other sources miss (about 660 more objects on WoW Forever); the NPC levels the addon saw only widen a known range.
 - Guide editor: grinding up several levels moves from camp to camp without stopping the editor with an error.
 - WoW Forever: about 720 more quests have their XP, and about 100 have WoW Forever's own value instead of Classic's: guides count on about 6% more quest XP and grind less. Quest levels and required levels follow WoW Forever's changes.
 - WoW Forever: mobs Forever made elite or rare are known as such (Jasperlode Mine's spiders, the capitals' guards): guides keep away from them like from other elites.

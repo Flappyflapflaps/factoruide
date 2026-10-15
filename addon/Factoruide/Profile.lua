@@ -20,15 +20,7 @@ local UNKNOWN_FLIGHT = Enum and Enum.FlightPathState and Enum.FlightPathState.Un
 
 local profile -- this character's saved profile
 
-local function CompletedQuests()
-    if QuestLog.GetAllCompletedQuestIDs then return QuestLog.GetAllCompletedQuestIDs() or {} end
-    local out = {}
-    for id, done in pairs(GetQuestsCompleted and GetQuestsCompleted() or {}) do
-        if done then table.insert(out, id) end
-    end
-    table.sort(out)
-    return out
-end
+local function CompletedQuests() return QuestLog.GetAllCompletedQuestIDs() or {} end
 
 --- Quests in the log, with what their objectives have so far.
 local function LogQuests()

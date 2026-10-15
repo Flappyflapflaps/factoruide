@@ -1,6 +1,7 @@
 // Hide the console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use fg_contrib::contribution::{Contribution, SendState};
 use fg_route::Route;
 use fg_route::export::diff::{self, Change, RouteDiff};
 use fg_route::job::{
@@ -38,9 +39,10 @@ struct Settings {
     /// players back what they report; nothing else about the player).
     #[serde(default)]
     contributor: Option<String>,
-    /// When this computer last sent one (unix seconds).
+    /// Send what is new to the contribution server on its own, once a day at most (off unless
+    /// the player turns it on).
     #[serde(default)]
-    last_contribution: Option<u64>,
+    auto_contribute: bool,
     /// Addon behaviour, written to the addon's Config.lua on install.
     #[serde(default)]
     addon: serde_json::Map<String, serde_json::Value>,
@@ -82,7 +84,7 @@ impl Default for Settings {
             language: None,
             contribution_url: None,
             contributor: None,
-            last_contribution: None,
+            auto_contribute: false,
             addon: serde_json::Map::new(),
             guide_locale: None,
             all_guides: false,
@@ -95,8 +97,12 @@ impl Default for Settings {
 impl Settings {
     /// The addon folder of the edition's game client.
     fn installed_addon(&self) -> PathBuf {
+        self.addon_dir(self.edition)
+    }
+    /// The addon folder of a game version's client.
+    fn addon_dir(&self, edition: Edition) -> PathBuf {
         self.wow_dir
-            .join(self.edition.client_folder())
+            .join(edition.client_folder())
             .join("Interface/AddOns/Factoruide")
     }
 }
@@ -118,6 +124,11 @@ struct AppState {
     walks: Mutex<HashMap<Edition, Arc<Walks>>>,
     /// The guide version open in the editor.
     editor: Mutex<Option<EditSession>>,
+    /// Held while a contribution is read, sent and recorded: one send at a time, manual or
+    /// automatic.
+    send_lock: Mutex<()>,
+    /// Wakes the automatic contributions up (turned on in the settings).
+    auto_wake: std::sync::mpsc::Sender<()>,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -287,27 +298,56 @@ fn get_settings(state: State<'_, AppState>) -> Settings {
     reason = "tauri commands take their arguments by value"
 )]
 fn set_settings(state: State<'_, AppState>, mut settings: Settings) -> CmdResult<()> {
+    let before = state.settings();
     // Not edited by the settings page: kept.
     if settings.contributor.is_none() {
-        settings.contributor = state.settings().contributor;
+        settings.contributor = before.contributor;
     }
     if settings.addon_installed.is_none() {
-        settings.addon_installed = state.settings().addon_installed;
+        settings.addon_installed = before.addon_installed;
     }
-    write_settings(&state, settings)
+    let wake = settings.auto_contribute && !before.auto_contribute;
+    write_settings(&state, settings)?;
+    if wake {
+        let _ = state.auto_wake.send(());
+    }
+    Ok(())
 }
 
-fn write_settings(state: &AppState, settings: Settings) -> CmdResult<()> {
-    if let Some(dir) = state.config_file.parent() {
+fn write_settings(state: &AppState, mut settings: Settings) -> CmdResult<()> {
+    let mut current = state.settings.lock().unwrap();
+    // Created meanwhile by a contribution (see `contributor_id`): never lost to an older copy.
+    if settings.contributor.is_none() {
+        settings.contributor.clone_from(&current.contributor);
+    }
+    save_settings_file(&state.config_file, &settings)?;
+    *current = settings;
+    Ok(())
+}
+
+/// Turn the automatic contributions on or off (only that setting: the pages showing it hold
+/// copies of the others).
+#[tauri::command]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn set_auto_contribute(state: State<'_, AppState>, on: bool) -> CmdResult<()> {
+    let mut settings = state.settings();
+    let wake = on && !settings.auto_contribute;
+    settings.auto_contribute = on;
+    write_settings(&state, settings)?;
+    if wake {
+        let _ = state.auto_wake.send(());
+    }
+    Ok(())
+}
+
+fn save_settings_file(file: &Path, settings: &Settings) -> CmdResult<()> {
+    if let Some(dir) = file.parent() {
         std::fs::create_dir_all(dir).map_err(err)?;
     }
-    std::fs::write(
-        &state.config_file,
-        serde_json::to_string_pretty(&settings).map_err(err)?,
-    )
-    .map_err(err)?;
-    *state.settings.lock().unwrap() = settings;
-    Ok(())
+    std::fs::write(file, serde_json::to_string_pretty(settings).map_err(err)?).map_err(err)
 }
 
 /// Off the main thread: the window stays responsive while the database is unpacked and read.
@@ -1082,6 +1122,9 @@ fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
     lua.push_str("}\n");
     std::fs::write(dest.join("Routes.lua"), lua).map_err(err)?;
     job::write_addon_config(&dest, &settings.addon).map_err(err)?;
+    // Made again from what was sent, so a reinstall never brings back events already sent.
+    let sent = read_send_record(&send_record_file(&state.data_dir, settings.edition)).unwrap_or_default();
+    write_sent_lua(&dest, &sent.state).map_err(err)?;
     write_settings(
         &state,
         Settings {
@@ -1142,6 +1185,10 @@ fn lua_string(text: &str) -> String {
             '\\' => out.push_str("\\\\"),
             '"' => out.push_str("\\\""),
             '\n' => out.push_str("\\n"),
+            // Other control characters as decimal escapes, always 3 digits (a digit may follow).
+            c if c.is_ascii_control() => {
+                let _ = write!(out, "\\{:03}", c as u32);
+            }
             c => out.push(c),
         }
     }
@@ -1472,6 +1519,7 @@ fn main() {
             }
             let settings = config.and_then(|c| serde_json::from_value(c).ok()).unwrap_or_default();
             let db_dir = app.path().app_local_data_dir()?;
+            let (auto_wake, wake) = std::sync::mpsc::channel();
             app.manage(AppState {
                 settings: Mutex::new(settings),
                 config_file,
@@ -1482,9 +1530,13 @@ fn main() {
                 plan_interrupt: job::Interrupt::default(),
                 walks: Mutex::new(HashMap::default()),
                 editor: Mutex::new(None),
+                send_lock: Mutex::new(()),
+                auto_wake,
             });
             migrate_guides(&app.state::<AppState>().data_dir);
             migrate_results(&app.state::<AppState>());
+            let handle = app.handle().clone();
+            std::thread::spawn(move || auto_contribute_loop(&handle, &wake));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1504,6 +1556,7 @@ fn main() {
             set_edition,
             contribution_preview,
             send_contribution,
+            set_auto_contribute,
             list_guides,
             get_guide,
             get_version,
@@ -1568,21 +1621,122 @@ fn migrate_guides(data_dir: &Path) {
 
 // Contributions --------------------------------------------------------------------
 
-/// What a contribution of this computer would hold, for the current game version.
+/// What was sent from this computer for one game version, kept in the app data folder
+/// (`contribution-state-<edition>.json`). Its `state` holds character names (never sent) and
+/// changes only once the server accepted a contribution.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+struct SendRecord {
+    /// When the server last accepted one (unix seconds).
+    #[serde(default)]
+    last_sent: Option<u64>,
+    /// No send before then (unix seconds): the server asked to wait.
+    #[serde(default)]
+    retry_after: Option<u64>,
+    /// How the last automatic send went.
+    #[serde(default)]
+    last_auto: Option<AutoSend>,
+    /// The last accepted send left new data for a next document (one holds only so much).
+    #[serde(default)]
+    more: bool,
+    #[serde(default)]
+    state: SendState,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct AutoSend {
+    /// Unix seconds.
+    time: u64,
+    /// "accepted", "already_received", "rate_limited" or "error" (said by `message`).
+    status: String,
+    #[serde(default)]
+    message: Option<String>,
+}
+
+fn send_record_file(data_dir: &Path, edition: Edition) -> PathBuf {
+    data_dir.join(format!("contribution-state-{}.json", edition.key()))
+}
+
+/// The record of a game version, empty when there is none yet. One that cannot be read is an
+/// error, not a fresh start: that would send everything again under new character ids.
+fn read_send_record(file: &Path) -> CmdResult<SendRecord> {
+    match std::fs::read(file) {
+        Ok(bytes) => serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", file.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(SendRecord::default()),
+        Err(e) => Err(format!("{}: {e}", file.display())),
+    }
+}
+
+/// Write a file whole or not at all: a temporary file renamed over it.
+fn write_atomic(file: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let mut tmp = file.as_os_str().to_owned();
+    tmp.push(".tmp");
+    std::fs::write(&tmp, bytes)?;
+    std::fs::rename(&tmp, file)
+}
+
+fn write_send_record(file: &Path, record: &SendRecord) -> CmdResult<()> {
+    write_atomic(file, &serde_json::to_vec_pretty(record).map_err(err)?).map_err(err)
+}
+
+/// Sent.lua: the last event of each character the server accepted, for the addon to drop the
+/// events up to it from its recordings (by name: a name found in several accounts is left out).
+fn sent_lua(state: &SendState) -> String {
+    let mut lua = String::from(
+        "-- Generated by the Factoruide app. Do not edit.\n\
+         -- Last event of each character the contribution server accepted: the addon drops the events up to it.\n\
+         FactoruideSent = {\n",
+    );
+    for (character, last_seq) in state.sent_by_name() {
+        let _ = writeln!(lua, "  [{}] = {last_seq},", lua_string(&character));
+    }
+    lua.push_str("}\n");
+    lua
+}
+
+/// Write Sent.lua into an installed addon (nothing when the addon is not there).
+fn write_sent_lua(addon_dir: &Path, state: &SendState) -> std::io::Result<()> {
+    if !addon_dir.is_dir() {
+        return Ok(());
+    }
+    write_atomic(&addon_dir.join("Sent.lua"), sent_lua(state).as_bytes())
+}
+
+/// What a contribution of this computer would hold now, for the current game version.
 #[derive(Serialize)]
 struct ContributionPreview {
     edition: &'static str,
     /// The game client folder read.
     client_dir: String,
     found: bool,
+    /// What is new since the last contribution the server accepted.
     quests: usize,
+    /// Creatures and game objects from the client's caches.
+    entities: usize,
     events: usize,
     characters: usize,
     locales: Vec<String>,
     /// Size of the JSON sent (bytes).
     size: usize,
+    /// What is new does not fit in one document: the rest goes in the next ones.
+    more: bool,
     url: Option<String>,
+    /// When the server last accepted one of this game version (unix seconds).
     last_sent: Option<u64>,
+    /// No send before then (unix seconds): the server asked to wait.
+    retry_after: Option<u64>,
+    /// The last automatic send of each game version.
+    automatic: Vec<AutoStatus>,
+}
+
+#[derive(Serialize)]
+struct AutoStatus {
+    edition: &'static str,
+    name: &'static str,
+    #[serde(flatten)]
+    send: AutoSend,
 }
 
 /// The contribution server the app was built with (`FG_CONTRIBUTION_SERVER` at build time).
@@ -1604,9 +1758,10 @@ fn contribution_endpoint(settings: &Settings) -> Option<String> {
     Some(format!("{base}/v1/contributions"))
 }
 
-/// This install's contributor id, created the first time.
+/// This install's contributor id, created the first time (settings locked meanwhile: the
+/// automatic sends may ask for it while the settings page saves).
 fn contributor_id(state: &AppState) -> CmdResult<String> {
-    let mut settings = state.settings();
+    let mut settings = state.settings.lock().unwrap();
     if let Some(id) = settings
         .contributor
         .clone()
@@ -1621,22 +1776,29 @@ fn contributor_id(state: &AppState) -> CmdResult<String> {
         id
     });
     settings.contributor = Some(id.clone());
-    write_settings(state, settings)?;
+    save_settings_file(&state.config_file, &settings)?;
     Ok(id)
 }
 
-fn contribution(state: &AppState) -> CmdResult<(fg_contrib::contribution::Contribution, PathBuf)> {
+/// What is new in a game version's client folder since `sent` (one document of it), the
+/// state to keep once the server accepted it, whether more is left for a next document, and
+/// the folder read.
+fn collect_contribution(
+    state: &AppState,
+    edition: Edition,
+    sent: &SendState,
+) -> CmdResult<(Contribution, SendState, bool, PathBuf)> {
     let contributor = contributor_id(state)?;
-    let settings = state.settings();
-    let client_dir = settings.wow_dir.join(settings.edition.client_folder());
-    let c = fg_contrib::contribution::collect(
+    let client_dir = state.settings().wow_dir.join(edition.client_folder());
+    let (c, next, more) = fg_contrib::contribution::collect(
         &client_dir,
-        settings.edition.key(),
+        edition.key(),
         env!("CARGO_PKG_VERSION"),
         &contributor,
+        sent,
     )
     .map_err(err)?;
-    Ok((c, client_dir))
+    Ok((c, next, more, client_dir))
 }
 
 // Off the main thread: reading the SavedVariables can take a while.
@@ -1648,60 +1810,406 @@ async fn contribution_preview(app: AppHandle) -> CmdResult<ContributionPreview> 
 }
 
 fn preview(state: &AppState) -> CmdResult<ContributionPreview> {
-    let (c, client_dir) = contribution(state)?;
     let settings = state.settings();
+    let record = read_send_record(&send_record_file(&state.data_dir, settings.edition))?;
+    let (c, _, more, client_dir) = collect_contribution(state, settings.edition, &record.state)?;
+    let automatic = Edition::ALL
+        .iter()
+        .filter_map(|&e| {
+            let send = read_send_record(&send_record_file(&state.data_dir, e))
+                .ok()?
+                .last_auto?;
+            Some(AutoStatus {
+                edition: e.key(),
+                name: e.rules().edition_name,
+                send,
+            })
+        })
+        .collect();
     Ok(ContributionPreview {
         edition: settings.edition.key(),
         found: client_dir.is_dir(),
         client_dir: client_dir.display().to_string(),
         quests: c.quests(),
+        entities: c.entities(),
         events: c.events(),
         characters: c.collector.len(),
         locales: c.quest_cache.iter().map(|f| f.locale.clone()).collect(),
         size: serde_json::to_vec(&c).map_err(err)?.len(),
+        more,
         url: contribution_endpoint(&settings),
-        last_sent: settings.last_contribution,
+        last_sent: record.last_sent,
+        retry_after: record.retry_after.filter(|&t| now().is_ok_and(|now| now < t)),
+        automatic,
     })
 }
 
-/// Send the contribution of this computer to the server: "accepted", or "duplicate" when the
-/// server already has the same data. Errors: "rate_limited", or the server's message.
+/// The server's answer to a contribution.
+#[derive(Debug, Clone, PartialEq)]
+enum Posted {
+    /// 201: kept.
+    Accepted,
+    /// 200: the server already had this document.
+    AlreadyReceived,
+    /// 429: too many sends; wait that many seconds when the server says.
+    RateLimited(Option<u64>),
+    Failed(String),
+}
+
+impl Posted {
+    fn accepted(&self) -> bool {
+        matches!(self, Posted::Accepted | Posted::AlreadyReceived)
+    }
+    fn status(&self) -> &'static str {
+        match self {
+            Posted::Accepted => "accepted",
+            Posted::AlreadyReceived => "already_received",
+            Posted::RateLimited(_) => "rate_limited",
+            Posted::Failed(_) => "error",
+        }
+    }
+}
+
+/// Longest wait asked by the server that is honored (a week).
+const MAX_RETRY_AFTER: u64 = 7 * 86_400;
+
+/// The seconds of a "Retry-After" header (its date form is not read: the next check waits).
+fn retry_after_secs(value: &str) -> Option<u64> {
+    value.trim().parse::<u64>().ok().map(|s| s.min(MAX_RETRY_AFTER))
+}
+
+/// Post a contribution document. Nothing about this computer goes with it: a fixed user agent,
+/// no cookie, no proxy from the environment, and no redirect followed (it could take the
+/// document to another host).
+fn post_contribution(url: &str, body: &[u8]) -> Posted {
+    let agent = ureq::AgentBuilder::new()
+        .redirects(0)
+        .try_proxy_from_env(false)
+        .timeout_connect(std::time::Duration::from_secs(20))
+        .timeout(std::time::Duration::from_secs(120))
+        .user_agent("Factoruide")
+        .build();
+    let message = |r: ureq::Response| {
+        let json: serde_json::Value = r.into_json().unwrap_or_default();
+        json["error"]
+            .as_str()
+            .or(json["status"].as_str())
+            .unwrap_or("")
+            .to_owned()
+    };
+    match agent.post(url).set("Content-Type", "application/json").send_bytes(body) {
+        Ok(r) if r.status() == 201 => Posted::Accepted,
+        Ok(r) if r.status() == 200 => Posted::AlreadyReceived,
+        Ok(r) => Posted::Failed(format!("{}: unexpected answer", r.status())),
+        Err(ureq::Error::Status(429, r)) => Posted::RateLimited(r.header("Retry-After").and_then(retry_after_secs)),
+        Err(ureq::Error::Status(code, r)) => Posted::Failed(format!("{code}: {}", message(r))),
+        Err(e) => Posted::Failed(err(e)),
+    }
+}
+
+/// A contribution ready to post, with the record of its game version it updates.
+struct Outgoing {
+    edition: Edition,
+    file: PathBuf,
+    record: SendRecord,
+    contribution: Contribution,
+    /// The state to keep once the server accepted it.
+    next: SendState,
+    /// New data is left for a next document.
+    more: bool,
+}
+
+/// Post a contribution with `post` and record the answer: the new state is kept only when the
+/// server accepted the document, so what failed goes again next time.
+fn deliver(
+    out: Outgoing,
+    now: u64,
+    automatic: bool,
+    post: impl FnOnce(&[u8]) -> Posted,
+) -> CmdResult<(Posted, SendRecord)> {
+    let Outgoing {
+        file,
+        mut record,
+        contribution,
+        next,
+        more,
+        ..
+    } = out;
+    let posted = post(&serde_json::to_vec(&contribution).map_err(err)?);
+    match &posted {
+        Posted::Accepted | Posted::AlreadyReceived => {
+            record.state = next;
+            record.last_sent = Some(now);
+            record.retry_after = None;
+            record.more = more;
+        }
+        Posted::RateLimited(wait) => record.retry_after = wait.map(|w| now + w),
+        Posted::Failed(_) => {}
+    }
+    if automatic {
+        record.last_auto = Some(AutoSend {
+            time: now,
+            status: posted.status().to_owned(),
+            message: match &posted {
+                Posted::Failed(m) => Some(m.clone()),
+                _ => None,
+            },
+        });
+    }
+    write_send_record(&file, &record)?;
+    Ok((posted, record))
+}
+
+/// Send a contribution to the server (the caller holds `send_lock`) and, once accepted, tell
+/// the addon what it can drop.
+fn send(state: &AppState, url: &str, out: Outgoing, now: u64, automatic: bool) -> CmdResult<(Posted, SendRecord)> {
+    let edition = out.edition;
+    let (posted, record) = deliver(out, now, automatic, |body| post_contribution(url, body))?;
+    if posted.accepted() {
+        // A failure only delays the purge: Sent.lua is written again with the addon.
+        let _ = write_sent_lua(&state.settings().addon_dir(edition), &record.state);
+    }
+    Ok((posted, record))
+}
+
+/// Documents sent in one click at most (the server takes a short burst).
+const MANUAL_BURST: usize = 3;
+
+/// How a burst of documents went.
+#[derive(Debug, Default, PartialEq)]
+struct Burst {
+    /// Documents the server accepted, and the answer to the last of them.
+    accepted: usize,
+    last_accepted: Option<Posted>,
+    /// The answer that ended the burst when it was not an acceptance.
+    refused: Option<Posted>,
+    /// New data is left (not sent yet).
+    more: bool,
+}
+
+/// Send documents one after the other while the server accepts them and more is left, at most
+/// `MANUAL_BURST`. `send_one` sends the next one: its answer and whether more is left, None
+/// when there is nothing to send.
+fn send_burst(mut send_one: impl FnMut() -> CmdResult<Option<(Posted, bool)>>) -> CmdResult<Burst> {
+    let mut burst = Burst::default();
+    for _ in 0..MANUAL_BURST {
+        let Some((posted, more)) = send_one()? else {
+            break;
+        };
+        if !posted.accepted() {
+            burst.refused = Some(posted);
+            burst.more = true;
+            break;
+        }
+        burst.accepted += 1;
+        burst.last_accepted = Some(posted);
+        burst.more = more;
+        if !more {
+            break;
+        }
+    }
+    Ok(burst)
+}
+
+/// What a click on "send" did.
+#[derive(Serialize)]
+struct SendReport {
+    /// "accepted", or "already_received" when the server already had the last document.
+    status: &'static str,
+    /// Documents the server accepted.
+    documents: usize,
+    /// New data is left for the next send.
+    more: bool,
+}
+
+/// Send what is new of the current game version, in several documents when it does not fit in
+/// one (`MANUAL_BURST` at most). Errors, when nothing was accepted: "nothing_to_send",
+/// "rate_limited", or the server's message.
 #[tauri::command]
-async fn send_contribution(app: AppHandle) -> CmdResult<String> {
+async fn send_contribution(app: AppHandle) -> CmdResult<SendReport> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
+        let _sending = state
+            .send_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let edition = state.edition();
         let url = contribution_endpoint(&state.settings()).ok_or("no contribution server configured")?;
-        let (c, _) = contribution(&state)?;
-        if c.quests() == 0 && c.events() == 0 {
-            return Err("nothing to send: no quest cache nor addon recordings found".to_owned());
+        let file = send_record_file(&state.data_dir, edition);
+        let mut record = read_send_record(&file)?;
+        if record.retry_after.is_some_and(|t| now().is_ok_and(|now| now < t)) {
+            return Err("rate_limited".to_owned());
         }
-        let body = serde_json::to_vec(&c).map_err(err)?;
-        let message = |r: ureq::Response| {
-            let json: serde_json::Value = r.into_json().unwrap_or_default();
-            json["error"]
-                .as_str()
-                .or(json["status"].as_str())
-                .unwrap_or("")
-                .to_owned()
-        };
-        let status = match ureq::post(&url)
-            .set("Content-Type", "application/json")
-            .timeout(std::time::Duration::from_secs(120))
-            .send_bytes(&body)
-        {
-            Ok(r) if r.status() == 201 => "accepted",
-            Ok(_) => "duplicate",
-            Err(ureq::Error::Status(429, _)) => return Err("rate_limited".into()),
-            Err(ureq::Error::Status(code, r)) => return Err(format!("{code}: {}", message(r))),
-            Err(e) => return Err(err(e)),
-        };
-        let mut settings = state.settings();
-        settings.last_contribution = Some(now()?);
-        write_settings(&state, settings)?;
-        Ok(status.to_owned())
+        let burst = send_burst(|| {
+            let (contribution, next, more, _) = collect_contribution(&state, edition, &record.state)?;
+            if contribution.is_empty() {
+                return Ok(None);
+            }
+            let out = Outgoing {
+                edition,
+                file: file.clone(),
+                record: record.clone(),
+                contribution,
+                next,
+                more,
+            };
+            let (posted, sent) = send(&state, &url, out, now()?, false)?;
+            record = sent;
+            Ok(Some((posted, more)))
+        })?;
+        match (burst.last_accepted, burst.refused) {
+            (Some(last), _) => Ok(SendReport {
+                status: last.status(),
+                documents: burst.accepted,
+                more: burst.more,
+            }),
+            (None, Some(Posted::RateLimited(_))) => Err("rate_limited".to_owned()),
+            (None, Some(Posted::Failed(message))) => Err(message),
+            (None, _) => Err("nothing_to_send".to_owned()),
+        }
     })
     .await
     .map_err(err)?
+}
+
+/// First automatic check after startup.
+const AUTO_FIRST_CHECK: std::time::Duration = std::time::Duration::from_secs(120);
+/// Seconds between two automatic checks.
+const AUTO_CHECK_EVERY: u64 = 6 * 3600;
+/// An automatic send at most this often per game version (seconds).
+const AUTO_SEND_EVERY: u64 = 24 * 3600;
+/// When the last send left new data for a next document: the next one after this long
+/// (seconds), so that a backlog goes in a few sends.
+const AUTO_BACKLOG_EVERY: u64 = 3600;
+
+/// Whether to send a game version's new data on its own now.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AutoDecision {
+    Off,
+    /// The server asked to wait.
+    BackingOff,
+    /// Sent less than `AUTO_SEND_EVERY` ago (`AUTO_BACKLOG_EVERY` when it left more).
+    NotDue,
+    NothingNew,
+    Send,
+}
+
+/// `has_new` reads the game folder: asked last, when everything else says to send.
+fn auto_decision(enabled: bool, record: &SendRecord, now: u64, has_new: impl FnOnce() -> bool) -> AutoDecision {
+    if !enabled {
+        AutoDecision::Off
+    } else if record.retry_after.is_some_and(|t| now < t) {
+        AutoDecision::BackingOff
+    } else if record
+        .last_sent
+        .is_some_and(|t| now.saturating_sub(t) < auto_every(record))
+    {
+        AutoDecision::NotDue
+    } else if !has_new() {
+        AutoDecision::NothingNew
+    } else {
+        AutoDecision::Send
+    }
+}
+
+fn auto_every(record: &SendRecord) -> u64 {
+    if record.more {
+        AUTO_BACKLOG_EVERY
+    } else {
+        AUTO_SEND_EVERY
+    }
+}
+
+/// Seconds until a game version wants a check before the regular one: the end of the server's
+/// wait, or the next document of a backlog. Only times to come count: one past and not acted
+/// on (sends off, an error) waits for the regular check.
+fn auto_due_in(record: &SendRecord, now: u64) -> Option<u64> {
+    let backlog = record.last_sent.filter(|_| record.more).map(|t| t + AUTO_BACKLOG_EVERY);
+    [record.retry_after, backlog]
+        .into_iter()
+        .flatten()
+        .filter(|&t| t > now)
+        .map(|t| t - now)
+        .min()
+}
+
+/// The automatic contributions: a check shortly after startup, then every `AUTO_CHECK_EVERY`
+/// (sooner when the server's wait ends first, or when they are turned on).
+fn auto_contribute_loop(app: &AppHandle, wake: &std::sync::mpsc::Receiver<()>) {
+    let mut wait = AUTO_FIRST_CHECK;
+    loop {
+        if let Err(std::sync::mpsc::RecvTimeoutError::Disconnected) = wake.recv_timeout(wait) {
+            return;
+        }
+        wait = auto_contribute(&app.state::<AppState>());
+    }
+}
+
+/// Send what is new of every game version whose client is installed, when due (outcomes kept
+/// in their records, shown on the Contribute page). Returns the time until the next check.
+fn auto_contribute(state: &AppState) -> std::time::Duration {
+    let mut next = AUTO_CHECK_EVERY;
+    let settings = state.settings();
+    let (Some(url), Ok(now)) = (contribution_endpoint(&settings), now()) else {
+        return std::time::Duration::from_secs(next);
+    };
+    for edition in Edition::ALL {
+        if !settings.wow_dir.join(edition.client_folder()).is_dir() {
+            continue;
+        }
+        let _sending = state
+            .send_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let file = send_record_file(&state.data_dir, edition);
+        // Unreadable: left alone, never overwritten.
+        let Ok(mut record) = read_send_record(&file) else {
+            continue;
+        };
+        let mut collected = Ok(None);
+        let decision = auto_decision(settings.auto_contribute, &record, now, || {
+            match collect_contribution(state, edition, &record.state) {
+                Ok((c, next, more, _)) => {
+                    let new = !c.is_empty();
+                    collected = Ok(Some((c, next, more)));
+                    new
+                }
+                Err(e) => {
+                    collected = Err(e);
+                    false
+                }
+            }
+        });
+        match (decision, collected) {
+            (AutoDecision::Send, Ok(Some((contribution, next_state, more)))) => {
+                let out = Outgoing {
+                    edition,
+                    file,
+                    record,
+                    contribution,
+                    next: next_state,
+                    more,
+                };
+                match send(state, &url, out, now, true) {
+                    Ok((_, sent)) => record = sent,
+                    Err(_) => continue,
+                }
+            }
+            (_, Err(e)) => {
+                record.last_auto = Some(AutoSend {
+                    time: now,
+                    status: "error".to_owned(),
+                    message: Some(e),
+                });
+                let _ = write_send_record(&file, &record);
+            }
+            _ => {}
+        }
+        if let Some(due) = auto_due_in(&record, now) {
+            next = next.min(due);
+        }
+    }
+    std::time::Duration::from_secs(next.max(60))
 }
 
 #[cfg(test)]
@@ -1722,5 +2230,268 @@ mod tests {
         assert!(is_forgotten(&forgotten, Edition::Forever, &profile(100)));
         assert!(!is_forgotten(&forgotten, Edition::Forever, &profile(101)));
         assert!(!is_forgotten(&forgotten, Edition::Classic, &profile(100)));
+    }
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("fg-app-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn sent(characters: &[(&str, i64)]) -> SendState {
+        SendState {
+            characters: characters
+                .iter()
+                .map(|&(name, last_seq)| {
+                    let id = format!("{last_seq:016x}");
+                    (
+                        name.to_owned(),
+                        fg_contrib::contribution::SentCharacter { id, last_seq },
+                    )
+                })
+                .collect(),
+            ..SendState::default()
+        }
+    }
+
+    /// Character names come back from Sent.lua as they are, whatever they hold; a name found in
+    /// two accounts is left out (the addon could not tell their events apart).
+    #[test]
+    fn sent_lua_gives_the_addon_every_name_as_is() {
+        let names = [
+            ("Brouz-Archimonde", 12),
+            ("Élodie-Kirin Tor", 3),
+            ("Odd\"name\\-Realm", 7),
+            ("Line\nbreak\r\u{0}1-Realm", 9),
+        ];
+        let keys: Vec<(String, i64)> = names.iter().map(|&(n, s)| (format!("ACCOUNT1/{n}"), s)).collect();
+        let mut keys: Vec<(&str, i64)> = keys.iter().map(|(k, s)| (k.as_str(), *s)).collect();
+        keys.extend([("ACCOUNT1/Twin-Realm", 4), ("ACCOUNT2/Twin-Realm", 8)]);
+        let dir = temp_dir("sent-lua");
+        write_sent_lua(&dir, &sent(&keys)).unwrap();
+        let lua = fg_contrib::lua::new_lua();
+        let table = fg_contrib::lua::load_globals(&lua, &dir.join("Sent.lua"), &["FactoruideSent"])
+            .unwrap()
+            .pop()
+            .unwrap();
+        let mut read: Vec<(String, i64)> = table
+            .str_entries()
+            .into_iter()
+            .map(|(name, seq)| (name.to_owned(), seq.int().unwrap()))
+            .collect();
+        read.sort();
+        let mut expected: Vec<(String, i64)> = names.iter().map(|&(n, s)| (n.to_owned(), s)).collect();
+        expected.sort();
+        assert_eq!(read, expected);
+        // No addon installed: nothing written.
+        let missing = dir.join("not-installed");
+        write_sent_lua(&missing, &sent(&names)).unwrap();
+        assert!(!missing.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn outgoing(file: &Path, record: &SendRecord, next: SendState, more: bool) -> Outgoing {
+        Outgoing {
+            edition: Edition::Classic,
+            file: file.to_owned(),
+            record: record.clone(),
+            contribution: Contribution {
+                format: fg_contrib::contribution::FORMAT.into(),
+                version: fg_contrib::contribution::VERSION,
+                edition: "classic".into(),
+                app_version: "0.0.0".into(),
+                contributor: "0".repeat(32),
+                day: 20_000,
+                quest_cache: Vec::new(),
+                creature_cache: Vec::new(),
+                object_cache: Vec::new(),
+                collector: Vec::new(),
+            },
+            next,
+            more,
+        }
+    }
+
+    /// What was sent is only noted once the server accepted it: a failed or refused send goes
+    /// again, whole, next time.
+    #[test]
+    fn the_state_is_kept_only_once_the_server_accepted() {
+        let dir = temp_dir("deliver");
+        let file = send_record_file(&dir, Edition::Classic);
+        let before = SendRecord {
+            last_sent: Some(1_000),
+            state: sent(&[("Brouz-Archimonde", 5)]),
+            ..SendRecord::default()
+        };
+        write_send_record(&file, &before).unwrap();
+        let next = sent(&[("Brouz-Archimonde", 9)]);
+        let now = 100_000;
+
+        deliver(outgoing(&file, &before, next.clone(), true), now, false, |_| {
+            Posted::Failed("500: oops".into())
+        })
+        .unwrap();
+        assert_eq!(read_send_record(&file).unwrap(), before);
+
+        deliver(outgoing(&file, &before, next.clone(), true), now, true, |_| {
+            Posted::RateLimited(Some(600))
+        })
+        .unwrap();
+        let record = read_send_record(&file).unwrap();
+        assert_eq!(record.state, before.state);
+        assert_eq!(record.last_sent, Some(1_000));
+        assert_eq!(record.retry_after, Some(now + 600));
+        assert_eq!(record.last_auto.unwrap().status, "rate_limited");
+
+        for answer in [Posted::Accepted, Posted::AlreadyReceived] {
+            deliver(outgoing(&file, &before, next.clone(), true), now, false, |body| {
+                assert!(serde_json::from_slice::<Contribution>(body).is_ok());
+                answer
+            })
+            .unwrap();
+            let record = read_send_record(&file).unwrap();
+            assert_eq!(record.state, next);
+            assert_eq!(record.last_sent, Some(now));
+            assert_eq!(record.retry_after, None);
+            assert!(record.more);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A record that cannot be read stops the sends instead of starting over (new ids).
+    #[test]
+    fn an_unreadable_record_is_an_error_a_missing_one_is_empty() {
+        let dir = temp_dir("record");
+        let file = send_record_file(&dir, Edition::Tbc);
+        assert_eq!(read_send_record(&file).unwrap(), SendRecord::default());
+        std::fs::write(&file, "{ not json").unwrap();
+        assert!(read_send_record(&file).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn automatic_sends_once_a_day_when_there_is_something_new() {
+        let now = 10_000_000;
+        let never = SendRecord::default();
+        let sent_at = |t| SendRecord {
+            last_sent: Some(t),
+            ..SendRecord::default()
+        };
+        let unasked = || -> bool { panic!("the game folder is read only when a send is due") };
+        assert_eq!(auto_decision(false, &never, now, unasked), AutoDecision::Off);
+        assert_eq!(auto_decision(true, &never, now, || true), AutoDecision::Send);
+        assert_eq!(auto_decision(true, &never, now, || false), AutoDecision::NothingNew);
+        assert_eq!(
+            auto_decision(true, &sent_at(now - 3600), now, unasked),
+            AutoDecision::NotDue
+        );
+        assert_eq!(
+            auto_decision(true, &sent_at(now - AUTO_SEND_EVERY - 1), now, || true),
+            AutoDecision::Send
+        );
+        let waiting = SendRecord {
+            retry_after: Some(now + 60),
+            ..SendRecord::default()
+        };
+        assert_eq!(auto_decision(true, &waiting, now, unasked), AutoDecision::BackingOff);
+        let waited = SendRecord {
+            retry_after: Some(now - 60),
+            ..SendRecord::default()
+        };
+        assert_eq!(auto_decision(true, &waited, now, || true), AutoDecision::Send);
+    }
+
+    /// A send that left more is followed by the next document an hour later, not a day.
+    #[test]
+    fn a_backlog_goes_hourly_and_the_server_wait_still_holds() {
+        let now = 10_000_000;
+        let backlog = |sent| SendRecord {
+            last_sent: Some(sent),
+            more: true,
+            ..SendRecord::default()
+        };
+        let unasked = || -> bool { panic!("not due") };
+        assert_eq!(
+            auto_decision(true, &backlog(now - 600), now, unasked),
+            AutoDecision::NotDue
+        );
+        assert_eq!(
+            auto_decision(true, &backlog(now - AUTO_BACKLOG_EVERY), now, || true),
+            AutoDecision::Send
+        );
+        let waiting = SendRecord {
+            retry_after: Some(now + 7200),
+            ..backlog(now - AUTO_BACKLOG_EVERY)
+        };
+        assert_eq!(auto_decision(true, &waiting, now, unasked), AutoDecision::BackingOff);
+
+        // The next check: when the backlog's next document is due, or the server's wait ends.
+        assert_eq!(auto_due_in(&backlog(now), now), Some(AUTO_BACKLOG_EVERY));
+        assert_eq!(auto_due_in(&waiting, now), Some(7200));
+        let both = SendRecord {
+            retry_after: Some(now + 60),
+            ..backlog(now)
+        };
+        assert_eq!(auto_due_in(&both, now), Some(60));
+        // Nothing left, or a due time already past (sends off): the regular check.
+        assert_eq!(
+            auto_due_in(
+                &SendRecord {
+                    more: false,
+                    ..backlog(now)
+                },
+                now
+            ),
+            None
+        );
+        assert_eq!(auto_due_in(&backlog(now - 2 * AUTO_BACKLOG_EVERY), now), None);
+    }
+
+    /// One click sends documents while the server accepts them and more is left, three at most.
+    #[test]
+    fn a_click_sends_a_backlog_in_a_short_burst() {
+        let run = |answers: Vec<Option<(Posted, bool)>>| {
+            let mut answers = answers.into_iter();
+            let mut asked = 0;
+            let burst = send_burst(|| {
+                asked += 1;
+                Ok(answers.next().flatten())
+            })
+            .unwrap();
+            (burst, asked)
+        };
+        let (burst, asked) = run(vec![Some((Posted::Accepted, false))]);
+        assert_eq!((burst.accepted, burst.more, asked), (1, false, 1));
+
+        let (burst, asked) = run(vec![
+            Some((Posted::Accepted, true)),
+            Some((Posted::Accepted, true)),
+            Some((Posted::AlreadyReceived, true)),
+            Some((Posted::Accepted, true)),
+        ]);
+        assert_eq!((burst.accepted, burst.more, asked), (3, true, 3));
+        assert_eq!(burst.last_accepted, Some(Posted::AlreadyReceived));
+
+        let (burst, asked) = run(vec![
+            Some((Posted::Accepted, true)),
+            Some((Posted::RateLimited(None), true)),
+        ]);
+        assert_eq!((burst.accepted, burst.more, asked), (1, true, 2));
+        assert_eq!(burst.refused, Some(Posted::RateLimited(None)));
+
+        let (burst, _) = run(vec![Some((Posted::Failed("500: oops".into()), true))]);
+        assert_eq!(burst.accepted, 0);
+        assert_eq!(burst.refused, Some(Posted::Failed("500: oops".into())));
+
+        let (burst, asked) = run(vec![None]);
+        assert_eq!((burst, asked), (Burst::default(), 1));
+    }
+
+    #[test]
+    fn retry_after_in_seconds_is_honored_up_to_a_week() {
+        assert_eq!(retry_after_secs(" 120 "), Some(120));
+        assert_eq!(retry_after_secs("99999999"), Some(MAX_RETRY_AFTER));
+        assert_eq!(retry_after_secs("Wed, 21 Oct 2026 07:28:00 GMT"), None);
     }
 }

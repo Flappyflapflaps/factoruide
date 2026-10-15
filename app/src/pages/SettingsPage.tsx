@@ -127,6 +127,20 @@ export function SettingsPage({ onLanguage, version }: Props) {
           <Hint text={t("Sinon, un personnage ne se voit proposer que les guides de sa race et de sa classe.")} />
         </span>
       </label>
+      <label className="field-bool auto-contribute">
+        <input
+          type="checkbox"
+          checked={Boolean(settings.auto_contribute)}
+          onChange={(e) => {
+            setSettings({ ...settings, auto_contribute: e.target.checked });
+            api.setAutoContribute(e.target.checked).catch((err) => setError(String(err)));
+          }}
+        />
+        <span>
+          {t("Envoyer automatiquement mes données (page Contribuer)")}
+          <Hint text={t("Une fois par jour au plus (toutes les heures tant qu'un envoi n'a pas tout pris), pour chaque version du jeu installée, seulement s'il y a du nouveau, sans fenêtre ni message.")} />
+        </span>
+      </label>
       <details className="advanced-settings">
         <summary>{t("Avancé")}</summary>
         <label className="field">

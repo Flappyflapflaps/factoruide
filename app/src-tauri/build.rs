@@ -72,11 +72,11 @@ fn main() {
          pub const ADDON: &[(&str, &[u8])] = &[\n{}];\n",
         files(&dir.join("maps"), &["webp"], &[], true),
         files(&root.join("overrides"), &["toml"], &[], true),
-        // Routes.lua and Config.lua are written on install; textures are in Media/.
+        // Routes.lua, Config.lua and Sent.lua are written on install; textures are in Media/.
         files(
             &root.join("addon/Factoruide"),
             &["lua", "toc", "xml", "tga"],
-            &["Routes.lua", "Config.lua"],
+            &["Routes.lua", "Config.lua", "Sent.lua"],
             true
         ),
     );

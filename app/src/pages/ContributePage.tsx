@@ -13,7 +13,7 @@ const wowheadClient = (edition: Edition | null) => (edition === "forever" ? "htt
 
 /**
  * Ways to send what one's game sees to the databases the guides are built from: Factoruide's own
- * server (not open yet), Questie's and Wowhead's tools. Each improves every community tool.
+ * server, Questie's and Wowhead's tools. Each improves every community tool.
  */
 export function ContributePage({ edition }: Props) {
   const t = useT();
@@ -26,7 +26,7 @@ export function ContributePage({ edition }: Props) {
         {t("Les guides sont calculés à partir de bases de quêtes construites par la communauté. Ce que votre jeu voit (quêtes, PNJ, objets, positions) les complète et les corrige : chacun de ces outils améliore toutes les bases, et donc tous les outils de la communauté.")}
       </p>
       <div className="contribute-grid">
-        <ContributePanel key={edition ?? ""} available={false} />
+        <ContributePanel key={edition ?? ""} />
         <section className="panel tool">
           <div>
             <h3>QuestieTrace</h3>

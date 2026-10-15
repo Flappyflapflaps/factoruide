@@ -2457,6 +2457,20 @@ button.dungeon.excluded b {
   gap: 10px;
   margin: 12px 0;
 }
+/* What is sent and what is not, in plain sight. */
+.contribute-privacy {
+  margin: 10px 0;
+  padding-left: 20px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.contribute-auto {
+  margin-top: 4px;
+}
+.contribute-auto-status {
+  margin: 6px 0 0;
+}
 
 .character-summary {
   display: flex;
@@ -2790,7 +2804,8 @@ button.dungeon.excluded b {
   grid-column: 1 / -1;
   font-size: 12px;
 }
-.all-guides {
+.all-guides,
+.auto-contribute {
   margin-bottom: 10px;
 }
 

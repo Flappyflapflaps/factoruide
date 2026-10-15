@@ -74,6 +74,8 @@ GetNumTrainerServices = function() return 0 end
 IsTradeskillTrainer = function() return false end
 GetMoney = function() return 0 end
 IsInInstance = function() return false end
+IsInGroup = function() return false end
+IsInRaid = function() return false end
 ObjectiveTrackerFrame = {
     hidden = false,
     Hide = function(self) self.hidden = true end,
@@ -157,7 +159,16 @@ end
 EditMacro = function(i, name, icon, body) macros[i].body = body end
 PickupMacro = function() end
 issecretvalue = function() return false end
-C_Timer = { NewTicker = function() end }
+local timers = {}
+C_Timer = { NewTicker = function() end, After = function(_, fn) table.insert(timers, fn) end }
+--- Run the C_Timer.After callbacks waiting.
+local function runTimers()
+    local due = timers
+    timers = {}
+    for _, fn in ipairs(due) do
+        fn()
+    end
+end
 C_Map = {
     GetBestMapForUnit = function() return 1426 end,
     GetMapInfo = function(m) return { mapID = m, mapType = m == 1415 and 2 or 3, parentMapID = 1415 } end,
@@ -200,9 +211,11 @@ SlashCmdList = {}
 
 local FG = {}
 for line in io.lines("addon/Factoruide/Factoruide.toc") do
-    -- Config.lua and Routes.lua are written by the app and not versioned: use a fixture instead.
+    -- Config.lua, Routes.lua and Sent.lua are written by the app and not versioned.
     if line == "Config.lua" then
         FG.Config = {}
+    elseif line == "Sent.lua" then
+        FactoruideSent = nil
     elseif line == "Routes.lua" then
         assert(loadfile("addon/tests/fixtures/Routes.lua"))("Factoruide", FG)
     elseif line:match("%.lua$") then
@@ -1062,3 +1075,507 @@ for name, fn in pairs(modern) do
     C_QuestLog[name] = fn
 end
 print("classic era quest log ok")
+
+-- Collector: rows as the contribution format expects them, on Forever and Classic payloads.
+-- Rows are strings (seq|time|event|quest|entityType|entityID|map|x|y|level|data): decoded here
+-- into the tables they replace, as the app reads them (keys typed as in its schemas).
+local BOOL_KEYS = { complete = true, trivial = true, repeatable = true, elite = true, pet = true, died = true }
+local PAIR_KEYS = { items = true, nodes = true }
+local TEXT_KEYS = { title = true, name = true, mode = true }
+local function decodeRow(row)
+    if type(row) ~= "string" then return row end
+    local f = {}
+    for field in (row .. "|"):gmatch("([^|]*)|") do
+        f[#f + 1] = field
+    end
+    assert(#f == 11, "11 fields: " .. row)
+    local function num(v) return v ~= "" and assert(tonumber(v), row) or false end
+    local data = false
+    if f[11] ~= "" then
+        data = {}
+        for pair in f[11]:gmatch("[^;]+") do
+            local k, v = pair:match("^([^=]+)=(.*)$")
+            assert(k and data[k] == nil, "data pair: " .. pair)
+            if BOOL_KEYS[k] then
+                assert(v == "1", "booleans written as 1: " .. pair)
+                data[k] = true
+            elseif PAIR_KEYS[k] then
+                data[k] = {}
+                for a, b in v:gmatch("(%d+):(%d+)") do
+                    table.insert(data[k], { tonumber(a), tonumber(b) })
+                end
+            elseif TEXT_KEYS[k] then
+                data[k] = v:gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end)
+            else
+                data[k] = assert(tonumber(v), "number: " .. pair)
+            end
+        end
+    end
+    local entityType = f[5] ~= "" and f[5] or false
+    return {
+        num(f[1]),
+        num(f[2]),
+        f[3],
+        num(f[4]),
+        entityType,
+        num(f[6]),
+        num(f[7]),
+        num(f[8]),
+        num(f[9]),
+        num(f[10]),
+        data,
+    }
+end
+local function lastRow(event)
+    for i = #char.events, 1, -1 do
+        local row = decodeRow(char.events[i])
+        if row[3] == event then return row, i end
+    end
+end
+local function rowsSince(event, from)
+    local out = {}
+    for i = from + 1, #char.events do
+        local row = decodeRow(char.events[i])
+        if row[3] == event then table.insert(out, row) end
+    end
+    return out
+end
+local accepted = lastRow("accept")
+assert(accepted and accepted[4] == 179, "Forever accept: (questID)")
+
+-- Classic Era and TBC: QUEST_ACCEPTED gives (questLogIndex, questID), the log has no C_QuestLog.
+for name in pairs(modern) do
+    C_QuestLog[name] = nil
+end
+fire("QUEST_ACCEPTED", 3, 33)
+accepted = lastRow("accept")
+assert(accepted[4] == 33, "Classic accept: quest ID, not the log index: " .. tostring(accepted[4]))
+assert(accepted[11].title == "Wolves Across the Border" and accepted[11].level == 2, "Classic accept title")
+
+-- Quest greeting: Classic Era and TBC have no GetActiveQuestID, the title is found in the log.
+local greetingActive = { "Wolves Across the Border", "Not In The Log" }
+GetNumActiveQuests = function() return #greetingActive end
+GetActiveTitle = function(i) return greetingActive[i], false end
+GetActiveQuestID = nil
+greeting = {}
+fire("QUEST_GREETING")
+local active = lastRow("active")
+assert(active and active[4] == 33 and active[5] == "npc" and active[6] == 658, "Classic greeting active quest")
+GetActiveQuestID = function(i) return i == 1 and 783 or 0 end
+fire("QUEST_GREETING")
+assert(lastRow("active")[4] == 783, "Forever greeting active quest")
+GetNumActiveQuests = function() return 0 end
+
+-- Classic Era: the completed quests come from GetQuestsCompleted.
+local allCompleted = C_QuestLog.GetAllCompletedQuestIDs
+C_QuestLog.GetAllCompletedQuestIDs = nil
+GetQuestsCompleted = function() return { [33] = true, [12] = true } end
+fire("PLAYER_LOGOUT")
+assert(char.completed[1] == 12 and char.completed[2] == 33 and #char.completed == 2, "Classic completed quests")
+C_QuestLog.GetAllCompletedQuestIDs = allCompleted
+for name, fn in pairs(modern) do
+    C_QuestLog[name] = fn
+end
+print("collector quests ok")
+
+-- Turn-ins are not recorded as removed, in either order; an abandon is.
+runTimers() -- those queued so far (tracker, party, talents...)
+local mark = #char.events
+fire("QUEST_TURNED_IN", 4001, 100, 0)
+fire("QUEST_REMOVED", 4001)
+fire("QUEST_REMOVED", 4002) -- Classic: removed before turned in
+fire("QUEST_TURNED_IN", 4002, 100, 0)
+fire("QUEST_REMOVED", 4003)
+runTimers()
+local removed = rowsSince("removed", mark)
+assert(#removed == 1 and removed[1][4] == 4003 and removed[1][11] == false, "only the abandon is removed")
+print("collector removed ok")
+
+-- Loot: read before fast loot takes the slots, one row per corpse with item quantities (AoE
+-- loot), money skipped, a window read once.
+local slots = {
+    { link = nil, sources = { "Creature-0-1-2-3-299-00A", 1 } }, -- money
+    { link = "|Hitem:750::|h", sources = { "Creature-0-1-2-3-299-00A", 1, "Creature-0-1-2-3-300-00B", 2 } },
+    { link = "|Hitem:2589::|h", sources = { "Creature-0-1-2-3-299-00A", 3 } },
+}
+GetNumLootItems = function() return #slots end
+GetLootSlotLink = function(i) return slots[i] and slots[i].link end
+GetLootSourceInfo = function(i) return unpack(slots[i] and slots[i].sources or {}) end
+LootSlot = function(i) slots[i] = nil end
+local clock = GetTime
+GetTime = function() return clock() + 5000 end
+mark = #char.events
+fire("LOOT_READY", false)
+assert(not slots[1] and not slots[2] and not slots[3], "fast loot took the slots")
+local loot = rowsSince("loot", mark)
+assert(#loot == 2, "one loot row per corpse, got " .. #loot)
+local a, b = loot[1][11].items, loot[2][11].items
+assert(
+    loot[1][6] == 299 and #a == 2 and a[1][1] == 750 and a[1][2] == 1 and a[2][1] == 2589 and a[2][2] == 3,
+    "corpse A"
+)
+assert(loot[2][6] == 300 and #b == 1 and b[1][1] == 750 and b[1][2] == 2, "corpse B: its own quantity")
+fire("LOOT_READY", false)
+fire("LOOT_OPENED", false)
+assert(#rowsSince("loot", mark) == 2, "a loot window recorded once")
+GetTime = clock
+print("collector loot ok")
+
+-- Flight master: node IDs and states only, bounded; Classic: the continent's map.
+mark = #char.events
+fire("TAXIMAP_OPENED")
+local taxi = rowsSince("taxi", mark)[1][11]
+assert(taxi.map == 1415 and taxi.nodes[1][1] == 6 and taxi.nodes[1][2] == 0 and taxi.nodes[3][2] == 2, "taxi nodes")
+local manyNodes = {}
+for i = 1, 200 do
+    manyNodes[i] = { nodeID = i, name = "A long flight master name " .. i, slotIndex = i }
+end
+C_TaxiMap.GetAllTaxiNodes = function() return manyNodes end
+TaxiNodeGetType = function(slot) return slot == 1 and "CURRENT" or slot == 2 and "REACHABLE" or "DISTANT" end
+GetTaxiMapID = nil
+fire("TAXIMAP_OPENED")
+taxi = lastRow("taxi")[11]
+assert(taxi.map == 1415, "Classic: continent map " .. tostring(taxi.map))
+assert(#taxi.nodes == 128 and #taxi.nodes[1] == 2, "nodes bounded, ids and states only")
+assert(taxi.nodes[1][2] == 0 and taxi.nodes[2][2] == 1 and taxi.nodes[3][2] == 2, "Classic node states")
+print("collector taxi ok")
+
+-- Transit: a boat ride is timed from the docked boat, a hearthstone is told apart.
+local now, speed, here = 10000, 7, { 1437, 0.10, 0.10 }
+local clockTime = time
+time = function() return now end
+GetUnitSpeed = function() return speed end
+local continents = { [1415] = true, [1414] = true }
+C_Map.GetMapInfo = function(m)
+    if continents[m] then return { mapID = m, mapType = 2, parentMapID = 947 } end
+    return { mapID = m, mapType = 3, parentMapID = m < 1415 and 1414 or 1415 }
+end
+C_Map.GetBestMapForUnit = function() return here[1] end
+C_Map.GetPlayerMapPosition = function()
+    return {
+        GetXY = function() return here[2], here[3] end,
+    }
+end
+local function sample(t, map, x, y, v)
+    now, here, speed = t, { map, x, y }, v
+    fire("ZONE_CHANGED_NEW_AREA")
+end
+mark = #char.events
+sample(10000, 1437, 0.10, 0.10, 7) -- walking on the dock
+sample(10005, 1437, 0.105, 0.10, 0) -- on the boat
+sample(10010, 1437, 0.105, 0.10, 0) -- waiting on board
+sample(10015, 1437, 0.12, 0.10, 0) -- the boat leaves
+sample(10020, 1437, 0.14, 0.10, 0)
+sample(10090, 1411, 0.50, 0.50, 0) -- landed on the other continent
+local transit = rowsSince("transit", mark)
+assert(#transit == 1, "one transit")
+local ride = transit[1][11]
+assert(ride.mode == "ride" and ride.seconds == 80 and ride.fromMap == 1437 and ride.fromX == 10.5, "boat ride")
+sample(10100, 1411, 0.50, 0.50, 0)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", 8690)
+sample(10130, 1426, 0.30, 0.70, 0)
+local hearth = lastRow("transit")[11]
+assert(hearth.mode == "hearth" and hearth.seconds == 30 and hearth.fromMap == 1411, "hearthstone")
+sample(10200, 1426, 0.30, 0.71, 7) -- walking into a portal
+sample(10203, 1411, 0.40, 0.40, 0)
+local portal = lastRow("transit")[11]
+assert(portal.mode == nil and portal.seconds == 3 and portal.fromY == 71, "walked in: no mode")
+time = clockTime
+print("collector transit ok")
+
+-- Phase 2 recordings: fights, objective progress, guide steps, flights, spawn ages; Forever
+-- secret values degrade to the fallbacks without errors.
+local clockNow = 50000
+local realGetTime = GetTime
+GetTime = function() return clockNow end
+GetServerTime = function() return 1000000 end
+local function spawnGUID(npc, age) return string.format("Creature-0-1-2-3-%d-%010X", npc, (1000000 - age) % 8388608) end
+local guids, levels, classes, exists = {}, {}, {}, {}
+local unitGUID, unitLevel = UnitGUID, UnitLevel
+UnitGUID = function(u)
+    if guids[u] ~= nil then return guids[u] or nil end
+    return unitGUID(u)
+end
+UnitLevel = function(u)
+    if u == "player" then return playerLevel end
+    return levels[u] or 1
+end
+UnitExists = function(u) return exists[u] or false end
+UnitClassification = function(u) return classes[u] or "normal" end
+UnitIsDead = function() return false end
+UnitCanAttack = function() return true end
+UnitName = function(u) return u == "player" and "Brouz" or "Kobold Vermin" end
+UnitReaction = function() return 2 end
+local secret = {}
+issecretvalue = function(v) return v ~= nil and secret[v] == true end
+local xpNow, xpMax = 100, 400
+UnitXP = function() return xpNow end
+UnitXPMax = function() return xpMax end
+COMBATLOG_XPGAIN_FIRSTPERSON = "%s dies, you gain %d experience."
+COMBATLOG_XPGAIN_EXHAUSTION1 = "%s dies, you gain %d experience. (%s exp %s bonus)"
+playerLevel = 5
+
+-- Target read out of combat: a seen row with its spawn age and elite.
+local koboldGUID = spawnGUID(299, 90)
+guids.target, levels.target, classes.target, exists.target = koboldGUID, 5, "elite", true
+here = { 1426, 0.30, 0.70 }
+mark = #char.events
+fire("PLAYER_TARGET_CHANGED")
+local seenRow = rowsSince("seen", mark)[1]
+assert(seenRow and seenRow[6] == 299 and seenRow[11].age == 90 and seenRow[11].elite == true, "seen: age and elite")
+assert(seenRow[11].name == "Kobold Vermin" and seenRow[11].level == 5, "seen: name and level")
+-- The same NPC close by: one row per 5% of the map; elsewhere, a row without the name again.
+guids.mouseover, exists.mouseover = spawnGUID(299, 30), true
+here = { 1426, 0.301, 0.701 }
+fire("UPDATE_MOUSEOVER_UNIT")
+fire("UPDATE_MOUSEOVER_UNIT")
+here = { 1426, 0.50, 0.50 }
+fire("UPDATE_MOUSEOVER_UNIT")
+local seenRows = rowsSince("seen", mark)
+assert(#seenRows == 2 and seenRows[2][11].name == nil and seenRows[2][11].age == 30, "seen deduped, name once")
+-- A secret GUID (Forever, restricted): nothing recorded, no error.
+local hiddenGUID = spawnGUID(300, 5)
+secret[hiddenGUID] = true
+guids.mouseover = hiddenGUID
+here = { 1426, 0.70, 0.70 }
+fire("UPDATE_MOUSEOVER_UNIT")
+assert(#rowsSince("seen", mark) == 2, "secret GUID: no seen row")
+-- A static NPC up since the realm restart: seen without its age.
+guids.mouseover = spawnGUID(302, 7200)
+here = { 1426, 0.90, 0.90 }
+fire("UPDATE_MOUSEOVER_UNIT")
+local static = rowsSince("seen", mark)[3]
+assert(static and static[6] == 302 and static[11].age == nil, "no age past an hour")
+-- Safety alerts on a target whose level is secret (a table here: comparing it errors, as a
+-- secret does): not compared, no error (checked below).
+local secretLevel = {}
+secret[secretLevel] = true
+guids.target, levels.target = spawnGUID(301, 5), secretLevel
+fire("PLAYER_TARGET_CHANGED")
+guids.target, levels.target = koboldGUID, 5
+fire("PLAYER_TARGET_CHANGED")
+
+-- Fight 1: the target turns secret when the fight begins (the GUID read before is used), the
+-- kill is told by the XP message only (secret attacker on PARTY_KILL).
+guids.pet, exists.pet = "Pet-0-1-2-3-416-0000000001", true
+here = { 1426, 0.40, 0.40 }
+secret[koboldGUID] = true
+mark = #char.events
+fire("PLAYER_REGEN_DISABLED")
+secret["Player-1-2"] = true
+fire("PARTY_KILL", "Player-1-2", koboldGUID)
+secret["Player-1-2"] = nil
+fire("CHAT_MSG_COMBAT_XP_GAIN", "Kobold Vermin dies, you gain 45 experience. (45 exp Rested bonus)")
+fire("CHAT_MSG_COMBAT_XP_GAIN", "You gain 120 experience.") -- not a kill
+fire("PLAYER_TARGET_DIED")
+xpNow, clockNow = 145, clockNow + 12
+fire("PLAYER_REGEN_ENABLED")
+local fight = rowsSince("combat", mark)[1]
+assert(fight and fight[5] == "npc" and fight[6] == 299, "fight against the target read before")
+assert(fight[7] == 1426 and fight[8] == 40 and fight[9] == 40, "where the fight began")
+local f = fight[11]
+assert(f.seconds == 12 and f.kills == 1 and f.xp == 45 and f.mobLevel == 5, "fight 1: " .. tostring(f.kills))
+assert(f.elite == true and f.pet == true and f.died == nil, "fight 1 flags")
+secret[koboldGUID] = nil
+
+-- Fight 2: PARTY_KILL readable (player then pet), counted once each despite the XP messages;
+-- XP across a level up.
+local wolf1, wolf2 = spawnGUID(525, 600), spawnGUID(525, 50000) -- wolf2: up since the restart
+guids.target, levels.target, classes.target = wolf1, 6, "normal"
+xpNow, xpMax = 380, 400
+mark = #char.events
+fire("PLAYER_REGEN_DISABLED")
+fire("PARTY_KILL", "Player-1-2", wolf1)
+fire("CHAT_MSG_COMBAT_XP_GAIN", "Mangy Wolf dies, you gain 50 experience.")
+here = { 1426, 0.42, 0.40 } -- kill rows: one per NPC and spot
+fire("PARTY_KILL", "Pet-0-1-2-3-416-0000000001", wolf2)
+fire("PARTY_KILL", "Player-9-9", spawnGUID(525, 800)) -- someone else's
+playerLevel, xpNow, clockNow = 6, 30, clockNow + 20
+fire("PLAYER_REGEN_ENABLED")
+f = rowsSince("combat", mark)[1][11]
+assert(f.kills == 2 and f.xp == 50 and f.mobLevel == 6 and f.elite == nil, "fight 2: kills " .. tostring(f.kills))
+local kills = rowsSince("kill", mark)
+assert(#kills == 2 and kills[1][11].age == 600, "kill rows with spawn age")
+assert(kills[2][11] == false, "no age past an hour (it would tell the time of day)")
+
+-- Fight 3: nothing killed, short: no row. Fight 4: target died, the player too.
+exists.target, exists.pet = false, false
+mark = #char.events
+fire("PLAYER_REGEN_DISABLED")
+clockNow = clockNow + 1
+fire("PLAYER_REGEN_ENABLED")
+assert(#rowsSince("combat", mark) == 0, "short fight without kill skipped")
+fire("PLAYER_REGEN_DISABLED")
+fire("PLAYER_TARGET_DIED")
+fire("PLAYER_DEAD")
+clockNow = clockNow + 8
+fire("PLAYER_REGEN_ENABLED")
+f = rowsSince("combat", mark)[1]
+assert(f[6] == false and f[11].kills == 1 and f[11].died == true and f[11].pet == nil, "fight 4")
+-- In an instance: nothing.
+IsInInstance = function() return true end
+mark = #char.events
+fire("PLAYER_REGEN_DISABLED")
+fire("PLAYER_TARGET_DIED")
+clockNow = clockNow + 10
+fire("PLAYER_REGEN_ENABLED")
+IsInInstance = function() return false end
+assert(#rowsSince("combat", mark) == 0, "no fight recorded in instances")
+print("collector combat ok")
+
+-- Objective progress: a row when a count goes up, the log read once per burst of events.
+local objectives = { [179] = { { numFulfilled = 2, numRequired = 8 } } }
+local questLog = { 179 }
+C_QuestLog.GetNumQuestLogEntries = function() return #questLog end
+C_QuestLog.GetInfo = function(i) return { questID = questLog[i], title = "Q" .. questLog[i], level = 2 } end
+C_QuestLog.GetQuestObjectives = function(q) return objectives[q] end
+fire("QUEST_LOG_UPDATE")
+runTimers()
+mark = #char.events
+objectives[179][1].numFulfilled = 4
+objectives[180] = { { numFulfilled = 5, numRequired = 8 } }
+questLog[2] = 180 -- accepted with some done already: not progress
+fire("QUEST_LOG_UPDATE")
+fire("QUEST_WATCH_UPDATE")
+fire("UNIT_QUEST_LOG_CHANGED", "player")
+local queued = #timers
+runTimers()
+local progress = rowsSince("progress", mark)
+assert(#progress == 1 and progress[1][4] == 179, "one progress row, got " .. #progress)
+assert(progress[1][11].index == 1 and progress[1][11].value == 4, "objective 1 at 4")
+objectives[180][1].numFulfilled = 6
+fire("UNIT_QUEST_LOG_CHANGED", "target")
+runTimers()
+assert(#rowsSince("progress", mark) == 1, "another unit's quest log: not read")
+fire("QUEST_LOG_UPDATE")
+assert(queued > 0 and #rowsSince("progress", mark) == 1, "read a moment later")
+runTimers()
+assert(#rowsSince("progress", mark) == 2, "the new quest's progress")
+print("collector progress ok")
+
+-- Guide steps: done while playing recorded with their index, not those marked by hand.
+FG.Routes["step-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "accept", t = "Accept One", q = 9101, lvl = 6 },
+        { k = "objective", t = "Boar Meat x4", q = 9101, o = 1, n = "Boar Meat", lvl = 6, d = 240 },
+        { k = "train", t = "Train", lvl = 6 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+objectives[9101] = { { text = "Boar Meat: 2/4", numFulfilled = 2, numRequired = 4, finished = false } }
+useRoute("step-test")
+mark = #char.events
+onQuest[9101] = true
+FG.Guide:Advance()
+assert(char.guide.step == 2 and #rowsSince("step", mark) == 0, "an accept has its own row")
+objectives[9101][1].finished = true
+FG.Guide:Advance()
+local steps = rowsSince("step", mark)
+assert(#steps == 1 and steps[1][4] == 9101, "step done while playing")
+assert(steps[1][11].step == 2 and steps[1][11].planned == 240, "its index and planned time")
+SlashCmdList.FACTORUIDE("skip")
+FG.Guide:Advance()
+assert(char.guide.step == 4 and #rowsSince("step", mark) == 1, "a step marked by hand is not recorded")
+onQuest[9101] = nil
+print("collector steps ok")
+
+-- Flights: from the flight master to the landing.
+local onTaxi = false
+UnitOnTaxi = function() return onTaxi end
+here = { 1426, 0.30, 0.70 }
+mark = #char.events
+fire("PLAYER_CONTROL_LOST")
+onTaxi = true
+runTimers()
+clockNow = clockNow + 125
+onTaxi = false
+here = { 1453, 0.60, 0.40 }
+fire("PLAYER_CONTROL_GAINED")
+local flightRow = rowsSince("flight", mark)[1]
+assert(flightRow and flightRow[7] == 1453 and flightRow[8] == 60, "landing position")
+assert(flightRow[11].fromMap == 1426 and flightRow[11].fromX == 30 and flightRow[11].seconds == 125, "flight")
+fire("PLAYER_CONTROL_LOST") -- stunned, not a flight
+runTimers()
+fire("PLAYER_CONTROL_GAINED")
+assert(#rowsSince("flight", mark) == 1, "control lost without a flight")
+print("collector flight ok")
+
+-- Quest details carry the XP reward when the client gives it.
+GetRewardXP = function() return 450 end
+GetQuestID = function() return 9201 end
+fire("QUEST_DETAIL", 0)
+GetQuestID = questID
+assert(lastRow("detail")[4] == 9201 and lastRow("detail")[11].xp == 450, "detail XP")
+print("collector detail ok")
+
+-- Rows are strings; game text is percent-encoded where it would break the format.
+C_QuestLog.GetLogIndexForQuestID = function() return 1 end
+C_QuestLog.GetInfo = function() return { questID = 9301, title = "A|B;C=D%E\nF", level = 7 } end
+fire("QUEST_ACCEPTED", 9301)
+local raw = char.events[#char.events]
+assert(type(raw) == "string" and raw:find("|accept|9301|", 1, true), "a string row: " .. tostring(raw))
+assert(raw:find("level=7;title=A%7CB%3BC%3DD%25E%0AF", 1, true), "text encoded: " .. raw)
+assert(lastRow("accept")[11].title == "A|B;C=D%E\nF", "and read back")
+print("collector rows ok")
+
+GetTime = realGetTime
+issecretvalue = function() return false end
+
+-- Handler errors are counted in the saved variables, a few short messages.
+for msg in pairs(FactoruideDB.errors or {}) do
+    error("handler error: " .. msg)
+end
+FG:On("FG_TEST", function() error("boom") end)
+fire("FG_TEST")
+fire("FG_TEST")
+local errorKey, errorCount = pairs(FactoruideDB.errors)(FactoruideDB.errors)
+assert(errorKey:find("FG_TEST", 1, true) and errorKey:find("boom", 1, true) and errorCount == 2, "error counted")
+for i = 1, 30 do
+    FG:Error("test", i .. string.rep("x", 300))
+end
+local kept = 0
+for msg in pairs(FactoruideDB.errors) do
+    kept = kept + 1
+    assert(#msg <= 200, "message shortened")
+end
+assert(kept == 20, "errors capped, got " .. kept)
+print("error counter ok")
+
+-- Rows the app has (Sent.lua) are dropped at login, the seq keeps growing; at most 20000 rows.
+FactoruideSent = { ["Brouz-Realm"] = decodeRow(char.events[3])[1] }
+local before = #char.events
+FG.Collector:Purge()
+assert(#char.events == before - 3 and decodeRow(char.events[1])[1] > FactoruideSent["Brouz-Realm"], "sent rows dropped")
+local output
+local realPrint = print
+print = function(s) output = s end
+SlashCmdList.FACTORUIDE("status")
+print = realPrint
+assert(output:find(#char.events .. " not sent yet", 1, true), "status: " .. output)
+for i = 1, 20010 do
+    char.events[#char.events + 1] = { char.seq + i, 0, "kill", false, "npc", 6, false, false, false, 1, false }
+end
+char.seq = char.seq + 20010
+FactoruideSent = { ["Brouz-Realm"] = char.seq + 50 } -- saved variables older than what the app has
+FG.Collector:Purge()
+assert(#char.events == 0 and char.seq == FactoruideSent["Brouz-Realm"], "all sent, the seq follows")
+FactoruideSent = nil
+FactoruideDB.errors = nil -- full after the error counter test
+for i = 1, 20010 do
+    char.events[i] = { char.seq + i, 0, "kill", false, "npc", 6, false, false, false, 1, false }
+end
+char.seq = char.seq + 20010
+FG.Collector:Purge()
+assert(#char.events == 20000 and char.events[20000][1] == char.seq, "capped, the newest kept")
+local capLogged = false
+for msg in pairs(FactoruideDB.errors) do
+    if msg:find("oldest dropped", 1, true) then capLogged = true end
+end
+assert(capLogged, "the cap is logged")
+print("collector purge ok")

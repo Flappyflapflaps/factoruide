@@ -184,21 +184,23 @@ local function PendingXP(step, index)
     return xp
 end
 
+--- Whether a step is done; the second value is true when it was passed rather than played
+--- (marked by hand, left behind, alternative taken, accept skipped).
 function IsDone(step, index)
     local q = step.q
     if state.marks[index or state.step] == "skip" or (q and state.skippedQuests[q]) then
-        return true -- marked as done by hand
+        return true, true -- marked as done by hand
     end
     -- Planned well below our level: left behind (a character resuming the route, a quest
     -- added to the game after we went through that zone), unless the quest is in the log.
     if step.lvl and UnitLevel("player") - step.lvl >= OUTDATED_LEVELS and not (q and QuestLog.IsOnQuest(q)) then
-        return true
+        return true, true
     end
     -- An exclusive alternative (or the quest a breadcrumb leads to) is done or in progress:
     -- this quest cannot be taken any more.
     if step.alt and not QuestLog.IsOnQuest(q) then
         for _, other in ipairs(step.alt) do
-            if QuestLog.IsQuestFlaggedCompleted(other) or QuestLog.IsOnQuest(other) then return true end
+            if QuestLog.IsQuestFlaggedCompleted(other) or QuestLog.IsOnQuest(other) then return true, true end
         end
     end
     if step.k == "accept" then
@@ -211,13 +213,14 @@ function IsDone(step, index)
         return false
     elseif step.k == "objective" then
         if QuestLog.IsQuestFlaggedCompleted(q) then return true end
-        if AcceptSkipped(step, index or state.step) then return true end
+        if AcceptSkipped(step, index or state.step) then return true, true end
         if not QuestLog.IsOnQuest(q) then return false end
         local o = FindObjective(step)
         if o then return o.finished end
         return QuestLog.IsComplete(q)
     elseif step.k == "turnin" then
-        return QuestLog.IsQuestFlaggedCompleted(q) or AcceptSkipped(step, index or state.step)
+        if QuestLog.IsQuestFlaggedCompleted(q) then return true end
+        return AcceptSkipped(step, index or state.step), true
     elseif step.k == "abandon" then
         -- Done once the quest has left the log (or was never in it).
         return not QuestLog.IsOnQuest(q)
@@ -840,10 +843,17 @@ end
 function Guide:Advance()
     local step = route and route.steps[state.step]
     if step then
-        local done = step.bg or IsDone(step, state.step)
+        local done, passed = step.bg, step.bg
+        if not done then
+            done, passed = IsDone(step, state.step)
+        end
         if not done then
             arrivedDone = false
         elseif not arrivedDone then
+            -- Done while playing: recorded with its index (not the background ones, nor passed).
+            if not passed and FG.Collector then
+                FG:Try("step", FG.Collector.RecordStep, FG.Collector, state.step, step)
+            end
             state.step = state.step + 1
             SkipDone()
         end

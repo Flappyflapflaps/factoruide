@@ -299,8 +299,8 @@ export interface Settings {
   wow_dir: string;
   /** Contribution server address (unset: the built-in one). */
   contribution_url?: string | null;
-  /** When this computer last sent one (unix seconds). */
-  last_contribution?: number | null;
+  /** Send what is new to the contribution server on its own, once a day at most (off by default). */
+  auto_contribute?: boolean;
   /** Game version the app works on. */
   edition: Edition;
   /** App language (also the default guide language); unset: the system language. */
@@ -367,8 +367,10 @@ export const api = {
   listEditions: () => invoke<EditionInfo[]>("list_editions"),
   setEdition: (edition: Edition) => invoke<void>("set_edition", { edition }),
   contributionPreview: () => invoke<ContributionPreview>("contribution_preview"),
-  /** Sends the contribution: "accepted" or "duplicate" (rejects with "rate_limited" or the server's message). */
-  sendContribution: () => invoke<string>("send_contribution"),
+  /** Sends what is new, in up to 3 documents (rejects with "nothing_to_send", "rate_limited" or the server's message when none was accepted). */
+  sendContribution: () => invoke<SendReport>("send_contribution"),
+  /** Turns the automatic contributions on or off (that setting only). */
+  setAutoContribute: (on: boolean) => invoke<void>("set_auto_contribute", { on }),
   /** Opens a version in the guide editor (`locale`: language of the lines and names shown). */
   editOpen: (guide: string, version: number, locale: string) => invoke<EditOpened>("edit_open", { guide, version, locale }),
   /** Replays the steps of the guide open in the editor. */
@@ -506,19 +508,48 @@ export interface MapInfo {
   shape?: [number, number][][];
 }
 
-/** What a contribution of this computer would hold (current game version). */
+/** What a click on "send" did. */
+export interface SendReport {
+  /** "already_received": the server already had the last document. */
+  status: "accepted" | "already_received";
+  /** Documents the server accepted. */
+  documents: number;
+  /** New data is left for the next send. */
+  more: boolean;
+}
+
+/** How the last automatic send of a game version went. */
+export interface AutoSendStatus {
+  edition: Edition;
+  name: string;
+  /** Unix seconds. */
+  time: number;
+  status: "accepted" | "already_received" | "rate_limited" | "error";
+  message?: string | null;
+}
+
+/** What a contribution of this computer would hold now (current game version): only what was not sent yet. */
 export interface ContributionPreview {
   edition: Edition;
   client_dir: string;
   found: boolean;
   quests: number;
+  /** Creatures and game objects from the client's caches. */
+  entities: number;
   events: number;
   characters: number;
   locales: string[];
   /** Size of the JSON sent (bytes). */
   size: number;
+  /** What is new does not fit in one document: the figures are the first one's. */
+  more: boolean;
   url: string | null;
+  /** When the server last accepted one of this game version (unix seconds). */
   last_sent: number | null;
+  /** No send before then (unix seconds): the server asked to wait. */
+  retry_after: number | null;
+  /** The last automatic send of each game version. */
+  automatic: AutoSendStatus[];
 }
 
 /** A step of a guide's route by game IDs, what the guide editor changes; mirror of `fg_route::job::RouteStep`. */

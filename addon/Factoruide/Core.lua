@@ -28,10 +28,35 @@ function FG:On(event, fn)
     table.insert(handlers[event], fn)
 end
 
+--- Count an error in the saved variables (`FactoruideDB.errors`, message -> count): a few short
+--- messages, so what fails on one client shows up in its SavedVariables.
+local MAX_ERRORS = 20
+function FG:Error(where, err)
+    local msg = (where .. ": " .. tostring(err)):gsub("Interface[/\\]AddOns[/\\]Factoruide[/\\]", ""):sub(1, 200)
+    self:Debug("error in %s", msg)
+    if type(FactoruideDB) ~= "table" then return end
+    local errors = FactoruideDB.errors or {}
+    FactoruideDB.errors = errors
+    if errors[msg] then
+        errors[msg] = errors[msg] + 1
+        return
+    end
+    local n = 0
+    for _ in pairs(errors) do
+        n = n + 1
+    end
+    if n < MAX_ERRORS then errors[msg] = 1 end
+end
+
+--- Call `fn` under pcall, errors counted (event handlers, timers).
+function FG:Try(where, fn, ...)
+    local ok, err = pcall(fn, ...)
+    if not ok then self:Error(where, err) end
+end
+
 frame:SetScript("OnEvent", function(_, event, ...)
     for _, fn in ipairs(handlers[event]) do
-        local ok, err = pcall(fn, ...)
-        if not ok then FG:Debug("error in %s: %s", event, tostring(err)) end
+        FG:Try(event, fn, ...)
     end
 end)
 
@@ -142,6 +167,16 @@ local classicLog = {
     IsFailed = function(questID) return LogState(questID) == -1 end,
     IsOnQuest = function(questID) return LogIndex(questID) ~= nil end,
     IsQuestFlaggedCompleted = IsQuestFlaggedCompleted,
+    -- Classic Era and TBC have GetQuestsCompleted, a set { [questID] = true }: a sorted list here.
+    GetAllCompletedQuestIDs = function()
+        if not GetQuestsCompleted then return nil end
+        local ids = {}
+        for id, done in pairs(GetQuestsCompleted() or {}) do
+            if done then table.insert(ids, id) end
+        end
+        table.sort(ids)
+        return ids
+    end,
 }
 FG.QuestLog = setmetatable({}, { __index = function(_, name) return C_QuestLog[name] or classicLog[name] end })
 
