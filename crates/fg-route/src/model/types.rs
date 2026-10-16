@@ -339,8 +339,10 @@ pub struct Quest {
     /// Profession quest: index in `Model::professions` and skill needed to accept it.
     pub skill: Option<(usize, i64)>,
     /// Class quest making the character stronger: index in `Profile::class_powers` (quests of
-    /// the same name share it) and power gained when turned in.
+    /// the same name, or teaching the same spell, share it) and power gained when turned in.
     pub power: Option<(u8, f64)>,
+    /// The spell its turn-in teaches (a pet, a totem...).
+    pub reward_spell: Option<i64>,
     /// Hostile mobs around its givers and its turn-ins (the hardest of them).
     pub start_guard: Guard,
     pub end_guard: Guard,

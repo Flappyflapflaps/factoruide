@@ -14,7 +14,8 @@ Writing an entry: one short line per change, saying what the player sees or gets
 
 ### Guides
 
-- WoW Forever: Skyborne guides do Zephras Isle before leaving it by its teleport, instead of leaving at the first step.
+- WoW Forever: Skyborne guides do Zephras Isle before leaving it by its teleport, instead of leaving at the first step (GitHub #19).
+- Class quests are planned for the spell they teach: an undead warlock gets the Imp in Tirisfal Glades instead of going to Durotar for the orc's Vile Familiars (GitHub #22).
 - The start zone's letter to the class trainer is always taken (Encrypted Sigil, Consecrated Rune, Simple Parchment…).
 - A quest started by a boss's drop is taken during the dungeon run, not before entering (Unending Torment, Ruins of Lordaeron).
 - "Speak with" objectives are talks, no longer kills of the NPC.

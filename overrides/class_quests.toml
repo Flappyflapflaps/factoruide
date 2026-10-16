@@ -1,5 +1,6 @@
 # Class quests the route must include (by quest name; every race variant and the
-# prerequisites of the chain are included). The class quests the data says teach a spell
+# prerequisites of the chain are included; where quests of the name teach a spell, only those
+# and the steps leading to them). The class quests the data says teach a spell
 # (`m_quest.reward_spell`: Path of Defense, Poisons, Divine Grace...) are required too, after
 # these; the app lists both and the player can take some out. Other class quests are optional:
 # planned only when worth the time, like normal quests.
@@ -7,7 +8,8 @@
 # `power`: class quests that make the character stronger (a pet, a form), by quest name, with
 # the power gained when turned in: fights take `1 / power` of their time afterwards (1.25 = 25%
 # faster). It counts as levels of power like gear (1.4 = 3.2 levels), so the route goes for
-# these quests early. Several quests of the same name count once.
+# these quests early. Several quests of the same name count once; where they teach a spell,
+# the quests teaching it give the power, whatever their name.
 
 [warrior]
 # Item rewards only (Bartleby, Elura, Weapons of Elunite...): none required by default.

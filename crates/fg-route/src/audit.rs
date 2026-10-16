@@ -243,8 +243,11 @@ fn class_quests_left_out(class: &str, required: &[String], own: &HashSet<i64>, m
     let skipped = (model.skipped.iter())
         .filter(|(id, name, why)| required.contains(name) && own.contains(id) && why != "repeatable")
         .map(|(id, name, why)| (*id, name, why.as_str()));
+    // Of a name teaching a spell, only those leading to it are required.
+    let designated = crate::model::required_by_name(&model.quests);
     let released = (model.quests.iter())
         .filter(|q| required.contains(&q.name) && own.contains(&q.id) && !q.mandatory)
+        .filter(|q| designated.contains(&q.id))
         .map(|q| (q.id, &q.name, "a prerequisite cannot be planned"));
     skipped
         .chain(released)

@@ -253,6 +253,13 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
         |r| r.get(0),
     )?;
     let limit = if has_limit { "time_limit" } else { "NULL" };
+    // Nor the spell a quest teaches.
+    let has_reward_spell: bool = conn.query_row(
+        "SELECT count(*) > 0 FROM pragma_table_info('m_quest') WHERE name = 'reward_spell'",
+        [],
+        |r| r.get(0),
+    )?;
+    let reward_spell = if has_reward_spell { "reward_spell" } else { "NULL" };
     let mut stmt = conn.prepare(&format!(
         "SELECT id, coalesce(name, ''), level, min_level, coalesce(xp, 0), zone_or_sort, races_mask, classes_mask,
                 special_flags, required_skill_id, required_min_rep_faction, required_spell, breadcrumb_for,
@@ -261,7 +268,8 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
                 coalesce(objectives_text GLOB '*[0-9]*', 0),
                 (SELECT json_group_array(json_extract(t.value, '$[1]'))
                  FROM json_each(extra, '$.extra_objectives') e, json_each(e.value, '$.\"5\"') t
-                 WHERE json_extract(t.value, '$[0]') = 'object')
+                 WHERE json_extract(t.value, '$[0]') = 'object'),
+                {reward_spell}
          FROM m_quest WHERE status = 'available'"
     ))?;
     let rows = stmt.query_map([], |r| {
@@ -293,6 +301,7 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
                 .get::<_, Option<String>>(23)?
                 .and_then(|j| serde_json::from_str(&j).ok())
                 .unwrap_or_default(),
+            reward_spell: r.get(24)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -501,6 +510,8 @@ pub(super) struct QuestRow {
     /// Objects its extra objectives are done at (Questie's): where a creature found nowhere
     /// else is summoned (The Binding's summoning circle).
     pub(super) extra_objects: Vec<i64>,
+    /// The spell its turn-in teaches (a pet, a totem...).
+    pub(super) reward_spell: Option<i64>,
 }
 
 impl QuestRow {

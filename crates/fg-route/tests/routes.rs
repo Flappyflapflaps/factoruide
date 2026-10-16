@@ -398,6 +398,24 @@ fn pet_quest_comes_early() {
     assert!(at < 25, "imp turned in at stop {at}");
 }
 
+/// A class quest is required for the spell it teaches, not for its name: the undead warlock gets
+/// the Imp from Piercing the Veil (or the orc's Vile Familiars: either is enough), the second
+/// Vile Familiars (talk to Zureetha Fargaze in Durotar, the orc's chain after the Imp) teaches
+/// nothing. It is neither required nor worth the Imp's power: the guide does not cross to Durotar
+/// for it, and Piercing the Veil is worth the Imp's power.
+#[test]
+fn class_quest_is_required_for_its_spell_not_its_name() {
+    let p = prepare("undead", "warlock", 10, &["progression=cautious"]);
+    let q = |id| &p.model.quests[quest(&p, id).unwrap() as usize];
+    let (veil, imp, talk) = (q(1470), q(1485), q(1499));
+    assert!(veil.mandatory && imp.mandatory, "both teach the Imp");
+    assert!(!talk.mandatory && talk.power.is_none(), "teaches nothing");
+    assert!(veil.power.is_some() && veil.power == imp.power, "the same Imp");
+    let route = planner(&p).construct(|_| {});
+    let talk = quest(&p, 1499).unwrap();
+    assert!(!route.iter().any(|s| s.kind == Kind::TurnIn && s.index == talk));
+}
+
 /// Constructed routes stay valid when a level reached makes quests of a full log hopeless
 /// (gone gray, or their dungeon outleveled): the next accept is judged on the log once they are
 /// given up, and the construction's replay (`settle`) goes where the route goes next, as the

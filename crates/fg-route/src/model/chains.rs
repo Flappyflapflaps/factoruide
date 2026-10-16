@@ -107,6 +107,64 @@ pub(super) fn chain_tops(quests: &[Quest], index: &HashMap<i64, usize>) -> Vec<i
     (0..quests.len()).map(|i| top(i, &next, quests, &mut memo, 0)).collect()
 }
 
+/// Names of quests some version of which teaches a spell (a pet, a totem...).
+fn spell_quest_names(quests: &[Quest]) -> HashSet<&str> {
+    quests
+        .iter()
+        .filter(|q| q.reward_spell.is_some())
+        .map(|q| q.name.as_str())
+        .collect()
+}
+
+/// The quests a required name designates: where quests of that name teach a spell (the spell is
+/// what is required), those and the steps of the name leading to them (Summon Felsteed's
+/// letters before the quest teaching it); else every quest of the name.
+pub(crate) fn required_by_name(quests: &[Quest]) -> HashSet<i64> {
+    let names = spell_quest_names(quests);
+    let by_id: HashMap<i64, &Quest> = quests.iter().map(|q| (q.id, q)).collect();
+    let mut keep: HashSet<i64> = quests
+        .iter()
+        .filter(|q| q.reward_spell.is_some() || !names.contains(q.name.as_str()))
+        .map(|q| q.id)
+        .collect();
+    let mut stack: Vec<&Quest> = quests.iter().filter(|q| q.reward_spell.is_some()).collect();
+    while let Some(q) = stack.pop() {
+        for p in q.pre_all.iter().chain(&q.pre_any).filter_map(|id| by_id.get(id)) {
+            if p.name == q.name && keep.insert(p.id) {
+                stack.push(p);
+            }
+        }
+    }
+    keep
+}
+
+/// Class quests are required by name (class_quests.toml, the app's list) and give their power
+/// by name. Where quests of that name teach a spell, the spell is what counts: only those and
+/// the steps leading to them stay required (`required_by_name`), only those give the power, and
+/// a quest teaching a spell a power quest teaches gives its power. The second Vile Familiars
+/// (talk to Zureetha Fargaze in Durotar, after the orc's Imp) teaches nothing: the undead
+/// warlock, whose Piercing the Veil teaches the Imp, has no reason to go there.
+pub(super) fn narrow_class_quests_to_spells(quests: &mut [Quest]) {
+    let keep = required_by_name(quests);
+    let names: HashSet<String> = spell_quest_names(quests).into_iter().map(str::to_owned).collect();
+    let mut powers: HashMap<i64, (u8, f64)> = HashMap::new();
+    for q in quests.iter() {
+        if let (Some(spell), Some(power)) = (q.reward_spell, q.power) {
+            powers.entry(spell).or_insert(power);
+        }
+    }
+    for q in quests.iter_mut() {
+        if let Some(spell) = q.reward_spell {
+            q.power = q.power.or_else(|| powers.get(&spell).copied());
+        } else if names.contains(&q.name) {
+            q.power = None;
+            if !keep.contains(&q.id) {
+                q.mandatory &= q.zone_forced;
+            }
+        }
+    }
+}
+
 /// Prerequisites of required quests are required too: all of `pre_all`, and the one of
 /// `pre_any` the character can take when it is the only one (Archaic Rune before the dwarf's
 /// Call of Earth).

@@ -57,6 +57,7 @@ impl QuestBuilder<'_> {
                 .then(|| self.profile.class_powers.iter().position(|(n, _)| n == &r.name))
                 .flatten()
                 .map(|k| (k as u8, self.profile.class_powers[k].1)),
+            reward_spell: r.reward_spell,
             start_guard,
             end_guard,
             reputation: r
