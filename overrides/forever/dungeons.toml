@@ -1,0 +1,6 @@
+# WoW Forever's dungeons (format: ../dungeons.toml).
+
+[[dungeon]]
+area = 16919
+name = "The Hall of Thanes"
+entrance = { zone = 1537, x = 33.0, y = 47.5 } # approx: near its quest givers in Ironforge

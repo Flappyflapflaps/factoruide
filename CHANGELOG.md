@@ -9,6 +9,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 ### App
 
 - WoW Forever: the dungeon list shows the new dungeons with quests: Ruins of Lordaeron, Excavation Site: Wetlands, City of Dalaran (GitHub #18).
+- Classic and TBC: the dungeon list no longer shows The Hall of Thanes, a WoW Forever dungeon.
 
 ### WoW data
 

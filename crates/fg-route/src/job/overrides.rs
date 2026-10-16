@@ -162,8 +162,8 @@ mod tests {
     }
 
     /// The files of every game version hold what they share (races, the tram, the zeppelins);
-    /// each version's folder adds its own (Forever's Skyborne and boats, TBC's draenei and
-    /// Dark Portal, Classic's straight Menethil Harbor boat), never seen by the others.
+    /// each version's folder adds its own (Forever's Skyborne, boats and Hall of Thanes, TBC's
+    /// draenei and Dark Portal, Classic's straight Menethil Harbor boat), never seen by the others.
     #[test]
     fn each_edition_adds_its_own_to_the_shared_files() {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../overrides");
@@ -185,6 +185,9 @@ mod tests {
         );
         assert!(link(&tbc, "Dark Portal") && !link(&classic, "Dark Portal"));
         assert_eq!(classic.races.len(), 8);
+        // Forever's new dungeon is not listed in the other versions (without quests nor levels there).
+        let thanes = |o: &Overrides| o.dungeons.iter().any(|d| d.area == 16919);
+        assert!(thanes(&forever) && !thanes(&classic) && !thanes(&tbc));
     }
 
     /// An edition's file adds its lists of tables to the shared one and sets its keys over it.

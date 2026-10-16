@@ -1,4 +1,5 @@
-# Dungeons: entrances missing from the quest data (new Forever dungeons) and per-dungeon tuning.
+# Dungeons: entrances missing from the quest data and per-dungeon tuning, for every game version
+# (a version's own in <edition>/dungeons.toml: Forever's new dungeons in forever/).
 # Defaults: levels from the dungeon's quests, minutes = 40 + level (50-120),
 # kills = 60 + 2 x level, XP shared by a 5-man group (see dungeon_xp_share).
 #
@@ -10,8 +11,3 @@
 # max_level = 26
 # minutes = 60
 # kills = 120
-
-[[dungeon]]
-area = 16919
-name = "The Hall of Thanes"
-entrance = { zone = 1537, x = 33.0, y = 47.5 } # approx: near its quest givers in Ironforge
