@@ -29,6 +29,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - Items to keep: the common items the guide's quests still need (cloth, meat…), in the bags and in the bank; at the bank, what to take and what can stay.
 - The addon speaks the app's 10 languages, in the language chosen on the Addon page (else the game's).
 - ElvUI, EllesmereUI and SpartanUI: their style only when "UI suite style" is on (Addon page).
+- `/fg hide` hides all of the addon's windows and marks until `/fg show`, for the session (GitHub #16). Thanks to @jdille.
 - Right after accepting a quest, its kill or loot step is no longer passed before the game shows the objectives (Kolkar Leaders).
 
 ### WoW data
