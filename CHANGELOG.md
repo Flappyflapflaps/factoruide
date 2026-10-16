@@ -31,6 +31,8 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - ElvUI, EllesmereUI and SpartanUI: their style only when "UI suite style" is on (Addon page).
 - `/fg hide` hides all of the addon's windows and marks until `/fg show`, for the session (GitHub #16). Thanks to @jdille.
 - Right after accepting a quest, its kill or loot step is no longer passed before the game shows the objectives (Kolkar Leaders).
+- A kill step is no longer passed when another objective of its quest holding its name is done: Night Web Spider after Young Night Web Spider (GitHub #20).
+- Mobs on the way no longer count the mobs the current steps are done on (GitHub #20).
 
 ### WoW data
 

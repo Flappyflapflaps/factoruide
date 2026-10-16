@@ -121,15 +121,25 @@ local Distance -- defined below, used by IsDone
 
 local function QuestTitle(step) return step.q and QuestLog.GetTitleForQuestID(step.q) or nil end
 
---- Game objective matching the step's target name.
+--- Game objective matching the step's target name. When several hold the name ("Night Web
+--- Spider slain" and "Young Night Web Spider slain"), the one with the least else around it
+--- (counts, spaces and punctuation aside), then the one at the step's objective index.
 local function FindObjective(step)
     local objectives = QuestLog.GetQuestObjectives(step.q)
-    if objectives and step.n then
-        local name = step.n:lower()
-        for _, o in ipairs(objectives) do
-            if o.text and o.text:lower():find(name, 1, true) then return o end
+    if not objectives or not step.n then return nil end
+    local name = step.n:lower()
+    local best, bestRest
+    for i, o in ipairs(objectives) do
+        local text = o.text and o.text:lower()
+        local at = text and text:find(name, 1, true)
+        if at then
+            local rest = #((text:sub(1, at - 1) .. text:sub(at + #name)):gsub("[%d%p%s]", ""))
+            if not best or rest < bestRest or (rest == bestRest and i == step.o) then
+                best, bestRest = o, rest
+            end
         end
     end
+    return best
 end
 
 --- Right after an accept the game lists no objectives (or blank ones) for a moment, while
@@ -938,11 +948,25 @@ function Guide:AskReset()
     end
 end
 
---- A mob killed by the character (or its pet): counted for the current step when it has mobs to
---- kill on the way to it.
-function Guide:CountKill()
+--- Whether creature `npc` is one a step of the current page is done on (killed, or dropping
+--- its item): killed there, it is not a mob on the way.
+local function PageMob(npc)
+    if not npc then return false end
+    for _, index in ipairs(CurrentGroup()) do
+        local s = route.steps[index]
+        if s.e == "npc" and s.id == npc then return true end
+        for _, id in ipairs(s.mi or {}) do
+            if id == npc then return true end
+        end
+    end
+    return false
+end
+
+--- A mob (creature `npc`) killed by the character (or its pet): counted for the current step
+--- when it has mobs to kill on the way to it, unless the steps at hand are done on that mob.
+function Guide:CountKill(npc)
     local step = route and state and route.steps[state.step]
-    if not step or not step.fk then return end
+    if not step or not step.fk or PageMob(npc) then return end
     if not state.farm or state.farm.step ~= state.step then state.farm = { step = state.step, kills = 0 } end
     state.farm.kills = state.farm.kills + 1
     self:Refresh()
@@ -1102,7 +1126,7 @@ FG:On("ZONE_CHANGED_NEW_AREA", TrackInstance)
 FG:On("PARTY_KILL", function(attackerGUID, targetGUID)
     local source, dest = FG.Readable(attackerGUID), FG.Readable(targetGUID)
     if not dest or not dest:find("^Creature") then return end
-    if source == UnitGUID("player") or source == UnitGUID("pet") then Guide:CountKill() end
+    if source == UnitGUID("player") or source == UnitGUID("pet") then Guide:CountKill(select(2, FG.ParseGUID(dest))) end
 end)
 
 for _, event in ipairs({

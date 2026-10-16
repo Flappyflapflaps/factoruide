@@ -1114,6 +1114,28 @@ fn mobs_on_the_way_are_counted_apart() {
     assert!(fg_route::export::to_lua(std::slice::from_ref(&guide)).contains(", fk = "));
 }
 
+/// The addon gets the IDs of the mobs a step is done on, to leave their kills out of the mobs on
+/// the way.
+#[test]
+fn addon_knows_the_mobs_of_each_step() {
+    let p = orc_warlock();
+    let planner = planner(p);
+    let route = planner.construct(|_| {});
+    let guide = fg_route::export::build(&planner, &p.profile, &route);
+    let lua = fg_route::export::to_lua(std::slice::from_ref(&guide));
+    let kill = guide
+        .steps
+        .iter()
+        .find(|s| s.kind == fg_route::export::StepKind::Objective && !s.mob_ids.is_empty())
+        .expect("an objective on mobs");
+    let line = lua
+        .lines()
+        .find(|l| l.contains(&format!("t = {:?}", kill.text)))
+        .unwrap();
+    let ids: Vec<String> = kill.mob_ids.iter().map(ToString::to_string).collect();
+    assert!(line.contains(&format!("mi = {{ {} }}", ids.join(", "))), "{line}");
+}
+
 /// A dungeon run is a step that takes the player in, then a step per quest of the route done
 /// inside (marked `inside`, in the run's time), each turned in later.
 #[test]

@@ -160,6 +160,13 @@ pub fn to_lua(routes: &[Route]) -> String {
                     s.mobs.iter().map(|m| lua_str(m)).collect::<Vec<_>>().join(", ")
                 ));
             }
+            // Their IDs: the addon does not count them as mobs on the way.
+            if !s.mob_ids.is_empty() {
+                fields.push(format!(
+                    "mi = {{ {} }}",
+                    s.mob_ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+                ));
+            }
             if let Some(item) = s.reward {
                 fields.push(format!("rw = {item}"));
             }

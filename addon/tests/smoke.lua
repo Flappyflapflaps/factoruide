@@ -1209,6 +1209,57 @@ local rows = FG.Guide:Box().rows
 local farmLine, stepLine = rows[1].count:GetText(), rows[2].name:GetText()
 assert(farmLine:find("2/3", 1, true), "a line of its own with the count: " .. farmLine)
 assert(not stepLine:find("2/3", 1, true) and stepLine:find("Grind", 1, true), "the step's line apart: " .. stepLine)
+-- The step's own mobs (killed for it, or dropping its item) are not mobs on the way.
+FG.Routes["farm-quest-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        {
+            k = "objective",
+            t = "Kill Night Web Spider x8",
+            n = "Night Web Spider",
+            q = 9401,
+            o = 1,
+            e = "npc",
+            id = 1505,
+            mi = { 1505 },
+            fk = 3,
+            m = 1431,
+            x = 24.8,
+            y = 59.7,
+            lvl = 1,
+        },
+        {
+            k = "objective",
+            t = "Spider Silk x4",
+            n = "Spider Silk",
+            q = 9402,
+            o = 1,
+            e = "item",
+            id = 9999,
+            mi = { 1504 },
+            m = 1431,
+            x = 24.9,
+            y = 59.8,
+            lvl = 1,
+        },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+onQuest[9401], onQuest[9402] = true, true
+useRoute("farm-quest-test")
+FG.Guide:Resync()
+char.guide.farm = nil
+kill("Player-1-2", "Creature-0-1-2-3-1505-0000") -- the step's target
+kill("Player-1-2", "Creature-0-1-2-3-1504-0001") -- drops the item of a step of the page
+assert(char.guide.farm == nil, "the page's quest mobs not counted on the way")
+kill("Player-1-2", "Creature-0-1-2-3-299-0002")
+assert(char.guide.farm and char.guide.farm.kills == 1, "another mob counted")
+onQuest[9401], onQuest[9402] = nil, nil
 print("farm on the way ok")
 
 -- Start over: asks when steps or quests were marked by hand, then undoes them.
@@ -1520,6 +1571,73 @@ assert(page() == "1,2", "back to the objectives' page: " .. page())
 C_QuestLog.GetQuestObjectives = pageObjectives
 onQuest[9201] = nil
 print("pages ok")
+
+-- Objectives whose names hold one another: "Night Web Spider" is not "Young Night Web Spider",
+-- whichever comes first in the log and whatever the text's form (Forever's or Classic's).
+FG.Routes["spider-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        {
+            k = "objective",
+            t = "Kill Young Night Web Spider x10",
+            n = "Young Night Web Spider",
+            q = 9301,
+            o = 1,
+            e = "npc",
+            id = 1504,
+            m = 1431,
+            x = 28.6,
+            y = 57.7,
+            lvl = 1,
+        },
+        {
+            k = "objective",
+            t = "Kill Night Web Spider x8",
+            n = "Night Web Spider",
+            q = 9301,
+            o = 2,
+            e = "npc",
+            id = 1505,
+            m = 1431,
+            x = 24.8,
+            y = 59.7,
+            lvl = 1,
+        },
+        { k = "turnin", t = "Turn in Night Web's Hollow", q = 9301, id = 13, m = 1431, x = 32, y = 66, lvl = 1 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+for _, texts in ipairs({
+    { "10/10 Young Night Web Spider slain", "2/8 Night Web Spider slain", young = 1 },
+    { "Young Night Web Spider slain: 10/10", "Night Web Spider slain: 2/8", young = 1 },
+    { "2/8 Night Web Spider slain", "10/10 Young Night Web Spider slain", young = 2 },
+}) do
+    local spiders = {}
+    for i, text in ipairs(texts) do
+        local young = i == texts.young
+        spiders[i] = {
+            text = text,
+            numFulfilled = young and 10 or 2,
+            numRequired = young and 10 or 8,
+            finished = young,
+        }
+    end
+    C_QuestLog.GetQuestObjectives = function(q) return q == 9301 and spiders or pageObjectives(q) end
+    onQuest[9301] = true
+    useRoute("spider-test")
+    FG.Guide:Resync()
+    assert(char.guide.step == 2, "the older spiders still to kill (" .. texts[1] .. "), step " .. char.guide.step)
+    local task = FG.Guide.view.tasks[1]
+    assert(task.have == 2 and task.need == 8, "their own count: " .. tostring(task.have) .. "/" .. tostring(task.need))
+end
+C_QuestLog.GetQuestObjectives = pageObjectives
+onQuest[9301] = nil
+print("objectives by name ok")
 
 -- Texts: in the language chosen in the app (Config.lua), else the game's; English without a
 -- translation; Mexican Spanish as Spain's.
