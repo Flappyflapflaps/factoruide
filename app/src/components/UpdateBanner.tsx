@@ -5,27 +5,43 @@ import { check, type Update } from "@tauri-apps/plugin-updater";
 import { api } from "../api";
 import { useT } from "../i18n";
 
-type Step = { kind: "idle" | "checking" | "current" | "installing" | "installed" } | { kind: "downloading"; percent: number | null } | { kind: "failed"; error: string };
+type Step =
+  | { kind: "idle" | "checking" | "current" | "installing" | "installed" }
+  | { kind: "downloading"; percent: number | null }
+  | { kind: "failed"; error: string };
 
 interface Props {
-  showCheck?: boolean;
-  installBlocked?: boolean;
-  beforeInstall?: () => boolean;
+  /** A generation is running: installing waits for it to end. */
+  busy: boolean;
+  /** The guide editor has changes not saved. */
+  unsaved: { readonly current: boolean };
 }
 
-const allowInstall = () => true;
+/** Asks the update banner to check now (the About panel's button; the macOS app menu sends it too). */
+export const CHECK_FOR_UPDATES = "check-for-updates";
 
-/** Startup checks for releases; an explicit Settings check also works in local builds. */
-export function UpdateBanner({ showCheck = false, installBlocked = false, beforeInstall = allowInstall }: Props) {
+/**
+ * Offers the new version published on GitHub, with its notes: checked at startup, and again on
+ * request. Published builds only: a local build has no update channel.
+ */
+export function UpdateBanner({ busy, unsaved }: Props) {
   const t = useT();
   const [update, setUpdate] = useState<Update | null>(null);
   const [step, setStep] = useState<Step>({ kind: "idle" });
-  const [menuRequested, setMenuRequested] = useState(false);
-  const [local, setLocal] = useState(false);
+  // Checked on request: shown, even with nothing to offer, until closed.
+  const [requested, setRequested] = useState(false);
+  const [restartError, setRestartError] = useState<string | null>(null);
   const banner = useRef<HTMLElement>(null);
+  // A check or an install is running.
   const locked = useRef(false);
+  // A check on request wins over a startup check answering late.
   const manualChecks = useRef(0);
   const resource = useRef<Update | null>(null);
+  // Read when the download ends: a generation started meanwhile keeps the app open.
+  const busyNow = useRef(busy);
+  useEffect(() => {
+    busyNow.current = busy;
+  }, [busy]);
 
   const replaceUpdate = useCallback((next: Update | null) => {
     const previous = resource.current;
@@ -36,18 +52,19 @@ export function UpdateBanner({ showCheck = false, installBlocked = false, before
 
   useEffect(() => {
     let cancelled = false;
-    // A manual check takes precedence over a late startup result.
-    api.updatesEnabled().then(async (enabled) => {
-      if (cancelled) return;
-      setLocal(!enabled);
-      if (!enabled || manualChecks.current > 0) return;
-      const next = await check({ timeout: 30000 });
-      if (cancelled || manualChecks.current > 0) {
-        if (next) await next.close();
-        return;
-      }
-      replaceUpdate(next);
-    }).catch(() => {});
+    // Offline, or no release yet: nothing to offer, nothing shown.
+    api
+      .updatesEnabled()
+      .then(async (enabled) => {
+        if (!enabled || cancelled || manualChecks.current > 0) return;
+        const next = await check({ timeout: 30000 });
+        if (cancelled || manualChecks.current > 0) {
+          if (next) await next.close();
+          return;
+        }
+        replaceUpdate(next);
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
       if (resource.current) void resource.current.close().catch(() => {});
@@ -56,13 +73,14 @@ export function UpdateBanner({ showCheck = false, installBlocked = false, before
   }, [replaceUpdate]);
 
   const checkNow = useCallback(async () => {
-    if (locked.current) return;
+    if (locked.current || !(await api.updatesEnabled().catch(() => false))) return;
     locked.current = true;
     manualChecks.current += 1;
     replaceUpdate(null);
+    setRequested(true);
+    setRestartError(null);
     setStep({ kind: "checking" });
     try {
-      setLocal(!(await api.updatesEnabled()));
       const next = await check({ timeout: 30000 });
       replaceUpdate(next);
       setStep({ kind: next ? "idle" : "current" });
@@ -74,31 +92,36 @@ export function UpdateBanner({ showCheck = false, installBlocked = false, before
   }, [replaceUpdate]);
 
   useEffect(() => {
-    const unlisten = listen("check-for-updates", () => {
-      setMenuRequested(true);
-      void checkNow();
-    });
-    return () => { void unlisten.then((stop) => stop()).catch(() => {}); };
+    const unlisten = listen(CHECK_FOR_UPDATES, () => void checkNow());
+    return () => {
+      void unlisten.then((stop) => stop()).catch(() => {});
+    };
   }, [checkNow]);
 
   useEffect(() => {
-    if (menuRequested && step.kind === "checking") banner.current?.scrollIntoView({ block: "start" });
-  }, [menuRequested, step.kind]);
+    if (requested && step.kind === "checking") banner.current?.scrollIntoView({ block: "start" });
+  }, [requested, step.kind]);
 
   const restart = async () => {
+    setRestartError(null);
     try {
       await relaunch();
     } catch (e) {
-      // Keep the installed state: retry restarting, never download/install twice.
+      // The update stays installed: only restarting is tried again, never a second download.
       setRestartError(String(e));
     }
   };
-  const [restartError, setRestartError] = useState<string | null>(null);
+  const restartAsked = () => {
+    if (unsaved.current && !confirm(t("Quitter l'édition sans enregistrer ? Les modifications seront perdues."))) return;
+    void restart();
+  };
   const install = async () => {
-    if (!update || locked.current || installBlocked || !beforeInstall()) return;
-    if (!confirm(t(local
-      ? "Installer la version officielle à la place de cette version locale et redémarrer ?"
-      : "Installer la mise à jour et redémarrer Factoruide ?"))) return;
+    if (!update || locked.current || busy) return;
+    const losing = unsaved.current;
+    const question = losing
+      ? t("Installer la mise à jour et redémarrer Factoruide ? Les modifications non enregistrées seront perdues.")
+      : t("Installer la mise à jour et redémarrer Factoruide ?");
+    if (!confirm(question)) return;
     locked.current = true;
     let total = 0;
     let received = 0;
@@ -112,36 +135,52 @@ export function UpdateBanner({ showCheck = false, installBlocked = false, before
         }
         if (event.event === "Finished") setStep({ kind: "installing" });
       });
+      // Windows closes the app to run the installer; elsewhere it starts again here, unless a
+      // generation or edits began during the download: then the restart button waits for the user.
       setStep({ kind: "installed" });
-      await restart();
+      if (!busyNow.current && (losing || !unsaved.current)) await restart();
     } catch (e) {
       setStep({ kind: "failed", error: String(e) });
+    } finally {
       locked.current = false;
     }
   };
+  const close = () => {
+    replaceUpdate(null);
+    setRequested(false);
+    setRestartError(null);
+    setStep({ kind: "idle" });
+  };
 
-  const working = ["checking", "downloading", "installing", "installed"].includes(step.kind);
-  if (!showCheck && !menuRequested && !update && step.kind !== "failed") return null;
+  if (!update && !requested) return null;
+  const working = step.kind === "checking" || step.kind === "downloading" || step.kind === "installing";
   return (
     <section ref={banner} className="update-banner" aria-label={t("Mises à jour de l'application")}>
       <div className="update-text" role="status" aria-live="polite">
         <strong>{update ? t("Version {version} disponible", { version: update.version }) : t("Mises à jour de l'application")}</strong>
         {update?.body && <div className="update-notes">{update.body}</div>}
-        {step.kind === "current" && <p>{t("Vous utilisez la dernière version.")}</p>}
         {step.kind === "checking" && <p>{t("Recherche de mises à jour…")}</p>}
+        {step.kind === "current" && <p>{t("Vous utilisez la dernière version.")}</p>}
         {step.kind === "failed" && <div className="error">{t("Échec de la mise à jour : {error}", { error: step.error })}</div>}
-        {local && (showCheck || menuRequested) && <p>{t("Version locale : une mise à jour la remplacera par la version officielle.")}</p>}
-        {installBlocked && update && <p>{t("Attendez la fin de la génération avant de mettre à jour.")}</p>}
+        {busy && update && step.kind !== "installed" && <p>{t("Attendez la fin de la génération avant de mettre à jour.")}</p>}
         {restartError && <div className="error">{t("Redémarrage impossible : {error}", { error: restartError })}</div>}
       </div>
-      {step.kind === "downloading" && <span>{step.percent === null ? t("Téléchargement…") : t("Téléchargement… {percent} %", { percent: step.percent })}</span>}
+      {step.kind === "downloading" && (
+        <span>{step.percent === null ? t("Téléchargement…") : t("Téléchargement… {percent} %", { percent: step.percent })}</span>
+      )}
       {step.kind === "installing" && <span>{t("Installation…")}</span>}
-      {step.kind === "installed" && <button onClick={restart}>{t("Redémarrer Factoruide")}</button>}
-      {update && !working && <>
-        <button className="primary" disabled={installBlocked} onClick={install}>{t("Mettre à jour")}</button>
-        <button onClick={() => { replaceUpdate(null); setStep({ kind: "idle" }); }}>{t("Plus tard")}</button>
-      </>}
-      {(showCheck || menuRequested) && <button disabled={working} onClick={checkNow}>{t("Rechercher des mises à jour")}</button>}
+      {step.kind === "installed" && (
+        <button className="primary" disabled={busy} onClick={restartAsked}>
+          {t("Redémarrer Factoruide")}
+        </button>
+      )}
+      {update && (step.kind === "idle" || step.kind === "failed") && (
+        <button className="primary" disabled={busy} onClick={install}>
+          {t("Mettre à jour")}
+        </button>
+      )}
+      {!update && step.kind === "failed" && <button onClick={() => void checkNow()}>{t("Rechercher des mises à jour")}</button>}
+      {!working && <button onClick={close}>{update ? t("Plus tard") : t("Fermer")}</button>}
     </section>
   );
 }

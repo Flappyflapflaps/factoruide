@@ -5,17 +5,6 @@
 type Entry = Partial<Record<"en" | "de" | "es" | "esMX" | "pt" | "ru" | "ko" | "zhCN" | "zhTW", string>>;
 
 export const CATALOG: Record<string, Entry> = {
-  "Mises à jour de l'application": { en: "Application updates" },
-  "Vous utilisez la dernière version.": { en: "You’re up to date." },
-  "Recherche de mises à jour…": { en: "Checking for updates…" },
-  "Rechercher des mises à jour": { en: "Check for updates" },
-  "Version locale : une mise à jour la remplacera par la version officielle.": { en: "Local build: updating will replace it with the official release." },
-  "Attendez la fin de la génération avant de mettre à jour.": { en: "Wait for guide generation to finish before updating." },
-  "Redémarrage impossible : {error}": { en: "Could not restart: {error}" },
-  "Redémarrer Factoruide": { en: "Restart Factoruide" },
-  "Installer la version officielle à la place de cette version locale et redémarrer ?": { en: "Replace this local build with the official release and restart?" },
-  "Installer la mise à jour et redémarrer Factoruide ?": { en: "Install the update and restart Factoruide?" },
-
   "(guides classiques)": { en: "(classic guides)", de: "(klassische Guides)", es: "(guías clásicas)", pt: "(guias clássicos)", ru: "(классические гайды)", ko: "(클래식 가이드)", zhCN: "(经典指南)", zhTW: "(經典指南)" },
   "(personnalisés)": { en: "(custom)", de: "(angepasst)", es: "(personalizados)", pt: "(personalizados)", ru: "(свои)", ko: "(사용자 지정)", zhCN: "(自定义)", zhTW: "(自訂)" },
   "1 : des mobs qui vont par deux demandent un niveau de plus que des mobs isolés.": { en: "1: mobs standing in pairs require one level more than lone mobs.", de: "1: Mobs, die zu zweit stehen, verlangen eine Stufe mehr als einzelne Mobs.", es: "1: los monstruos que van de dos en dos requieren un nivel más que los aislados.", pt: "1: monstros que andam em pares exigem um nível a mais que os isolados.", ru: "1: мобы, стоящие парами, требуют на уровень больше, чем одиночные.", ko: "1: 둘씩 있는 몹은 혼자 있는 몹보다 한 레벨 더 필요합니다.", zhCN: "1：成对出现的怪物比单独的怪物多需要一级。", zhTW: "1：成對出現的怪物比單獨的怪物多需要一級。" },
@@ -313,6 +302,15 @@ export const CATALOG: Record<string, Entry> = {
   "Valeur par défaut": { en: "Default value", de: "Standardwert", es: "Valor por defecto", pt: "Valor padrão", ru: "Значение по умолчанию", ko: "기본값", zhCN: "默认值", zhTW: "預設值" },
   "Verrouiller les fenêtres": { en: "Lock the windows", de: "Fenster sperren", es: "Bloquear las ventanas", pt: "Travar as janelas", ru: "Закрепить окна", ko: "창 고정", zhCN: "锁定窗口", zhTW: "鎖定視窗" },
   "Version {version} disponible": { en: "Version {version} available", de: "Version {version} verfügbar", es: "Versión {version} disponible", pt: "Versão {version} disponível", ru: "Доступна версия {version}", ko: "버전 {version} 사용 가능", zhCN: "版本 {version} 可用", zhTW: "版本 {version} 可用" },
+  "Mises à jour de l'application": { en: "App updates", de: "App-Updates", es: "Actualizaciones de la aplicación", pt: "Atualizações do aplicativo", ru: "Обновления приложения", ko: "앱 업데이트", zhCN: "应用更新", zhTW: "應用程式更新" },
+  "Rechercher des mises à jour": { en: "Check for updates", de: "Nach Updates suchen", es: "Buscar actualizaciones", pt: "Procurar atualizações", ru: "Проверить обновления", ko: "업데이트 확인", zhCN: "检查更新", zhTW: "檢查更新" },
+  "Recherche de mises à jour…": { en: "Checking for updates…", de: "Suche nach Updates…", es: "Buscando actualizaciones…", pt: "Procurando atualizações…", ru: "Поиск обновлений…", ko: "업데이트 확인 중…", zhCN: "正在检查更新…", zhTW: "正在檢查更新…" },
+  "Vous utilisez la dernière version.": { en: "You're up to date.", de: "Du verwendest die neueste Version.", es: "Tienes la última versión.", pt: "Você está usando a versão mais recente.", ru: "У вас последняя версия.", ko: "최신 버전을 사용 중입니다.", zhCN: "你使用的是最新版本。", zhTW: "你使用的是最新版本。" },
+  "Attendez la fin de la génération avant de mettre à jour.": { en: "Wait for the generation to end before updating.", de: "Warte, bis die Erstellung fertig ist, bevor du aktualisierst.", es: "Espera a que termine la generación antes de actualizar.", pt: "Aguarde o fim da geração antes de atualizar.", ru: "Дождитесь окончания расчёта перед обновлением.", ko: "업데이트하기 전에 생성이 끝날 때까지 기다리세요.", zhCN: "请等待生成结束后再更新。", zhTW: "請等待產生結束後再更新。" },
+  "Installer la mise à jour et redémarrer Factoruide ?": { en: "Install the update and restart Factoruide?", de: "Update installieren und Factoruide neu starten?", es: "¿Instalar la actualización y reiniciar Factoruide?", pt: "Instalar a atualização e reiniciar o Factoruide?", ru: "Установить обновление и перезапустить Factoruide?", ko: "업데이트를 설치하고 Factoruide를 다시 시작할까요?", zhCN: "安装更新并重启 Factoruide？", zhTW: "安裝更新並重新啟動 Factoruide？" },
+  "Installer la mise à jour et redémarrer Factoruide ? Les modifications non enregistrées seront perdues.": { en: "Install the update and restart Factoruide? Unsaved changes will be lost.", de: "Update installieren und Factoruide neu starten? Nicht gespeicherte Änderungen gehen verloren.", es: "¿Instalar la actualización y reiniciar Factoruide? Se perderán los cambios no guardados.", pt: "Instalar a atualização e reiniciar o Factoruide? As alterações não salvas serão perdidas.", ru: "Установить обновление и перезапустить Factoruide? Несохранённые изменения будут потеряны.", ko: "업데이트를 설치하고 Factoruide를 다시 시작할까요? 저장하지 않은 변경 사항은 사라집니다.", zhCN: "安装更新并重启 Factoruide？未保存的修改将会丢失。", zhTW: "安裝更新並重新啟動 Factoruide？未儲存的修改將會遺失。" },
+  "Redémarrer Factoruide": { en: "Restart Factoruide", de: "Factoruide neu starten", es: "Reiniciar Factoruide", pt: "Reiniciar o Factoruide", ru: "Перезапустить Factoruide", ko: "Factoruide 다시 시작", zhCN: "重启 Factoruide", zhTW: "重新啟動 Factoruide" },
+  "Redémarrage impossible : {error}": { en: "Could not restart: {error}", de: "Neustart nicht möglich: {error}", es: "No se pudo reiniciar: {error}", pt: "Não foi possível reiniciar: {error}", ru: "Не удалось перезапустить: {error}", ko: "다시 시작할 수 없습니다: {error}", zhCN: "无法重启：{error}", zhTW: "無法重新啟動：{error}" },
   "Vitesse de course": { en: "Run speed", de: "Laufgeschwindigkeit", es: "Velocidad de carrera", pt: "Velocidade de corrida", ru: "Скорость бега", ko: "달리기 속도", zhCN: "奔跑速度", zhTW: "奔跑速度" },
   "Vitesse des vols": { en: "Flight speed", de: "Fluggeschwindigkeit", es: "Velocidad de los vuelos", pt: "Velocidade dos voos", ru: "Скорость полётов", ko: "비행 속도", zhCN: "飞行速度", zhTW: "飛行速度" },
   "Vol": { en: "Flight", de: "Flug", es: "Vuelo", pt: "Voo", ru: "Полёт", ko: "비행", zhCN: "飞行", zhTW: "飛行" },

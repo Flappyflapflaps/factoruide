@@ -93,18 +93,11 @@ zones to do, the level to reach before moving on from each, and where the XP is.
 4. **Characters**: choose the guide each character follows (a guide started from a character
    follows it already), then `/reload` in game. A character follows only the guide chosen for it.
 
-### Checking for app updates
+### App updates
 
-Open **Settings** and select **Check for updates**, or on macOS choose
-**Factoruide → Check for Updates…** from the menu bar. If a release is available,
-review its notes, select **Update**, and confirm the restart. The app downloads
-and verifies the publisher's update package before installation. Failed checks
-and installs show an error and can be retried. If the app cannot restart after
-installation, select **Restart Factoruide**; it does not download the update again.
-
-Published builds also check at startup. Local builds check only on request and
-warn before being replaced by an official release. Wait for guide generation to
-finish before installing; unsaved guide edits require confirmation.
+Published builds check for a new version at startup and offer it with its notes. To check
+again, use **Check for updates** in Settings, under the version (on macOS also
+**Factoruide → Check for Updates…**). Installing waits for a running generation to end.
 
 ### Building on macOS
 
@@ -121,7 +114,7 @@ The script installs the locked frontend dependencies, builds a native app for th
 Mac running the build, and applies and verifies a local ad-hoc signature. No Apple
 developer certificate or publisher updater key is needed. You can copy the app to
 Applications. This is a local build, not an Apple-notarized distribution, and it
-does not check for updates automatically; you can check manually in Settings.
+does not check for the publisher's automatic updates.
 
 The app defaults to `/Applications/World of Warcraft`; choose another installation
 in the **Addon** page if needed. Follow the addon and guide steps above. After

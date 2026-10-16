@@ -1,15 +1,28 @@
+import { useEffect, useState } from "react";
+import { emit } from "@tauri-apps/api/event";
 import { Link, REPO } from "./Markdown";
+import { CHECK_FOR_UPDATES } from "./UpdateBanner";
+import { api } from "../api";
 import { useT } from "../i18n";
 
 /** The project: its version, where its code is, its licenses and where its data comes from. */
 export function AboutPanels({ version }: { version: string | null }) {
   const t = useT();
+  // Published builds only: a local build has no update channel.
+  const [updates, setUpdates] = useState(false);
+  useEffect(() => {
+    api
+      .updatesEnabled()
+      .then(setUpdates)
+      .catch(() => {});
+  }, []);
   return (
     <div className="about">
       <h3 className="about-title">{t("À propos")}</h3>
       <div className="about-grid">
         <section className="panel">
           <h3>Factoruide {version}</h3>
+          {updates && <button onClick={() => void emit(CHECK_FOR_UPDATES)}>{t("Rechercher des mises à jour")}</button>}
           <p className="muted">{t("Guides de leveling calculés pour votre personnage, et l'addon qui vous guide en jeu.")}</p>
           <ul className="about-links">
             <li>
