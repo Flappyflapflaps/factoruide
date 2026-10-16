@@ -236,11 +236,14 @@ export function AddonPage() {
           <Hint text={t("Les réglages sont enregistrés à chaque modification ; « Installer dans le jeu » les envoie à l'addon (puis /reload en jeu).")} />
         </h2>
         <span className="muted save-status">{saving ? t("Enregistrement…") : message}</span>
-        {synced === false && !saving && (
-          <button className="primary" onClick={install} title={t("L'addon du jeu n'a pas encore ces réglages.")}>
-            {t("Installer dans le jeu")}
-          </button>
-        )}
+        <button
+          className={synced === false ? "primary" : undefined}
+          onClick={install}
+          disabled={saving}
+          title={synced === false ? t("L'addon du jeu n'a pas encore ces réglages.") : undefined}
+        >
+          {t("Installer dans le jeu")}
+        </button>
       </div>
       {error && <div className="error">{error}</div>}
       {forever && (
