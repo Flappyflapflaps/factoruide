@@ -4,7 +4,14 @@
 
 local FG = Factoruide
 
+-- Every frame of the guide hangs on this one: `/fg hide` hides them all at once. Only visual
+-- frames: the event handlers keep running while hidden.
+FG.UIRoot = CreateFrame("Frame", "FactoruideUI", UIParent)
+FG.UIRoot:SetAllPoints(UIParent)
+
 FG.defaults = {
+    -- The whole addon's UI (`/fg hide`, `/fg show`), for the session only.
+    uiShown = true,
     guideShown = true,
     -- "full": the guide's card; "minimal": a strip at the top of the screen.
     guideMode = "full",
@@ -86,6 +93,24 @@ function FG:Set(key, value)
     Changed(key)
 end
 
+-- The quest item buttons are secure: the frame holding them only shows or hides out of combat.
+-- The whole change waits for the end of the fight, overlays on the game's frames included, so
+-- that everything switches together; the last command wins.
+local pendingUI
+function FG:SetUIShown(shown)
+    if InCombatLockdown() then
+        pendingUI = shown
+        self:Print(FG.T("the addon's windows will change when combat ends"))
+        return
+    end
+    pendingUI = nil
+    self:Set("uiShown", shown)
+end
+
+FG:On("PLAYER_REGEN_ENABLED", function()
+    if pendingUI ~= nil then FG:SetUIShown(pendingUI) end
+end)
+
 --- Keep a setting changed in game (nil: back to the app's).
 function FG:Save(key, value)
     FactoruideDB.ui = FactoruideDB.ui or {}
@@ -140,5 +165,10 @@ function FG:OnSetting(key, fn)
     listeners[key] = listeners[key] or {}
     table.insert(listeners[key], fn)
 end
+
+FG:OnSetting("uiShown", function(shown)
+    FG.UIRoot:SetShown(shown)
+    if not shown and StaticPopup_Hide then StaticPopup_Hide("FACTORUIDE_RESET") end
+end)
 
 function FG:OpenSettings() FG:Print(FG.T("settings are configured in the Factoruide app (Addon tab), then /reload")) end

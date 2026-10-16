@@ -450,7 +450,7 @@ end
 
 function Card:Create(guideState)
     state = guideState
-    frame = CreateFrame("Frame", "FactoruideTodo", UIParent, "BackdropTemplate")
+    frame = CreateFrame("Frame", "FactoruideTodo", FG.UIRoot, "BackdropTemplate")
     frame:SetWidth(WIDTH)
     frame:SetClampedToScreen(true)
     frame:SetPoint(unpack(state.point or { "TOPRIGHT", UIParent, "TOPRIGHT", -30, -190 }))

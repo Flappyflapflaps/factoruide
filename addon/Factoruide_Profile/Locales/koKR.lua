@@ -145,4 +145,5 @@ FG.Locales.koKR = {
     ["Fishing"] = "낚시",
     ["First Aid"] = "응급치료",
     ["settings are configured in the Factoruide app (Addon tab), then /reload"] = "설정은 Factoruide 앱(애드온 탭)에서 한 뒤 /reload",
+    ["the addon's windows will change when combat ends"] = "애드온 창은 전투가 끝나면 바뀝니다",
 }

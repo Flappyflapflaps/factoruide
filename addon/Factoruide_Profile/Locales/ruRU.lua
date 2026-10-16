@@ -145,4 +145,5 @@ FG.Locales.ruRU = {
     ["Fishing"] = "Рыбная ловля",
     ["First Aid"] = "Первая помощь",
     ["settings are configured in the Factoruide app (Addon tab), then /reload"] = "настройки задаются в приложении Factoruide (вкладка Аддон), затем /reload",
+    ["the addon's windows will change when combat ends"] = "окна аддона изменятся после окончания боя",
 }

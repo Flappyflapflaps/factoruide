@@ -125,7 +125,7 @@ end
 
 local function Create()
     if frame or not CreateFrame then return frame end
-    frame = CreateFrame("Frame", "FactoruideCompass", UIParent)
+    frame = CreateFrame("Frame", "FactoruideCompass", FG.UIRoot)
     frame:SetSize(WIDTH, HEIGHT)
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)

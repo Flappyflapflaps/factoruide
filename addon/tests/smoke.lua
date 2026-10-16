@@ -30,8 +30,25 @@ local function stub()
     return o
 end
 
-CreateFrame = function()
+-- Frames know their name, parent and whether they are shown (a hidden parent hides its children);
+-- in fields of their own, the addon sets its own fields on its frames (`strip.name`...).
+CreateFrame = function(_, name, parent)
     local f = stub()
+    f._name, f._parent, f._shown = name, parent, true
+    function f:SetShown(value)
+        assert(type(value) == "boolean", "SetShown(" .. tostring(value) .. ")")
+        self._shown = value
+    end
+    function f:Show() self._shown = true end
+    function f:Hide() self._shown = false end
+    function f:IsShown() return self._shown end
+    function f:GetName() return self._name end
+    function f:SetParent(p) self._parent = p end
+    function f:GetParent() return self._parent end
+    function f:IsVisible()
+        local p = self._parent
+        return self._shown and (not p or not p.IsVisible or p:IsVisible())
+    end
     table.insert(frames, f)
     return f
 end
@@ -1554,6 +1571,161 @@ InCombatLockdown = function() return false end
 fire("PLAYER_REGEN_ENABLED")
 assert(resized, "resized after the fight")
 print("combat layout ok")
+
+-- `/fg hide` hides every window and mark of the addon at once (one parent frame), for the
+-- session; `/fg show` brings them back as they were. Progress and settings are kept.
+FG.Routes["visibility-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "accept", t = "Accept Logged", q = 7101, lvl = 1, m = 1426, x = 45, y = 50 },
+        { k = "grind", t = "Grind", lvl = 60, m = 1426, x = 46, y = 51 },
+    },
+}
+useRoute("visibility-test")
+local root = FG.UIRoot
+local stepBeforeHide = char.guide.step
+local originalSetShown = root.SetShown
+local visibilityWrites = 0
+root.SetShown = function(self, shown)
+    assert(not InCombatLockdown(), "the addon's parent frame changed during combat")
+    visibilityWrites = visibilityWrites + 1
+    originalSetShown(self, shown)
+end
+local oldItemInfo, oldQuestIndex = GetQuestLogSpecialItemInfo, GetQuestLogIndexByID
+GetQuestLogIndexByID = function() return 1 end
+GetQuestLogSpecialItemInfo = function() return "item:123", 123 end
+FG.ItemButton:SetSteps({ { q = 7101 } })
+GetQuestLogSpecialItemInfo, GetQuestLogIndexByID = oldItemInfo, oldQuestIndex
+-- The XP bar mark sits on the game's XP bar, not on the addon's parent.
+MainMenuExpBar = CreateFrame("Frame", "MainMenuExpBar")
+MainMenuExpBar.GetWidth = function() return 500 end
+MainMenuExpBar.GetFrameLevel = function() return 1 end
+FG.XpMarker:Refresh()
+local xpMark
+for _, f in ipairs(frames) do
+    if f:GetParent() == MainMenuExpBar then xpMark = f end
+end
+assert(xpMark and xpMark:IsShown(), "the XP bar mark shown")
+local owned = {}
+for _, f in ipairs(frames) do
+    if f:GetParent() == root and f:GetName() then owned[f:GetName()] = f end
+end
+for _, name in ipairs({
+    "FactoruideTodo",
+    "FactoruideMini",
+    "FactoruideButtons",
+    "FactoruideCompass",
+    "FactoruideWind",
+    "FactoruideTracker",
+    "FGItemButton",
+}) do
+    assert(owned[name], name .. " hangs on the addon's parent frame")
+end
+assert(FG.Card:Frame():IsVisible(), "the guide visible before hiding")
+local popupHidden
+StaticPopup_Hide = function(which) popupHidden = which end
+SlashCmdList.FACTORUIDE("hide")
+SlashCmdList.FACTORUIDE("hide")
+assert(not root:IsShown() and not FG:Get("uiShown"), "hide twice: hidden")
+assert(popupHidden == "FACTORUIDE_RESET", "the guide's reset dialog closed")
+FG.Guide:Refresh()
+FG.Tracker:Refresh()
+FG.Talents:Refresh()
+FG.XpMarker:Refresh()
+for _, f in pairs(owned) do
+    assert(not f:IsVisible(), "a refresh does not bring back " .. f:GetName())
+end
+assert(not xpMark:IsShown(), "no XP bar mark while hidden")
+assert(FG:Get("guideShown") and FG:Get("questPanel") and FG:Get("guideMode") == "full", "settings kept")
+assert(char.guide.step == stepBeforeHide, "progress kept")
+assert(FactoruideDB.ui.uiShown == nil, "hidden for the session only")
+SlashCmdList.FACTORUIDE("show")
+SlashCmdList.FACTORUIDE("show")
+assert(root:IsShown() and FG:Get("uiShown"), "show twice: shown")
+assert(FG.Card:Frame():IsVisible() and xpMark:IsShown(), "the guide and the XP bar mark back")
+-- `/fg guide` stays the guide's own switch: shown again with the rest, it stays hidden.
+SlashCmdList.FACTORUIDE("guide")
+SlashCmdList.FACTORUIDE("hide")
+SlashCmdList.FACTORUIDE("show")
+assert(not FG:Get("guideShown") and root:IsShown(), "the guide alone still hidden")
+assert(not FG.Card:Frame():IsShown(), "the guide's card stays hidden")
+SlashCmdList.FACTORUIDE("guide")
+assert(FG.Card:Frame():IsVisible(), "the guide back")
+
+-- In combat (the quest item buttons are secure), the change waits for the end of the fight; the
+-- last command typed wins.
+InCombatLockdown = function() return true end
+local writesBeforeCombat = visibilityWrites
+SlashCmdList.FACTORUIDE("hide")
+assert(root:IsShown() and FG:Get("uiShown"), "hide waits during combat")
+assert(visibilityWrites == writesBeforeCombat, "nothing changed during combat")
+InCombatLockdown = function() return false end
+fire("PLAYER_REGEN_ENABLED")
+assert(not root:IsShown(), "hidden after the fight")
+InCombatLockdown = function() return true end
+SlashCmdList.FACTORUIDE("show")
+SlashCmdList.FACTORUIDE("hide")
+InCombatLockdown = function() return false end
+fire("PLAYER_REGEN_ENABLED")
+assert(not root:IsShown(), "the last command wins")
+InCombatLockdown = function() return true end
+SlashCmdList.FACTORUIDE("show")
+assert(not root:IsShown(), "show waits during combat")
+InCombatLockdown = function() return false end
+fire("PLAYER_REGEN_ENABLED")
+assert(root:IsShown(), "shown after the fight")
+fire("PLAYER_REGEN_ENABLED")
+assert(root:IsShown(), "nothing pending any more")
+root.SetShown = originalSetShown
+
+-- The world map's pins and the game's waypoint go at once and stay away on later refreshes.
+local provider, pins = nil, 0
+WorldMapFrame = {
+    AddDataProvider = function(self, p)
+        provider = p
+        p.GetMap = function() return self end
+    end,
+    IsShown = function() return true end,
+    RemoveAllPinsByTemplate = function() pins = 0 end,
+    GetMapID = function() return 1426 end,
+    AcquirePin = function() pins = pins + 1 end,
+}
+FG.MapPins:Refresh()
+assert(pins > 0 and waypoint, "map pins and waypoint shown")
+SlashCmdList.FACTORUIDE("hide")
+assert(not waypoint, "the waypoint cleared on hide")
+FG.Guide:Refresh()
+assert(not waypoint, "a refresh does not set the waypoint again while hidden")
+assert(pins == 0, "map pins removed on hide")
+provider:RefreshAllData()
+assert(pins == 0, "a map refresh adds no pin while hidden")
+
+-- No safety alert while hidden.
+local alerts = 0
+UIErrorsFrame = { AddMessage = function() alerts = alerts + 1 end }
+local health = 10
+UnitHealth = function() return health end
+UnitHealthMax = function() return 100 end
+UnitIsDeadOrGhost = function() return false end
+fire("UNIT_HEALTH", "player")
+assert(alerts == 0, "no low health alert while hidden")
+SlashCmdList.FACTORUIDE("show")
+assert(pins > 0 and waypoint, "map pins and waypoint back on show")
+health = 100
+fire("UNIT_HEALTH", "player")
+health = 10
+fire("UNIT_HEALTH", "player")
+assert(alerts == 1, "the low health alert back on show")
+WorldMapFrame.IsShown = function() return false end
+UIErrorsFrame, UnitHealth, UnitHealthMax, UnitIsDeadOrGhost, MainMenuExpBar = nil, nil, nil, nil, nil
+StaticPopup_Hide = nil
+FG.XpMarker:Refresh()
+print("whole addon hide and show ok")
 
 -- Classic Era (1.15) has no C_QuestLog log functions: the quest log is read through the older
 -- globals, and the guide still draws.

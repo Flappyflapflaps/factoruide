@@ -482,7 +482,9 @@ function Guide:SpotPlaces()
 end
 
 local function SetWaypoint(step)
-    if not step or not step.m or not FG:Get("waypoints") or step == waypointStep then return end
+    if not FG:Get("uiShown") or not step or not step.m or not FG:Get("waypoints") or step == waypointStep then
+        return
+    end
     waypointStep = step
     -- Map pins need a client that has them (not Classic Era).
     if C_Map.CanSetUserWaypointOnMap and C_Map.CanSetUserWaypointOnMap(step.m) then
@@ -1049,6 +1051,12 @@ FG:On("PLAYER_LOGIN", function()
     for _, key in ipairs({ "guideMode", "nextTab", "guideShown", "questPanel" }) do
         FG:OnSetting(key, function() Guide:Refresh() end)
     end
+    -- Hidden: the game's map pin goes too, and comes back with the guide.
+    FG:OnSetting("uiShown", function(shown)
+        if not shown and waypointStep and C_Map.ClearUserWaypoint then C_Map.ClearUserWaypoint() end
+        waypointStep = nil
+        Guide:Refresh()
+    end)
     FG:OnSetting("waypoints", function(on)
         waypointStep = nil
         if on then
@@ -1117,6 +1125,10 @@ end
 function Guide:Command(cmd, arg)
     if cmd == "guide" then
         FG:Set("guideShown", not FG:Get("guideShown"))
+    elseif cmd == "hide" then
+        FG:SetUIShown(false)
+    elseif cmd == "show" then
+        FG:SetUIShown(true)
     elseif cmd == "next" then
         self:NextGroup()
     elseif cmd == "prev" then

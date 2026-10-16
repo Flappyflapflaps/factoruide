@@ -68,7 +68,7 @@ end
 -- The strip ------------------------------------------------------------------------
 
 local function CreateStrip()
-    strip = CreateFrame("Frame", "FactoruideMini", UIParent, "BackdropTemplate")
+    strip = CreateFrame("Frame", "FactoruideMini", FG.UIRoot, "BackdropTemplate")
     strip:SetSize(STRIP_WIDTH, 56)
     Movable(strip, "miniPoint", { "TOP", UIParent, "TOP", 0, -46 })
     strip.dot = strip:CreateTexture(nil, "ARTWORK")
@@ -287,7 +287,7 @@ end
 -- The quest item and the talent: two buttons near the action bars --------------------------
 
 local function CreateButtons()
-    buttons = CreateFrame("Frame", "FactoruideButtons", UIParent)
+    buttons = CreateFrame("Frame", "FactoruideButtons", FG.UIRoot)
     buttons:SetSize(520, 44)
     Movable(buttons, "buttonsPoint", { "BOTTOM", UIParent, "BOTTOM", 0, 150 })
     buttons.slot = CreateFrame("Frame", nil, buttons)

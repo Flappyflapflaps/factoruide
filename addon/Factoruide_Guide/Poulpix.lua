@@ -27,8 +27,8 @@ local function Follow()
     if not hud then return end
     for _, entry in ipairs(FG.Skin.frames) do
         local f = entry.frame
-        -- Child frames fade with their window already.
-        if f:GetParent() == UIParent then
+        -- Child frames fade with their window already (the windows hang on FG.UIRoot).
+        if f:GetParent() == FG.UIRoot then
             local want = Poulpix.Alpha(hud, f:IsShown() and f:IsMouseOver())
             local a = alphas[f] or f:GetAlpha()
             if a < want then

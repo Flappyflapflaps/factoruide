@@ -145,4 +145,5 @@ FG.Locales.esES = {
     ["Fishing"] = "Pesca",
     ["First Aid"] = "Primeros auxilios",
     ["settings are configured in the Factoruide app (Addon tab), then /reload"] = "los ajustes se hacen en la aplicación Factoruide (pestaña Addon), luego /reload",
+    ["the addon's windows will change when combat ends"] = "las ventanas del addon cambiarán al terminar el combate",
 }

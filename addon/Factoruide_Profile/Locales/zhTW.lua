@@ -145,4 +145,5 @@ FG.Locales.zhTW = {
     ["Fishing"] = "釣魚",
     ["First Aid"] = "急救",
     ["settings are configured in the Factoruide app (Addon tab), then /reload"] = "設定請在 Factoruide 應用程式（插件分頁）中進行，然後 /reload",
+    ["the addon's windows will change when combat ends"] = "插件視窗將在戰鬥結束後切換",
 }

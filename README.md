@@ -134,6 +134,10 @@ race and class.
   the top of the screen, the next steps on mouse-over); `/fg mode` or a key binding switches.
   Mobs living in several places: the compass moves on to another place when nothing is found at
   one (`/fg spot` at once), and the world map shows them all.
+- `/fg guide` shows or hides the guide only; `/fg hide` hides all of the addon's windows and marks
+  (guide, compass or wind, quest panel, quest item button, XP bar mark, map pins and waypoint,
+  the upgrade line of item tooltips, safety alerts) and `/fg show` brings them back as they were. For the session only:
+  progress is kept and the automation goes on; typed in combat, it applies when the fight ends.
 - Size: Ctrl + mouse wheel over a window, or `/fg scale <size>`.
 - Helpers: a compass bar at the top of the screen with the step to go to, the other current
   tasks, the quests to pick up close by and the next turn-in (mouse over: what and how far;

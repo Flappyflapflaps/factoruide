@@ -337,7 +337,7 @@ end
 
 local function Create()
     if frame or not CreateFrame then return frame end
-    frame = CreateFrame("Frame", "FactoruideWind", UIParent)
+    frame = CreateFrame("Frame", "FactoruideWind", FG.UIRoot)
     frame:SetAllPoints(UIParent)
     frame:SetFrameStrata("BACKGROUND")
     frame:EnableMouse(false)

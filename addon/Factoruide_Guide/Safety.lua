@@ -5,6 +5,7 @@ local FG = Factoruide
 local T = FG.T
 
 local function Warn(text)
+    if not FG:Get("uiShown") then return end
     if UIErrorsFrame then UIErrorsFrame:AddMessage(text, 1, 0.25, 0.25) end
     if PlaySound and SOUNDKIT and SOUNDKIT.RAID_WARNING then PlaySound(SOUNDKIT.RAID_WARNING) end
 end

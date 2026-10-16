@@ -317,7 +317,7 @@ local function Dropped(self)
 end
 
 local function Create()
-    frame = CreateFrame("Frame", "FactoruideTracker", UIParent, "BackdropTemplate")
+    frame = CreateFrame("Frame", "FactoruideTracker", FG.UIRoot, "BackdropTemplate")
     frame:SetWidth(WIDTH)
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
