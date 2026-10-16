@@ -39,7 +39,7 @@ local attached
 function Compass.Angle(dn, dw, facing) return (math.atan2(dw, dn) - facing) % TWO_PI end
 
 --- World position (continent, north, west) of a map point.
-local function World(map, x, y)
+function Compass.World(map, x, y)
     if not map or not x or not C_Map.GetWorldPosFromMapPos then return nil end
     local continent, pos = C_Map.GetWorldPosFromMapPos(map, CreateVector2D(x, y))
     if not continent or not pos then return nil end
@@ -255,7 +255,7 @@ function Compass:Draw()
     if not frame then return end
     local map = C_Map.GetBestMapForUnit("player")
     local pos = map and C_Map.GetPlayerMapPosition(map, "player")
-    local continent, pn, pw = World(map, pos and pos.x, pos and pos.y)
+    local continent, pn, pw = Compass.World(map, pos and pos.x, pos and pos.y)
     local facing = GetPlayerFacing and GetPlayerFacing()
     wipe(seen)
     wipe(behind.left)
@@ -407,7 +407,7 @@ function Compass:SetPoints(list)
     if not f then return end
     wipe(points)
     for _, p in ipairs(list or {}) do
-        local continent, north, west = World(p.m, p.x / 100, p.y / 100)
+        local continent, north, west = Compass.World(p.m, p.x / 100, p.y / 100)
         if continent then
             p.continent, p.north, p.west = continent, north, west
             table.insert(points, p)

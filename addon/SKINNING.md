@@ -33,7 +33,8 @@ The function runs on every frame already made and on every frame made later. Fra
 | `FactoruideTracker` (quest panel) | panel | `line` (under the tabs) |
 | `FGItemButton`, `FactoruideItemButton<n>` | icon | `icon`, `cooldown` |
 
-The compass bar (`FactoruideCompass`) is not a box and is not skinned.
+The compass bar (`FactoruideCompass`) and the wind that replaces it (`FactoruideWind`, see the
+Immersion settings) are not boxes and are not skinned.
 
 `FactoruideAPI.GetFrames()` returns `{ { frame = ..., kind = ... }, ... }` for the frames made so
 far. `FactoruideAPI.version` is 2 since the frames above (1: `FactoruideNext`, `FactoruideTalents`).

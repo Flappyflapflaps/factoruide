@@ -1256,6 +1256,49 @@ assert(FG.Compass:Points()[1].index == 2 and FG.Compass:Points()[1].main, "the p
 onQuest[8001], onQuest[8002] = nil, nil
 print("compass points ok")
 
+-- The wind: projected ahead, left and behind like the compass; instead of it with Poulpix UI
+-- Immersive ("auto"), or always; gusts towards a far target, a swirl on arrival.
+do
+    local x, y = FG.Wind.Project(20, 0, 0, 0, 9, 3.2, 0)
+    assert(close(x, 0) and y > 0.39, "north, facing north: ahead, under the horizon")
+    assert(FG.Wind.Project(0, 10, 0, 0, 9, 3.2, 0) < 0, "west, facing north: to the left")
+    assert(FG.Wind.Project(-20, 0, 0, 0, 9, 3.2, 0) == nil, "behind the camera: not drawn")
+    assert(FG.Wind.Project(20, 0, 0, 0, 9, 3.2, 1) < 0, "camera over the right shoulder: to the left")
+
+    assert(FG.Wind:Active() == false, "auto without Poulpix UI Immersive: the compass")
+    assert(#FG.Compass:Points() > 0 and FG.Wind:Target() == nil)
+    C_AddOns = { IsAddOnLoaded = function(name) return name == "Poulpix_UI_Immersive" end }
+    assert(FG.Wind:Active() == true, "auto with Poulpix UI Immersive: the wind")
+    FG.Guide:Refresh()
+    assert(#FG.Compass:Points() == 0 and FG.Wind:Target() ~= nil, "the wind instead of the compass")
+
+    local realCombat = UnitAffectingCombat
+    GetPlayerFacing = function() return 0 end
+    UnitAffectingCombat = function() return false end
+    UnitIsDeadOrGhost = function() return false end
+    FG.Guide:PointToStep(3)
+    for _ = 1, 20 do
+        FG.Wind:Update(0.1)
+    end
+    assert(FG.Wind:Count() > 0, "a gust towards the far target")
+    for _ = 1, 60 do
+        FG.Wind:Update(0.1)
+    end
+    assert(FG.Wind:Count() == 0, "the gust gone, until the next")
+    FG.Guide:PointToStep(1)
+    FG.Wind:Update(0.1)
+    assert(FG.Wind:Count() > 0, "a swirl on arrival")
+
+    FG:Set("windGuide", "off")
+    assert(FG.Wind:Active() == false, "off even with Poulpix UI Immersive")
+    FG.Guide:Refresh()
+    assert(#FG.Compass:Points() > 0 and FG.Wind:Target() == nil, "the compass back")
+    FG:Set("windGuide", nil)
+    C_AddOns, GetPlayerFacing, UnitIsDeadOrGhost, UnitAffectingCombat = nil, nil, nil, realCombat
+    assert(FG.Poulpix.Alpha(0.2, false) == 0.2 and FG.Poulpix.Alpha(0.2, true) == 1, "faded, full under the mouse")
+end
+print("wind ok")
+
 -- The quest panel: one line a quest in both modes; folded, no line.
 local logEntries, logInfo = C_QuestLog.GetNumQuestLogEntries, C_QuestLog.GetInfo
 C_QuestLog.GetNumQuestLogEntries = function() return 6 end

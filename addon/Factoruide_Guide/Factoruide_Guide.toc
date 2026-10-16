@@ -5,7 +5,7 @@
 ## Author: Joel Wurtz
 ## Version: 0.5.0
 ## Dependencies: Factoruide_Profile
-## OptionalDeps: ElvUI, EllesmereUI, SpartanUI
+## OptionalDeps: ElvUI, EllesmereUI, SpartanUI, Poulpix_UI_Immersive
 
 Config.lua
 Settings.lua
@@ -19,6 +19,8 @@ Guide.lua
 Card.lua
 Mini.lua
 Compass.lua
+Poulpix.lua
+Wind.lua
 Macro.lua
 ItemButton.lua
 Merchant.lua

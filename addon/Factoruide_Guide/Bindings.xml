@@ -4,4 +4,7 @@
     <Binding name="FACTORUIDE_MODE" category="ADDONS">
         Factoruide.Guide:ToggleMode()
     </Binding>
+    <Binding name="FACTORUIDE_WIND" category="ADDONS">
+        Factoruide.Wind:Gust()
+    </Binding>
 </Bindings>

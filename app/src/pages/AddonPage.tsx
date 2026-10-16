@@ -34,6 +34,38 @@ const OPTIONS: { title: string; options: Option[] }[] = [
     ],
   },
   {
+    title: "Immersion",
+    options: [
+      {
+        key: "windGuide",
+        kind: "select",
+        label: "Le vent à la place de la boussole",
+        help: "Pas de boussole : de temps en temps une rafale passe près du personnage et file vers l'étape en cours, plus souvent quand vous partez ailleurs, et tourbillonne à l'arrivée. Pas en combat ni en instance. Automatique : avec Poulpix UI Immersive.",
+        default: "auto",
+        options: [
+          { value: "auto", label: "Automatique" },
+          { value: "on", label: "Toujours" },
+          { value: "off", label: "Jamais" },
+        ],
+      },
+      {
+        key: "windStyle",
+        kind: "select",
+        label: "Aspect du vent",
+        default: "wind",
+        options: [
+          { value: "wind", label: "Traînées de vent" },
+          { value: "mist", label: "Brume basse" },
+          { value: "leaves", label: "Feuilles" },
+          { value: "wisps", label: "Feux follets" },
+        ],
+      },
+      { key: "windInterval", kind: "number", label: "Secondes entre deux rafales", help: "Plus souvent quand vous tournez le dos à l'étape, moins quand vous y allez tout droit. Une rafale à la demande : raccourci dans les touches du jeu (Factoruide).", default: 8, min: 3, max: 25, step: 1 },
+      { key: "windIntensity", kind: "number", label: "Force du vent", default: 1, min: 0.3, max: 2, step: 0.1, percent: true },
+      { key: "poulpixFade", kind: "bool", label: "Fondu avec Poulpix UI Immersive", help: "Les fenêtres de Factoruide s'effacent avec l'interface de Poulpix pendant l'exploration, et reviennent avec elle ou sous la souris.", default: true },
+    ],
+  },
+  {
     title: "Suivi des quêtes",
     options: [
       { key: "trackerShown", kind: "bool", label: "Afficher le suivi des quêtes Factoruide", help: "Une ligne par quête dans l'ordre du guide (objectifs au survol), et des onglets pour les métiers, la réputation et les objets à garder pour les quêtes (sacs et banque).", default: true },

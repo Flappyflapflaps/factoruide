@@ -3,8 +3,8 @@
 --   kill on the way to them, counted;
 --   the next steps, or the next quests that can be taken now with their distance (close quests
 --   can be taken in any order, the route skips them once in the log).
--- Drawn by Card.lua (full) or Mini.lua (minimal); the compass (Compass.lua) and the native
--- waypoint point at the first unfinished task.
+-- Drawn by Card.lua (full) or Mini.lua (minimal); the compass (Compass.lua), or the wind
+-- (Wind.lua) instead, and the native waypoint point at the first unfinished task.
 
 local FG = Factoruide
 local T = FG.T
@@ -656,6 +656,7 @@ function Guide:Refresh()
     local shown = FG:Get("guideShown")
     if not shown or not route or not route.steps[state.step] then
         if FG.Compass then FG.Compass:SetPoints(nil) end
+        if FG.Wind then FG.Wind:SetTarget(nil) end
         ui:Render({ hidden = not shown, message = route and L.done or L.noRoute })
         if FG.XpMarker then FG.XpMarker:Refresh() end
         return
@@ -785,7 +786,11 @@ function Guide:Refresh()
     end
 
     SetWaypoint(place)
-    if FG.Compass then
+    local wind = FG.Wind and FG.Wind:Active()
+    if FG.Wind then FG.Wind:SetTarget(wind and place or nil) end
+    if wind and FG.Compass then
+        FG.Compass:SetPoints(nil)
+    elseif FG.Compass then
         -- The target, the other tasks, the close quests to pick up and the next turn-in.
         local points = {}
         local function Point(step, i, main)

@@ -50,6 +50,14 @@ FG.defaults = {
     mapPins = true,
     mapPinsCount = 15,
     autoFly = true,
+    -- The wind instead of the compass: "off", "on", or "auto" (with Poulpix UI Immersive).
+    windGuide = "auto",
+    -- "wind" (trails), "mist", "leaves" or "wisps".
+    windStyle = "wind",
+    windInterval = 8,
+    windIntensity = 1,
+    -- With Poulpix UI Immersive, the windows fade with its HUD.
+    poulpixFade = true,
 }
 
 local session = {}

@@ -8,6 +8,7 @@ local T = FG.T
 BINDING_HEADER_FACTORUIDE = "Factoruide"
 _G["BINDING_NAME_CLICK FGItemButton:LeftButton"] = T("Use the quest item")
 BINDING_NAME_FACTORUIDE_MODE = T("Full or minimal guide")
+BINDING_NAME_FACTORUIDE_WIND = T("A gust of wind towards the guide's target")
 
 local ItemButton = { link = nil, pending = nil }
 FG.ItemButton = ItemButton

@@ -71,6 +71,7 @@ FG.Locales.koKR = {
     ["Practice"] = "연습",
     ["Use the quest item"] = "퀘스트 아이템 사용",
     ["Full or minimal guide"] = "전체 또는 최소 가이드",
+    ["A gust of wind towards the guide's target"] = "가이드 목표 쪽으로 부는 바람",
     ["no room for a character macro (%s)"] = "캐릭터 매크로 자리가 없음 (%s)",
     ["not possible in combat"] = "전투 중에는 불가",
     ["grey items sold: %s"] = "회색 아이템 판매: %s",

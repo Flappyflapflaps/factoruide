@@ -71,6 +71,7 @@ FG.Locales.frFR = {
     ["Practice"] = "Pratique",
     ["Use the quest item"] = "Utiliser l'objet de quête",
     ["Full or minimal guide"] = "Guide complet ou minimal",
+    ["A gust of wind towards the guide's target"] = "Une rafale de vent vers l'objectif du guide",
     ["no room for a character macro (%s)"] = "plus de place pour une macro de personnage (%s)",
     ["not possible in combat"] = "impossible en combat",
     ["grey items sold: %s"] = "objets gris vendus : %s",

@@ -71,6 +71,7 @@ FG.Locales.zhCN = {
     ["Practice"] = "练习",
     ["Use the quest item"] = "使用任务物品",
     ["Full or minimal guide"] = "完整或精简指南",
+    ["A gust of wind towards the guide's target"] = "一阵风吹向指南的目标",
     ["no room for a character macro (%s)"] = "角色宏已满（%s）",
     ["not possible in combat"] = "战斗中无法进行",
     ["grey items sold: %s"] = "已出售灰色物品：%s",
