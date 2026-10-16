@@ -1,20 +1,24 @@
--- Settings come from the Factoruide app (generated Config.lua). In game, a few UI
--- tweaks (+/- on the box under the guide) only last for the session; the window size, the tab of
--- that box and whether it is shown are saved (the same for every character).
+-- Settings come from the Factoruide app (generated Config.lua). In game, the window size, the
+-- tab of the next steps and the guide's mode (full or minimal) are saved (the same for every
+-- character); the mode chosen in the app wins again when it changes there.
 
 local FG = Factoruide
 
 FG.defaults = {
     guideShown = true,
-    uiTheme = "auto",
-    pickupLines = 10,
-    -- Box under the guide: its tab ("next" steps or quests to "pickup") and whether it is shown.
+    -- "full": the guide's card; "minimal": a strip at the top of the screen.
+    guideMode = "full",
+    -- The look of a loaded UI suite (ElvUI...) instead of Factoruide's.
+    suiteSkin = false,
+    -- The next steps: their tab ("next" steps or quests to "pickup").
     nextTab = "next",
-    nextShown = true,
+    -- The quest panel: its tab ("quests", "professions", "reputation", "items") and whether it is
+    -- shown (a button of the guide).
+    trackerTab = "quests",
+    questPanel = true,
     lockFrames = false,
     scale = 1.0,
     waypoints = true,
-    arrowShown = true,
     autoAccept = true,
     autoTurnIn = true,
     routeQuestsOnly = true,
@@ -52,7 +56,7 @@ local session = {}
 local listeners = {}
 
 -- Settings changed in game and kept (FactoruideDB.ui), over the app's.
-local SAVED = { scale = true, nextTab = true, nextShown = true }
+local SAVED = { scale = true, nextTab = true, guideMode = true, trackerTab = true, questPanel = true }
 
 function FG:Get(key)
     local v = session[key]
@@ -98,9 +102,12 @@ local zoomable = {}
 function FG:Zoomable(frame)
     table.insert(zoomable, frame)
     frame:SetScript("OnMouseWheel", function(_, delta)
+        if IsControlKeyDown and not IsControlKeyDown() then return end
         local v = math.floor((FG:Get("scale") + 0.05 * delta) * 100 + 0.5) / 100
         FG:Save("scale", math.max(SCALE_MIN, math.min(SCALE_MAX, v)))
     end)
+    -- Setting the script takes the wheel: given back until Ctrl is held.
+    frame:EnableMouseWheel(false)
 end
 
 FG:On("MODIFIER_STATE_CHANGED", function(key, down)
@@ -110,16 +117,20 @@ FG:On("MODIFIER_STATE_CHANGED", function(key, down)
     end
 end)
 
+--- The mode chosen in game is kept until the app's changes (then the app's applies).
+FG:On("PLAYER_LOGIN", function()
+    local app = FG.Config and FG.Config.guideMode
+    FactoruideDB.ui = FactoruideDB.ui or {}
+    if FactoruideDB.ui.appGuideMode ~= app then
+        FactoruideDB.ui.appGuideMode = app
+        FactoruideDB.ui.guideMode = nil
+    end
+end)
+
 --- Call `fn(value)` whenever setting `key` changes.
 function FG:OnSetting(key, fn)
     listeners[key] = listeners[key] or {}
     table.insert(listeners[key], fn)
 end
 
-function FG:OpenSettings()
-    if GetLocale() == "frFR" then
-        FG:Print("les réglages se font dans l'application Factoruide (onglet Addon), puis /reload")
-    else
-        FG:Print("settings are configured in the Factoruide app (Addon tab), then /reload")
-    end
-end
+function FG:OpenSettings() FG:Print(FG.T("settings are configured in the Factoruide app (Addon tab), then /reload")) end

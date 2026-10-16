@@ -16,29 +16,27 @@ const OPTIONS: { title: string; options: Option[] }[] = [
     options: [
       { key: "guideShown", kind: "bool", label: "Afficher le guide", help: "La fenêtre de l'étape en cours et des suivantes.", default: true },
       {
-        key: "uiTheme",
+        key: "guideMode",
         kind: "select",
-        label: "Apparence",
-        help: "Automatique : le style d'ElvUI, EllesmereUI ou SpartanUI s'ils sont installés, sinon celui du jeu. Pris en compte après /reload.",
-        default: "auto",
+        label: "Mode du guide",
+        help: "Complet : une carte avec les tâches en cours, la suite et le talent à placer. Minimal : un bandeau en haut de l'écran, la suite au survol. En jeu, le bouton du guide ou une touche (Factoruide) passe de l'un à l'autre, retenu jusqu'au prochain changement ici.",
+        default: "full",
         options: [
-          { value: "auto", label: "Automatique" },
-          { value: "blizzard", label: "Style du jeu" },
-          { value: "dark", label: "Sombre" },
+          { value: "full", label: "Complet" },
+          { value: "minimal", label: "Minimal" },
         ],
       },
-      { key: "pickupLines", kind: "number", label: "Lignes de la boîte sous le guide", help: "Deux onglets : « Ensuite », les étapes suivantes, et « À prendre », les quêtes que vous pouvez prendre maintenant avec leur distance (prenez les plus proches dans l'ordre qui vous arrange). Le bouton +/- de la barre du guide l'affiche ou la masque ; 0 la masque.", default: 10, min: 0, max: 20, step: 1 },
-      { key: "scale", kind: "number", label: "Taille des fenêtres", help: "Taille de toutes les fenêtres de l'addon (guide, suivi, flèche).", default: 1, min: 0.6, max: 1.6, step: 0.05, percent: true },
+      { key: "scale", kind: "number", label: "Taille des fenêtres", help: "Taille de toutes les fenêtres de l'addon (guide, suivi, boussole).", default: 1, min: 0.6, max: 1.6, step: 0.05, percent: true },
       { key: "lockFrames", kind: "bool", label: "Verrouiller les fenêtres", help: "Empêche de déplacer les fenêtres de l'addon par erreur.", default: false },
-      { key: "waypoints", kind: "bool", label: "Flèche vers l'étape en cours", help: "Waypoint natif du jeu.", default: true },
+      { key: "waypoints", kind: "bool", label: "Repère de navigation du jeu", help: "Le point de navigation du jeu vers l'étape en cours, sur la carte et à l'écran (pas sur Classic).", default: true },
       { key: "xpMarker", kind: "bool", label: "Repère du guide sur la barre d'XP", help: "Un trait jaune sur la barre d'expérience montre l'XP que le guide prévoit à l'étape en cours ; au survol, votre avance ou votre retard.", default: true },
-      { key: "arrowShown", kind: "bool", label: "Grande flèche de guidage", help: "Tourne avec le personnage : verte quand l'étape est devant, rouge quand elle est derrière, distance en dessous. Déplaçable.", default: true },
+      { key: "suiteSkin", kind: "bool", label: "Style de la suite d'interface", help: "Avec ElvUI, EllesmereUI ou SpartanUI : leur style à la place de celui de Factoruide. Pris en compte après /reload.", default: false },
     ],
   },
   {
     title: "Suivi des quêtes",
     options: [
-      { key: "trackerShown", kind: "bool", label: "Afficher le suivi des quêtes Factoruide", help: "Quêtes en cours triées selon le guide, objectifs, à rendre, objets de quête.", default: true },
+      { key: "trackerShown", kind: "bool", label: "Afficher le suivi des quêtes Factoruide", help: "Une ligne par quête dans l'ordre du guide (objectifs au survol), et des onglets pour les métiers, la réputation et les objets à garder pour les quêtes (sacs et banque).", default: true },
       { key: "replaceTracker", kind: "bool", label: "Masquer le suivi de quêtes de Blizzard", help: "Le suivi de Blizzard est caché tant que celui de Factoruide est affiché.", default: true },
       { key: "trackerQuests", kind: "number", label: "Quêtes affichées", help: "Les prochaines quêtes du journal à faire, dans l'ordre du guide.", default: 8, min: 1, max: 35, step: 1 },
       { key: "trackerAll", kind: "bool", label: "Afficher tout le journal", help: "Sinon, seulement les quêtes du journal que le guide fait encore.", default: false },
@@ -68,7 +66,7 @@ const OPTIONS: { title: string; options: Option[] }[] = [
       { key: "autoTrain", kind: "bool", label: "Apprendre les sorts chez l'entraîneur de classe", help: "Achète les sorts à l'ouverture de la fenêtre de l'entraîneur.", default: true },
       { key: "trainUseful", kind: "bool", label: "Seulement les sorts utiles au leveling", help: "Ceux que le guide compte pour la puissance du personnage ; les autres restent à acheter soi-même.", default: true },
       { key: "autoFly", kind: "bool", label: "Prendre le vol de l'étape automatiquement", help: "À l'ouverture de la carte des vols (Maj pour choisir soi-même).", default: true },
-      { key: "questItemButton", kind: "bool", label: "Bouton de l'objet de quête", help: "À côté du guide ; raccourci dans les touches du jeu (Factoruide).", default: true },
+      { key: "questItemButton", kind: "bool", label: "Bouton de l'objet de quête", help: "À côté du guide (près des barres d'action en mode minimal) ; raccourci dans les touches du jeu (Factoruide).", default: true },
       { key: "mapPins", kind: "bool", label: "Prochaines étapes sur la carte du monde", help: "Marque les prochaines étapes du guide sur la carte du monde.", default: true },
       { key: "mapPinsCount", kind: "number", label: "Étapes affichées sur la carte", help: "Nombre d'étapes à venir marquées sur la carte du monde.", default: 15, min: 3, max: 40, step: 1 },
       { key: "levelTiming", kind: "bool", label: "Temps de jeu comparé au guide", help: "Avance ou retard sur le temps prévu, dans l'en-tête du guide ; /fg time pour le détail.", default: true },
@@ -89,7 +87,7 @@ const OPTIONS: { title: string; options: Option[] }[] = [
     title: "Équipement et talents",
     options: [
       { key: "gearAdvisor", kind: "bool", label: "Conseiller d'équipement", help: "Amélioration indiquée dans les infobulles et sur les récompenses ; le choix automatique de récompense la prend en premier.", default: true },
-      { key: "talentAdvisor", kind: "bool", label: "Talent conseillé", help: "Plan de leveling de la classe, affiché sous le guide quand il reste des points.", default: true },
+      { key: "talentAdvisor", kind: "bool", label: "Talent conseillé", help: "Plan de leveling de la classe, affiché dans le guide quand il reste des points.", default: true },
       { key: "autoLearnTalents", kind: "bool", label: "Apprendre les talents automatiquement", help: "Dépense les points de talent selon le plan de leveling de la classe.", default: false },
     ],
   },
@@ -278,8 +276,8 @@ export function AddonPage() {
                 <h3>{t("Langue")}</h3>
                 <SettingRow
                   kind="select"
-                  label="Langue des guides dans l'addon"
-                  help="Phrases du guide et noms des quêtes, PNJ, objets et zones ; anglais quand une traduction manque. Un guide calculé par une ancienne version de l'application garde sa langue."
+                  label="Langue de l'addon"
+                  help="Textes de l'addon, phrases du guide et noms des quêtes, PNJ, objets et zones ; anglais quand une traduction manque. Un guide calculé par une ancienne version de l'application garde sa langue."
                   options={LANGS.map((l) => ({ value: l.locale, label: l.label }))}
                   value={guideLocale}
                   initial={gameLocale(lang)}

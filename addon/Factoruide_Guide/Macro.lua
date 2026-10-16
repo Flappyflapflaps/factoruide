@@ -2,8 +2,8 @@
 -- kill or to loot, NPC to talk to). Bind it to a key: one press targets the nearest one.
 
 local FG = Factoruide
+local T = FG.T
 
-local fr = GetLocale() == "frFR"
 local NAME = "FG Cible"
 local ICON = "Ability_Hunter_SniperShot"
 local MAX_BODY = 255
@@ -43,10 +43,7 @@ local function Write(body, create)
         if not create then return nil end
         local _, characterCount = GetNumMacros()
         if characterCount >= (MAX_CHARACTER_MACROS or 18) then
-            FG:Print(
-                fr and "plus de place pour une macro de personnage (%s)" or "no room for a character macro (%s)",
-                NAME
-            )
+            FG:Print(T("no room for a character macro (%s)"), NAME)
             return nil
         end
         return CreateMacro(NAME, ICON, body, true)
@@ -87,13 +84,9 @@ function Macro:Pickup()
     local index = Write(self.body or Body(self.names), true)
     if index and PickupMacro then
         PickupMacro(index)
-        FG:Print(
-            fr and "macro « %s » : posez-la sur une barre et associez-lui un raccourci"
-                or 'macro "%s": drop it on an action bar and bind a key',
-            NAME
-        )
+        FG:Print(T("macro “%s”: drop it on an action bar and bind a key"), NAME)
     elseif InCombatLockdown and InCombatLockdown() then
-        FG:Print(fr and "impossible en combat" or "not possible in combat")
+        FG:Print(T("not possible in combat"))
     end
 end
 

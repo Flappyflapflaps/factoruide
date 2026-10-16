@@ -1,4 +1,7 @@
 <Bindings>
     <Binding name="CLICK FGItemButton:LeftButton" header="FACTORUIDE" category="ADDONS">
     </Binding>
+    <Binding name="FACTORUIDE_MODE" category="ADDONS">
+        Factoruide.Guide:ToggleMode()
+    </Binding>
 </Bindings>

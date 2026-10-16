@@ -6,6 +6,24 @@ _G.Factoruide = FG
 
 FG.DB_VERSION = 1
 
+-- Texts in the language chosen in the app (`locale` of the guide part's Config.lua, written with
+-- the guides), else the game's; the English text when there is no translation. The files of
+-- Locales/ fill FG.Locales[locale] = { [English text] = translation }.
+FG.Locales = {}
+
+--- The addon's language (a game locale: "frFR", "deDE"...).
+function FG.Lang()
+    local lang = FG.Config and FG.Config.locale or (GetLocale and GetLocale()) or "enUS"
+    if lang == "esMX" and not FG.Locales.esMX then return "esES" end
+    return lang
+end
+
+--- `text` (English) in the addon's language.
+function FG.T(text)
+    local strings = FG.Locales[FG.Lang()]
+    return strings and strings[text] or text
+end
+
 --- Game version of the client: forever (1.16+ builds), classic (1.15), tbc (2.x).
 FG.Edition = (function()
     local major, minor = (GetBuildInfo and GetBuildInfo() or "1.60"):match("^(%d+)%.(%d+)")
@@ -122,6 +140,13 @@ end
 function FG.ItemInfo(item)
     if C_Item and C_Item.GetItemInfo then return C_Item.GetItemInfo(item) end
     return GetItemInfo(item)
+end
+
+--- How many of an item the character has in its bags (and its bank with `includeBank`, as the
+--- game last saw it).
+function FG.ItemCount(item, includeBank)
+    if C_Item and C_Item.GetItemCount then return C_Item.GetItemCount(item, includeBank) end
+    return GetItemCount(item, includeBank)
 end
 
 function FG.ItemInfoInstant(item)
@@ -273,9 +298,10 @@ local function ReputationAPI()
 end
 
 --- Points with every faction the reputation panel lists, counted from the bottom of Neutral:
---- { { id = factionID, value = points }... }. Collapsed headers hide their factions: opened for
---- the reading and closed again, unless the panel is open (the player is using it).
-function FG.Reputations()
+--- { { id = factionID, value = points }... } (and `name`, in the game's language, with `withNames`).
+--- Collapsed headers hide their factions: opened for the reading and closed again, unless the
+--- panel is open (the player is using it).
+function FG.Reputations(withNames)
     local count, row, expand, collapse = ReputationAPI()
     if not count then return {} end
     local panel = ReputationFrame and ReputationFrame:IsVisible()
@@ -288,7 +314,9 @@ function FG.Reputations()
             opened[id or name or i] = true
         end
         value = FG.Readable(value)
-        if id and value and (not header or hasRep) then table.insert(out, { id = id, value = value }) end
+        if id and value and (not header or hasRep) then
+            table.insert(out, { id = id, value = value, name = withNames and name or nil })
+        end
         i = i + 1
     end
     if collapse then
@@ -328,7 +356,7 @@ SlashCmdList.FACTORUIDE = function(msg)
         FG.Profile:Save()
     elseif FG.Guide then
         FG:Print(
-            "/fg config | guide | next | prev | step <n> | skip [id] | restart | lines <n> | route | macro | spot | waypoint | scale [size] | status | reset | profile | debug"
+            "/fg config | guide | next | prev | step <n> | skip [id] | restart | mode | route | macro | spot | waypoint | scale [size] | status | reset | profile | debug"
         )
     else
         FG:Print("/fg status | reset | profile | debug")

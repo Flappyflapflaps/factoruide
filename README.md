@@ -55,7 +55,7 @@ zones to do, the level to reach before moving on from each, and where the XP is.
 ## It adapts as you play
 
 - The addon follows you: it advances by itself (quest accepted, objective done, quest turned in,
-  flight, level reached), points the arrow at the next step and compares your real time per level
+  flight, level reached), points the compass at the next step and compares your real time per level
   with the guide's (`/fg time`).
 - Ahead, behind, changed your mind about a profession or a zone? Generate the guide again from your
   character as it is now: it becomes a new version of the guide, with the difference from the previous
@@ -129,20 +129,26 @@ under "Suggest guides from" on the "Guide packs" page: it offers each character 
 race and class.
 
 - Guide: follows the guide chosen for the character in the app and advances by itself; `/fg guide`,
-  `/fg next`, `/fg prev`, `/fg step <n>`, `/fg route` (shows it), `/fg waypoint`. Mobs living in
-  several places: the arrow moves on to another place when nothing is found at one (`/fg spot`
-  at once), and the world map shows them all.
+  `/fg next`, `/fg prev`, `/fg step <n>`, `/fg route` (shows it), `/fg waypoint`. Two modes: full
+  (a card with the current tasks, the next steps and the talent to learn) or minimal (a strip at
+  the top of the screen, the next steps on mouse-over); `/fg mode` or a key binding switches.
+  Mobs living in several places: the compass moves on to another place when nothing is found at
+  one (`/fg spot` at once), and the world map shows them all.
 - Size: Ctrl + mouse wheel over a window, or `/fg scale <size>`.
-- Helpers: a big arrow towards the current step (green ahead, red behind, distance below),
-  targeting macro "FG Cible" (`/fg macro`), quest item button (key binding in the game's
+- Helpers: a compass bar at the top of the screen with the step to go to, the other current
+  tasks, the quests to pick up close by and the next turn-in (mouse over: what and how far;
+  click: go there), targeting macro "FG Cible" (`/fg macro`), quest item button (key binding in the game's
   key bindings, Factoruide section), the step's flight taken automatically, next steps numbered on
   the world map.
 - Vendors: sells gray items, repairs, buys food, water and ammunition for your level (disabled by
   default; hold Shift when opening to skip everything).
 - Gear and talents: the quest reward the guide planned (the route counts on wearing it), upgrades
-  in tooltips and on quest rewards, the recommended talent under the guide. At the class trainer,
+  in tooltips and on quest rewards, the recommended talent in the guide. At the class trainer,
   only the spells that matter for leveling are bought.
-- Group and safety: party members' progress in the quest tracker, alerts on elite or high-level
+- Quest panel: one line per quest in the guide's order, tabs for the guide's professions and
+  reputation goals, and the items to keep for its quests (cloth, meat…) with how many are in the
+  bags and the bank (read at each visit; at the bank it says what to take and what can stay).
+- Group and safety: party members' progress in the quest panel, alerts on elite or high-level
   targets and low health, elite objectives flagged in the guide.
 - Profile: what the app needs to start a guide from your character (level, XP, quests done and in
   the log, position, hearthstone, flight paths seen on flight maps, professions, gear, spells),

@@ -52,6 +52,12 @@ for addon in Factoruide_Profile Factoruide_Guide; do
         fi
         cp "$f" "$dest/"
     done
+    # Translations.
+    if [ -d "$src/Locales" ]; then
+        rm -rf "$dest/Locales"
+        mkdir -p "$dest/Locales"
+        cp "$src"/Locales/*.lua "$dest/Locales/"
+    fi
     # Textures.
     if [ -d "$src/Media" ]; then
         mkdir -p "$dest/Media"

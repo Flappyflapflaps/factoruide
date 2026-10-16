@@ -1029,6 +1029,33 @@ fn grinding_goes_to_a_camp() {
     assert!(spent.grinding > 0.0);
 }
 
+/// The addon gets how many items an item objective asks for (its items to keep) and the guide's
+/// reputation goals (its reputation tab).
+#[test]
+fn addon_gets_item_counts_and_reputation_goals() {
+    let goal = r#"reputation_goals=[{"faction":72,"target":9000}]"#;
+    let p = prepare("human", "warrior", 6, &[goal]);
+    let planner = planner(&p);
+    let route = planner.construct(|_| {});
+    let guide = fg_route::export::build(&planner, &p.profile, &route);
+    let lua = fg_route::export::to_lua(std::slice::from_ref(&guide));
+    let item = guide
+        .steps
+        .iter()
+        .find(|s| {
+            s.target
+                .as_ref()
+                .is_some_and(|t| t.kind == fg_route::export::TargetKind::Item)
+        })
+        .expect("an item objective");
+    let line = lua
+        .lines()
+        .find(|l| l.contains(&format!("t = {:?}", item.text)))
+        .unwrap();
+    assert!(line.contains(", c = "), "{line}");
+    assert!(lua.contains("reputations = { { id = 72, name = "), "{}", &lua[..300]);
+}
+
 /// The mobs farmed on the way to a step are a count of their own (the addon counts the kills),
 /// not words of its text.
 #[test]

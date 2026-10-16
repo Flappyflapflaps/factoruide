@@ -7,6 +7,14 @@
 ## SavedVariables: FactoruideDB
 
 Core.lua
+Locales\frFR.lua
+Locales\deDE.lua
+Locales\esES.lua
+Locales\ptBR.lua
+Locales\ruRU.lua
+Locales\koKR.lua
+Locales\zhCN.lua
+Locales\zhTW.lua
 Sent.lua
 Collector.lua
 Profile.lua

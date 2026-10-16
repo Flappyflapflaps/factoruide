@@ -16,6 +16,10 @@ local function stub()
     function o:SetScript(name, fn) self[name] = fn end
     function o:SetText(t) self.text = t end
     function o:GetText() return self.text end
+    -- The game refuses a missing font.
+    function o:SetFontObject(font) assert(font ~= nil, "SetFontObject without a font") end
+    -- Strict as the newer clients' API: a boolean, not nil.
+    function o:SetShown(shown) assert(type(shown) == "boolean", "SetShown(" .. tostring(shown) .. ")") end
     function o:GetPoint() return "TOP", nil, "TOP", 0, 0 end
     function o:GetID() return 1 end
     setmetatable(o, {
@@ -91,6 +95,12 @@ C_PlayerInfo = {
     GetContentDifficultyQuestForPlayer = function() return 1 end,
 }
 GameTooltip = { SetOwner = function() end, SetHyperlink = function() end, Show = function() end, Hide = function() end }
+-- Items: their class (12: quest items, the default) and how many are in the bags and the bank.
+local itemClasses, bags, bank = {}, {}, {}
+C_Item = {
+    GetItemInfoInstant = function(id) return id, nil, nil, nil, 134400, itemClasses[id] or 12, 0 end,
+    GetItemCount = function(id, includeBank) return (bags[id] or 0) + (includeBank and (bank[id] or 0) or 0) end,
+}
 UIParent = {}
 print = print
 strsplit = function(sep, s, n)
@@ -223,7 +233,7 @@ local function load(addon)
         elseif line == "Routes.lua" then
             assert(loadfile("addon/tests/fixtures/Routes.lua"))(addon, private)
         elseif line:match("%.lua$") then
-            local chunk = assert(loadfile("addon/" .. addon .. "/" .. line))
+            local chunk = assert(loadfile("addon/" .. addon .. "/" .. line:gsub("\\", "/")))
             chunk(addon, private)
         end
     end
@@ -281,17 +291,24 @@ onQuest[179] = nil
 fire("QUEST_TURNED_IN", 179, 80, 0)
 assert(char.guide.step == 4, "objective and turn-in skipped, step " .. char.guide.step)
 
+-- Back one page: steps 3 to 6 (Sten Stoutarm, Balir Frosthammer) are one group, step 2 another.
 SlashCmdList.FACTORUIDE("prev")
-assert(char.guide.step == 3)
+assert(char.guide.step == 2, "the page before, step " .. char.guide.step)
+SlashCmdList.FACTORUIDE("next")
+assert(char.guide.step == 3, "the page after it, step " .. char.guide.step)
 SlashCmdList.FACTORUIDE("status")
 assert(#char.events >= 2, "collector recorded events")
 print("smoke test ok: step " .. char.guide.step .. ", " .. #char.events .. " events")
 
--- Going back to a done step stays there (refresh and quest events), the resync goes forward.
+-- On a page with steps left, the current step is its first one not done; the page stays.
 FG.Guide:Advance()
-assert(char.guide.step == 3, "stays after manual navigation")
+assert(char.guide.step == 4 and FG.Guide:CurrentSteps()[1] == 3, "same page, its step not done yet")
+-- Going back to a page done already stays there (refresh and quest events), the resync goes forward.
+SlashCmdList.FACTORUIDE("prev")
+FG.Guide:Advance()
+assert(char.guide.step == 2, "stays after manual navigation")
 fire("QUEST_LOG_UPDATE")
-assert(char.guide.step == 3, "quest events do not move a manual position")
+assert(char.guide.step == 2, "quest events do not move a manual position")
 FG.Guide:Resync()
 assert(char.guide.step == 4, "resync goes to the first step not done")
 print("navigation ok")
@@ -310,8 +327,12 @@ fire("QUEST_COMPLETE")
 assert(calls.GetQuestReward and calls.GetQuestReward[1] == 1, "single reward taken")
 fire("LOOT_READY", false)
 assert(calls.loot == 3, "all loot slots taken")
-SlashCmdList.FACTORUIDE("lines 2")
-assert(FG:Get("pickupLines") == 2, "session tweak")
+-- The guide's mode: switched in game and kept, the minimal strip shown instead of the card.
+SlashCmdList.FACTORUIDE("mode")
+assert(FG:Get("guideMode") == "minimal" and FactoruideDB.ui.guideMode == "minimal", "minimal mode kept")
+assert(FG.Guide:Box() == FG.Mini:Frame(), "the minimal strip is the guide")
+SlashCmdList.FACTORUIDE("mode")
+assert(FG:Get("guideMode") == "full" and FG.Guide:Box() == FG.Card:Frame(), "back to the full card")
 
 -- Settings from the app (Config.lua) are respected.
 FG.Config.autoAccept = false
@@ -443,8 +464,9 @@ local untitled = C_QuestLog.GetTitleForQuestID
 C_QuestLog.GetTitleForQuestID = function(q) return q == 7001 and "Quête inutile" or nil end
 useRoute("abandon-test")
 assert(char.guide.step == 1, "waits while the quest is in the log, step " .. char.guide.step)
--- Its label, the game's name of the quest and why, once each.
-local abandonLine = FG.Guide:Box().rows[1].text:GetText()
+-- The game's name of the quest, then the label and why, once each.
+local abandonRow = FG.Guide:Box().rows[1]
+local abandonLine = abandonRow.name:GetText() .. " / " .. abandonRow.sub:GetText()
 assert(
     abandonLine:find("Abandon", 1, true)
         and abandonLine:find("Quête inutile", 1, true)
@@ -713,19 +735,20 @@ print("merchant ok")
 -- Skins: a skin registered through the public API styles every frame made so far.
 local skinned = {}
 FactoruideAPI.RegisterSkin("Test", function(frame, kind) skinned[kind] = (skinned[kind] or 0) + 1 end)
-assert(skinned.window == 1, "guide window skinned")
+assert(skinned.window == 2, "guide windows skinned: the card and the minimal strip")
 assert((skinned.panel or 0) >= 1, "panels skinned")
 assert(#FactoruideAPI.GetFrames() >= 2)
 assert(FG.Skin:Suite() == nil, "no UI suite in the tests")
 print("skins ok")
 
--- Arrow: straight ahead, to the left, behind (angles counter-clockwise, as the game's facing).
+-- Compass: straight ahead, to the left, behind (angles counter-clockwise, as the game's facing).
 local close = function(a, b) return math.abs(a - b) < 1e-9 end
-assert(close(FG.Arrow.Angle(10, 0, 0), 0), "north, facing north: ahead")
-assert(close(FG.Arrow.Angle(0, 10, 0), math.pi / 2), "west, facing north: to the left")
-assert(close(FG.Arrow.Angle(0, -10, math.pi / 2), math.pi), "east, facing west: behind")
-assert(close(FG.Arrow.Angle(0, 10, math.pi / 2), 0), "west, facing west: ahead")
-print("arrow ok")
+assert(close(FG.Compass.Angle(10, 0, 0), 0), "north, facing north: ahead")
+assert(close(FG.Compass.Angle(0, 10, 0), math.pi / 2), "west, facing north: to the left")
+assert(close(FG.Compass.Angle(0, -10, math.pi / 2), math.pi), "east, facing west: behind")
+assert(close(FG.Compass.Angle(0, 10, math.pi / 2), 0), "west, facing west: ahead")
+assert(close(FG.Compass.Left(FG.Compass.Angle(0, -10, 0)), -90), "east, facing north: 90° to the right")
+print("compass angles ok")
 
 -- A step whose mobs live in several places: the arrow moves on from a place where the character
 -- waited out of combat (nothing there), and on /fg spot; around again once all are visited.
@@ -1109,7 +1132,7 @@ kill("Player-9-9", "Creature-0-1-2-3-299-0002") -- someone else's
 kill("Player-1-2", "Player-3-4") -- not a mob
 assert(char.guide.farm and char.guide.farm.step == 1 and char.guide.farm.kills == 2, "two mobs on the way counted")
 local rows = FG.Guide:Box().rows
-local farmLine, stepLine = rows[1].text:GetText(), rows[2].text:GetText()
+local farmLine, stepLine = rows[1].count:GetText(), rows[2].name:GetText()
 assert(farmLine:find("2/3", 1, true), "a line of its own with the count: " .. farmLine)
 assert(not stepLine:find("2/3", 1, true) and stepLine:find("Grind", 1, true), "the step's line apart: " .. stepLine)
 print("farm on the way ok")
@@ -1133,16 +1156,265 @@ FG.Guide:AskReset()
 assert(not calls.StaticPopup_Show, "nothing to undo: no question")
 print("start over ok")
 
--- The box under the guide: its tab and whether it is shown, kept.
+-- The next steps' tab, kept.
 FG:Save("nextTab", "pickup")
-FG:Save("nextShown", false)
 assert(FG:Get("nextTab") == "pickup" and FactoruideDB.ui.nextTab == "pickup", "tab kept")
-assert(FG:Get("nextShown") == false, "box hidden")
 FG.Guide:Refresh()
-FG:Save("nextShown", nil)
 FG:Save("nextTab", nil)
-assert(FG:Get("nextTab") == "next" and FG:Get("nextShown") == true, "defaults back")
-print("next box ok")
+assert(FG:Get("nextTab") == "next", "default back")
+print("next steps tab ok")
+
+-- The compass: the target, the other current task, the quest to pick up close by (not the far
+-- one) and the next turn-in.
+FG.Routes["compass-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "objective", t = "Kill A", n = "A", q = 8001, o = 1, id = 1, m = 1426, x = 29.93, y = 71.2, lvl = 1 },
+        { k = "objective", t = "Kill B", n = "B", q = 8002, o = 1, id = 1, m = 1426, x = 29.95, y = 71.25, lvl = 1 },
+        { k = "turnin", t = "Turn in A", q = 8001, id = 3, m = 1426, x = 40, y = 40, lvl = 1 },
+        { k = "accept", t = "Accept Close", q = 8003, id = 4, m = 1426, x = 30, y = 71.3, lvl = 1 },
+        { k = "accept", t = "Accept Far", q = 8004, id = 5, m = 1426, x = 50, y = 50, lvl = 1 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+onQuest[8001], onQuest[8002] = true, true
+useRoute("compass-test")
+local byIndex = {}
+for _, p in ipairs(FG.Compass:Points()) do
+    byIndex[p.index] = p
+end
+assert(byIndex[1] and byIndex[1].main, "the target first")
+assert(byIndex[2] and not byIndex[2].main, "the other task")
+assert(byIndex[3] and byIndex[3].kind == "turnin", "the next turn-in")
+assert(byIndex[4] and byIndex[4].kind == "accept", "the close quest to pick up")
+assert(not byIndex[5], "not the far quest to pick up")
+-- Clicking the other task's point: the guide points at it.
+FG.Guide:PointToStep(2)
+assert(FG.Compass:Points()[1].index == 2 and FG.Compass:Points()[1].main, "the point clicked is the target")
+onQuest[8001], onQuest[8002] = nil, nil
+print("compass points ok")
+
+-- The quest panel: one line a quest in both modes; folded, no line.
+local logEntries, logInfo = C_QuestLog.GetNumQuestLogEntries, C_QuestLog.GetInfo
+C_QuestLog.GetNumQuestLogEntries = function() return 6 end
+C_QuestLog.GetInfo = function(i) return { questID = 8100 + i, title = "Quest " .. i, level = 1 } end
+FG:Set("trackerAll", true)
+FG.Tracker:Refresh()
+assert(#FG.Tracker.shown == 6 and FG.Tracker.lines == 6, "a line a quest, got " .. FG.Tracker.lines)
+FG:Save("guideMode", "minimal")
+FG.Tracker:Refresh()
+assert(FG.Tracker.lines == 6, "the same with the minimal guide")
+FG:Save("guideMode", nil)
+-- The guide's button hides the whole panel (kept), the bank shows it while open.
+FG.Tracker:Toggle()
+FG.Tracker:Refresh()
+assert(not FG.Tracker.visible and FactoruideDB.ui.questPanel == false, "hidden by the guide's button")
+FG.Tracker:ShowItems(true)
+assert(FG.Tracker.visible, "shown at the bank")
+FG.Tracker:ShowItems(false)
+assert(not FG.Tracker.visible, "hidden again after the bank")
+FG.Tracker:Toggle()
+FG.Tracker:Refresh()
+assert(FG.Tracker.visible, "shown again")
+FG:Set("trackerAll", false)
+C_QuestLog.GetNumQuestLogEntries, C_QuestLog.GetInfo = logEntries, logInfo
+print("quest panel ok")
+
+-- The windows' size: Ctrl + mouse wheel only, the wheel alone is the camera's.
+local scaleBefore = FG:Get("scale")
+IsControlKeyDown = function() return false end
+FG.Card:Frame():OnMouseWheel(1)
+assert(FG:Get("scale") == scaleBefore, "the wheel alone does not resize")
+IsControlKeyDown = function() return true end
+FG.Card:Frame():OnMouseWheel(1)
+assert(FG:Get("scale") > scaleBefore, "Ctrl + wheel resizes")
+FG:Save("scale", nil)
+print("window size ok")
+
+-- Items to keep: the common items of the quests not turned in yet (not quest items), in the bags
+-- and the bank; the bank is read when opened, an item can be marked by hand as being there.
+FG.Routes["keep-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "accept", t = "Accept Cloth", q = 9001, id = 1, m = 1426, x = 29.93, y = 71.2, lvl = 1 },
+        {
+            k = "objective",
+            t = "Linen Cloth x10",
+            q = 9001,
+            o = 1,
+            e = "item",
+            id = 2589,
+            n = "Linen Cloth",
+            c = 10,
+            lvl = 1,
+        },
+        { k = "objective", t = "Wolf Meat x8", q = 9001, o = 2, e = "item", id = 750, n = "Wolf Meat", lvl = 1 },
+        { k = "turnin", t = "Turn in Cloth", q = 9001, id = 1, m = 1426, x = 29.93, y = 71.2, lvl = 1 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+itemClasses[2589] = 7
+onQuest[9001] = true
+useRoute("keep-test")
+local keep = FG.Bank:Items()
+assert(#keep == 1 and keep[1].id == 2589 and keep[1].need == 10, "the cloth, not the quest item")
+bags[2589], bank[2589] = 4, 6
+assert(FG.Bank:Items()[1].bags == 4 and FG.Bank:Items()[1].bank == nil, "the bank not seen yet")
+FG.Bank:ToggleMark(2589)
+assert(FG.Bank:Items()[1].marked, "marked by hand as in the bank")
+fire("BANKFRAME_OPENED")
+local atBank = FG.Bank:Items()[1]
+assert(atBank.bank == 6 and not atBank.marked, "the bank read, the mark no longer needed")
+assert(atBank.hint == "take", "needed soon: to take")
+FG.Tracker:Refresh()
+assert(FG.Tracker.tab == "items", "the bank shows the items tab")
+fire("BANKFRAME_CLOSED")
+FG.Tracker:Refresh()
+assert(FG.Tracker.tab == "quests" and FG.Bank:Items()[1].hint == nil, "back to the quests")
+-- An item needed much later shows once owned (or when all are asked for).
+UnitLevel = function() return 1 end
+FG.Routes["keep-test"].steps[3] =
+    { k = "objective", t = "Silk x4", q = 9001, o = 2, e = "item", id = 4306, n = "Silk", c = 4, lvl = 20 }
+itemClasses[4306] = 7
+useRoute("keep-test")
+local shownNow, later = FG.Bank:Items()
+assert(#shownNow == 1 and later == 1, "the silk needed at 20 waits")
+assert(#FG.Bank:Items(true) == 2, "all of them when asked")
+bags[4306] = 2
+assert(#FG.Bank:Items() == 2, "owned: shown")
+bags[4306] = nil
+UnitLevel = function() return playerLevel end
+completed[9001], onQuest[9001] = true, nil
+assert(#FG.Bank:Items(true) == 0, "turned in: nothing to keep")
+completed[9001], bags[2589], bank[2589] = nil, nil, nil
+print("items to keep ok")
+
+-- Gone back to a step already done: the minimal strip still shows it, marked done.
+onQuest[9001] = true
+FG:Save("guideMode", "minimal")
+useRoute("keep-test")
+FG.Guide:Go(1)
+local strip = FG.Mini:Frame()
+assert(strip.name:GetText() == "Accept Cloth", "the step gone back to: " .. tostring(strip.name:GetText()))
+assert(strip.verb:GetText():find("faite", 1, true), "marked done: " .. strip.verb:GetText())
+FG:Save("guideMode", nil)
+onQuest[9001] = nil
+print("minimal strip on a done step ok")
+
+-- The next steps show those done already (greyed), not hidden.
+FG.Routes["next-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "accept", t = "Accept A", q = 9101, id = 1, m = 1426, x = 10, y = 10, lvl = 1 },
+        { k = "accept", t = "Accept B", q = 9102, id = 2, m = 1426, x = 50, y = 50, lvl = 1 },
+        { k = "accept", t = "Accept C", q = 9103, id = 3, m = 1426, x = 60, y = 60, lvl = 1 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+onQuest[9102] = true
+useRoute("next-test")
+local nextSteps = {}
+for _, v in ipairs(FG.Guide.view.next) do
+    if v.index then nextSteps[v.index] = v end
+end
+assert(nextSteps[2] and nextSteps[2].done, "B, done already, listed as done")
+assert(nextSteps[3] and not nextSteps[3].done, "C to do")
+onQuest[9102] = nil
+print("done next steps ok")
+
+-- Pages: two objectives close together are one page, kept until both are done; the turn-in of
+-- their quest, elsewhere, is the next page and does not show them again (its progress instead).
+FG.Routes["page-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        {
+            k = "objective",
+            t = "Kill Black Ravager",
+            n = "Black Ravager",
+            q = 9201,
+            o = 1,
+            id = 11,
+            m = 1431,
+            x = 66.8,
+            y = 30.5,
+            lvl = 1,
+        },
+        {
+            k = "objective",
+            t = "Kill Young Black Ravager",
+            n = "Young Black Ravager",
+            q = 9201,
+            o = 2,
+            id = 12,
+            m = 1431,
+            x = 68.3,
+            y = 28.3,
+            lvl = 1,
+        },
+        { k = "turnin", t = "Turn in Ira's Dagger", q = 9201, id = 13, m = 1431, x = 75, y = 45, lvl = 1 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+local ravagers = {
+    { text = "Black Ravager slain: 0/10", numFulfilled = 0, numRequired = 10, finished = false },
+    { text = "Young Black Ravager slain: 0/10", numFulfilled = 0, numRequired = 10, finished = false },
+}
+local pageObjectives = C_QuestLog.GetQuestObjectives
+C_QuestLog.GetQuestObjectives = function(q) return q == 9201 and ravagers or pageObjectives(q) end
+onQuest[9201] = true
+useRoute("page-test")
+local function page()
+    local out = {}
+    for _, v in ipairs(FG.Guide.view.tasks) do
+        table.insert(out, v.index)
+    end
+    return table.concat(out, ",")
+end
+assert(page() == "1,2", "the two objectives together: " .. page())
+ravagers[1].numFulfilled, ravagers[1].finished = 10, true
+fire("QUEST_LOG_UPDATE")
+assert(page() == "1,2" and char.guide.step == 2, "the page stays until both are done: " .. page())
+SlashCmdList.FACTORUIDE("next")
+assert(page() == "3", "the turn-in alone, not its objectives again: " .. page())
+local turnin = FG.Guide.view.tasks[1]
+assert(turnin.have == 10 and turnin.need == 20, "the turn-in shows how far the quest is")
+SlashCmdList.FACTORUIDE("prev")
+assert(page() == "1,2", "back to the objectives' page: " .. page())
+C_QuestLog.GetQuestObjectives = pageObjectives
+onQuest[9201] = nil
+print("pages ok")
+
+-- Texts: in the language chosen in the app (Config.lua), else the game's; English without a
+-- translation; Mexican Spanish as Spain's.
+assert(FG.T("Accept") == "Prendre", "the game's language: " .. FG.T("Accept"))
+FG.Config.locale = "deDE"
+assert(FG.T("Accept") == "Annehmen" and FG.T("No such text") == "No such text", "the app's language")
+FG.Config.locale = "esMX"
+assert(FG.T("Accept") == "Aceptar", "Mexican Spanish")
+FG.Config.locale = "enUS"
+assert(FG.T("Accept") == "Accept", "English")
+FG.Config.locale = nil
+print("languages ok")
 
 -- The tracker lists the guide's quests in progress even when the quest log lists none
 -- (headers collapsed in the quest log window).

@@ -1,26 +1,26 @@
 -- XP compared with the guide: on the game's XP bar, a mark where the guide expects the character
 -- to be at the step shown and a band up to where it expects it once the current tasks are done,
--- the gap and the band's XP in the bar's tooltip. Without a known XP bar (another UI), a thin
--- bar of its own under the guide.
+-- the gap and the band's XP in the bar's tooltip. The guide draws the same in its own bar
+-- (`XpMarker:Shares`).
 
 local FG = Factoruide
+local T = FG.T
 
 local XpMarker = {}
 FG.XpMarker = XpMarker
 
-local fr = GetLocale() == "frFR"
 local L = {
-    ahead = fr and "Guide : %s xp d'avance" or "Guide: %s xp ahead",
-    behind = fr and "Guide : %s xp de retard" or "Guide: %s xp behind",
-    onTime = fr and "Guide : dans les temps" or "Guide: on schedule",
-    level = fr and "Guide : niveau %d prévu à cette étape" or "Guide: level %d planned at this step",
-    span = fr and "Tâches en cours : de %s à %s xp" or "Current tasks: from %s to %s xp",
+    ahead = T("Guide: %s xp ahead"),
+    behind = T("Guide: %s xp behind"),
+    onTime = T("Guide: on schedule"),
+    level = T("Guide: level %d planned at this step"),
+    span = T("Current tasks: from %s to %s xp"),
 }
 
 -- XP bars of the game and of the replacement UIs, the first one shown is used.
 local BARS = { "ElvUI_ExperienceBar", "MainMenuExpBar", "MainStatusTrackingBarContainer", "StatusTrackingBarManager" }
 
-local mark, markParent, markLine, markEnd, markBand, own, ownFill, hooked
+local mark, markParent, markLine, markEnd, markBand, hooked
 
 --- Where the guide expects the character before the step shown: its level and XP in it.
 function XpMarker:Planned()
@@ -107,34 +107,20 @@ local function Mark(parent)
     return mark
 end
 
---- A thin bar under the guide: the character's XP and the guide's mark.
-local function OwnBar()
-    if own then return own end
-    local box = FG.Guide and FG.Guide:Box()
-    if not box then return nil end
-    own = CreateFrame("Frame", nil, box)
-    own:SetHeight(4)
-    own:SetPoint("TOPLEFT", box, "BOTTOMLEFT", 1, -1)
-    own:SetPoint("TOPRIGHT", box, "BOTTOMRIGHT", -1, -1)
-    local bg = own:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(0, 0, 0, 0.5)
-    ownFill = own:CreateTexture(nil, "ARTWORK")
-    ownFill:SetPoint("TOPLEFT")
-    ownFill:SetPoint("BOTTOMLEFT")
-    ownFill:SetColorTexture(0.55, 0.3, 0.9, 0.9)
-    own:EnableMouse(true)
-    own:SetScript("OnEnter", function(self)
-        local line = XpMarker:Line()
-        if not line then return end
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:SetText(line, 1, 0.82, 0)
-        local span = XpMarker:SpanLine()
-        if span then GameTooltip:AddLine(span, 1, 0.82, 0) end
-        GameTooltip:Show()
-    end)
-    own:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    return own
+--- The character's XP, where the guide expects it before the step shown and once the current
+--- tasks are done, as shares of the current level (0 to 1; the last two nil when unknown).
+function XpMarker:Shares()
+    local max = UnitXPMax("player")
+    if not max or max <= 0 then return 0, nil, nil end
+    local function Share(value, level)
+        if value then return math.max(0, math.min(1, value / max)) end
+        if level then return level > UnitLevel("player") and 1 or 0 end
+        return nil
+    end
+    local from = Share(self:PlannedHere())
+    local afterLevel, afterXp = self:PlannedAfter()
+    local to = afterLevel and Share(OnScale(afterLevel, afterXp)) or nil
+    return math.min(1, UnitXP("player") / max), from, to
 end
 
 --- The game's tooltip of the XP bar gets the gap with the guide.
@@ -156,16 +142,13 @@ function XpMarker:Refresh()
     local planned = self:PlannedHere()
     local max = UnitXPMax("player")
     local on = FG:Get("xpMarker") and FG:Get("guideShown") and max and max > 0 and self:Planned() ~= nil
-    local bar = on and Bar()
-    if own then own:SetShown(on and not bar) end
-    if mark then mark:SetShown(on) end
-    if not on then return end
-    local parent = bar or OwnBar()
-    if not parent then return end
-    if bar then Hook(bar) end
+    local bar = on and Bar() or nil
+    if mark then mark:SetShown(bar ~= nil) end
+    if not bar then return end
+    Hook(bar)
+    local parent = bar
     local m = Mark(parent)
     local width = tonumber(parent:GetWidth()) or 0
-    if not bar then ownFill:SetWidth(math.max(1, width * math.min(1, UnitXP("player") / max))) end
     -- Further than the next or previous level: at the bar's end, the tooltip tells the level.
     local function X(value, level)
         local share = value and value / max or ((level or 0) > UnitLevel("player") and 1 or 0)
@@ -190,7 +173,10 @@ function XpMarker:Refresh()
 end
 
 for _, event in ipairs({ "PLAYER_XP_UPDATE", "PLAYER_LEVEL_UP", "PLAYER_ENTERING_WORLD" }) do
-    FG:On(event, function() XpMarker:Refresh() end)
+    FG:On(event, function()
+        XpMarker:Refresh()
+        if FG.Guide then FG.Guide:Refresh() end
+    end)
 end
 FG:On("PLAYER_LOGIN", function()
     FG:OnSetting("xpMarker", function() XpMarker:Refresh() end)

@@ -1,10 +1,22 @@
 //! The addon's data file: every route as Lua tables.
 
-use super::types::Route;
+use super::phrase::Arg;
+use super::types::{Route, Step, TargetKind};
 use std::fmt::Write as _;
 
 fn lua_str(s: &str) -> String {
     format!("{s:?}")
+}
+
+/// How many of its item an item objective asks for (the number of its sentence).
+fn item_count(s: &Step) -> Option<i64> {
+    if s.target.as_ref()?.kind != TargetKind::Item {
+        return None;
+    }
+    s.say.iter().find_map(|p| match p.args.get("n") {
+        Some(Arg::Num(n)) => Some(*n),
+        _ => None,
+    })
 }
 
 /// Lua data file for the addon, holding every given route.
@@ -14,7 +26,7 @@ pub fn to_lua(routes: &[Route]) -> String {
     for r in routes {
         let _ = writeln!(
             out,
-            "FG.Routes[{}] = {{ race = {}, class = {}, faction = {}, locale = {}, fromLevel = {}, toLevel = {}, time = {}, levels = {{ {} }}, professions = {{ {} }}, spells = {{ {} }}, checkpoints = {{ {} }}, steps = {{",
+            "FG.Routes[{}] = {{ race = {}, class = {}, faction = {}, locale = {}, fromLevel = {}, toLevel = {}, time = {}, levels = {{ {} }}, professions = {{ {} }}, reputations = {{ {} }}, spells = {{ {} }}, checkpoints = {{ {} }}, steps = {{",
             lua_str(&r.name),
             r.race_id,
             r.class_id,
@@ -42,6 +54,18 @@ pub fn to_lua(routes: &[Route]) -> String {
                     p.target,
                     p.start,
                     p.curve.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+                ))
+                .collect::<Vec<_>>()
+                .join(", "),
+            // Reputation goals: points from the bottom of Neutral, where the guide gets to.
+            r.reputation
+                .iter()
+                .map(|g| format!(
+                    "{{ id = {}, name = {}, target = {}, reached = {} }}",
+                    g.faction,
+                    lua_str(&g.name),
+                    g.target,
+                    g.reached
                 ))
                 .collect::<Vec<_>>()
                 .join(", "),
@@ -114,6 +138,9 @@ pub fn to_lua(routes: &[Route]) -> String {
                     t.id,
                     lua_str(&t.name)
                 ));
+            }
+            if let Some(n) = item_count(s) {
+                fields.push(format!("c = {n}"));
             }
             if let Some(sk) = s.skill {
                 fields.push(format!("sk = {sk}"));

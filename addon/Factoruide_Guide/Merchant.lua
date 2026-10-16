@@ -2,8 +2,7 @@
 -- level (classic vendor items), within a budget.
 
 local FG = Factoruide
-
-local fr = GetLocale() == "frFR"
+local T = FG.T
 
 -- Vendor supplies by required level: { level, itemID }, one list per family.
 local FOOD = {
@@ -37,7 +36,7 @@ local function SellJunk()
             end
         end
     end
-    if total > 0 then FG:Print(fr and "objets gris vendus : %s" or "grey items sold: %s", Money(total)) end
+    if total > 0 then FG:Print(T("grey items sold: %s"), Money(total)) end
 end
 
 local function Repair()
@@ -45,7 +44,7 @@ local function Repair()
     local cost, can = GetRepairAllCost()
     if can and cost > 0 and cost <= GetMoney() then
         RepairAllItems()
-        FG:Print(fr and "réparation : %s" or "repaired: %s", Money(cost))
+        FG:Print(T("repaired: %s"), Money(cost))
     end
 end
 
@@ -92,7 +91,7 @@ local function Stock(families, want, budget)
     end
     if bought > 0 then
         local name = FG.ItemInfo(offer.id) or ("item " .. offer.id)
-        FG:Print(fr and "acheté : %d × %s" or "bought: %d × %s", bought, name)
+        FG:Print(T("bought: %d × %s"), bought, name)
     end
     return bought * offer.unit
 end

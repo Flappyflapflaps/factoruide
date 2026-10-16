@@ -1,23 +1,22 @@
 -- Talent plan: the next talent of the class's leveling plan (TalentBuilds.lua, laid on the
--- game's trees by `fg talents`), shown under the guide while points are unspent; learned in one
+-- game's trees by `fg talents`), shown by the guide while points are unspent; learned in one
 -- click, or automatically.
 
 local FG = Factoruide
-
-local fr = GetLocale() == "frFR"
+local T = FG.T
 
 local Talents = {}
 FG.Talents = Talents
 
---- Talents of the character: "tab:tier:column" -> { tab, index, name, rank, maxRank }.
+--- Talents of the character: "tab:tier:column" -> { tab, index, name, icon, rank, maxRank }.
 local function Known()
     local out = {}
     for tab = 1, (GetNumTalentTabs and GetNumTalentTabs() or 0) do
         for i = 1, GetNumTalents(tab) do
-            local name, _, tier, column, rank, maxRank = GetTalentInfo(tab, i)
+            local name, icon, tier, column, rank, maxRank = GetTalentInfo(tab, i)
             if name then
                 out[tab .. ":" .. tier .. ":" .. column] =
-                    { tab = tab, index = i, name = name, rank = rank, maxRank = maxRank }
+                    { tab = tab, index = i, name = name, icon = icon, rank = rank, maxRank = maxRank }
             end
         end
     end
@@ -42,61 +41,29 @@ end
 
 local function Unspent() return UnitCharacterPoints and UnitCharacterPoints("player") or 0 end
 
-local frame
-local function UI()
-    if frame or not CreateFrame then return frame end
-    frame = CreateFrame("Frame", "FactoruideTalents", UIParent, "BackdropTemplate")
-    frame:SetSize(260, 26)
-    frame.text = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    frame.text:SetPoint("LEFT", 6, 0)
-    frame.button = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
-    frame.button:SetSize(80, 20)
-    frame.button:SetPoint("RIGHT", -2, 0)
-    frame.button:SetText(fr and "Apprendre" or "Learn")
-    frame.button:SetScript("OnClick", function() Talents:LearnNext() end)
-    FG.Skin:Style(frame, "panel", { frame.text })
-    FG.Skin:Style(frame.button, "button")
-    return frame
+--- The talent to learn now (points unspent, the advice on), nil when none.
+function Talents:Pending()
+    if not FG:Get("talentAdvisor") or Unspent() <= 0 then return nil end
+    return self:Next()
 end
 
 function Talents:LearnNext()
     local t = self:Next()
     if t and Unspent() > 0 and not InCombatLockdown() then
         LearnTalent(t.tab, t.index)
-        FG:Print(fr and "talent appris : %s (%d/%d)" or "talent learned: %s (%d/%d)", t.name, t.rank + 1, t.maxRank)
+        FG:Print(T("talent learned: %s (%d/%d)"), t.name, t.rank + 1, t.maxRank)
         return true
     end
     return false
 end
 
 function Talents:Refresh()
-    if not FG:Get("talentAdvisor") then
-        if frame then frame:Hide() end
-        return
-    end
-    if FG:Get("autoLearnTalents") and not InCombatLockdown() then
+    if FG:Get("talentAdvisor") and FG:Get("autoLearnTalents") and not InCombatLockdown() then
         for _ = 1, Unspent() do
             if not self:LearnNext() then break end
         end
     end
-    local t = Unspent() > 0 and self:Next()
-    local f = UI()
-    if not f then return end
-    if not t then
-        f:Hide()
-        return
-    end
-    local box = FG.Guide and FG.Guide:Box()
-    f:ClearAllPoints()
-    if box then
-        f:SetPoint("TOPLEFT", box, "BOTTOMLEFT", 0, -4)
-    else
-        f:SetPoint("CENTER")
-    end
-    f.text:SetText(
-        string.format("|cffffd100%s|r %s (%d/%d)", fr and "Talent :" or "Talent:", t.name, t.rank + 1, t.maxRank)
-    )
-    f:Show()
+    if FG.Guide then FG.Guide:Refresh() end
 end
 
 for _, event in ipairs({

@@ -7,7 +7,7 @@ FGStepPinMixin = CreateFromMixins and CreateFromMixins(MapCanvasPinMixin or {}) 
 function FGStepPinMixin:OnLoad() self:UseFrameLevelType("PIN_FRAME_LEVEL_AREA_POI") end
 
 --- `kind`: "current" (the step to do), "spot" (another place of its mobs, `shown` the one the
---- arrow points at), else a next step.
+--- compass points at), else a next step.
 function FGStepPinMixin:OnAcquired(x, y, n, text, kind, shown)
     self:SetPosition(x, y)
     self.Number:SetText(n)
@@ -68,7 +68,7 @@ function Provider:RefreshAllData()
             if n >= FG:Get("mapPinsCount") then break end
         end
     end
-    -- The other places of the mobs of the step the arrow points at.
+    -- The other places of the mobs of the step the compass points at.
     local places, at = FG.Guide:SpotPlaces()
     for i, place in ipairs(places or {}) do
         local x, y = PositionOn(place, mapID)

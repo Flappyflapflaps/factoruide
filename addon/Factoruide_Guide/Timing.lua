@@ -3,8 +3,7 @@
 -- and the estimated end.
 
 local FG = Factoruide
-
-local fr = GetLocale() == "frFR"
+local T = FG.T
 
 local Timing = { played = nil, at = nil }
 FG.Timing = Timing
@@ -90,7 +89,7 @@ function Timing:Print()
     local route = FG.Guide and FG.Guide:Route()
     local times = Times() or {}
     if not route or not route.levels then
-        FG:Print(fr and "pas de guide" or "no guide")
+        FG:Print(T("no guide"))
         return
     end
     for level = 2, UnitLevel("player") do
@@ -98,10 +97,10 @@ function Timing:Print()
         if real and planned then
             FG:Print(
                 "%s %d : %s (%s %s, %s%s)",
-                fr and "niveau" or "level",
+                T("level"),
                 level,
                 Duration(real),
-                fr and "prévu" or "planned",
+                T("planned"),
                 Duration(planned),
                 real <= planned and "−" or "+",
                 Duration(real - planned)
@@ -110,10 +109,6 @@ function Timing:Print()
     end
     local real, planned = self:Compare()
     if real then
-        FG:Print(
-            fr and "fin estimée : %s (prévu %s)" or "estimated end: %s (planned %s)",
-            Duration(route.time * real / planned),
-            Duration(route.time)
-        )
+        FG:Print(T("estimated end: %s (planned %s)"), Duration(route.time * real / planned), Duration(route.time))
     end
 end

@@ -2,8 +2,7 @@
 -- low health. The guide also tags elite objectives and mobs well above the character.
 
 local FG = Factoruide
-
-local fr = GetLocale() == "frFR"
+local T = FG.T
 
 local function Warn(text)
     if UIErrorsFrame then UIErrorsFrame:AddMessage(text, 1, 0.25, 0.25) end
@@ -26,11 +25,11 @@ FG:On("PLAYER_TARGET_CHANGED", function()
     local name = FG.Readable(UnitName("target")) or ""
     if not level then return end
     if level == -1 or kind == "worldboss" then
-        Warn(string.format(fr and "DANGER : %s (niveau ??)" or "DANGER: %s (level ??)", name))
+        Warn(string.format(T("DANGER: %s (level ??)"), name))
     elseif kind == "elite" or kind == "rareelite" then
-        Warn(string.format(fr and "Élite : %s (niveau %d)" or "Elite: %s (level %d)", name, level))
+        Warn(string.format(T("Elite: %s (level %d)"), name, level))
     elseif level >= mine + 3 then
-        Warn(string.format(fr and "%s : niveau %d (+%d)" or "%s: level %d (+%d)", name, level, level - mine))
+        Warn(string.format(T("%s: level %d (+%d)"), name, level, level - mine))
     end
 end)
 
@@ -40,7 +39,7 @@ FG:On("UNIT_HEALTH", function(unit)
     local share = UnitHealth("player") / math.max(1, UnitHealthMax("player"))
     if share < 0.35 and not warned and not UnitIsDeadOrGhost("player") then
         warned = true
-        Warn(string.format(fr and "Vie basse : %d %%" or "Low health: %d%%", math.floor(share * 100)))
+        Warn(string.format(T("Low health: %d%%"), math.floor(share * 100)))
     elseif share > 0.6 then
         warned = false
     end

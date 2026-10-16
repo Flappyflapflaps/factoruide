@@ -1,13 +1,11 @@
--- Look of the addon's frames, decided in one place. By default the game's own style (tooltip
--- frame, game fonts), so UIs restyling Blizzard's frames match it; the UI suite's style when one
--- is loaded (ElvUI, EllesmereUI, SpartanUI); and any skin registered through FactoruideAPI.
+-- Look of the addon's frames, decided in one place: Factoruide's own (dark blue cards, the app's
+-- colors) or, with the setting `suiteSkin`, the style of a loaded UI suite (ElvUI, EllesmereUI,
+-- SpartanUI); skins registered through FactoruideAPI apply on top. Read when frames are created:
+-- changing it needs a /reload.
 --
--- Setting `uiTheme`: "auto" (a loaded UI suite, else Blizzard), "blizzard" or "dark" (flat dark
--- boxes). It is read when frames are created: changing it needs a /reload.
---
--- Frame kinds: "window" (the guide box), "panel" (secondary boxes: next steps, tracker,
--- talents), "button" (a text button), "icon" (a quest item button: `.icon`, maybe `.cooldown`).
--- Windows and panels have `.header` (title strip texture) and `.title`.
+-- Frame kinds: "window" (the guide: full card or minimal strip), "panel" (secondary boxes: quest
+-- tracker, the minimal mode's next steps and labels), "button" (a text button), "icon" (a quest
+-- item button: `.icon`, maybe `.cooldown`). Windows may have `.title`.
 
 local FG = Factoruide
 
@@ -21,45 +19,142 @@ local done = setmetatable({}, { __mode = "k" })
 --- A field the addon set on a frame (not one of its methods).
 local function field(frame, key) return rawget(frame, key) end
 
--- Base styles -------------------------------------------------------------------
-
-local BLIZZARD_BACKDROP = {
-    bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
-    edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-    tile = true,
-    tileSize = 16,
-    edgeSize = 14,
-    insets = { left = 3, right = 3, top = 3, bottom = 3 },
+-- Colors (r, g, b), the app's.
+Skin.colors = {
+    bg = { 0.035, 0.067, 0.122 },
+    edge = { 0.137, 0.204, 0.31 },
+    line = { 0.082, 0.137, 0.227 },
+    blue = { 0.227, 0.302, 1 },
+    cyan = { 0.122, 0.659, 0.847 },
+    accent = { 0.49, 0.553, 1 },
+    text = { 1, 1, 1 },
+    text2 = { 0.729, 0.769, 0.839 },
+    muted = { 0.494, 0.545, 0.639 },
+    dim = { 0.365, 0.416, 0.51 },
+    gold = { 1, 0.82, 0 },
+    green = { 0.29, 0.871, 0.502 },
+    orange = { 1, 0.565, 0.251 },
+    red = { 1, 0.4, 0.3 },
+    purple = { 0.69, 0.486, 1 },
+    lightBlue = { 0.5, 0.827, 0.941 },
 }
+
+--- "|cffrrggbb" of a color of `Skin.colors`.
+function Skin.Hex(name)
+    local c = Skin.colors[name]
+    return string.format("|cff%02x%02x%02x", c[1] * 255, c[2] * 255, c[3] * 255)
+end
+
+local WHITE = "Interface\\Buttons\\WHITE8x8"
+Skin.WHITE = WHITE
+
+--- A flat texture of a color of `Skin.colors` (or r, g, b), with alpha.
+function Skin:Fill(parent, layer, color, alpha)
+    local t = parent:CreateTexture(nil, layer or "ARTWORK")
+    local c = type(color) == "table" and color or self.colors[color]
+    t:SetColorTexture(c[1], c[2], c[3], alpha or 1)
+    return t
+end
+
+--- Left-to-right fade of a color (alpha `a1` to `a2`); a flat texture of the mean alpha where the
+--- client has no gradients.
+function Skin:Gradient(texture, color, a1, a2)
+    local c = type(color) == "table" and color or self.colors[color]
+    texture:SetColorTexture(1, 1, 1, 1)
+    local ok = CreateColor
+        and texture.SetGradient
+        and pcall(
+            texture.SetGradient,
+            texture,
+            "HORIZONTAL",
+            CreateColor(c[1], c[2], c[3], a1),
+            CreateColor(c[1], c[2], c[3], a2)
+        )
+    if not ok then texture:SetColorTexture(c[1], c[2], c[3], (a1 + a2) / 2) end
+end
+
+--- The app's blue to cyan line (the top of the guide).
+function Skin:AccentLine(texture)
+    texture:SetColorTexture(1, 1, 1, 1)
+    local b, c = self.colors.blue, self.colors.cyan
+    local ok = CreateColor
+        and texture.SetGradient
+        and pcall(
+            texture.SetGradient,
+            texture,
+            "HORIZONTAL",
+            CreateColor(b[1], b[2], b[3], 1),
+            CreateColor(c[1], c[2], c[3], 1)
+        )
+    if not ok then texture:SetColorTexture(b[1], b[2], b[3], 1) end
+end
+
+-- Fonts: the game's font (each client's own, so every language shows), in a few sizes, shadowed.
+local fonts = {}
+
+--- Font object of `size` (and `flags`), cached.
+function Skin.FontObject(size, flags)
+    local key = size .. (flags or "")
+    if fonts[key] then return fonts[key] end
+    if not CreateFont or not GameFontNormal then return "GameFontHighlightSmall" end
+    local font = CreateFont("FactoruideFont" .. key:gsub("%W", ""))
+    local path = GameFontNormal:GetFont()
+    font:SetFont(path, size, flags or "")
+    font:SetShadowColor(0, 0, 0, 1)
+    font:SetShadowOffset(1, -1)
+    font:SetTextColor(1, 1, 1)
+    fonts[key] = font
+    return font
+end
+
+--- A font string of `size` in a color of `Skin.colors`, left-justified on one line.
+function Skin:Text(parent, size, color, layer)
+    local fs = parent:CreateFontString(nil, layer or "OVERLAY")
+    fs:SetFontObject(self.FontObject(size))
+    local c = self.colors[color or "text"]
+    fs:SetTextColor(c[1], c[2], c[3])
+    fs:SetJustifyH("LEFT")
+    fs:SetWordWrap(false)
+    self:Font(fs)
+    return fs
+end
+
+-- Base style --------------------------------------------------------------------
+
 local FLAT_BACKDROP = {
-    bgFile = "Interface\\Buttons\\WHITE8x8",
-    edgeFile = "Interface\\Buttons\\WHITE8x8",
+    bgFile = WHITE,
+    edgeFile = WHITE,
     edgeSize = 1,
 }
 
-local BASE = {
-    blizzard = function(frame, kind)
-        if kind == "window" or kind == "panel" then
-            frame:SetBackdrop(BLIZZARD_BACKDROP)
-            frame:SetBackdropColor(0.06, 0.06, 0.1, kind == "window" and 0.88 or 0.8)
-            frame:SetBackdropBorderColor(0.7, 0.7, 0.7, 1)
-            if field(frame, "header") then frame.header:SetColorTexture(1, 1, 1, 0) end
+local function Base(frame, kind)
+    local c = Skin.colors
+    if kind == "window" or kind == "panel" then
+        frame:SetBackdrop(FLAT_BACKDROP)
+        frame:SetBackdropColor(c.bg[1], c.bg[2], c.bg[3], kind == "window" and 0.9 or 0.85)
+        frame:SetBackdropBorderColor(c.edge[1], c.edge[2], c.edge[3], 1)
+        if kind == "window" and not field(frame, "accent") then
+            frame.accent = frame:CreateTexture(nil, "BORDER")
+            frame.accent:SetPoint("TOPLEFT", 1, -1)
+            frame.accent:SetPoint("TOPRIGHT", -1, -1)
+            frame.accent:SetHeight(2)
+            Skin:AccentLine(frame.accent)
         end
-    end,
-    dark = function(frame, kind)
-        if kind == "window" or kind == "panel" then
-            frame:SetBackdrop(FLAT_BACKDROP)
-            frame:SetBackdropColor(0.05, 0.05, 0.08, kind == "window" and 0.82 or 0.75)
-            if kind == "window" then
-                frame:SetBackdropBorderColor(0.2, 0.6, 1, 0.6)
-                if field(frame, "header") then frame.header:SetColorTexture(0.2, 0.6, 1, 0.18) end
-            else
-                frame:SetBackdropBorderColor(0.4, 0.4, 0.45, 0.5)
-                if field(frame, "header") then frame.header:SetColorTexture(1, 1, 1, 0.06) end
-            end
+    elseif kind == "icon" then
+        -- A gold ring around the item, as the guide's quest items.
+        if field(frame, "icon") then frame.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92) end
+        if not field(frame, "ring") then
+            frame.ring = frame:CreateTexture(nil, "BACKGROUND")
+            frame.ring:SetPoint("TOPLEFT", -2, 2)
+            frame.ring:SetPoint("BOTTOMRIGHT", 2, -2)
+            frame.ring:SetColorTexture(c.gold[1], c.gold[2], c.gold[3], 1)
+            local inner = frame:CreateTexture(nil, "BACKGROUND", nil, 1)
+            inner:SetPoint("TOPLEFT", -1, 1)
+            inner:SetPoint("BOTTOMRIGHT", 1, -1)
+            inner:SetColorTexture(0, 0, 0, 1)
         end
-    end,
-}
+    end
+end
 
 -- UI suites ---------------------------------------------------------------------
 
@@ -85,9 +180,6 @@ if ElvUI then
         elv.apply = function(frame, kind, fonts)
             if kind == "window" or kind == "panel" then
                 frame:SetTemplate("Transparent")
-                if field(frame, "header") then
-                    frame.header:SetColorTexture(1, 1, 1, kind == "window" and 0.08 or 0.04)
-                end
             elseif kind == "button" and field(frame, "Left") then
                 S:HandleButton(frame)
             elseif kind == "icon" then
@@ -147,7 +239,6 @@ if SUI and SUI.Skins and SUI.Skins.Register then
     sui.apply = function(frame, kind)
         if kind == "window" or kind == "panel" then
             SUI.Skins.SetTemplate(frame)
-            if field(frame, "header") then frame.header:SetColorTexture(1, 1, 1, 0.05) end
         elseif kind == "button" and field(frame, "Left") then
             SUI.Skins.SkinObj("Button", frame, nil, "Factoruide")
         end
@@ -156,7 +247,7 @@ if SUI and SUI.Skins and SUI.Skins.Register then
 end
 
 local function ActiveSuite()
-    if FG:Get("uiTheme") ~= "auto" then return nil end
+    if not FG:Get("suiteSkin") then return nil end
     for _, suite in ipairs(suites) do
         if suite.ready then return suite end
     end
@@ -175,13 +266,13 @@ function Skin:Style(frame, kind, fonts, again)
     if suite then
         if not styled[suite.name] then
             styled[suite.name] = true
+            if field(frame, "accent") then frame.accent:Hide() end
             local ok, err = pcall(suite.apply, frame, kind, fonts)
             if not ok then FG:Debug("%s skin: %s", suite.name, tostring(err)) end
         end
     elseif not styled.base then
         styled.base = true
-        local base = BASE[FG:Get("uiTheme")] or BASE.blizzard
-        base(frame, kind)
+        Base(frame, kind)
     end
     for _, skin in ipairs(external) do
         if not styled[skin.name] then
@@ -207,11 +298,12 @@ end
 -- Public API for other skins (AddOnSkins, NDui, a skin of your own) ---------------
 
 FactoruideAPI = FactoruideAPI or {}
-FactoruideAPI.version = 1
+FactoruideAPI.version = 2
 
 --- Call `fn(frame, kind)` on every Factoruide frame, now and when created later. Kinds:
---- "window", "panel", "button", "icon" (see Skin.lua). Frames are named FactoruideTodo,
---- FactoruideNext, FactoruideTracker, FactoruideTalents, FGItemButton, FactoruideItemButton<n>.
+--- "window", "panel", "button", "icon" (see Skin.lua). Frames are named FactoruideTodo (full
+--- guide), FactoruideMini (minimal guide), FactoruideMiniNext, FactoruideTracker, FGItemButton,
+--- FactoruideItemButton<n>.
 function FactoruideAPI.RegisterSkin(name, fn)
     for _, skin in ipairs(external) do
         if skin.name == name then return end

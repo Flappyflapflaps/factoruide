@@ -11,6 +11,17 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - WoW Forever: the dungeon list shows the new dungeons with quests: Ruins of Lordaeron, Excavation Site: Wetlands, City of Dalaran (GitHub #18).
 - Classic and TBC: the dungeon list no longer shows The Hall of Thanes, a WoW Forever dungeon.
 
+### Addon
+
+- New look in the app's colors: the guide is one card with the current tasks, progress bars, the next steps and the talent to learn.
+- Minimal mode: a strip at the top of the screen, the next steps on mouse-over (`/fg mode`, a key binding or the guide's button).
+- A compass bar replaces the arrow: the step to go to, the other current tasks, the quests to pick up close by and the next turn-in; click a point to go there.
+- Steps done at the same place are one page, passed together once all are done: a step no longer shows twice; ‹ › and `/fg next` / `/fg prev` go page by page.
+- Quest panel: one line per quest (objectives on mouse-over), shown or hidden from the guide, with tabs for the guide's professions and reputation goals (progress bars).
+- Items to keep: the common items the guide's quests still need (cloth, meat…), in the bags and in the bank; at the bank, what to take and what can stay.
+- The addon speaks the app's 10 languages, in the language chosen on the Addon page (else the game's).
+- ElvUI, EllesmereUI and SpartanUI: their style only when "UI suite style" is on (Addon page).
+
 ### WoW data
 
 - WoW Forever: quests of a chain are taken in the order the game offers them (Walton and Vrang in the Barrens, Mankrik's Olgra, the Scourge paladin's quests…).

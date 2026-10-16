@@ -79,7 +79,7 @@ fn main() {
             &root.join("addon/Factoruide_Profile"),
             &["lua", "toc", "xml"],
             &["Sent.lua"],
-            false
+            true
         ),
         files(
             &root.join("addon/Factoruide_Guide"),

@@ -1,11 +1,8 @@
 # Skinning the Factoruide addon
 
-The addon draws its frames in one place, `Factoruide_Guide/Skin.lua`, and picks their look with the
-`uiTheme` setting (Addon page of the app):
-
-- `auto` (default): the style of a loaded UI suite, else the game's own style;
-- `blizzard`: tooltip-like frames and game fonts, so UIs restyling Blizzard's frames match it;
-- `dark`: flat dark boxes.
+The addon draws its frames in one place, `Factoruide_Guide/Skin.lua`: dark blue cards in the
+Factoruide app's colors. With the `suiteSkin` setting on ("UI suite style", Addon page of the app),
+a loaded UI suite styles them instead.
 
 ## UI suites supported out of the box
 
@@ -29,11 +26,14 @@ The function runs on every frame already made and on every frame made later. Fra
 
 | Frame | Kind | Fields |
 |---|---|---|
-| `FactoruideTodo` (guide) | window | `header` (title strip texture), `title`, `info`, `rows` |
-| `FactoruideNext` (next steps) | panel | same |
-| `FactoruideTracker` (quest tracker) | panel | `header`, `title`, `count` |
-| `FactoruideTalents` (talent advice) | panel | `text`, `button` |
+| `FactoruideTodo` (full guide) | window | `accent` (top line), `zone`, `level`, `rows`, `nextRows` |
+| `FactoruideMini` (minimal guide) | window | `accent`, `name`, `sub`, `dist` |
+| `FactoruideMiniNext` (minimal guide's next steps) | panel | `title`, `rows` |
+| the minimal guide's labels, the item and talent names near the action bars | panel | `text` or `name` |
+| `FactoruideTracker` (quest panel) | panel | `line` (under the tabs) |
 | `FGItemButton`, `FactoruideItemButton<n>` | icon | `icon`, `cooldown` |
 
+The compass bar (`FactoruideCompass`) is not a box and is not skinned.
+
 `FactoruideAPI.GetFrames()` returns `{ { frame = ..., kind = ... }, ... }` for the frames made so
-far.
+far. `FactoruideAPI.version` is 2 since the frames above (1: `FactoruideNext`, `FactoruideTalents`).

@@ -1,11 +1,13 @@
 -- Quest item button: the item a current step's quest asks to use, one click (or one key: see
--- the game's key bindings, "Factoruide") away. Secure attributes only change out of combat.
+-- the game's key bindings, "Factoruide") away; left of the full guide, near the action bars with
+-- the minimal one. Secure attributes and its place only change out of combat.
 
 local FG = Factoruide
+local T = FG.T
 
-local fr = GetLocale() == "frFR"
 BINDING_HEADER_FACTORUIDE = "Factoruide"
-_G["BINDING_NAME_CLICK FGItemButton:LeftButton"] = fr and "Utiliser l'objet de quête" or "Use the quest item"
+_G["BINDING_NAME_CLICK FGItemButton:LeftButton"] = T("Use the quest item")
+BINDING_NAME_FACTORUIDE_MODE = T("Full or minimal guide")
 
 local ItemButton = { link = nil, pending = nil }
 FG.ItemButton = ItemButton
@@ -21,7 +23,6 @@ local function Create()
     local icon = button:CreateTexture(nil, "ARTWORK")
     icon:SetAllPoints()
     button.icon = icon
-    button:SetNormalTexture("Interface\\Buttons\\UI-Quickslot2")
     local cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
     cooldown:SetAllPoints()
     button.cooldown = cooldown
@@ -52,16 +53,22 @@ local function Apply(link, texture)
         b:Hide()
         return
     end
-    local box = FG.Guide and FG.Guide:Box()
-    b:ClearAllPoints()
-    if box then
-        b:SetPoint("TOPRIGHT", box, "TOPLEFT", -6, 0)
-    else
-        b:SetPoint("CENTER", UIParent, "CENTER", -300, 0)
-    end
+    ItemButton:Place()
     b:SetAttribute("item", link)
     b.icon:SetTexture(texture)
     b:Show()
+end
+
+--- Put the button where the guide's look of the moment wants it (out of combat only).
+function ItemButton:Place()
+    if not button or InCombatLockdown() then return end
+    local ui = FG.Guide and FG.Guide:UI()
+    button:ClearAllPoints()
+    if ui and ui:Frame() then
+        ui:ItemAnchor(button)
+    else
+        button:SetPoint("CENTER", UIParent, "CENTER", -300, 0)
+    end
 end
 
 --- The first quest item of these steps (quests in the log with a usable item).
@@ -82,7 +89,21 @@ end
 
 FG:On("PLAYER_REGEN_ENABLED", function()
     local p = ItemButton.pending
-    if p then Apply(p.link or nil, p.texture) end
+    if p then
+        Apply(p.link or nil, p.texture)
+    elseif ItemButton.misplaced then
+        ItemButton.misplaced = nil
+        ItemButton:Place()
+    end
+end)
+FG:On("PLAYER_LOGIN", function()
+    FG:OnSetting("guideMode", function()
+        if InCombatLockdown() then
+            ItemButton.misplaced = true
+        else
+            ItemButton:Place()
+        end
+    end)
 end)
 
 FG:On("BAG_UPDATE_COOLDOWN", function()

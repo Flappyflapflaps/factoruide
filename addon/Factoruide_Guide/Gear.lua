@@ -3,8 +3,7 @@
 -- best upgrade first.
 
 local FG = Factoruide
-
-local fr = GetLocale() == "frFR"
+local T = FG.T
 
 -- Stat weights per class (leveling, rough): GetItemStats keys.
 local S, A, ST, I, SP =
@@ -168,9 +167,8 @@ local function TooltipLine(tooltip, link)
     if not FG:Get("gearAdvisor") or not link then return end
     local gain, share = Gear:Upgrade(link)
     if gain and gain > 0 then
-        local text = share and string.format("+%d %%", math.floor(share * 100 + 0.5))
-            or (fr and "emplacement vide" or "empty slot")
-        tooltip:AddLine("|cff33ccffFactoruide|r  |cff40ff40" .. (fr and "amélioration " or "upgrade ") .. text .. "|r")
+        local text = share and string.format("+%d %%", math.floor(share * 100 + 0.5)) or (T("empty slot"))
+        tooltip:AddLine("|cff33ccffFactoruide|r  |cff40ff40" .. (T("upgrade ")) .. text .. "|r")
     end
 end
 

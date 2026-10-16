@@ -15,8 +15,10 @@ TalentBuilds_classic.lua
 TalentBuilds_tbc.lua
 Automation.lua
 Routes.lua
-Arrow.lua
 Guide.lua
+Card.lua
+Mini.lua
+Compass.lua
 Macro.lua
 ItemButton.lua
 Merchant.lua
@@ -26,6 +28,7 @@ Safety.lua
 Party.lua
 Timing.lua
 XpMarker.lua
+Bank.lua
 MapPins.lua
 MapPins.xml
 Tracker.lua

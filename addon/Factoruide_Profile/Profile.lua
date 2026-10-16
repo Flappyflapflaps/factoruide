@@ -9,8 +9,7 @@ local _, FG = ...
 local QuestLog = FG.QuestLog
 local Profile = {}
 FG.Profile = Profile
-
-local fr = GetLocale() == "frFR"
+local T = FG.T
 
 -- Professions (skill lines) and riding.
 local SKILL_LINES = { 171, 164, 333, 202, 182, 165, 186, 393, 197, 185, 356, 129 }
@@ -141,8 +140,7 @@ end
 function Profile:Save()
     self:Snapshot()
     FG:Print(
-        fr and "profil enregistré (niveau %d, %d quêtes faites, %d dans le journal), rechargement de l'interface"
-            or "profile saved (level %d, %d quests done, %d in the log), reloading the interface",
+        T("profile saved (level %d, %d quests done, %d in the log), reloading the interface"),
         profile.level,
         #profile.completed,
         #profile.log
