@@ -52,3 +52,9 @@ todo = "warn"
 undocumented_unsafe_blocks = "warn"
 unimplemented = "warn"
 verbose_file_reads = "warn"
+
+# Release code with line tables for perf and flamegraphs, in its own target/profiling directory
+# so that it never invalidates the release build (scripts/profile.sh adds the frame pointers).
+[profile.profiling]
+inherits = "release"
+debug = "line-tables-only"
