@@ -17,6 +17,9 @@ pub(super) struct Entities {
     pub(super) hostile: HashSet<i64>,
     /// NPCs friendly to the character: objectives on them are talks, not kills.
     pub(super) friendly: HashSet<i64>,
+    /// NPCs of the character's own side nobody talks to (no gossip, vendor...): Sentinel Shaya,
+    /// the Lazy Peons. Quests heal them, wake them, use an item on them; seldom fight them.
+    pub(super) own_side: HashSet<i64>,
     /// Seconds NPCs and objects take to come back once killed or used, where known.
     pub(super) respawn: HashMap<(EntityKind, i64), f64>,
     /// The paths patrolling NPCs walk: zone and percent coordinates of each point, in order.
@@ -41,6 +44,11 @@ impl Entities {
         )?;
         for row in stmt.query_map([letter], |r| r.get::<_, i64>(0))? {
             friendly.insert(row?);
+        }
+        let mut own_side = HashSet::new();
+        let mut stmt = conn.prepare("SELECT id FROM m_npc WHERE friendly_to = ?1 AND coalesce(npc_flags, 0) = 0")?;
+        for row in stmt.query_map([letter], |r| r.get::<_, i64>(0))? {
+            own_side.insert(row?);
         }
         let mut npc = HashMap::new();
         let mut stmt = conn.prepare(
@@ -112,6 +120,7 @@ impl Entities {
             spawns,
             hostile,
             friendly,
+            own_side,
             respawn,
             paths,
         })

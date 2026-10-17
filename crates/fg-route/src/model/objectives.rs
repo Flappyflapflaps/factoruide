@@ -398,6 +398,21 @@ impl QuestBuilder<'_> {
             },
         );
         let friendly = entities.friendly.contains(&target) || talks_to(&quest.requirements, &name);
+        // An NPC of the character's side is acted on, not killed ("Kill Sentinel Shaya"): the
+        // quest's own wording says how ("Heal and fortify Sentinel Shaya", "Peons Awoken x 5").
+        if !friendly
+            && text.is_none()
+            && entities.own_side.contains(&target)
+            && let Some((said, count)) = self.own_side_action(quest, &name)
+        {
+            return self.use_at(
+                quest,
+                EntityKind::Npc,
+                target,
+                Some(said),
+                Some(amount.unwrap_or(count)),
+            );
+        }
         let elite = ids.iter().any(|id| entities.is_elite(*id));
         if !params.allow_elite && needed > params.solo_elite_kills && !friendly && elite {
             return Err("elite objective");
@@ -445,6 +460,43 @@ impl QuestBuilder<'_> {
                 .collect(),
             ..at(pos, zone)
         })
+    }
+
+    /// What a quest asks done to an NPC of the character's side, from its only requirement line
+    /// when that is not the NPC's name (a plain name or "name x 8" is a kill: The Attack!), with
+    /// the item the quest gives for it; without any line, using that item on them.
+    fn own_side_action(&self, quest: &QuestContext<'_>, name: &str) -> Option<(String, f64)> {
+        let lines: Vec<String> = (quest.row.requirements.as_deref())
+            .and_then(|j| serde_json::from_str(j).ok())
+            .unwrap_or_default();
+        let item = quest
+            .row
+            .source_item
+            .filter(|i| *i > 0)
+            .map(|i| self.sources.entities.name(EntityKind::Item, i));
+        let [line] = lines.as_slice() else {
+            // No wording: the item the quest gives is used on them (Lazy Peons in Classic data).
+            return item.map(|item| (format!("Use {item} on {name}"), 1.0));
+        };
+        let (said, count) = match line.rsplit_once(" x ") {
+            Some((what, n)) => (what.trim(), n.trim().parse().ok()?),
+            None => (line.trim(), 1.0),
+        };
+        if said.is_empty() || said.contains(':') || said.eq_ignore_ascii_case(name) {
+            return None;
+        }
+        let said = if count > 1.0 {
+            format!("{said} x{count}")
+        } else {
+            said.to_owned()
+        };
+        Some((
+            match item {
+                Some(item) if !said.contains(&item) => format!("Use {item}: {said}"),
+                _ => said,
+            },
+            count,
+        ))
     }
 
     /// Use objects, or act on creatures without killing them (heal them, talk to them): one use

@@ -410,6 +410,28 @@ fn child_quests_are_handed_in_before_their_parent() {
     assert_eq!(o[jarven].kills, 0.0);
 }
 
+/// The Lazy Peons are woken with the Foreman's Blackjack, Sentinel Shaya healed: NPCs of the
+/// character's own side are acted on, worded as the quest says, never "Kill".
+#[test]
+fn own_side_npcs_are_acted_on_not_killed() {
+    let conn = database();
+    let p = job::prepare(&conn, &overrides(), &request("orc", "warrior", 8, &[]), &|_| {}).unwrap();
+    let o = &p.model.quests[quest(&p, 5441).unwrap() as usize].objectives;
+    assert_eq!(o[0].text, "Use Foreman's Blackjack on Lazy Peon");
+    assert_eq!((o[0].kills, o[0].loc.id), (0.0, 10556));
+    conn.execute_batch(
+        "CREATE TEMP TABLE m_quest AS SELECT * FROM main.m_quest;
+         UPDATE temp.m_quest SET requirements = '[\"Heal and fortify Sentinel Shaya\"]' WHERE id = 5621;",
+    )
+    .unwrap();
+    let p = job::prepare(&conn, &overrides(), &request("nightelf", "priest", 10, &[]), &|_| {}).unwrap();
+    let o = &p.model.quests[quest(&p, 5621).unwrap() as usize].objectives;
+    assert_eq!(
+        (o[0].text.as_str(), o[0].kills, o[0].uses),
+        ("Heal and fortify Sentinel Shaya", 0.0, 1.0)
+    );
+}
+
 /// The warlock's imp is taken first: it makes every fight that follows easier.
 #[test]
 fn pet_quest_comes_early() {
