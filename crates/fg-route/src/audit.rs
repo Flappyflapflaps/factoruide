@@ -744,6 +744,16 @@ mod tests {
     use super::*;
     use crate::plan::tests::quests_at_start;
 
+    /// The accepted findings of the repository's three editions read (a bad line stops `fg audit`).
+    #[test]
+    fn the_accepted_findings_files_read() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../overrides");
+        for edition in crate::xp::Edition::ALL {
+            let found = accepted(&dir, edition).unwrap();
+            assert!(!found.is_empty(), "{edition:?}");
+        }
+    }
+
     /// Secure the Mountain's case: a quest left out because an objective has no place, needed
     /// first by a quest of the guide. Not found for a reason the data does not cause (elites),
     /// nor when another quest of a choice stays.
