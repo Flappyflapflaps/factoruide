@@ -42,6 +42,8 @@ const MAX_ZOOM = 24;
 const MIN_ZOOM = 0.6;
 /** From this zoom the zones' own maps (sharper) are drawn over the continent's. */
 const ZONE_DETAIL = 1.8;
+/** A zone's map this much over a bigger zone's is a city's (seen from inside, or drawn by that zone's map too). */
+const CITY_SHARE = 0.5;
 /** Cards before and after the current one with a full marker (the others: a dot). */
 const NEAR_BEFORE = 2;
 const NEAR_AFTER = 8;
@@ -112,8 +114,9 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
     [index, continent],
   );
   const project = useMemo(() => (base ? projector(base) : null), [base]);
-  // The zones' maps, and where a city seen from inside (Undercity, Ironforge: a map inside
-  // another zone's) is, covered with the map of the zone around it instead.
+  // The zones' maps, and where a city is (a map mostly over a bigger zone's: Stormwind,
+  // Undercity), covered with the map of the zone around it instead: the zone's map draws the
+  // city too, without the seams of two maps drawn differently.
   const [zones, covers] = useMemo(() => {
     if (!base || !project) return [[], []];
     const all = (index ?? [])
@@ -128,7 +131,11 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
         return { z, rect, d, label: rings ? labelPoint(rings) : ([rect.x + rect.w / 2, rect.y + rect.h / 2] as [number, number]) };
       });
     type Zone = (typeof all)[number];
-    const within = (a: Zone, b: Zone) => b !== a && b.rect.x <= a.rect.x && b.rect.y <= a.rect.y && b.rect.x + b.rect.w >= a.rect.x + a.rect.w && b.rect.y + b.rect.h >= a.rect.y + a.rect.h;
+    const within = (a: Zone, b: Zone) => {
+      const w = Math.min(a.rect.x + a.rect.w, b.rect.x + b.rect.w) - Math.max(a.rect.x, b.rect.x);
+      const h = Math.min(a.rect.y + a.rect.h, b.rect.y + b.rect.h) - Math.max(a.rect.y, b.rect.y);
+      return b !== a && b.rect.w * b.rect.h > a.rect.w * a.rect.h && w > 0 && h > 0 && w * h >= CITY_SHARE * a.rect.w * a.rect.h;
+    };
     const cities = all.flatMap((a) => {
       const around = all.find((b) => within(a, b));
       return around && a.d ? [{ id: a.z.id, d: a.d, around }] : [];
@@ -382,6 +389,13 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
           </defs>
           <g ref={layer}>
             {base && <MapImage id={base.id} x={0} y={0} w={base.width} h={base.height} />}
+            {/* The zones' maps whole first (biggest under), filling the gaps their simplified
+                outlines leave, then each within its outline. */}
+            {[...shown]
+              .sort((a, b) => b.rect.w * b.rect.h - a.rect.w * a.rect.h)
+              .map(({ z, rect }) => (
+                <MapImage key={z.id} id={z.id} x={rect.x} y={rect.y} w={rect.w} h={rect.h} />
+              ))}
             {shown.map(({ z, rect, d }) => (
               <g key={z.id} clipPath={d ? `url(#gm-clip-${z.id})` : undefined}>
                 <MapImage id={z.id} x={rect.x} y={rect.y} w={rect.w} h={rect.h} />
