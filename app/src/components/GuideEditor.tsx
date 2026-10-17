@@ -3,7 +3,8 @@ import { api, fmtTime, type EditCatalog, type EditOpened, type EditReport, type 
 import { gameLocale, useLang, useT } from "../i18n";
 import { NumberInput } from "./NumberInput";
 import { Delta } from "./ResultView";
-import { keepTableInView, keepZoneInView, segments, steps as steps_, useFollowPointer, type Segment } from "./RouteView";
+import { segments, steps as steps_, type Segment } from "./segments";
+import { keepTableInView, keepZoneInView, useFollowPointer } from "./stepTable";
 import { useWidth } from "./useWidth";
 import { ZoneMap, type NumberedStep } from "./ZoneMap";
 

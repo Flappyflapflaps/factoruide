@@ -10,6 +10,8 @@ const PATHS = {
   share: "M8 10V2M5 5l3-3 3 3M3 9v4.5h10V9",
   // Two sheets: clone.
   clone: "M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3",
+  // A flag: report a problem.
+  report: "M3.5 14.5v-12M3.5 2.5h8l-2 3 2 3h-8",
   // A bin: delete.
   delete: "M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.8 6.5v5M9.2 6.5v5",
 };

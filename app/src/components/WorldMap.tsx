@@ -1,27 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, type MapInfo } from "../api";
+import { api, type MapInfo, type WorldPoint } from "../api";
 import { useAreaName, useT } from "../i18n";
 
-export type WorldPoint = [number, number, number];
+export type { WorldPoint };
 export type ZoneState = "preferred" | "forced" | "excluded";
 
-export interface MapMarker {
-  at: WorldPoint;
-  label: string;
-  title?: string;
-}
-
 interface Props {
-  /** Continents shown side by side (game maps: 1 Kalimdor, 0 Eastern Kingdoms, 530 Outland),
-   * west to east; all those of the game version when unset. */
-  continents?: number[];
   route?: WorldPoint[];
-  markers?: MapMarker[];
   /** Zone states by game zone (AreaTable ID). */
   zoneStates?: Record<number, ZoneState>;
   onZoneClick?: (area: number, name: string) => void;
-  /** Part of the route drawn over it (the steps of a zone). */
-  highlight?: WorldPoint[];
   /** Animate the route (while it is being optimized). */
   live?: boolean;
   /** Maximum height in pixels. */
@@ -90,7 +78,8 @@ const RAMP_CSS = `linear-gradient(90deg, ${[0, 1 / 3, 2 / 3, 1].map(rampColor).j
 /** Route pieces colored along the ramp. */
 const CHUNKS = 8;
 
-export function WorldMap({ continents, route, markers, highlight, zoneStates, onZoneClick, live, height = 520 }: Props) {
+/** Every continent of the game version side by side: the zones to choose, or a route being computed. */
+export function WorldMap({ route, zoneStates, onZoneClick, live, height = 520 }: Props) {
   const t = useT();
   const areaName = useAreaName();
   const [index, setIndex] = useState<MapInfo[] | null>(null);
@@ -130,14 +119,12 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
     loadIndex().then(setIndex).catch((e) => setError(String(e)));
   }, []);
 
-  // Continent maps shown, west to east.
-  const shown = (continents ?? CONTINENTS).join(",");
+  // Continent maps, west to east.
   const panels = useMemo<Panel[]>(() => {
     if (!index) return [];
     const base = (map: number) =>
       index.filter((m) => m.kind === 2 && m.bounds?.map === map).sort((a, b) => b.width - a.width)[0];
-    const wanted = shown.split(",").map(Number);
-    const maps = CONTINENTS.filter((c) => wanted.includes(c)).map(base).filter(Boolean);
+    const maps = CONTINENTS.map(base).filter(Boolean);
     let at = 0;
     return maps.map((info) => {
       // Our own map: each continent from its westmost to its eastmost zone, a sea's width apart.
@@ -148,7 +135,7 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
       at += width;
       return p;
     });
-  }, [index, shown, look]);
+  }, [index, look]);
   const key = panels.map((p) => p.info.id).join("+");
 
   useEffect(() => {
@@ -257,20 +244,7 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
   };
   const { pieces, jumps, crossings } = trace(route ?? [], CHUNKS);
   const path = pieces.join("");
-  const lit = highlight?.length ? trace(highlight, 1).pieces[0] : "";
   const k = 1 / view.scale; // keep strokes and labels readable when zoomed
-  // Markers too close to be read apart are drawn as one: the first level and how many more
-  // (all of them on hover). Groups are a marker apart, so they never overlap.
-  const groups: { q: [number, number]; labels: string[]; titles: string[] }[] = [];
-  for (const m of markers ?? []) {
-    const q = project(m.at);
-    if (!q) continue;
-    const near = groups.find((g) => Math.hypot(g.q[0] - q[0], g.q[1] - q[1]) < 34 * k * s);
-    if (near) {
-      near.labels.push(m.label);
-      near.titles.push(m.title ?? m.label);
-    } else groups.push({ q, labels: [m.label], titles: [m.title ?? m.label] });
-  }
 
   return (
     <div className="world-map">
@@ -368,55 +342,11 @@ export function WorldMap({ continents, route, markers, highlight, zoneStates, on
                 {pieces.map((d, i) => d && <path key={i} d={d} className="route-line" stroke={rampColor(i / (CHUNKS - 1))} strokeWidth={2.6 * k * s} />)}
               </g>
             )}
-            {lit && (
-              <>
-                <path d={lit} className="route-halo" strokeWidth={9 * k * s} />
-                <path d={lit} className="route-highlight" strokeWidth={4.5 * k * s} />
-              </>
-            )}
-            {groups.map((g, i) => (
-              <g key={i} className="map-marker" transform={`translate(${g.q[0]},${g.q[1]}) scale(${k * s})`}>
-                <title>{g.titles.join("\n")}</title>
-                <circle r={15} />
-                <text textAnchor="middle" dominantBaseline="central" fontSize={15}>
-                  {g.labels[0]}
-                </text>
-                {g.labels.length > 1 && (
-                  <g className="map-marker-more" transform="translate(13,-13)">
-                    <circle r={9} />
-                    <text textAnchor="middle" dominantBaseline="central" fontSize={10}>
-                      +{g.labels.length - 1}
-                    </text>
-                  </g>
-                )}
-              </g>
-            ))}
           </svg>
         </div>
       </div>
     </div>
   );
-}
-
-/** The big stages of a route: a marker each time it settles in another zone (level shown). */
-export function routeMarkers(
-  steps: { zone?: string; level: number; time: number; world?: WorldPoint }[],
-  title: (zone: string, level: number) => string = (zone, level) => `${zone} · niveau ${level}`,
-  minStops = 12,
-): MapMarker[] {
-  const out: MapMarker[] = [];
-  let i = 0;
-  while (i < steps.length) {
-    const zone = steps[i].zone;
-    let j = i;
-    while (j < steps.length && (steps[j].zone === zone || !steps[j].zone)) j++;
-    const first = steps.slice(i, j).find((s) => s.world);
-    if (zone && first?.world && j - i >= minStops && out[out.length - 1]?.title?.split(" · ")[0] !== zone) {
-      out.push({ at: first.world, label: String(first.level), title: title(zone, first.level) });
-    }
-    i = Math.max(j, i + 1);
-  }
-  return out;
 }
 
 /** Ray casting: whether a point is inside a ring. */
@@ -438,7 +368,7 @@ function ringArea(ring: [number, number][]): number {
 }
 
 /** Where to write a zone's name: the centroid of its largest ring, or the inner point closest to it. */
-function labelPoint(rings: [number, number][][]): [number, number] {
+export function labelPoint(rings: [number, number][][]): [number, number] {
   const ring = rings.reduce((a, b) => (Math.abs(ringArea(b)) > Math.abs(ringArea(a)) ? b : a));
   const area = ringArea(ring);
   let cx = 0;

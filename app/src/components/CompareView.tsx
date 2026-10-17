@@ -3,7 +3,7 @@ import { api, type Comparison, type DiffBlock, type DiffChange, type DiffRow, ty
 import { gameLocale, useDate, useLang, useT } from "../i18n";
 import { sections } from "../paramSchema";
 import { Delta } from "./ResultView";
-import { KIND_LABELS } from "./RouteView";
+import { KIND_LABELS } from "./segments";
 
 interface Props {
   guide: string;

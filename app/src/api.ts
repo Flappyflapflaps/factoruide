@@ -225,6 +225,8 @@ export interface Breakdown {
   explore_xp?: number;
   /** Copper spent on flights (unknown for guides computed before it was kept). */
   flight_cost?: number;
+  /** The objectives' fixed time on top of their kills (respawns, events, buying), part of `fighting`. */
+  waiting?: number;
 }
 
 export interface Step {
@@ -243,11 +245,31 @@ export interface Step {
   text: string;
   target?: { kind: string; id: number; name: string };
   zone?: string;
+  /** The zone's ID (AreaTable). */
+  zone_id?: number;
+  /** Mobs to target (to kill, or that drop the item): their names. */
+  mobs?: string[];
   map?: { ui_map: number; x: number; y: number };
   /** World position: [continent (map ID), x, y]. */
   world?: [number, number, number];
+  /** XP the guide has in `level` once the step is done. */
+  route_xp?: number;
+  /** Checkpoints and training: kept when skipping ahead. */
+  keep?: boolean;
+  /** Character power (level plus what gear and spells add) and the part of it its gear brings, when known. */
+  power?: number;
+  gear?: number;
   level: number;
   time: number;
+}
+
+/** A profession followed along the guide: its skill at each character level (`curve`, index 0..=60). */
+export interface RouteProfession {
+  key: string;
+  name: string;
+  target: number;
+  start: number;
+  curve: number[];
 }
 
 export interface Route {
@@ -264,6 +286,7 @@ export interface Route {
   breakdown: Breakdown;
   /** The reputation goals and how far the guide gets (none without goals). */
   reputation?: ReputationReached[];
+  professions?: RouteProfession[];
   steps: Step[];
 }
 
@@ -428,6 +451,8 @@ export const api = {
   editSave: (steps: RouteStep[]) => invoke<VersionMeta>("edit_save", { steps }),
   /** Leaves the editor without saving. */
   editClose: () => invoke<void>("edit_close"),
+  /** A version replayed to be watched (`locale`: language of its names). */
+  guideTimeline: (guide: string, version: number, locale: string) => invoke<Timeline>("guide_timeline", { guide, version, locale }),
   onPlanProgress: (fn: (m: string) => void): Promise<UnlistenFn> =>
     listen<string>("plan-progress", (e) => fn(e.payload)),
 };
@@ -715,4 +740,113 @@ export interface EditOpened {
   rebuilt: boolean;
   report: EditReport;
   catalog: EditCatalog;
+}
+
+/** A world point: [continent (map ID), x, y]. */
+export type WorldPoint = [number, number, number];
+
+/** A guide replayed to be watched; mirror of `fg_route::job::Timeline`. */
+export interface Timeline {
+  /** One per step of the guide, in its order. */
+  steps: TimelineStep[];
+  /** The character's moves, in time order (none overlap). */
+  legs: Leg[];
+  /** The character before the first step. */
+  start: StartView;
+  /** The quests the steps take, do and turn in (and those of the log at the start). */
+  quests: QuestInfo[];
+  /** The flight paths the character knows or learns. */
+  nodes: NodeInfo[];
+  /** The inns the hearthstone is bound to. */
+  inns: InnInfo[];
+  /** XP from each level to the next (index: level). */
+  xp_levels: number[];
+  log_size: number;
+  /** From this level the character rides a mount. */
+  mount_level: number;
+  /** Steps the replay did the same (the others have a straight walk to them). */
+  matched: number;
+}
+
+/** A step of the guide as replayed: its time, where the time goes, what changes. */
+export interface TimelineStep {
+  start: number;
+  end: number;
+  /** When the character is where the step is done (its moves over). */
+  arrive: number;
+  /** Seconds of travel, combat, interaction and waiting (absent: none). */
+  travel?: number;
+  combat?: number;
+  interact?: number;
+  wait?: number;
+  /** The replay does not find it (the data changed since the guide was computed): its split and moves are guessed. */
+  estimate?: boolean;
+  /** The named place it is done at (a town, a valley). */
+  place?: string;
+  /** Quests taken, objectives done ([quest, objective]), quests out of the log, flight paths learned (taxi node IDs). */
+  accepted?: number[];
+  done?: [number, number][];
+  removed?: number[];
+  flights?: number[];
+  /** The inn the hearthstone is bound to from now on (its innkeeper's ID). */
+  bind?: number;
+  /** When the hearthstone, and Astral Recall, are ready again (used here). */
+  hearth?: number;
+  recall?: number;
+  /** Copper paid for flights. */
+  cost?: number;
+}
+
+/** How the character moves: walking, mounted, flying, by boat (zeppelin, tram, portal), the hearthstone or a teleport (jumps). */
+export type LegMode = "walk" | "mount" | "flight" | "link" | "hearth" | "teleport";
+
+/** A move of the character from `from` to `to`. */
+export interface Leg {
+  mode: LegMode;
+  start: number;
+  end: number;
+  from: WorldPoint;
+  to: WorldPoint;
+  /** The points in between ([x, y] on the continent of `from`): the way around the terrain, a flight's way. */
+  via?: [number, number][];
+}
+
+/** The character before the first step. */
+export interface StartView {
+  at: WorldPoint;
+  log: number[];
+  done: [number, number][];
+  flights: number[];
+  bind: number | null;
+  /** The character learns Astral Recall (a second hearthstone). */
+  recall: boolean;
+}
+
+export interface QuestInfo {
+  id: number;
+  name: string;
+  objectives: ObjectiveInfo[];
+}
+
+export interface ObjectiveInfo {
+  /** What the step says (Kill Mindless Zombie x8). */
+  text: string;
+  kind: "kill" | "collect" | "use" | "talk" | "other";
+  /** The amount it asks for. */
+  count: number;
+}
+
+/** A flight path. */
+export interface NodeInfo {
+  id: number;
+  name: string;
+  at: WorldPoint;
+}
+
+/** An inn: its innkeeper (ID and name) and its town. */
+export interface InnInfo {
+  id: number;
+  name: string;
+  place: string;
+  at: WorldPoint;
 }

@@ -690,11 +690,6 @@ h3 {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.table td.coords {
-  white-space: nowrap;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
 .table tr.clickable {
   cursor: pointer;
 }
@@ -750,9 +745,6 @@ button.disclosure:disabled {
 }
 .route-table col.c-level {
   width: 84px;
-}
-.route-table col.c-last {
-  width: 96px;
 }
 .route-table td {
   overflow-wrap: anywhere;
@@ -2125,12 +2117,6 @@ button.dungeon.excluded b {
   stroke-dasharray: 6 4;
   animation: route-march 0.8s linear infinite, route-fade 0.6s ease-out;
 }
-.route-highlight {
-  fill: none;
-  stroke: #ffd23f;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
 @keyframes route-march {
   to {
     stroke-dashoffset: -10;
@@ -2178,21 +2164,6 @@ button.dungeon.excluded b {
 }
 .zone-mark.forced circle {
   fill: var(--accent-text);
-}
-.map-marker circle {
-  fill: var(--accent);
-  stroke: #fff;
-  stroke-width: 2;
-}
-.map-marker text {
-  fill: #fff;
-  font-weight: 700;
-  pointer-events: none;
-}
-.map-marker .map-marker-more circle {
-  fill: #1a1a19;
-  stroke: #fff;
-  stroke-width: 1.5;
 }
 
 /* Live generation --------------------------------------------------------------- */
@@ -3229,4 +3200,756 @@ button.link.cmp-jump {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+/* The page of a guide version: a compact head (name, actions, tabs), then the guide watched on
+   its map, the page's height. */
+.result-head.compact {
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px;
+}
+.rh-title {
+  flex: 1;
+  min-width: 0;
+}
+.result-head.compact h2 {
+  margin: 0 0 2px;
+  font-size: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.result-head.compact .result-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.actions.compact {
+  flex: none;
+  margin: 0;
+  gap: 4px;
+}
+.actions.compact button {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.actions.compact button.icon-only {
+  padding: 5px 7px;
+}
+.result-head.compact .view-tabs {
+  flex: none;
+}
+.result-view .route-summary {
+  margin-bottom: 14px;
+}
+
+/* The guide viewer: steps | map | character, the time under them. */
+.guide-viewer {
+  display: grid;
+  grid-template-columns: clamp(240px, 21%, 310px) minmax(0, 1fr) clamp(210px, 18%, 280px);
+  grid-template-rows: minmax(0, 1fr) auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface-0);
+  box-shadow: var(--card-shadow);
+}
+.guide-viewer:focus-within {
+  outline: none;
+}
+.cat-travel {
+  background: var(--cat-1);
+}
+.cat-combat {
+  background: var(--cat-8);
+}
+.cat-interact {
+  background: var(--cat-7);
+}
+.cat-wait {
+  background: var(--text-muted);
+}
+
+/* Steps: zones with their head stuck at the top, a card per place. */
+.step-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-1);
+  border-right: 1px solid var(--border);
+}
+.sl-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 9px 12px 4px;
+}
+.sl-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  padding: 0 12px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.sl-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.sl-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.sl-zone-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-strong);
+}
+.sl-zone-head small {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.sl-next {
+  color: var(--accent-text);
+}
+/* Cards out of view are not laid out (a long guide has a thousand). */
+.sl-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 84px;
+  padding: 7px 10px 8px 9px;
+  border-bottom: 1px solid var(--grid);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+}
+.sl-card:hover {
+  background: var(--surface-2);
+}
+.sl-card.active {
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-1));
+  border-left-color: var(--accent-text);
+}
+.sl-card:focus-visible {
+  outline-offset: -2px;
+}
+.sl-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.sl-time,
+.sl-dur {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.sl-time {
+  width: 3.4em;
+  text-align: right;
+}
+.sl-dur {
+  color: var(--text-secondary);
+}
+.sl-n {
+  flex: none;
+  min-width: 1.9em;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.sl-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sl-ding {
+  flex: none;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.sl-lines {
+  list-style: none;
+  margin: 3px 0 0;
+  padding: 0 0 0 calc(3.4em + 6px);
+  font-size: 12px;
+}
+.sl-line {
+  display: flex;
+  gap: 6px;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.sl-line b {
+  flex: none;
+  width: 5.6em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--kind, var(--text-muted)) 80%, var(--text-primary));
+}
+.sl-line span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+}
+.sl-line.checkpoint {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.obj-kill {
+  --kind: var(--cat-8);
+}
+.obj-collect,
+.obj-use {
+  --kind: var(--cat-1);
+}
+.obj-talk,
+.obj-other {
+  --kind: var(--cat-7);
+}
+.sl-more,
+.sl-farm {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.sl-farm {
+  padding-left: calc(3.4em + 6px);
+}
+.sl-bar {
+  display: flex;
+  height: 3px;
+  margin: 5px 0 0 calc(3.4em + 6px);
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--grid);
+}
+.sl-bar i {
+  display: block;
+  height: 100%;
+}
+.sl-card .step-check {
+  margin: 0;
+  align-self: center;
+}
+
+/* The map: a bar (continent, following, layers), what the character does, then the map. */
+.guide-map {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.gm-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border);
+}
+.gm-bar select {
+  width: auto;
+  padding: 4px 8px;
+}
+.gm-bar button {
+  padding: 4px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.gm-toggle.on,
+.gm-toggle.on:hover:not(:disabled) {
+  background: var(--accent-fill);
+  border-color: var(--accent-edge);
+}
+.gm-layers {
+  position: relative;
+}
+.gm-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 210px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--card-shadow);
+}
+.gm-menu label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  white-space: nowrap;
+}
+.gm-menu input {
+  flex: none;
+  width: auto;
+  margin: 0;
+}
+.gm-menu hr {
+  width: 100%;
+  margin: 2px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+.gm-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 4px 12px;
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.gm-activity {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.gm-activity b {
+  margin-right: 6px;
+  color: var(--accent-text);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gm-edit {
+  margin-left: auto;
+  font-size: 12px;
+}
+.gm-frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #0a1522;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.gm-frame:active {
+  cursor: grabbing;
+}
+.gm-frame > svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+.gm-frame > .error {
+  position: absolute;
+  inset: 12px auto auto 12px;
+}
+/* The game's maps a little softened, as the other maps of the app. */
+.gm-image {
+  filter: saturate(0.85) brightness(0.9) contrast(0.95);
+}
+.gm-walk,
+.gm-flight,
+.gm-link,
+.gm-jump {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.gm-walk {
+  stroke: #4fe0cf;
+  stroke-width: 2;
+}
+.gm-flight {
+  stroke: #c3cbff;
+  stroke-width: 2;
+  stroke-dasharray: 7 5;
+}
+.gm-link {
+  stroke: #7cc7ff;
+  stroke-width: 2.2;
+  stroke-dasharray: 1 5;
+}
+.gm-jump {
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1.2;
+  stroke-dasharray: 2 6;
+}
+.gm-all path {
+  opacity: 0.32;
+}
+.gm-zone path {
+  opacity: 0.8;
+}
+.gm-zone.only path {
+  opacity: 0.9;
+}
+.gm-lit path {
+  stroke: #fff;
+  stroke-width: 3.2;
+  filter: drop-shadow(0 0 3px rgba(79, 224, 207, 0.9));
+}
+.gm-zone-label {
+  fill: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.7);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+.gm-marker {
+  --kind: var(--text-muted);
+  cursor: pointer;
+}
+.gm-marker circle {
+  fill: var(--kind);
+  stroke: #05090f;
+  stroke-width: 2;
+}
+.gm-marker > text {
+  fill: #05090f;
+  font-size: 10px;
+  font-weight: 800;
+  pointer-events: none;
+}
+.gm-marker.far circle {
+  stroke-width: 1.5;
+  opacity: 0.75;
+}
+.gm-marker.current circle,
+.gm-marker:hover circle {
+  stroke: #fff;
+  stroke-width: 2.5;
+}
+.gm-label text {
+  fill: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.85);
+  stroke-width: 3.5px;
+  pointer-events: none;
+}
+.gm-accept {
+  --kind: var(--cat-4);
+}
+.gm-turnin {
+  --kind: var(--cat-3);
+}
+.gm-kill,
+.gm-grind {
+  --kind: var(--cat-8);
+}
+.gm-collect {
+  --kind: var(--cat-1);
+}
+.gm-travel {
+  --kind: var(--cat-7);
+}
+.gm-dungeon {
+  --kind: var(--cat-5);
+}
+.gm-dot {
+  pointer-events: none;
+}
+.gm-dot-halo {
+  fill: color-mix(in srgb, #4fe0cf 30%, transparent);
+  stroke: #4fe0cf;
+  stroke-width: 1.5;
+}
+.gm-dot-core {
+  fill: #fff;
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.gm-legend {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 9px;
+  font-size: 11px;
+  background: rgba(4, 9, 18, 0.78);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+.gm-legend i {
+  display: inline-block;
+  width: 18px;
+  margin-right: 4px;
+  vertical-align: middle;
+  border-top: 2px solid;
+}
+.gm-legend i.gm-walk {
+  border-color: #4fe0cf;
+}
+.gm-legend i.gm-flight {
+  border-color: #c3cbff;
+  border-top-style: dashed;
+}
+.gm-legend i.gm-link {
+  border-color: #7cc7ff;
+  border-top-style: dotted;
+}
+.gm-zoom {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gm-zoom button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: rgba(4, 9, 18, 0.82);
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* The character at the moment watched. */
+.char-panel {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 12px;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+  font-size: 12px;
+}
+.cp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.cp-class {
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: right;
+}
+.cp-level {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+}
+.cp-level strong {
+  font-size: 16px;
+}
+.cp-level span {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cp-xp {
+  height: 6px;
+  margin: 5px 0 12px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+.cp-xp i {
+  display: block;
+  height: 100%;
+  background: var(--edge);
+}
+.cp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px 10px;
+  margin: 0 0 10px;
+}
+.cp-grid dt {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.cp-grid dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.cp-section {
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+.cp-section summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.cp-section p {
+  margin: 6px 0 0;
+}
+.cp-log,
+.cp-items {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.cp-log {
+  gap: 6px;
+}
+.cp-items {
+  gap: 3px;
+  color: var(--text-secondary);
+}
+.cp-log li {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cp-quest {
+  font-weight: 600;
+}
+.cp-log li.active .cp-quest {
+  color: var(--accent-text);
+}
+.cp-log small {
+  padding-left: 8px;
+  color: var(--text-muted);
+}
+.cp-log small.done {
+  color: var(--good);
+}
+.cp-log small.now {
+  color: var(--text-primary);
+}
+.cp-foot {
+  margin: 10px 0 0;
+  font-size: 11px;
+}
+
+/* Playing the guide: play, the speed, the time, the guide's zones along it. */
+.playback {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+}
+.playback > button {
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+}
+.pb-play {
+  font-size: 12px;
+}
+.pb-speeds {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.pb-speeds button {
+  padding: 3px 9px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.pb-speeds button.active,
+.pb-speeds button.active:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.pb-time {
+  margin: 0 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pb-track {
+  position: relative;
+  flex: 1;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-0);
+  cursor: pointer;
+  touch-action: none;
+}
+.pb-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.05);
+}
+.pb-zone.odd {
+  background: rgba(255, 255, 255, 0.1);
+}
+.pb-zone.dungeon {
+  background: color-mix(in srgb, var(--cat-5) 35%, transparent);
+}
+.pb-zone.current {
+  background: color-mix(in srgb, var(--accent-text) 35%, transparent);
+}
+.pb-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-right: 2px solid #fff;
+  background: linear-gradient(90deg, rgba(58, 77, 255, 0.18), rgba(31, 168, 216, 0.32));
+  pointer-events: none;
+}
+.pb-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 3px 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: none;
 }
