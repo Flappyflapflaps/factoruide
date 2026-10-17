@@ -1,6 +1,7 @@
 -- Settings come from the Factoruide app (generated Config.lua). In game, the window size, the
--- tab of the next steps and the guide's mode (full or minimal) are saved (the same for every
--- character); the mode chosen in the app wins again when it changes there.
+-- tab of the next steps, the guide's mode (full or minimal), the compass shown or not and the
+-- windows locked or not are saved (the same for every character); the last three chosen in the
+-- app win again when they change there.
 
 local FG = Factoruide
 
@@ -96,7 +97,17 @@ local session = {}
 local listeners = {}
 
 -- Settings changed in game and kept (FactoruideDB.ui), over the app's.
-local SAVED = { scale = true, nextTab = true, guideMode = true, trackerTab = true, questPanel = true }
+local SAVED = {
+    scale = true,
+    nextTab = true,
+    guideMode = true,
+    trackerTab = true,
+    questPanel = true,
+    compassShown = true,
+    lockFrames = true,
+}
+-- Of those, the ones the app's value wins again when it changes there.
+local APP_WINS = { "guideMode", "compassShown", "lockFrames" }
 
 function FG:Get(key)
     local v = session[key]
@@ -153,14 +164,25 @@ function FG:ScaleCommand(arg)
     self:Print("scale %.2f", self:Get("scale"))
 end
 
--- Ctrl + mouse wheel over a window changes the size of the windows. The wheel is only taken
--- while Ctrl is held, so that it still zooms the camera otherwise.
+--- `/fg lock`: the windows can no longer be dragged, or can again.
+function FG:LockCommand()
+    local locked = not self:Get("lockFrames")
+    self:Save("lockFrames", locked)
+    self:Print(
+        locked and FG.T("windows locked (/fg lock unlocks them)") or FG.T("windows unlocked: drag them to move them")
+    )
+end
+
+-- Ctrl + mouse wheel over a window changes the size of the windows (`zoom(delta)` instead: its
+-- own size). The wheel is only taken while Ctrl is held, so that it still zooms the camera
+-- otherwise.
 local zoomable = {}
 
-function FG:Zoomable(frame)
+function FG:Zoomable(frame, zoom)
     table.insert(zoomable, frame)
     frame:SetScript("OnMouseWheel", function(_, delta)
         if IsControlKeyDown and not IsControlKeyDown() then return end
+        if zoom then return zoom(delta) end
         local v = math.floor((FG:Get("scale") + 0.05 * delta) * 100 + 0.5) / 100
         FG:Save("scale", math.max(SCALE_MIN, math.min(SCALE_MAX, v)))
     end)
@@ -251,13 +273,17 @@ FG:On("MODIFIER_STATE_CHANGED", function(key, down)
     end
 end)
 
---- The mode chosen in game is kept until the app's changes (then the app's applies).
+--- The mode, the compass and the lock chosen in game are kept until the app's change (then the
+--- app's apply): the app's last value is kept beside (`appGuideMode`...).
 FG:On("PLAYER_LOGIN", function()
-    local app = FG.Config and FG.Config.guideMode
     FactoruideDB.ui = FactoruideDB.ui or {}
-    if FactoruideDB.ui.appGuideMode ~= app then
-        FactoruideDB.ui.appGuideMode = app
-        FactoruideDB.ui.guideMode = nil
+    for _, key in ipairs(APP_WINS) do
+        local app = FG.Config and FG.Config[key]
+        local seen = "app" .. key:sub(1, 1):upper() .. key:sub(2)
+        if FactoruideDB.ui[seen] ~= app then
+            FactoruideDB.ui[seen] = app
+            FactoruideDB.ui[key] = nil
+        end
     end
 end)
 

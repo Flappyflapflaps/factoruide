@@ -144,7 +144,12 @@ race and class.
   (guide, compass or wind, quest panel, quest item button, XP bar mark, map pins and waypoint,
   the upgrade line of item tooltips, safety alerts) and `/fg show` brings them back as they were. For the session only:
   progress is kept and the automation goes on; typed in combat, it applies when the fight ends.
-- Size: Ctrl + mouse wheel over a window, or `/fg scale <size>`.
+- Windows move by dragging them anywhere; `/fg lock` locks them (or unlocks them). Size: Ctrl +
+  mouse wheel over a window, or `/fg scale <size>`.
+- The compass: drag it to move it, Ctrl + mouse wheel over it for its own size, drag its ends for
+  its width (kept per character); `/fg compass` hides or shows it, `/fg compass reset` puts it
+  back at the top of the screen at its first size. In minimal mode it sits on the strip and moves
+  with it.
 - Helpers: a compass bar at the top of the screen with the step to go to (it stands out, with its
   distance, even behind you), the other current tasks, the quests to pick up close by, the next
   turn-in and the places you choose in the app (your class trainer, your professions' trainers,

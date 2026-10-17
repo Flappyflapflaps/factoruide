@@ -10,9 +10,12 @@
 --   the places that serve the character (Nearby.lua): small faded icons.
 -- Close ones are grouped with "+n", the highest kind on top; those behind at the ends (not the
 -- places). Mouse over a point: what it is and how far; click: the guide points at it (and
--- Shortest Path Forever goes there when linked). Over the minimal guide's strip, else at the top
--- of the screen (dragged elsewhere unless frames are locked). Without a position (instances) or
--- on another continent it only says so.
+-- Shortest Path Forever goes there when linked). Without a position (instances) or on another
+-- continent it only says so.
+-- Over the minimal guide's strip, else at the top of the screen. Dragged anywhere it moves
+-- (unless the windows are locked), Ctrl + mouse wheel changes its size, its ends dragged its
+-- width; kept for the character. `/fg compass` hides or shows it, `/fg compass reset` puts it
+-- back at the top, at its first size.
 
 local FG = Factoruide
 local T = FG.T
@@ -29,14 +32,29 @@ local L = {
     way = T("The planned way"),
     wayTip = T("Go this way: the guide's walk, around the steep ground"),
     back = T("Back to the planned way"),
+    title = T("Compass"),
+    move = T("Drag: move it"),
+    size = T("Ctrl + mouse wheel: its size"),
+    width = T("Drag an end: its width"),
+    locked = T("Locked: /fg lock to move it"),
+    commands = T("/fg compass: hide it, /fg compass reset: back to the top"),
+    shown = T("compass shown (/fg compass hides it)"),
+    hidden = T("compass hidden (/fg compass shows it again)"),
+    reset = T("compass back at the top of the screen, at its first size"),
+    replaced = T("the wind guides you instead of the compass (set in the Factoruide app)"),
 }
 -- Every 45°, counter-clockwise from north (the game's facing).
 local CARDINALS = { T("N"), T("NW"), T("W"), T("SW"), T("S"), T("SE"), T("E"), T("NE") }
 
-local WIDTH, HEIGHT = 420, 24
+local HEIGHT = 24
+-- Its width (dragged by its ends) and its size (a factor of the windows' size, Ctrl + wheel).
+local WIDTH_DEFAULT, WIDTH_MIN, WIDTH_MAX = 420, 240, 1000
+local SCALE_MIN, SCALE_MAX = 0.6, 2
+local WIDTH = WIDTH_DEFAULT
 local FIELD = 90 -- degrees from the middle to each end
 local PPD = WIDTH / (2 * FIELD)
 local FADE = WIDTH * 0.12 -- the ends fade out over this many pixels
+local GRIP = 8 -- the ends dragged for the width
 local GROUP = 18 -- points closer than this on the bar make one
 local ARRIVED = 8 -- yards
 local FAR = 180 -- yards: farther points paler
@@ -200,28 +218,146 @@ local function MakeWay()
     return m
 end
 
+-- Its place, width and size, kept for the character (nil before the login).
+local function Saved() return FG.Guide and FG.Guide:State() end
+
+local function SavePoint(self)
+    local state = Saved()
+    if not state then return end
+    local p, _, rp, x, y = self:GetPoint()
+    state.compassPoint = { p, "UIParent", rp, x, y }
+end
+
+--- Its width: the field spread over it, the faded ends.
+local function Layout(width)
+    WIDTH = math.floor(math.max(WIDTH_MIN, math.min(WIDTH_MAX, width)) + 0.5)
+    PPD = WIDTH / (2 * FIELD)
+    FADE = WIDTH * 0.12
+    frame:SetWidth(WIDTH)
+    for _, t in ipairs(frame.faded) do
+        t:SetWidth(FADE * 1.5)
+    end
+    frame.ends.left:SetPoint("LEFT", FADE * 0.6, 1)
+    frame.ends.right:SetPoint("RIGHT", -FADE * 0.6, 1)
+end
+
+local function Scale()
+    local state = Saved()
+    return FG:Get("scale") * (state and state.compassScale or 1)
+end
+
+--- Change it while its middle stays where it is on the screen (a free compass: anchored by its
+--- middle from then on; over the strip it stays centered on it).
+local function KeepMiddle(change)
+    if attached then return change() end
+    local x, y = frame:GetCenter()
+    local before = frame:GetEffectiveScale()
+    change()
+    if not x or not y then return end
+    local k = before / frame:GetEffectiveScale()
+    frame:ClearAllPoints()
+    frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x * k, y * k)
+    SavePoint(frame)
+end
+
+--- Ctrl + mouse wheel: its size, 5% a notch.
+function Compass:Zoom(delta)
+    local state = Saved()
+    if not frame or not state then return end
+    local v = math.floor(((state.compassScale or 1) + 0.05 * delta) * 100 + 0.5) / 100
+    v = math.max(SCALE_MIN, math.min(SCALE_MAX, v))
+    KeepMiddle(function()
+        state.compassScale = v ~= 1 and v or nil
+        frame:SetScale(Scale())
+    end)
+end
+
+-- A hint on the bar itself: how to move, size and hide it.
+local function ShowHint(self)
+    if InCombatLockdown() then return end
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+    GameTooltip:AddLine(L.title, 1, 1, 1)
+    if FG:Get("lockFrames") then
+        GameTooltip:AddLine(L.locked, 0.73, 0.77, 0.84, true)
+    else
+        GameTooltip:AddLine(L.move, 0.73, 0.77, 0.84, true)
+        GameTooltip:AddLine(L.width, 0.73, 0.77, 0.84, true)
+    end
+    GameTooltip:AddLine(L.size, 0.73, 0.77, 0.84, true)
+    GameTooltip:AddLine(L.commands, 0.6, 0.6, 0.6, true)
+    GameTooltip:Show()
+end
+
+local function HideHint() GameTooltip:Hide() end
+
+-- The ends: dragged sideways, both ends move (its middle stays). Not while the windows are locked.
+local function Sizing(self)
+    local x = GetCursorPosition() / frame:GetEffectiveScale()
+    Layout(self.from + self.sign * 2 * (x - self.startX))
+end
+
+local function SizeStop(self)
+    if not self.sizing then return end
+    self.sizing = nil
+    self:SetScript("OnUpdate", nil)
+    local state = Saved()
+    if state then state.compassWidth = WIDTH ~= WIDTH_DEFAULT and WIDTH or nil end
+end
+
+local function SizeStart(self, button)
+    if button ~= "LeftButton" or FG:Get("lockFrames") then return end
+    KeepMiddle(function() end)
+    self.sizing = true
+    self.from = WIDTH
+    self.startX = GetCursorPosition() / frame:GetEffectiveScale()
+    self:SetScript("OnUpdate", Sizing)
+end
+
+local function MakeGrip(side)
+    local g = CreateFrame("Frame", nil, frame)
+    g:SetSize(GRIP, HEIGHT)
+    g:SetPoint(side == "left" and "LEFT" or "RIGHT")
+    g:SetFrameLevel(frame:GetFrameLevel() + 8)
+    g:EnableMouse(true)
+    g.sign = side == "left" and -1 or 1
+    g.line = Skin:Fill(g, "OVERLAY", "accent", 0.8)
+    g.line:SetSize(2, HEIGHT - 6)
+    g.line:SetPoint("CENTER")
+    g.line:Hide()
+    g:SetScript("OnMouseDown", SizeStart)
+    g:SetScript("OnMouseUp", SizeStop)
+    g:SetScript("OnHide", SizeStop)
+    g:SetScript("OnEnter", function(self)
+        self.line:SetShown(not FG:Get("lockFrames"))
+        ShowHint(self)
+    end)
+    g:SetScript("OnLeave", function(self)
+        self.line:Hide()
+        HideHint()
+    end)
+    return g
+end
+
 local function Create()
     if frame or not CreateFrame then return frame end
     frame = CreateFrame("Frame", "FactoruideCompass", FG.UIRoot)
     frame:SetSize(WIDTH, HEIGHT)
     frame:SetClampedToScreen(true)
     -- Over the minimal guide's strip, it moves the strip.
-    FG:Draggable(frame, function(self)
-        local p, _, rp, x, y = self:GetPoint()
-        if FG.Guide then FG.Guide:State().compassPoint = { p, "UIParent", rp, x, y } end
-    end, function(self) return attached or self end)
+    FG:Draggable(frame, SavePoint, function(self) return attached or self end)
+    frame:SetScript("OnEnter", ShowHint)
+    frame:SetScript("OnLeave", HideHint)
+    FG:Zoomable(frame, function(delta) Compass:Zoom(delta) end)
 
     -- A light veil, fading out at both ends, and a thin line at the bottom.
     local c = Skin.colors.bg
     local left = frame:CreateTexture(nil, "BACKGROUND")
     left:SetPoint("TOPLEFT")
     left:SetPoint("BOTTOMLEFT")
-    left:SetWidth(FADE * 1.5)
     Skin:Gradient(left, c, 0, 0.42)
     local right = frame:CreateTexture(nil, "BACKGROUND")
     right:SetPoint("TOPRIGHT")
     right:SetPoint("BOTTOMRIGHT")
-    right:SetWidth(FADE * 1.5)
     Skin:Gradient(right, c, 0.42, 0)
     local middle = Skin:Fill(frame, "BACKGROUND", c, 0.42)
     middle:SetPoint("TOPLEFT", left, "TOPRIGHT")
@@ -229,16 +365,17 @@ local function Create()
     local a = Skin.colors.accent
     local lineLeft = frame:CreateTexture(nil, "BORDER")
     lineLeft:SetPoint("BOTTOMLEFT")
-    lineLeft:SetSize(FADE * 1.5, 1)
+    lineLeft:SetHeight(1)
     Skin:Gradient(lineLeft, a, 0, 0.45)
     local lineRight = frame:CreateTexture(nil, "BORDER")
     lineRight:SetPoint("BOTTOMRIGHT")
-    lineRight:SetSize(FADE * 1.5, 1)
+    lineRight:SetHeight(1)
     Skin:Gradient(lineRight, a, 0.45, 0)
     local line = Skin:Fill(frame, "BORDER", a, 0.45)
     line:SetHeight(1)
     line:SetPoint("BOTTOMLEFT", lineLeft, "BOTTOMRIGHT")
     line:SetPoint("BOTTOMRIGHT", lineRight, "BOTTOMLEFT")
+    frame.faded = { left, right, lineLeft, lineRight }
     -- Straight ahead.
     frame.caret = Skin:Fill(frame, "OVERLAY", "text", 0.8)
     frame.caret:SetSize(5, 5)
@@ -272,13 +409,11 @@ local function Create()
             e.icons[i] = icon
         end
         if side == "left" then
-            e:SetPoint("LEFT", FADE * 0.6, 1)
             e.arrow:SetTexCoord(1, 0, 0, 1) -- pointing left
             e.arrow:SetPoint("LEFT")
             e.target:SetPoint("LEFT", 12, 0)
             e.distance:SetPoint("LEFT", e.target, "RIGHT", 3, 0)
         else
-            e:SetPoint("RIGHT", -FADE * 0.6, 1)
             e.arrow:SetPoint("RIGHT")
             e.target:SetPoint("RIGHT", -12, 0)
             e.distance:SetPoint("RIGHT", e.target, "LEFT", -3, 0)
@@ -300,6 +435,9 @@ local function Create()
     Marker = Pool(markers, MakeMarker)
     frame.targetMark = MakeTarget()
     frame.wayMark = MakeWay()
+    frame.grips = { MakeGrip("left"), MakeGrip("right") }
+    local state = Saved()
+    Layout(state and state.compassWidth or WIDTH_DEFAULT)
 
     frame:SetScript("OnUpdate", function(self, elapsed)
         self.wait = (self.wait or 0) - elapsed
@@ -312,8 +450,8 @@ local function Create()
             self.wait = 5
         end
     end)
-    frame:SetScale(FG:Get("scale"))
-    FG:OnSetting("scale", function(v) frame:SetScale(v) end)
+    frame:SetScale(Scale())
+    FG:OnSetting("scale", function() frame:SetScale(Scale()) end)
     frame:Hide()
     return frame
 end
@@ -583,6 +721,31 @@ function Compass:Free()
     if not f or attached == false then return end
     attached = false
     f:ClearAllPoints()
-    local point = FG.Guide and FG.Guide:State() and FG.Guide:State().compassPoint
-    f:SetPoint(unpack(point or { "TOP", UIParent, "TOP", 0, -14 }))
+    local state = Saved()
+    f:SetPoint(unpack(state and state.compassPoint or { "TOP", UIParent, "TOP", 0, -14 }))
+end
+
+--- `/fg compass`: hide or show it (kept over the app's setting until it changes there);
+--- `/fg compass reset`: back at the top of the screen, at its first width and size.
+function Compass:Command(arg)
+    if (arg or ""):lower() == "reset" then
+        local state = Saved()
+        if state then
+            state.compassPoint, state.compassWidth, state.compassScale = nil, nil, nil
+        end
+        if frame then
+            Layout(WIDTH_DEFAULT)
+            frame:SetScale(Scale())
+            if attached == false then
+                attached = nil
+                self:Free()
+            end
+        end
+        FG:Print(L.reset)
+        return
+    end
+    local shown = not FG:Get("compassShown")
+    FG:Save("compassShown", shown)
+    FG:Print(shown and L.shown or L.hidden)
+    if shown and FG.Wind and FG.Wind:Active() then FG:Print(L.replaced) end
 end

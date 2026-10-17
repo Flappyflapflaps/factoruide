@@ -1464,6 +1464,13 @@ do
     assert(#FG.Compass:Points() == 0, "no compass")
     FG:Set("compassShown", nil)
     assert(#FG.Compass:Points() > 0, "the compass back")
+    -- Hidden and shown in game (`/fg compass`), kept over the app's setting.
+    SlashCmdList.FACTORUIDE("compass")
+    assert(FG:Get("compassShown") == false and FactoruideDB.ui.compassShown == false, "/fg compass: hidden, kept")
+    assert(#FG.Compass:Points() == 0, "/fg compass: no compass")
+    SlashCmdList.FACTORUIDE("compass")
+    assert(FG:Get("compassShown") == true and #FG.Compass:Points() > 0, "/fg compass again: back")
+    FG:Save("compassShown", nil)
 end
 print("compass places ok")
 
@@ -2096,6 +2103,85 @@ FG.Guide:State().compassPoint, FG.Guide:State().miniPoint = nil, nil
 FG.Guide.PointToStep = realPointToStep
 GetTime = realDragTime
 print("drag anywhere ok")
+
+-- The compass: its ends dragged change its width (its middle stays), Ctrl + wheel its own size,
+-- kept for the character; a hint on the bar says how; `/fg compass reset` puts it back;
+-- `/fg lock` locks the windows.
+do
+    local state = FG.Guide:State()
+    compass.GetEffectiveScale = function() return 1 end
+    compass.GetCenter = function() return 500, 700 end
+    compass.SetWidth = function(self, w) self.width = w end
+    compass.ClearAllPoints = function(self) self.points = {} end
+    compass.SetPoint = function(self, ...) table.insert(self.points, { ... }) end
+    compass.GetPoint = function(self) return unpack(self.points[1]) end
+    compass.SetScale = function(self, s) self.scale = s end
+    local cursor = 100
+    local realCursor = GetCursorPosition
+    GetCursorPosition = function() return cursor, 0 end
+    local left, right = compass.grips[1], compass.grips[2]
+    local function widen(grip, dx)
+        cursor = 100
+        grip.OnMouseDown(grip, "LeftButton")
+        cursor = 100 + dx
+        if rawget(grip, "OnUpdate") then grip.OnUpdate(grip, 0.03) end
+        grip.OnMouseUp(grip, "LeftButton")
+    end
+    widen(right, 50)
+    assert(compass.width == 520 and state.compassWidth == 520, "the right end dragged out: wider on both sides")
+    local p = state.compassPoint
+    assert(p and p[1] == "CENTER" and p[4] == 500 and p[5] == 700, "its middle stays where it was")
+    widen(left, 30)
+    assert(state.compassWidth == 460, "the left end dragged in: narrower")
+    widen(left, 10000)
+    assert(state.compassWidth == 240 and compass.width == 240, "not narrower than its least width")
+    FG.Config.lockFrames = true
+    widen(right, 50)
+    assert(compass.width == 240, "locked: its ends do not move")
+    FG.Config.lockFrames = nil
+    assert(rawget(right, "OnUpdate") == nil, "no sizing left running")
+
+    -- Ctrl + wheel over it: its own size, not the other windows'.
+    local windows = FG:Get("scale")
+    IsControlKeyDown = function() return false end
+    compass.OnMouseWheel(compass, 1)
+    assert(state.compassScale == nil, "the wheel alone is the camera's")
+    IsControlKeyDown = function() return true end
+    compass.OnMouseWheel(compass, 1)
+    compass.OnMouseWheel(compass, 1)
+    assert(state.compassScale == 1.1 and FG:Get("scale") == windows, "Ctrl + wheel: the compass alone grows")
+    assert(math.abs(compass.scale - windows * 1.1) < 1e-9, "its size on top of the windows' size")
+    IsControlKeyDown = function() return false end
+
+    -- The hint on the bar.
+    local lines = {}
+    GameTooltip.AddLine = function(_, text) table.insert(lines, text) end
+    local function hint()
+        lines = {}
+        compass.OnEnter(compass)
+        return table.concat(lines, "\n")
+    end
+    assert(hint():find("Glisser : la déplacer", 1, true) and hint():find("Ctrl + molette", 1, true), "the hint says how")
+    SlashCmdList.FACTORUIDE("lock")
+    assert(FG:Get("lockFrames") == true and FactoruideDB.ui.lockFrames == true, "/fg lock: kept")
+    assert(hint():find("Verrouillée", 1, true) and not hint():find("Glisser : la déplacer", 1, true), "locked: the hint says so")
+    local moves = compassMoves.moves
+    drag(compass)
+    assert(compassMoves.moves == moves, "locked: it does not move")
+    SlashCmdList.FACTORUIDE("lock")
+    assert(FG:Get("lockFrames") == false, "/fg lock again: unlocked")
+    FG:Save("lockFrames", nil)
+    GameTooltip.AddLine = nil
+
+    -- Back at the top, at its first size.
+    SlashCmdList.FACTORUIDE("compass reset")
+    assert(state.compassPoint == nil and state.compassWidth == nil and state.compassScale == nil, "reset: forgotten")
+    assert(compass.width == 420 and math.abs(compass.scale - windows) < 1e-9, "reset: its first width and size")
+    p = compass.points[1]
+    assert(p and p[1] == "TOP" and p[5] == -14, "reset: at the top of the screen")
+    GetCursorPosition = realCursor
+end
+print("compass layout ok")
 
 -- `/fg hide` hides every window and mark of the addon at once (one parent frame), for the
 -- session; `/fg show` brings them back as they were. Progress and settings are kept.

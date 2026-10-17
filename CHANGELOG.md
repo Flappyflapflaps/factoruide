@@ -34,6 +34,7 @@ Guides watched and edited on a big map, quests that need others planned whole, c
 - Trainers of your class and professions, flight masters, innkeepers, vendors, bankers and mailboxes close by on the compass, each kind chosen in the app; a click takes you there.
 - A mark above the head of the NPC to go to, once its nameplate shows.
 - An optional 3D arrow next to the compass.
+- The compass can be moved (drag it), resized (Ctrl + mouse wheel) and widened (drag its ends); /fg compass hides or shows it, /fg lock locks the windows.
 - WoW Forever: with Shortest Path Forever installed, it takes you to the step, and a click on the compass changes where.
 - The guide and the quest panel take less of the game's time while you loot or sell.
 

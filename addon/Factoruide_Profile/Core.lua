@@ -352,11 +352,15 @@ SlashCmdList.FACTORUIDE = function(msg)
         FG.Collector:Reset()
     elseif FG.ScaleCommand and cmd == "scale" then
         FG:ScaleCommand(arg)
+    elseif FG.Compass and cmd == "compass" then
+        FG.Compass:Command(arg)
+    elseif FG.LockCommand and cmd == "lock" then
+        FG:LockCommand()
     elseif FG.Profile and (cmd == "profile" or cmd == "profil") then
         FG.Profile:Save()
     elseif FG.Guide then
         FG:Print(
-            "/fg config | guide | hide | show | next | prev | step <n> | skip [id] | restart | mode | route | macro | spot | waypoint | scale [size] | status | reset | profile | debug"
+            "/fg config | guide | hide | show | compass [reset] | lock | next | prev | step <n> | skip [id] | restart | mode | route | macro | spot | waypoint | scale [size] | status | reset | profile | debug"
         )
     else
         FG:Print("/fg status | reset | profile | debug")
