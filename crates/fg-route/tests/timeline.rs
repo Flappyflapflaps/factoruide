@@ -152,7 +152,7 @@ fn the_character_moves_to_each_step() {
             nodes.iter().any(|&n| near(n, f.from)) && nodes.iter().any(|&n| near(n, f.to)),
             "{f:?}"
         );
-        assert!(f.end > f.start);
+        assert!(f.end > f.start, "{f:?}");
     }
     // One move after the other.
     for w in timeline.legs.windows(2) {

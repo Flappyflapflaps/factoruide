@@ -489,6 +489,35 @@ impl<'r> Replay<'r> {
         }
         let mut events: Vec<usize> = groups.keys().copied().collect();
         events.sort_unstable();
+        // Steps at one place the guide writes in another order than the replay did them (the
+        // flight path learned before the quest taken there): no cut between them, their steps
+        // share one window, else the moves before the first would land in the window of a step
+        // the guide puts later.
+        let bounds: Vec<(f64, f64)> = (events.iter())
+            .map(|e| {
+                let group = &groups[e];
+                let start = group.iter().map(|&i| windows[i].0).fold(f64::INFINITY, f64::min);
+                let end = group.iter().map(|&i| windows[i].1).fold(f64::NEG_INFINITY, f64::max);
+                (start, end)
+            })
+            .collect();
+        let mut later = vec![f64::INFINITY; events.len() + 1];
+        for k in (0..events.len()).rev() {
+            later[k] = later[k + 1].min(bounds[k].0);
+        }
+        let mut kept = Vec::with_capacity(events.len());
+        let mut carried: Vec<usize> = Vec::new();
+        for (k, &e) in events.iter().enumerate() {
+            carried.extend(&groups[&e]);
+            if bounds[k].1 <= later[k + 1] + 1e-6 {
+                groups.insert(e, std::mem::take(&mut carried));
+                kept.push(e);
+            }
+        }
+        if let Some(&last) = kept.last() {
+            groups.get_mut(&last).expect("a kept cut").extend(carried);
+        }
+        let events = kept;
         let mut legs: Vec<Leg> = Vec::new();
         let mut placed: Vec<Piece> = Vec::new();
         let mut from = 0.0;
