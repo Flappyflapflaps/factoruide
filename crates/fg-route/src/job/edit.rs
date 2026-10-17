@@ -5,7 +5,7 @@
 use super::{PlanOutcome, PlanRequest, Prepared, prepare};
 use crate::export::{self, MapPointOut, Route, StepKind, TargetKind};
 use crate::model::Names;
-use crate::plan::{Breakdown, Edit, Event, Farmed, Kind, Outcome, Planner, Stop, fmt_time};
+use crate::plan::{Breakdown, Edit, Edited, Event, Farmed, Kind, Outcome, Planner, Stop, fmt_time};
 use crate::terrain::Walks;
 use anyhow::{Result, bail};
 use rusqlite::Connection;
@@ -328,8 +328,18 @@ pub struct EditCatalog {
     pub trainers: Vec<CatalogPlace>,
     pub nodes: Vec<CatalogPlace>,
     pub dungeons: Vec<CatalogDungeon>,
+    /// Boats, zeppelins, trams and portals, each one way.
+    pub links: Vec<CatalogLink>,
     /// The character learns Astral Recall (a second hearthstone).
     pub recall: bool,
+}
+
+/// A transport link one way: its step, and the zones it goes from and to.
+#[derive(Debug, Clone, Serialize)]
+pub struct CatalogLink {
+    pub link: LinkRef,
+    pub from: String,
+    pub to: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -475,6 +485,18 @@ impl Editor {
         let edits: Vec<Edit> = resolved.iter().filter_map(|r| r.ok()).collect();
         let edited = planner.edit(&edits);
         let lines = export::event_steps(&planner, &edited.route, &edited.trace, names);
+        self.report_of(&resolved, &edited, &lines, names)
+    }
+
+    /// The report of a replay (`edited`) of the steps `resolved` (those not resolved are
+    /// errors), with the line each event writes (`lines`).
+    pub(super) fn report_of(
+        &self,
+        resolved: &[Result<Edit, &'static str>],
+        edited: &Edited,
+        lines: &[Option<export::Step>],
+        names: &Names,
+    ) -> EditReport {
         let mut done = edited.steps.iter();
         let mut time = 0.0;
         let reports = resolved
@@ -681,6 +703,22 @@ impl Editor {
                     max_level: d.max_level,
                 })
                 .collect(),
+            links: {
+                let mut seen = HashSet::new();
+                world
+                    .links
+                    .iter()
+                    .filter(|l| seen.insert((l.name.clone(), l.to_zone)))
+                    .map(|l| CatalogLink {
+                        link: LinkRef {
+                            name: l.name.clone(),
+                            to: l.to_zone,
+                        },
+                        from: zone(l.from_zone),
+                        to: zone(l.to_zone),
+                    })
+                    .collect()
+            },
             recall: model.recall.is_some(),
         }
     }

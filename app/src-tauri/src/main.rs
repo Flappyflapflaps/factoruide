@@ -4,9 +4,7 @@
 use fg_contrib::contribution::{Contribution, SendState};
 use fg_route::Route;
 use fg_route::export::diff::{self, Change, RouteDiff};
-use fg_route::job::{
-    self, EditCatalog, EditReport, Options, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState,
-};
+use fg_route::job::{self, EditCatalog, Options, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState};
 use fg_route::model::Names;
 use fg_route::terrain::{WalkMemory, Walks};
 use fg_route::xp::Edition;
@@ -155,6 +153,8 @@ struct AppState {
     walks: Mutex<HashMap<Edition, Arc<Walks>>>,
     /// The guide version open in the editor.
     editor: Mutex<Option<EditSession>>,
+    /// The replays asked of the editor: a newer one makes the one under way give up.
+    edit_requests: job::Requests,
     /// The last guide version replayed to be watched (`guide_timeline`): opened again at once.
     timeline: Mutex<Option<(TimelineKey, job::Timeline)>>,
     /// Held while a contribution is read, sent and recorded: one send at a time, manual or
@@ -807,7 +807,8 @@ struct EditOpened {
     steps: Vec<RouteStep>,
     /// Steps read back from the guide (computed before the editor): its time may differ a little.
     rebuilt: bool,
-    report: EditReport,
+    /// The steps replayed.
+    view: job::EditView,
     catalog: EditCatalog,
 }
 
@@ -851,8 +852,9 @@ async fn edit_open(app: AppHandle, guide: String, version: u32, locale: String) 
         let editor = job::Editor::open(&conn, &overrides(edition)?, &v.request, Some(&walks)).map_err(err)?;
         let names = state.names(&locale)?;
         let (steps, rebuilt) = editor.steps(&v.outcome);
+        let request = state.edit_requests.next();
         let opened = EditOpened {
-            report: editor.simulate(&steps, &names),
+            view: editor.view(&steps, &names, &request).ok_or(SUPERSEDED)?,
             catalog: editor.catalog(&names),
             steps,
             rebuilt,
@@ -869,15 +871,45 @@ async fn edit_open(app: AppHandle, guide: String, version: u32, locale: String) 
     .map_err(err)?
 }
 
-/// Replay the steps of the guide open in the editor.
+/// What a replay of the editor answers when a newer one was asked for meanwhile.
+const SUPERSEDED: &str = "superseded";
+
+/// Replay the steps of the guide open in the editor: its report, its lines and their timeline.
+/// The replay under way gives up for this one (it then fails with "superseded").
 #[tauri::command]
-async fn edit_simulate(app: AppHandle, steps: Vec<RouteStep>, locale: String) -> CmdResult<EditReport> {
+async fn edit_simulate(app: AppHandle, steps: Vec<RouteStep>, locale: String) -> CmdResult<job::EditView> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
+        let request = state.edit_requests.next();
         let names = state.names(&locale)?;
         let session = state.editor.lock().unwrap();
         let session = session.as_ref().ok_or("no guide open in the editor")?;
-        Ok(session.editor.simulate(&steps, &names))
+        session
+            .editor
+            .view(&steps, &names, &request)
+            .ok_or_else(|| SUPERSEDED.to_owned())
+    })
+    .await
+    .map_err(err)?
+}
+
+/// What could be added to the steps of the guide open in the editor after its step `after`
+/// (none: before the first): quests not taken, objectives and turn-ins the steps forget. Gives
+/// up for a newer replay or suggestion (failing with "superseded").
+#[tauri::command]
+async fn edit_suggest(
+    app: AppHandle,
+    steps: Vec<RouteStep>,
+    after: Option<usize>,
+    locale: String,
+) -> CmdResult<job::Suggestions> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let request = state.edit_requests.next();
+        let names = state.names(&locale)?;
+        let session = state.editor.lock().unwrap();
+        let session = session.as_ref().ok_or("no guide open in the editor")?;
+        (session.editor.suggest(&steps, after, &names, &request)).ok_or_else(|| SUPERSEDED.to_owned())
     })
     .await
     .map_err(err)?
@@ -1711,6 +1743,7 @@ fn main() {
                 plan_interrupt: job::Interrupt::default(),
                 walks: Mutex::new(HashMap::default()),
                 editor: Mutex::new(None),
+                edit_requests: job::Requests::default(),
                 timeline: Mutex::new(None),
                 send_lock: Mutex::new(()),
                 auto_wake,
@@ -1760,6 +1793,7 @@ fn main() {
             guide_timeline,
             edit_open,
             edit_simulate,
+            edit_suggest,
             edit_save,
             edit_close,
         ])

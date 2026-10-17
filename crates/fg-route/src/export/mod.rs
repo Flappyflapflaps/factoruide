@@ -29,30 +29,8 @@ use writer::StepWriter;
 pub fn render(route: &Route, names: &Names) -> Route {
     let mut out = route.clone();
     let lang = Lang::of(&names.locale);
-    for step in &mut out.steps {
-        if step.say.is_empty() {
-            continue;
-        }
-        step.text = phrase::render_all(&step.say, names);
-        if let (Some(id), Some(name)) = (step.quest, &step.quest_name) {
-            step.quest_name = Some(names.get("quest", id, name).to_owned());
-        }
-        if let Some(t) = &mut step.target {
-            let kind = match t.kind {
-                TargetKind::Npc => "npc",
-                TargetKind::Object => "object",
-                TargetKind::Item => "item",
-                TargetKind::Dungeon => "zone",
-                _ => "",
-            };
-            t.name = names.get(kind, t.id, &t.name).to_owned();
-        }
-        for (name, id) in step.mobs.iter_mut().zip(&step.mob_ids) {
-            *name = names.get("npc", *id, name).to_owned();
-        }
-        if let (Some(id), Some(zone)) = (step.zone_id, &step.zone) {
-            step.zone = Some(names.get("zone", id, zone).to_owned());
-        }
+    for step in out.steps.iter_mut().filter(|s| !s.say.is_empty()) {
+        render_step(step, names);
     }
     for p in &mut out.professions {
         if let Some(name) = templates::profession_name(&p.key, lang) {
@@ -189,8 +167,8 @@ pub fn objective_text(objective: &crate::model::Objective, names: &Names) -> Str
 }
 
 /// The line of the guide each event of a replayed route writes, in the language of `names`
-/// (for the guide editor). None for the events without a line of their own: a reward picked,
-/// mobs farmed on the way.
+/// (for the guide editor), with its event and the XP the route has then in its level. None for
+/// the events without a line of their own: a reward picked, mobs farmed on the way.
 pub fn event_steps(planner: &Planner<'_>, route: &[Stop], trace: &[Timed], names: &Names) -> Vec<Option<Step>> {
     let writer = StepWriter {
         planner,
@@ -199,18 +177,43 @@ pub fn event_steps(planner: &Planner<'_>, route: &[Stop], trace: &[Timed], names
     };
     trace
         .iter()
-        .map(|t| {
+        .enumerate()
+        .map(|(n, t)| {
             if matches!(t.event, Event::Reward { .. } | Event::Farm { .. }) {
                 return None;
             }
             let mut step = writer.step(t);
-            step.text = phrase::render_all(&step.say, names);
-            if let (Some(id), Some(zone)) = (step.zone_id, &step.zone) {
-                step.zone = Some(names.get("zone", id, zone).to_owned());
-            }
+            render_step(&mut step, names);
+            step.event = Some(n);
+            step.route_xp = Some(t.xp);
             Some(step)
         })
         .collect()
+}
+
+/// A step written in the language of `names`: its sentence, and the names of its quest,
+/// target, mobs and zone.
+fn render_step(step: &mut Step, names: &Names) {
+    step.text = phrase::render_all(&step.say, names);
+    if let (Some(id), Some(name)) = (step.quest, &step.quest_name) {
+        step.quest_name = Some(names.get("quest", id, name).to_owned());
+    }
+    if let Some(t) = &mut step.target {
+        let kind = match t.kind {
+            TargetKind::Npc => "npc",
+            TargetKind::Object => "object",
+            TargetKind::Item => "item",
+            TargetKind::Dungeon => "zone",
+            _ => "",
+        };
+        t.name = names.get(kind, t.id, &t.name).to_owned();
+    }
+    for (name, id) in step.mobs.iter_mut().zip(&step.mob_ids) {
+        *name = names.get("npc", *id, name).to_owned();
+    }
+    if let (Some(id), Some(zone)) = (step.zone_id, &step.zone) {
+        step.zone = Some(names.get("zone", id, zone).to_owned());
+    }
 }
 
 fn route_of(

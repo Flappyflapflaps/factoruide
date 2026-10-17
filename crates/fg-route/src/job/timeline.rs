@@ -6,11 +6,12 @@
 //! times are the guide's own. The guide as saved keeps the last word: its steps give the times,
 //! the replay what happens within them (a step it does not find has a straight walk to it).
 
+use super::PlanOutcome;
+use super::draft::Request;
 use super::edit::Editor;
-use super::{PlanOutcome, RouteStep};
 use crate::export::{self, Step, StepKind};
 use crate::model::{EntityKind, Names};
-use crate::plan::{Breakdown, Event, Kind, Planner, Timed};
+use crate::plan::{Breakdown, Edit, Edited, Event, Kind, Planner, Timed};
 use crate::world::Pos;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -240,19 +241,30 @@ impl Editor {
     pub fn timeline(&self, outcome: &PlanOutcome, names: &Names) -> Timeline {
         let planner = self.planner();
         let (steps, _) = self.steps(outcome);
-        let mut timeline = Replay::new(self, &planner, &steps, names).timeline(&outcome.route.steps);
-        let paths = self.walk_paths(&timeline.legs);
+        let edits: Vec<Edit> = steps.iter().filter_map(|s| s.resolve(&planner).ok()).collect();
+        let replay = Replay::run(self, &planner, &edits, names, Lines::Guide).expect("a replay nothing stops ends");
+        let mut timeline = replay.timeline(&outcome.route.steps);
+        self.add_walk_paths(&mut timeline, None);
+        timeline
+    }
+
+    /// The ways the walks of `timeline` take around the terrain. False when `request` is
+    /// superseded on the way (the timeline is then left half done).
+    pub(super) fn add_walk_paths(&self, timeline: &mut Timeline, request: Option<&Request<'_>>) -> bool {
+        let Some(paths) = self.walk_paths(&timeline.legs, request) else {
+            return false;
+        };
         for (leg, path) in timeline.legs.iter_mut().zip(paths) {
             if !path.is_empty() {
                 leg.via = path;
             }
         }
-        timeline
+        true
     }
 
     /// The ways the walks of a timeline take around the terrain (simplified), by leg: empty
-    /// for the legs that are no walk or go straight.
-    fn walk_paths(&self, legs: &[Leg]) -> Vec<Vec<[f32; 2]>> {
+    /// for the legs that are no walk or go straight. None when `request` is superseded.
+    fn walk_paths(&self, legs: &[Leg], request: Option<&Request<'_>>) -> Option<Vec<Vec<[f32; 2]>>> {
         let world = &self.prepared.world;
         let planner = self.planner();
         let at = |p: &[f64; 3]| Pos {
@@ -269,9 +281,13 @@ impl Editor {
                 .unwrap_or(0),
         };
         legs.iter()
-            .map(|leg| {
+            .enumerate()
+            .map(|(n, leg)| {
+                if n % 32 == 0 && request.is_some_and(Request::superseded) {
+                    return None;
+                }
                 if !matches!(leg.mode, LegMode::Walk | LegMode::Mount) || !same_continent(&leg.from, &leg.to) {
-                    return Vec::new();
+                    return Some(Vec::new());
                 }
                 // The passages it goes through, then the way around the terrain between them.
                 let mut stops = vec![at(&leg.from)];
@@ -288,12 +304,14 @@ impl Editor {
                 }
                 let path = simplify(&path, SIMPLIFY);
                 if path.len() <= 2 {
-                    return Vec::new();
+                    return Some(Vec::new());
                 }
-                path[1..path.len() - 1]
-                    .iter()
-                    .map(|p| [round1(p.x) as f32, round1(p.y) as f32])
-                    .collect()
+                Some(
+                    path[1..path.len() - 1]
+                        .iter()
+                        .map(|p| [round1(p.x) as f32, round1(p.y) as f32])
+                        .collect(),
+                )
             })
             .collect()
     }
@@ -337,11 +355,21 @@ fn simplify(path: &[Pos], tolerance: f64) -> Vec<Pos> {
     out
 }
 
+/// Which steps a replay writes: the guide's (checkpoints added, grinds moved where mobs of the
+/// character's level live), or one per event of the replay (the guide editor's lines).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Lines {
+    Guide,
+    Events,
+}
+
 /// A guide replayed by the guide editor's planner, the character kept after each step.
-struct Replay<'r> {
+pub(super) struct Replay<'r> {
     planner: &'r Planner<'r>,
     names: &'r Names,
-    trace: Vec<Timed>,
+    pub(super) edited: Edited,
+    /// The line each event writes (`Lines::Events`; empty otherwise).
+    pub(super) event_lines: Vec<Option<Step>>,
     /// Each step's events in the trace, and when it starts and ends (the final grind: a step
     /// of its own, last).
     steps: Vec<(std::ops::Range<usize>, f64, f64)>,
@@ -352,10 +380,17 @@ struct Replay<'r> {
 }
 
 impl<'r> Replay<'r> {
-    fn new(editor: &'r Editor, planner: &'r Planner<'r>, steps: &[RouteStep], names: &'r Names) -> Self {
-        let edits: Vec<_> = steps.iter().filter_map(|s| s.resolve(planner).ok()).collect();
+    /// `edits` replayed, the steps written as `lines` says. None when the planner gives up (a
+    /// newer replay is asked for: `Planner::abortable`).
+    pub(super) fn run(
+        editor: &'r Editor,
+        planner: &'r Planner<'r>,
+        edits: &[Edit],
+        names: &'r Names,
+        lines: Lines,
+    ) -> Option<Self> {
         let mut snaps = Vec::new();
-        let edited = planner.edit_observed(&edits, &mut |s| {
+        let edited = planner.edit_observed(edits, &mut |s| {
             let log = s
                 .accepted
                 .and_not(&s.turned)
@@ -373,7 +408,8 @@ impl<'r> Replay<'r> {
                 hearth_ready: s.hearth_ready,
                 recall_ready: s.recall_ready,
             });
-        });
+            true
+        })?;
         let mut spans: Vec<_> = edited
             .steps
             .iter()
@@ -384,28 +420,51 @@ impl<'r> Replay<'r> {
         let last = snaps.last().map_or(0.0, |s| s.time);
         spans.push((tail..edited.trace.len(), spans.last().map_or(0.0, |s| s.2), last));
         let p = &editor.prepared;
-        let lines = export::build_traced(
-            planner,
-            &p.profile,
-            &edited.route,
-            &edited.trace,
-            edited.breakdown.total,
-            edited.breakdown,
-        )
-        .steps;
-        Self {
+        let (lines, event_lines) = match lines {
+            Lines::Guide => (
+                export::build_traced(
+                    planner,
+                    &p.profile,
+                    &edited.route,
+                    &edited.trace,
+                    edited.breakdown.total,
+                    edited.breakdown,
+                )
+                .steps,
+                Vec::new(),
+            ),
+            Lines::Events => {
+                let each = export::event_steps(planner, &edited.route, &edited.trace, names);
+                (each.iter().flatten().cloned().collect(), each)
+            }
+        };
+        if planner.aborted() {
+            return None;
+        }
+        Some(Self {
             planner,
             names,
-            trace: edited.trace,
+            edited,
+            event_lines,
             steps: spans,
             snaps,
             lines,
-        }
+        })
     }
 
     /// The timeline of the guide's steps (`saved`, the guide as it was saved).
-    fn timeline(&self, saved: &[Step]) -> Timeline {
-        let pairs = align(saved, &self.lines);
+    pub(super) fn timeline(&self, saved: &[Step]) -> Timeline {
+        // The guide editor's lines are the replay's own: tied by their event.
+        let pairs = if self.event_lines.is_empty() {
+            align(saved, &self.lines)
+        } else {
+            let line_of: HashMap<usize, usize> = (self.lines.iter().enumerate())
+                .filter_map(|(j, l)| Some((l.event?, j)))
+                .collect();
+            (saved.iter().enumerate())
+                .filter_map(|(i, s)| Some((i, *line_of.get(&s.event?)?)))
+                .collect()
+        };
         // Replayed line of each saved step.
         let mut of_saved: Vec<Option<usize>> = vec![None; saved.len()];
         for &(i, j) in &pairs {
@@ -438,7 +497,7 @@ impl<'r> Replay<'r> {
         let mut next = 0;
         let mut rest = 0.0;
         for &e in &events {
-            let cut = self.trace[e].time.max(from);
+            let cut = self.edited.trace[e].time.max(from);
             let group = &groups[&e];
             let start = group.iter().map(|&i| windows[i].0).fold(f64::INFINITY, f64::min);
             let end = group.iter().map(|&i| windows[i].1).fold(f64::NEG_INFINITY, f64::max);
@@ -606,7 +665,7 @@ impl<'r> Replay<'r> {
 
     /// The step (index in `steps`) of each event of the trace.
     fn step_of_events(&self) -> Vec<usize> {
-        let mut out = vec![0; self.trace.len()];
+        let mut out = vec![0; self.edited.trace.len()];
         for (k, (events, ..)) in self.steps.iter().enumerate() {
             for e in events.clone() {
                 out[e] = k;
@@ -620,7 +679,13 @@ impl<'r> Replay<'r> {
         let mut out = Vec::new();
         for (k, (events, start, end)) in self.steps.iter().enumerate() {
             let (before, after) = (&self.snaps[k], &self.snaps[(k + 1).min(self.snaps.len() - 1)]);
-            self.step_pieces(&self.trace[events.clone()], (*start, *end), before, after, &mut out);
+            self.step_pieces(
+                &self.edited.trace[events.clone()],
+                (*start, *end),
+                before,
+                after,
+                &mut out,
+            );
         }
         out
     }

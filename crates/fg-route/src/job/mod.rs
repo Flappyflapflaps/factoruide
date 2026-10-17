@@ -2,6 +2,7 @@
 //! app.
 
 mod character;
+mod draft;
 mod edit;
 mod notes;
 mod options;
@@ -15,8 +16,10 @@ mod services;
 mod start;
 mod timeline;
 
+pub use draft::{EditView, ObjectiveAt, PlaceAt, QuestAt, Request, Requests, Suggestions};
 pub use edit::{
-    CatalogDungeon, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef, RouteStep, StepReport,
+    CatalogDungeon, CatalogLink, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef,
+    RouteStep, StepReport,
 };
 pub use options::{FactionOption, NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes};
 pub use overrides::{Overrides, RaceDef};

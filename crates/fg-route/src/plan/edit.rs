@@ -98,12 +98,14 @@ impl Planner<'_> {
     /// Replay an edited route as the optimizer simulates its own (`simulate_full`: the same
     /// route gives the same time), each step checked: an impossible one is reported and left out.
     pub fn edit(&self, edits: &[Edit]) -> Edited {
-        self.edit_observed(edits, &mut |_| {})
+        self.edit_observed(edits, &mut |_| true)
+            .expect("a replay nothing stops goes to the end")
     }
 
     /// `edit`, `observe` shown the character before the first step, after each step, and once
-    /// the guide is over (the final grind done).
-    pub(crate) fn edit_observed(&self, edits: &[Edit], observe: &mut dyn FnMut(&State)) -> Edited {
+    /// the guide is over (the final grind done). None when `observe` says to stop (false), or
+    /// the planner gives up (`abortable`: a newer replay is asked for).
+    pub(crate) fn edit_observed(&self, edits: &[Edit], observe: &mut dyn FnMut(&State) -> bool) -> Option<Edited> {
         let stops: Vec<Stop> = edits
             .iter()
             .filter_map(|e| match e {
@@ -116,7 +118,9 @@ impl Planner<'_> {
         let mut route = Vec::new();
         let mut steps = Vec::with_capacity(edits.len());
         let mut at = 0;
-        observe(&s);
+        if !observe(&s) {
+            return None;
+        }
         // The next stop of each step (an objective is done at its place on the way to it).
         let nexts: Vec<Option<Stop>> = (0..edits.len())
             .map(|e| {
@@ -127,6 +131,9 @@ impl Planner<'_> {
             })
             .collect();
         for (e, edit) in edits.iter().enumerate() {
+            if self.aborted() {
+                return None;
+            }
             let (start, xp, first) = (s.time, self.total_xp(&s), trace.len());
             let farm_xp = s.spent.farm_xp;
             let mut farm_all = None;
@@ -221,11 +228,15 @@ impl Planner<'_> {
                 farm: farmed(&trace[first..], s.spent.farm_xp - farm_xp),
                 farm_all,
             });
-            observe(&s);
+            if !observe(&s) {
+                return None;
+            }
         }
         let grinding = s.spent.grinding;
         let score = self.finish(&mut s, Some(&mut trace));
-        observe(&s);
+        if !observe(&s) {
+            return None;
+        }
         // Taken and never turned in by the route, left in the log or given up (those it turns in
         // after the target level are not: the guide ends there).
         let has = |i: usize, kind: Kind| stops.iter().any(|t| t.index as usize == i && t.kind == kind);
@@ -235,7 +246,7 @@ impl Planner<'_> {
             })
             .map(|i| i as u32)
             .collect();
-        Edited {
+        Some(Edited {
             steps,
             route,
             trace,
@@ -243,7 +254,7 @@ impl Planner<'_> {
             breakdown: s.spent,
             score,
             unfinished,
-        }
+        })
     }
 
     /// A stop of an edited route, checked first.

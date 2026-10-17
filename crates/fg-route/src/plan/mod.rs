@@ -68,7 +68,8 @@ use availability::{Availability, blocks, followers};
 use camp::NearCamps;
 use growth::Growth;
 use on_the_way::FarmWalks;
-use state::{Flags, Landed, Planned, State};
+pub(crate) use state::State;
+use state::{Flags, Landed, Planned};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use step::{CampIndex, camp_index};
@@ -201,7 +202,8 @@ impl<'a> Planner<'a> {
     }
 
     /// The same planner whose construction gives up as soon as `abort` says so (the user stopped
-    /// or cancelled the generation): it then returns the route built so far, unfinished.
+    /// or cancelled the generation): it then returns the route built so far, unfinished. A replay
+    /// of the guide editor gives up too (`edit_observed`: a newer one is asked for).
     #[must_use]
     pub fn abortable(self, abort: &'a dyn Fn() -> bool) -> Self {
         Self {

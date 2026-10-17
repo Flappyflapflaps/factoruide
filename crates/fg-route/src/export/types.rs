@@ -241,6 +241,53 @@ pub struct Step {
     pub event: Option<usize>,
 }
 
+impl Step {
+    /// A step of `kind` with nothing else said, done at `time` at `level`.
+    pub fn bare(kind: StepKind, level: i64, time: f64) -> Self {
+        Self {
+            kind,
+            quest: None,
+            quest_name: None,
+            alt: Vec::new(),
+            pre: Vec::new(),
+            pre_any: Vec::new(),
+            min_level: None,
+            bg: false,
+            inside: false,
+            objective: None,
+            child: None,
+            text: String::new(),
+            say: Vec::new(),
+            target: None,
+            zone: None,
+            zone_id: None,
+            map: None,
+            spots: Vec::new(),
+            patrol: false,
+            world: None,
+            path: Vec::new(),
+            skill: None,
+            line: None,
+            mobs: Vec::new(),
+            mob_ids: Vec::new(),
+            elite: false,
+            mob_level: None,
+            reward: None,
+            reward_xp: None,
+            route_xp: None,
+            spells: Vec::new(),
+            xp: None,
+            farm: None,
+            level,
+            time,
+            power: None,
+            gear: None,
+            keep: false,
+            event: None,
+        }
+    }
+}
+
 /// A level where many quests open: a player reaching it before `step` (index in the steps) may
 /// skip the steps up to it but those marked `keep`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
