@@ -1155,7 +1155,7 @@ fn addon_knows_the_mobs_of_each_step() {
 }
 
 /// A dungeon run is a step that takes the player in, then a step per quest of the route done
-/// inside (marked `inside`, in the run's time), each turned in later.
+/// or started inside (marked `inside`, in the run's time), each turned in later.
 #[test]
 fn dungeon_quests_are_steps_of_their_own() {
     use fg_route::export::StepKind;
@@ -1180,7 +1180,8 @@ fn dungeon_quests_are_steps_of_their_own() {
             before.kind,
             before.text
         );
-        assert_eq!(s.kind, StepKind::Objective);
+        // Objectives, and quests started by a boss's drop (Glowing Shard).
+        assert!(matches!(s.kind, StepKind::Objective | StepKind::Accept), "{}", s.text);
         let q = s.quest.unwrap();
         let turnin = steps
             .iter()

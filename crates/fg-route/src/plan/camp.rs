@@ -31,7 +31,13 @@ impl Planner<'_> {
             }
             if near != s.pos {
                 self.go(s, &near, zone, record);
-                if !s.time.is_finite() || s.level >= level {
+                if !s.time.is_finite() {
+                    break;
+                }
+                // The mobs farmed on the way there were enough: the trip is still the guide's,
+                // a step at the camp (else a replay of the guide would not go there).
+                if s.level >= level {
+                    at = Some((near, zone, 0.0));
                     break;
                 }
             }
