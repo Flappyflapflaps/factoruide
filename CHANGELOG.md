@@ -14,12 +14,14 @@ Guides watched and edited on a big map, quests that need others planned whole, c
 - Guides are edited on that same page: drag the steps, add from the map the quests left out (in the game's level colors) and the objectives or turn-ins the guide forgets (in red); Ctrl+Z and Ctrl+Y undo and redo.
 - The guide line by line is now in the Summary tab of its page.
 - "Need help" page: questions to check in game (does this NPC offer this quest yet?), answered in one click; each answer fixes the guides of every player.
+- Guides are made two to three times faster.
+- The window no longer freezes while a guide opens, two versions are compared or the addon is installed.
 
 ### Guides
 
 - Quests finished by handing in other quests on the way are planned whole: for Bitter Rivals, Jarven gets his Thunder Ale first; Keeping Pace has Zamek's distraction.
 - NPCs of your own side are no longer to "kill": Sentinel Shaya is healed, the Lazy Peons woken with the Foreman's Blackjack.
-- Walks go round places with mobs far above your level (no more crossing the Western Plaguelands at level 20 on the way to Hillsbrad).
+- Walks go round places with mobs far above your level (no more crossing the Western Plaguelands at level 20 on the way to Hillsbrad), and only those really on the way.
 - WoW Forever: camps are no longer counted with several times their mobs: guides go back to zones they avoided (Darkshore for the Alliance), and their times count the real waits for respawns (a little longer).
 - Starting from your character: the quests already in your log are kept when the guide goes their way, a complete one is turned in on the way instead of abandoned, and none has to be taken again from its giver.
 
@@ -31,6 +33,7 @@ Guides watched and edited on a big map, quests that need others planned whole, c
 - A mark above the head of the NPC to go to, once its nameplate shows.
 - An optional 3D arrow next to the compass.
 - WoW Forever: with Shortest Path Forever installed, it takes you to the step, and a click on the compass changes where.
+- The guide and the quest panel take less of the game's time while you loot or sell.
 
 ### WoW data
 
