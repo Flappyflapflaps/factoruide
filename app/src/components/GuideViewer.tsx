@@ -188,6 +188,7 @@ export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
         cards={cards}
         titles={titles}
         current={card}
+        currentEnd={Math.max(cards[card]?.end ?? 0, travels.get(cards[card]?.last ?? -1) ?? 0)}
         zone={zone}
         clock={clock}
         follow={follow}

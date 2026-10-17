@@ -22,8 +22,10 @@ interface Props {
   moves: Moves;
   cards: Card[];
   titles: string[];
-  /** Card under way, and the cards of the zone under way (first, last). */
+  /** Card under way, when its moves end (a flight or a boat taken at its end goes on after
+   * it), and the cards of the zone under way (first, last). */
   current: number;
+  currentEnd: number;
   zone: [number, number];
   clock: Clock;
   follow: boolean;
@@ -97,7 +99,7 @@ function markerKind(steps: Step[], card: Card): { kind: string; glyph: string } 
 }
 
 /** The guide on the game's map of a continent, big: the route, the steps, the character moving along it. */
-export function GuideMap({ steps, moves, cards, titles, current, zone, clock, follow, onFollow, layers, onLayers, onSelect, status }: Props) {
+export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zone, clock, follow, onFollow, layers, onLayers, onSelect, status }: Props) {
   const t = useT();
   const areaName = useAreaName();
   const [index, setIndex] = useState<MapInfo[] | null>(null);
@@ -297,9 +299,9 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
     [moves, continent, project, cards, zone[0], zone[1]],
   );
   const lit = useMemo(
-    () => (project && cards[current] ? trace(span(cards[current].start, cards[current].end), continent, project) : null),
+    () => (project && cards[current] ? trace(span(cards[current].start, currentEnd), continent, project) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [moves, continent, project, cards, current],
+    [moves, continent, project, cards, current, currentEnd],
   );
 
   // Markers: the cards of the zone under way, those around the current one in full (the next
