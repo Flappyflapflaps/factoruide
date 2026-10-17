@@ -92,6 +92,9 @@ local function Create()
     frame.title:SetPoint("TOP", frame.distance, "BOTTOM", 0, -1)
     frame.title:SetWidth(220)
     frame.title:SetWordWrap(false)
+    -- Centered under the arrow (the skin's texts are left-aligned).
+    frame.distance:SetJustifyH("CENTER")
+    frame.title:SetJustifyH("CENTER")
 
     frame:SetScript("OnUpdate", function(self, elapsed)
         local ok, err = pcall(Update, self, elapsed)
