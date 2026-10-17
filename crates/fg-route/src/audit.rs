@@ -74,6 +74,14 @@ pub const CHECKS: &[Check] = &[
                or accept a quest the game no longer offers",
         error: true,
     },
+    Check {
+        name: "child-quests",
+        what: "quests handed in on the way to another's turn-in (its children: Distracting Jarven \
+               for Bitter Rivals) that the guide cannot place where they end: the parent is \
+               planned without them and its turn-in may be impossible. Give the place in the \
+               quest data",
+        error: true,
+    },
 ];
 
 /// Why a quest is left out when its objectives or their places are unknown to the data (the
@@ -147,6 +155,11 @@ pub fn audit(
     } else {
         HashSet::new()
     };
+    let children = if on("child-quests") {
+        child_links(conn)?
+    } else {
+        Vec::new()
+    };
     let trainer_quests = if on("other-class-quests") {
         trainer_quests(conn)?
     } else {
@@ -201,6 +214,11 @@ pub fn audit(
         }
         if on("broken-chains") {
             broken_chains(&prepared.model).into_iter().for_each(&mut add);
+        }
+        if on("child-quests") {
+            children_left_out(&prepared.model, &children)
+                .into_iter()
+                .for_each(&mut add);
         }
         if on("source-items") {
             uncovered_source_items(&prepared.model, &source_items)
@@ -647,6 +665,40 @@ fn chain_order(model: &Model, old_quests: &HashSet<i64>) -> Vec<Finding> {
                 races: Vec::new(),
             });
         }
+    }
+    out
+}
+
+/// (parent, parent's name, child, child's name) of the children the guides hand in on the way
+/// (the repeatable ones, see the model's `LinkKind::Child`).
+fn child_links(conn: &Connection) -> Result<Vec<(i64, String, i64, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT p.id, p.name, c.id, c.name FROM m_quest_link l
+         JOIN m_quest p ON p.id = l.quest_id JOIN m_quest c ON c.id = l.other_id
+         WHERE l.kind = 'child' AND coalesce(c.special_flags, 0) & 1 != 0 ORDER BY p.id, c.id",
+    )?;
+    let rows = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
+}
+
+/// Planned quests one of whose children has no objective handing it in.
+fn children_left_out(model: &Model, children: &[(i64, String, i64, String)]) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for (parent, parent_name, child, child_name) in children {
+        let Some(&i) = model.index.get(parent) else { continue };
+        if model.quests[i].objectives.iter().any(|o| o.child == Some(*child)) {
+            continue;
+        }
+        out.push(Finding {
+            check: "child-quests",
+            key: format!("quest {parent} child {child}"),
+            detail: format!(
+                "{parent_name} ({parent}) is planned without {child_name} ({child}): where it is handed in is unknown"
+            ),
+            races: Vec::new(),
+        });
     }
     out
 }

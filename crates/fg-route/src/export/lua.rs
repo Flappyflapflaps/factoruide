@@ -143,6 +143,9 @@ pub fn to_lua(routes: &[Route]) -> String {
                     lua_str(&t.name)
                 ));
             }
+            if let Some(c) = s.child {
+                fields.push(format!("cq = {c}"));
+            }
             if let Some(n) = item_count(s) {
                 fields.push(format!("c = {n}"));
             }

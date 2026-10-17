@@ -384,6 +384,32 @@ fn talked_to_creatures_are_not_killed() {
     assert_eq!(o[0].text, "Heal Kobold Vermin");
 }
 
+/// Bitter Rivals is turned in at a barrel Jarven guards: the guide buys his Thunder Ale and hands
+/// in its children (the guarded barrel, then Distracting Jarven) before the parent's turn-in.
+#[test]
+fn child_quests_are_handed_in_before_their_parent() {
+    let conn = database();
+    conn.execute_batch(
+        "CREATE TEMP TABLE m_quest_link AS SELECT * FROM main.m_quest_link;
+         INSERT INTO temp.m_quest_link (quest_id, kind, other_id) VALUES (308, 'pre_all', 403);",
+    )
+    .unwrap();
+    let p = job::prepare(&conn, &overrides(), &request("dwarf", "warrior", 10, &[]), &|_| {}).unwrap();
+    let o = &p.model.quests[quest(&p, 310).unwrap() as usize].objectives;
+    let at = |child: i64| o.iter().position(|o| o.child == Some(child)).unwrap();
+    let (barrel, jarven) = (at(403), at(308));
+    assert_eq!((o[barrel].loc.kind, o[barrel].loc.id), (EntityKind::Object, 269));
+    assert_eq!((o[jarven].loc.kind, o[jarven].loc.id), (EntityKind::Npc, 1373));
+    assert_eq!(o[jarven].text, "Turn in Distracting Jarven to Jarven Thunderbrew");
+    let ale = o
+        .iter()
+        .position(|o| o.loc.kind == EntityKind::Item && o.loc.id == 2686)
+        .unwrap();
+    assert_ne!(o[jarven].after & (1 << ale), 0, "the ale is bought before Jarven");
+    assert_ne!(o[jarven].after & (1 << barrel), 0, "the barrel is tried before Jarven");
+    assert_eq!(o[jarven].kills, 0.0);
+}
+
 /// The warlock's imp is taken first: it makes every fight that follows easier.
 #[test]
 fn pet_quest_comes_early() {
@@ -756,6 +782,7 @@ fn gathering_next_to_kills_overlaps_them() {
             alts: vec![],
             after: 0,
             handed_by: vec![],
+            child: None,
             stock: None,
         }];
     }
@@ -1666,6 +1693,7 @@ fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Obj
         alts: vec![],
         after: 0,
         handed_by: vec![],
+        child: None,
         stock: None,
     }
 }

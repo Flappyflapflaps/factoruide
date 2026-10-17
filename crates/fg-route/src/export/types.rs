@@ -145,6 +145,10 @@ pub struct Step {
     pub inside: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub objective: Option<u8>,
+    /// Objective steps handing in a child quest on the way to its parent's turn-in (Distracting
+    /// Jarven for Bitter Rivals): done once that quest is turned in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child: Option<i64>,
     /// The step's sentence in a language: written from `say` (`render`), else (a guide of
     /// format 1) kept as it was written.
     #[serde(default)]

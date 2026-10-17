@@ -109,6 +109,7 @@ local route
 local acceptIndex = {} -- quest -> index of its accept step
 local turninIndex = {} -- quest -> index of its turn-in step
 local objectiveQuests = {} -- quests with an objective step
+local childQuests = {} -- child quests handed in on the way to their parent's turn-in
 -- Whether the shown step was already done when we arrived on it (manual navigation): the
 -- guide only moves on when the shown step becomes done.
 local arrivedDone = false
@@ -234,6 +235,9 @@ function IsDone(step, index)
     elseif step.k == "objective" then
         if QuestLog.IsQuestFlaggedCompleted(q) then return true end
         if AcceptSkipped(step, index or state.step) then return true, true end
+        -- A child quest handed in on the way (Distracting Jarven for Bitter Rivals): done once
+        -- turned in. Often repeatable, so the game does not keep it flagged.
+        if step.cq then return state.handedIn[step.cq] or QuestLog.IsQuestFlaggedCompleted(step.cq) end
         if not QuestLog.IsOnQuest(q) or ObjectivesLoading(q) then return false end
         local o = FindObjective(step)
         if o then return o.finished end
@@ -1011,7 +1015,7 @@ end
 
 --- Fields of the guide state that belong to the route in use: the step shown, the steps
 --- marked by their index and the quests marked done by hand.
-local PROGRESS = { "step", "marks", "skippedQuests" }
+local PROGRESS = { "step", "marks", "skippedQuests", "handedIn" }
 
 --- Progress is kept per route: another guide starts from its first step with nothing marked,
 --- coming back to a guide finds where it was. A new version of the same guide keeps the
@@ -1041,6 +1045,7 @@ local function SwitchProgress(name)
     state.step = state.step or 1
     state.marks = state.marks or {}
     state.skippedQuests = state.skippedQuests or {}
+    state.handedIn = state.handedIn or {}
 end
 
 local function UseRoute(name)
@@ -1051,12 +1056,14 @@ local function UseRoute(name)
     wipe(acceptIndex)
     wipe(turninIndex)
     wipe(objectiveQuests)
+    wipe(childQuests)
     wipe(wasDone)
     for i, s in ipairs(route and route.steps or {}) do
         if s.q then
             if s.k == "accept" and not acceptIndex[s.q] then acceptIndex[s.q] = i end
             if s.k == "turnin" and not turninIndex[s.q] then turninIndex[s.q] = i end
             if s.k == "objective" then objectiveQuests[s.q] = true end
+            if s.cq then childQuests[s.cq] = true end
         end
     end
     BuildGroups()
@@ -1115,6 +1122,9 @@ end
 FG:On("TAXIMAP_OPENED", function() Mark("flight_master") end)
 FG:On("TRAINER_SHOW", function() Mark(IsTradeskillTrainer() and "profession" or "train") end)
 FG:On("HEARTHSTONE_BOUND", function() Mark("bind") end)
+FG:On("QUEST_TURNED_IN", function(questID)
+    if state and childQuests[questID] then state.handedIn[questID] = true end
+end)
 
 -- Dungeon steps: done once we entered the instance and came back out.
 local function TrackInstance()

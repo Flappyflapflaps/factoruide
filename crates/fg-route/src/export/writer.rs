@@ -108,6 +108,7 @@ impl StepWriter<'_> {
             bg: false,
             inside: false,
             objective: None,
+            child: None,
             text: String::new(),
             say: vec![say],
             target: None,
@@ -204,6 +205,7 @@ impl StepWriter<'_> {
             bg: false,
             inside: false,
             objective: None,
+            child: None,
             text: String::new(),
             say: Vec::new(),
             target: None,
@@ -317,6 +319,7 @@ impl StepWriter<'_> {
     fn objective(step: &mut Step, o: &Objective, k: u8) {
         step.kind = StepKind::Objective;
         step.objective = Some(k);
+        step.child = o.child;
         step.elite = o.elite;
         step.mob_level = (o.kills > 0.0 && o.mob_level > 0).then_some(o.mob_level);
         for (id, name) in o.mobs.iter().take(4) {

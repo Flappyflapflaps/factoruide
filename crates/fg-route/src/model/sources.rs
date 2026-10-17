@@ -102,6 +102,9 @@ pub(super) enum LinkKind {
     PreAny,
     /// Taking one closes the other.
     Exclusive,
+    /// A quest handed in on the way to this one's turn-in, the parent's (Distracting Jarven for
+    /// Bitter Rivals: the barrel is unguarded once Jarven has his ale).
+    Child,
     Other,
 }
 
@@ -367,6 +370,7 @@ fn links(conn: &Connection) -> Result<HashMap<i64, Vec<(LinkKind, i64)>>> {
             "pre_all" => LinkKind::PreAll,
             "pre_any" => LinkKind::PreAny,
             "exclusive" => LinkKind::Exclusive,
+            "child" => LinkKind::Child,
             _ => LinkKind::Other,
         };
         links.entry(q).or_default().push((kind, other));

@@ -145,6 +145,8 @@ pub struct Objective {
     /// Common loot the route's kills gather by themselves (index in `Model::loot`): only what
     /// the bags lack is gathered or bought, `extra` is the time for the whole count.
     pub stock: Option<u16>,
+    /// The child quest this objective hands in (see `LinkKind::Child`): done once it is turned in.
+    pub child: Option<i64>,
 }
 
 impl Objective {

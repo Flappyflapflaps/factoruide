@@ -266,6 +266,11 @@ fn goals(step: &Step, english: bool) -> Vec<Goal> {
             goal
         }
         StepKind::TurnIn if step.quest.is_some() => source(quest(Goal::new("turnin", at))),
+        // A child quest handed in on the way to its parent's turn-in (Distracting Jarven): a
+        // hand-in straight from the window, with no accept.
+        StepKind::Objective if let Some(child) = step.child => {
+            source(Goal::new("turnin", at).num("quest", child).num("direct", true))
+        }
         StepKind::Objective if step.quest.is_some() => objective(step, target, quest),
         StepKind::Bind => match target {
             Some(t) if t.kind == TargetKind::Npc => Goal::new("talk", at)
@@ -594,6 +599,25 @@ mod tests {
         assert!(steps[0][0].contains("oi = 2, optional = true"));
         assert!(steps[1][0].contains("t = \"kill\", target = \"Explore the mine\", quest = 6"));
         assert!(steps[2][0].starts_with("{ t = \"complete\", quest = 7, title = \"S\""));
+    }
+
+    #[test]
+    fn child_quests_are_handed_in_direct() {
+        let r = route(
+            &[step(
+                json!({ "kind": "objective", "quest": 310, "quest_name": "Bitter Rivals", "objective": 2, "child": 308,
+                "target": npc(1373, "Jarven Thunderbrew"), "say": [{ "k": "objective.text" }],
+                "text": "Turn in Distracting Jarven to Jarven Thunderbrew" }),
+            )],
+            "enUS",
+        );
+        let steps = steps(&guide("g", &r));
+        assert!(
+            steps[0][0].starts_with(
+                "{ t = \"turnin\", quest = 308, direct = true, npc = 1373, npcName = \"Jarven Thunderbrew\""
+            ),
+            "{steps:?}"
+        );
     }
 
     #[test]
