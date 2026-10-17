@@ -221,3 +221,66 @@ fn an_offered_quest_added_after_a_step_is_taken_there() {
     assert_eq!(view.lines[k + 1].quest, Some(quest));
     assert_eq!(view.lines[k + 1].kind.as_str(), "accept");
 }
+
+/// A dungeon quest taken whose dungeon is no longer run (and that is not turned in) is an
+/// error of its accept, which the draft cannot be saved with; the dungeon's objectives are then
+/// offered at its entrance.
+#[test]
+fn a_dungeon_quest_without_its_run_is_an_error() {
+    let conn = database();
+    let mut request = request();
+    (request.race, request.class, request.to_level) = ("human".into(), "warrior".into(), 25);
+    request.params = Some(
+        overrides()
+            .params
+            .with_overrides(&["progression=cautious".to_owned(), "forced_dungeons=[1581]".to_owned()])
+            .unwrap(),
+    );
+    let interrupt = job::Interrupt::default();
+    interrupt.stop();
+    let guide = job::plan_interruptible(&conn, &overrides(), &request, &|_| {}, &interrupt, None).unwrap();
+    let editor = Editor::open(&conn, &overrides(), &request, None).unwrap();
+    let names = Names::load(&conn, "enUS").unwrap();
+    assert_eq!(editor.simulate(&guide.plan, &names).errors, 0, "the guide as planned");
+
+    let run = (guide.plan.iter())
+        .position(|s| matches!(s, RouteStep::Dungeon { dungeon: 1581 }))
+        .expect("the forced run");
+    let mut draft = guide.plan.clone();
+    draft.remove(run);
+    // Its turn-ins, which cannot be done without the run, go too.
+    let report = editor.simulate(&draft, &names);
+    let draft: Vec<RouteStep> = (draft.iter().zip(&report.steps))
+        .filter(|(s, r)| !(matches!(s, RouteStep::TurnIn { .. }) && r.status == "error"))
+        .map(|(s, _)| s.clone())
+        .collect();
+    let report = editor.simulate(&draft, &names);
+    let wrong: Vec<usize> = (report.steps.iter().enumerate())
+        .filter(|(_, r)| r.reason == Some("dungeon quest taken but its dungeon is not run"))
+        .map(|(k, _)| k)
+        .collect();
+    assert!(
+        !wrong.is_empty(),
+        "{:?}",
+        report.steps.iter().filter_map(|r| r.reason).collect::<Vec<_>>()
+    );
+    assert!(wrong.iter().all(|&k| matches!(draft[k], RouteStep::Accept { .. })));
+    assert!(report.errors >= wrong.len());
+    assert!(
+        editor.save(&draft, vec![]).is_err(),
+        "saved with a dungeon quest left undone"
+    );
+
+    // After that accept, its dungeon objectives are offered at the dungeon's entrance.
+    let RouteStep::Accept { quest } = draft[wrong[0]] else {
+        unreachable!()
+    };
+    let offered = editor
+        .suggest(&draft, Some(wrong[0]), &names, &Requests::default().next())
+        .unwrap();
+    let inside = (offered.objectives.iter())
+        .find(|o| o.quest == quest)
+        .expect("its dungeon objective is offered");
+    assert_eq!(inside.dungeon.as_ref().map(|d| d.0), Some(1581));
+    assert_eq!(inside.places.len(), 1, "the entrance");
+}

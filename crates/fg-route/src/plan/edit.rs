@@ -232,6 +232,21 @@ impl Planner<'_> {
                 return None;
             }
         }
+        // A dungeon quest taken whose dungeon is never run (and never turned in) cannot be done:
+        // its accept is not possible.
+        for (step, edit) in steps.iter_mut().zip(edits) {
+            if let Edit::Stop { stop, .. } = edit
+                && stop.kind == Kind::Accept
+                && step.outcome == Outcome::Done
+            {
+                let i = stop.index as usize;
+                let undone =
+                    |(k, o): (usize, &crate::model::Objective)| o.dungeon.is_some() && s.objectives[i] & (1 << k) == 0;
+                if !s.turned[i] && self.model.quests[i].objectives.iter().enumerate().any(undone) {
+                    step.outcome = Outcome::Invalid("dungeon quest taken but its dungeon is not run");
+                }
+            }
+        }
         let grinding = s.spent.grinding;
         let score = self.finish(&mut s, Some(&mut trace));
         if !observe(&s) {

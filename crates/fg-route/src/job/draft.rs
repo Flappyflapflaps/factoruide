@@ -72,7 +72,25 @@ pub struct QuestAt {
     pub quest: i64,
     pub name: String,
     pub level: i64,
+    /// How hard the quest is for the character then, as the game colors it: grey, green,
+    /// yellow, orange or red.
+    pub difficulty: &'static str,
+    /// The dungeon its objectives are done in, if any (its name).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dungeon: Option<String>,
     pub places: Vec<PlaceAt>,
+}
+
+/// The game's color of a quest of `quest` level for a character of `level`: red five levels
+/// above or more, orange three, yellow within two, green down to the grey content, grey below.
+fn difficulty(quest: i64, level: i64) -> &'static str {
+    match quest - level {
+        d if d >= 5 => "red",
+        d if d >= 3 => "orange",
+        d if d >= -2 => "yellow",
+        _ if quest > crate::xp::Rules::gray_level(level) => "green",
+        _ => "grey",
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -82,6 +100,9 @@ pub struct ObjectiveAt {
     /// The quest's name, and what the objective's step says.
     pub name: String,
     pub text: String,
+    /// Done in a dungeon run (its area ID and name): its place is the entrance, a run adds it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dungeon: Option<(i64, String)>,
     pub places: Vec<PlaceAt>,
 }
 
@@ -216,7 +237,7 @@ impl Editor {
         if request.superseded() {
             return None;
         }
-        Some(self.suggestions_at(&planner, &s, &edits, names))
+        Some(self.suggestions_at(&planner, &s, &edits, before, names))
     }
 
     fn suggestions_at(
@@ -224,9 +245,23 @@ impl Editor {
         planner: &crate::plan::Planner<'_>,
         s: &State,
         edits: &[Edit],
+        before: usize,
         names: &Names,
     ) -> Suggestions {
         let model = &self.prepared.model;
+        // The dungeons run from then on: their quests' objectives are done there.
+        let dungeons: HashSet<u32> = edits[before.min(edits.len())..]
+            .iter()
+            .filter_map(|e| match e {
+                Edit::Stop { stop, .. } if stop.kind == Kind::Dungeon => Some(stop.index),
+                _ => None,
+            })
+            .collect();
+        let dungeon_name = |d: usize| {
+            names
+                .get("zone", model.dungeons[d].area, &model.dungeons[d].name)
+                .to_owned()
+        };
         let planned = |kind: Kind| -> HashSet<u32> {
             edits
                 .iter()
@@ -237,7 +272,6 @@ impl Editor {
                 .collect()
         };
         let (accepts, turn_ins) = (planned(Kind::Accept), planned(Kind::TurnIn));
-        let dungeons: HashSet<u32> = planned(Kind::Dungeon);
         let objectives: HashSet<(u32, u8)> = edits
             .iter()
             .filter_map(|e| match e {
@@ -276,17 +310,18 @@ impl Editor {
                 for (k, o) in q.objectives.iter().enumerate() {
                     let k8 = k as u8;
                     let in_run = o.dungeon.is_some_and(|d| dungeons.contains(&(d as u32)));
-                    if s.objectives[i] & (1 << k) == 0
-                        && o.dungeon.is_none()
-                        && !in_run
-                        && !objectives.contains(&(n, k8))
-                    {
+                    let allowed = o.dungeon.is_none_or(|d| availability.dungeon_allowed(d));
+                    if s.objectives[i] & (1 << k) == 0 && allowed && !in_run && !objectives.contains(&(n, k8)) {
                         out.objectives.push(ObjectiveAt {
                             quest: q.id,
                             objective: k8,
                             name: name(),
                             text: crate::export::objective_text(o, names),
-                            places: o.places().map(|p| place(&p.loc)).collect(),
+                            dungeon: o.dungeon.map(|d| (model.dungeons[d].area, dungeon_name(d))),
+                            places: match o.dungeon {
+                                Some(d) => vec![place(&model.dungeons[d].entrance)],
+                                None => o.places().map(|p| place(&p.loc)).collect(),
+                            },
                         });
                     }
                 }
@@ -295,6 +330,8 @@ impl Editor {
                         quest: q.id,
                         name: name(),
                         level: q.level,
+                        difficulty: difficulty(q.level, s.level),
+                        dungeon: None,
                         places: q.ends.iter().map(place).collect(),
                     });
                 }
@@ -315,6 +352,8 @@ impl Editor {
                         quest: q.id,
                         name: name(),
                         level: q.level,
+                        difficulty: difficulty(q.level, s.level),
+                        dungeon: q.objectives.iter().find_map(|o| o.dungeon).map(dungeon_name),
                         places: givers,
                     });
                 }
