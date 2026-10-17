@@ -287,3 +287,8 @@ reason = "Legacy Reward: Replica Ironforge Air Rifle: a Legacy reward, independe
 check = "chain-order"
 key = "quest 96383"
 reason = "Legacy Reward: Spectral Bear Cub: a Legacy reward, independent of the innkeeper's other rewards"
+
+[[accept]]
+check = "chain-order"
+key = "quest 97225"
+reason = "Forgotten Loa Idols: offered by Master Vornal to a level 5 character who had not done Lost in the Shadows (seen in game)"
