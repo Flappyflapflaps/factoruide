@@ -49,6 +49,8 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - WoW Forever: the dwarf shaman's Call of Water, the night elf hunter's Taming the Beast and the Skyborne and tauren druids' To Thunder Bluff and To Darnassus are back in their guides.
 - TBC: the human and dwarf paladin's Tome of Divinity and Tome of Valor, the draenei shaman's Call of Fire and the Horde rogue's Hinott's Assistance (Poisons) are back in their guides.
 - WoW Forever: Beer Basted Boar Ribs is offered without Cooking, as in game.
+- WoW Forever: Secure the Mountain (Dun Morogh) is back in Alliance guides: Mountaineer Cornelius is found in the Grizzled Den.
+- Quests whose place was unknown are back with the rest of their chain: Overmaster Pyron, Glyph Chasing, Jail Break!, Elemental Bracers (Classic); WoW Forever: Testing the Wells, From the Ashes, Accessories of the Lost, Key to the City, Bloom of the Heavens, Blackrock Blockade, Vengeful Trail; TBC: Ar'tor's Charge, Nat's Bargain, Imbuing the Headpiece.
 - Data refreshed (Questie, AllTheThings, Wowhead) with the players' latest contributions.
 - WoW Forever: game data read again from the latest client update (1.60.1.70425).
 

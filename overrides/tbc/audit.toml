@@ -1,0 +1,6 @@
+# Findings of `fg audit` known to be right on TBC only (see ../audit.toml).
+
+[[accept]]
+check = "broken-chains"
+key = "quest 64141"
+reason = "A Gesture of Commitment needs Arcanite Bars, transmuted by alchemists (auction house)"

@@ -39,3 +39,13 @@ reason = "Scourge: Undead Menace or Misunderstood?: a library book (Season of Di
 check = "other-class-quests"
 key = "quest 84402"
 reason = "Necromancy 101: a library book (Season of Discovery's mage quest), any class in Forever, turned in to a mage trainer"
+
+[[accept]]
+check = "broken-chains"
+key = "quest 92749"
+reason = "A Dynamite Plan needs Coarse Dynamite, made by engineers (auction house)"
+
+[[accept]]
+check = "broken-chains"
+key = "quest 92743"
+reason = "A Conqueror's Crown: where the Conqueror's Helm comes from (Badlands) is known to no source yet, to check in game"

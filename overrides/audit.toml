@@ -227,3 +227,48 @@ reason = "Sparring Match: for those who are not warriors, given by a warrior tra
 check = "other-class-quests"
 key = "quest 99158"
 reason = "Dawn in the Mountains: any class of the Alliance, given by a priest trainer"
+
+[[accept]]
+check = "broken-chains"
+key = "quest 50"
+reason = "Sweet Amber needs a Truesilver Bar, smelted by miners (auction house)"
+
+[[accept]]
+check = "broken-chains"
+key = "quest 515"
+reason = "Elixir of Agony needs a Strong Troll's Blood Potion, made by alchemists (auction house)"
+
+[[accept]]
+check = "broken-chains"
+key = "quest 713"
+reason = "Coolant Heads Prevail needs Frost Oil, made by alchemists (auction house)"
+
+[[accept]]
+check = "broken-chains"
+key = "quest 1073"
+reason = "Ineptitude + Chemicals = Fun needs Minor Mana Potions and Elixirs of Minor Fortitude, made by alchemists (auction house)"
+
+[[accept]]
+check = "broken-chains"
+key = "quest 1838"
+reason = "Brutal Armor needs Iron Bars, smelted by miners (auction house)"
+
+[[accept]]
+check = "broken-chains"
+key = "quest 5247"
+reason = "Fragments of the Past needs an Enchanted Thorium Bar, made by enchanters, and Crystal Restores from a repeatable Un'Goro quest (auction house)"
+
+[[accept]]
+check = "broken-chains"
+key = "quest 6026"
+reason = "That's Asking A Lot needs Thorium Bars and a Golden Rod from blacksmiths, Hi-Explosive Bombs and Unstable Triggers from engineers (auction house)"
+
+[[accept]]
+check = "broken-chains"
+key = "quest 8921"
+reason = "The Ectoplasmic Distiller needs a Delicate Arcanite Converter (engineers), Stonescale Oil (alchemists) and Greater Eternal Essences (enchanters)"
+
+[[accept]]
+check = "broken-chains"
+key = "quest 571"
+reason = "Mok'thardin's Enchantment: the Aged Gorilla Sinew drops at 1.6% in the data, below the 3% the planner farms for"
