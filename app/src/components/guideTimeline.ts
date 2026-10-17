@@ -126,7 +126,7 @@ const TRAVEL_START = 600;
  * A card's title: the NPC of all its steps; for objectives only, what they target (mobs,
  * items, objects); else the named place, else its zone.
  */
-export function cardTitle(card: Card, steps: Step[], timeline: Timeline | null): string {
+export function cardTitle(card: Card, steps: Step[], spans: Spans): string {
   const list = steps.slice(card.first, card.last + 1).filter((s) => !isCheckpoint(s));
   const first = list[0] ?? steps[card.first];
   if (card.travel) return first.target?.name ?? first.text;
@@ -136,17 +136,21 @@ export function cardTitle(card: Card, steps: Step[], timeline: Timeline | null):
     const targets = [...new Set(list.map((s) => s.mobs?.[0] ?? s.target?.name).filter(Boolean))];
     if (targets.length) return targets.slice(0, 2).join(" · ");
   }
-  const place = timeline?.steps[card.first]?.place;
+  const place = spans?.[card.first]?.place;
   if (place) return place;
   return first.target?.name ?? first.zone ?? first.text;
 }
 
+/** The timeline of each step shown (none: not replayed yet), or none at all while the replay loads. */
+export type Spans = (TimelineStep | undefined)[] | null;
+
 /** Seconds of travel, combat, interaction and waiting of steps `first..=last`. */
-export function splitOf(timeline: Timeline | null, first: number, last: number) {
+export function splitOf(spans: Spans, first: number, last: number) {
   const out = { travel: 0, combat: 0, interact: 0, wait: 0 };
-  if (!timeline) return out;
+  if (!spans) return out;
   for (let i = first; i <= last; i++) {
-    const s = timeline.steps[i];
+    const s = spans[i];
+    if (!s) continue;
     out.travel += s.travel ?? 0;
     out.combat += s.combat ?? 0;
     out.interact += s.interact ?? 0;

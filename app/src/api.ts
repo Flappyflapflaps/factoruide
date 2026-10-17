@@ -445,8 +445,16 @@ export const api = {
   setAutoContribute: (on: boolean) => invoke<void>("set_auto_contribute", { on }),
   /** Opens a version in the guide editor (`locale`: language of the lines and names shown). */
   editOpen: (guide: string, version: number, locale: string) => invoke<EditOpened>("edit_open", { guide, version, locale }),
-  /** Replays the steps of the guide open in the editor. */
-  editSimulate: (steps: RouteStep[], locale: string) => invoke<EditReport>("edit_simulate", { steps, locale }),
+  /**
+   * Replays the steps of the guide open in the editor: its report, a line per step and their
+   * timeline. The replay under way gives up for this one (it rejects with "superseded").
+   */
+  editSimulate: (steps: RouteStep[], locale: string) => invoke<EditView>("edit_simulate", { steps, locale }),
+  /**
+   * What could be added to the steps after step `after` (null: before the first): quests not
+   * taken, objectives and turn-ins forgotten. Gives up for a newer replay or suggestion ("superseded").
+   */
+  editSuggest: (steps: RouteStep[], after: number | null, locale: string) => invoke<Suggestions>("edit_suggest", { steps, after, locale }),
   /** Saves the edited steps as a new version (rejected while a step is not possible) and closes the editor. */
   editSave: (steps: RouteStep[]) => invoke<VersionMeta>("edit_save", { steps }),
   /** Leaves the editor without saving. */
@@ -730,15 +738,49 @@ export interface EditCatalog {
   trainers: CatalogPlace[];
   nodes: CatalogPlace[];
   dungeons: { id: number; name: string; min_level: number; max_level: number }[];
+  /** Boats, zeppelins, trams and portals, each one way, with the zones they go from and to. */
+  links: { link: LinkRef; from: string; to: string }[];
   /** The character learns Astral Recall. */
   recall: boolean;
+}
+
+/** A draft replayed: its report (without lines), a line per step (as the guide writes it; those not done have one of their kind, without place), their timeline. */
+export interface EditView {
+  report: EditReport;
+  lines: Step[];
+  timeline: Timeline;
+}
+
+/** A place of the world and who or what stands there. */
+export interface PlaceAt {
+  at: WorldPoint;
+  name: string;
+}
+
+/** A quest and its places (givers, or where it is turned in). */
+export interface QuestAt {
+  quest: number;
+  name: string;
+  level: number;
+  places: PlaceAt[];
+}
+
+/** What could be added after a step of a draft. */
+export interface Suggestions {
+  /** Quests the draft never takes that the character can take then, the nearest first. */
+  untaken: QuestAt[];
+  /** Objectives of quests in the log the draft does not do; the index of a place is its spot. */
+  objectives: { quest: number; objective: number; name: string; text: string; places: PlaceAt[] }[];
+  /** Quests in the log, their objectives done, that the draft does not turn in. */
+  turn_ins: QuestAt[];
 }
 
 export interface EditOpened {
   steps: RouteStep[];
   /** Read back from the guide's steps (computed before the editor): the time may differ a little. */
   rebuilt: boolean;
-  report: EditReport;
+  /** The steps replayed. */
+  view: EditView;
   catalog: EditCatalog;
 }
 

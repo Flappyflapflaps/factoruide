@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Leg, MapInfo, Step, WorldPoint } from "../api";
+import type { Leg, MapInfo, RouteStep, Step, Suggestions, WorldPoint } from "../api";
 import { useAreaName, useT } from "../i18n";
 import { type Card, type Moves, positionAt } from "./guideTimeline";
 import type { Clock } from "./playback";
@@ -35,6 +35,21 @@ interface Props {
   onSelect: (card: number) => void;
   /** The line over the map (what the character is doing). */
   status?: ReactNode;
+  /** Editing: what could be added where the guide is watched (quests not taken, objectives and
+   * turn-ins forgotten), and adding one of them there. */
+  suggestions?: Suggestions | null;
+  onPick?: (step: RouteStep) => void;
+}
+
+/** A place of a suggestion on the map: its kind, what it says, the step it adds. */
+interface Offer {
+  key: string;
+  x: number;
+  y: number;
+  kind: "untaken" | "objective" | "turn-in";
+  glyph: string;
+  label: string;
+  step: RouteStep;
 }
 
 /** Continents (game maps), west to east. */
@@ -99,7 +114,7 @@ function markerKind(steps: Step[], card: Card): { kind: string; glyph: string } 
 }
 
 /** The guide on the game's map of a continent, big: the route, the steps, the character moving along it. */
-export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zone, clock, follow, onFollow, layers, onLayers, onSelect, status }: Props) {
+export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zone, clock, follow, onFollow, layers, onLayers, onSelect, status, suggestions, onPick }: Props) {
   const t = useT();
   const areaName = useAreaName();
   const [index, setIndex] = useState<MapInfo[] | null>(null);
@@ -320,6 +335,32 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     return out.sort((a, b) => Number(a.near) - Number(b.near) || Number(a.n === current) - Number(b.n === current));
   }, [project, layers.markers, zone, cards, continent, steps, current]);
 
+  // Editing: the quests not taken ("!"), the objectives forgotten (red) and the turn-ins
+  // forgotten ("?" in red) on this continent.
+  const offers = useMemo(() => {
+    if (!project || !suggestions || !onPick) return [];
+    const out: Offer[] = [];
+    const on = (p: WorldPoint) => p[0] === continent;
+    for (const q of suggestions.untaken)
+      q.places.filter((p) => on(p.at)).forEach((p, k) => {
+        const [x, y] = project(p.at[1], p.at[2]);
+        out.push({ key: `u${q.quest}/${k}`, x, y, kind: "untaken", glyph: "!", label: `${q.name} · ${p.name}`, step: { kind: "accept", quest: q.quest } });
+      });
+    for (const o of suggestions.objectives)
+      o.places.forEach((p, spot) => {
+        if (!on(p.at)) return;
+        const [x, y] = project(p.at[1], p.at[2]);
+        out.push({ key: `o${o.quest}/${o.objective}/${spot}`, x, y, kind: "objective", glyph: "✕", label: `${o.text} · ${o.name}`, step: { kind: "objective", quest: o.quest, objective: o.objective, spot } });
+      });
+    for (const q of suggestions.turn_ins)
+      q.places.filter((p) => on(p.at)).forEach((p, k) => {
+        const [x, y] = project(p.at[1], p.at[2]);
+        out.push({ key: `t${q.quest}/${k}`, x, y, kind: "turn-in", glyph: "?", label: `${q.name} · ${p.name}`, step: { kind: "turn_in", quest: q.quest } });
+      });
+    return out;
+  }, [project, suggestions, onPick, continent]);
+  const [offered, setOffered] = useState<string | null>(null);
+
   const routeLayer = (d: { walk: string; flight: string; link: string; jump: string } | null, cls: string) =>
     d && (
       <g className={cls}>
@@ -447,6 +488,26 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
                     <text dominantBaseline="central">
                       {m.n + 1}. {titles[m.n]}
                     </text>
+                  </g>
+                )}
+              </g>
+            ))}
+            {offers.map((o) => (
+              <g
+                key={o.key}
+                className={`gm-offer gm-${o.kind}`}
+                transform={`translate(${o.x} ${o.y}) scale(${s})`}
+                onClick={() => !drag.current?.moved && onPick?.(o.step)}
+                onPointerEnter={() => setOffered(o.key)}
+                onPointerLeave={() => setOffered((k) => (k === o.key ? null : k))}
+              >
+                <circle r={9} />
+                <text textAnchor="middle" dominantBaseline="central">
+                  {o.glyph}
+                </text>
+                {offered === o.key && (
+                  <g className="gm-label" transform="translate(16 0)">
+                    <text dominantBaseline="central">{o.label}</text>
                   </g>
                 )}
               </g>

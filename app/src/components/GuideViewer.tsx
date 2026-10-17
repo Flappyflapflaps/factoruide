@@ -1,82 +1,121 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { api, type GuideVersion, type QuestInfo, type Timeline } from "../api";
-import { gameLocale, useLang, useT } from "../i18n";
+import type { EditCatalog, PlanRequest, QuestInfo, Route, RouteStep, Suggestions, Timeline } from "../api";
+import { useT } from "../i18n";
+import { AddMenu } from "./AddMenu";
 import { CharacterPanel } from "./CharacterPanel";
+import type { useNames } from "./editing";
 import { DEFAULT_LAYERS, GuideMap, type MapLayers } from "./GuideMap";
-import { activityAt, buildCards, type Card, cardOf, cardTitle, positionAt, stateTracker, stepAt, straightMoves, travelEnds } from "./guideTimeline";
+import { activityAt, buildCards, cardOf, cardTitle, positionAt, stateTracker, stepAt, stepStart, straightMoves, travelEnds } from "./guideTimeline";
 import { PlaybackBar } from "./PlaybackBar";
 import { Clock, useClock } from "./playback";
 import { segments } from "./segments";
-import { StepList } from "./StepList";
+import { type ListEdit, StepList } from "./StepList";
 
 const LAYERS_KEY = "factoruide.mapLayers";
 
+/** Editing the guide on its page: the list's changes, what can be added, and adding it. */
+export interface ViewerEdit {
+  list: Omit<ListEdit, "onAdd">;
+  catalog: EditCatalog;
+  names: ReturnType<typeof useNames>;
+  /** What could be added where the guide is watched, and asking for it after a step (null: before the first). */
+  suggestions: Suggestions | null;
+  onSuggestAt: (after: number | null) => void;
+  /** Add a step after step `after` (-1: first). */
+  onInsert: (after: number, step: RouteStep) => void;
+}
+
 interface Props {
-  version: GuideVersion;
-  /** Edit the guide's steps by hand. */
+  /** The steps the list shows: the guide's, or a draft's lines. */
+  route: Route;
+  /** What is played (the map, the character, the time): the same, or the last replay of a draft changed since. */
+  played?: Route;
+  /** The timeline of `played` (null while it loads), and why it is not there. */
+  timeline: Timeline | null;
+  failed?: string | null;
+  request: PlanRequest;
+  /** The keys of the lines shown and of those played (a step of a draft keeps its key when it moves). */
+  keys?: { shown: number[]; played: number[] };
+  /** Edit the guide's steps (read only). */
   onEditSteps?: () => void;
   /** Steps checked for a problem report (indexes), and checking those of a card (a box on each card when given). */
   checked?: Set<number>;
   onCheck?: (steps: number[]) => void;
+  /** Editing the steps. */
+  edit?: ViewerEdit;
+  /** A step to show (its card chosen); `n` changes to show it again. */
+  reveal?: { step: number; n: number };
+  /** A replay under way (a draft's): a spinner in the status line. */
+  computing?: boolean;
+}
+
+/** The last step played at or before `p` that the list shows, by keys. */
+function shownOf(keys: Props["keys"], shown: Map<number, number> | null, p: number) {
+  if (!keys || !shown) return p;
+  for (let q = Math.min(p, keys.played.length - 1); q >= 0; q--) {
+    const i = shown.get(keys.played[q]);
+    if (i != null) return i;
+  }
+  return 0;
 }
 
 /**
  * A guide watched as it is played: its steps by place on the left, the map in the middle with
  * the character moving along the route, the character's state on the right, and the time at
- * the bottom. The steps, the map and the time follow each other.
+ * the bottom. The steps, the map and the time follow each other. Editing, the steps are moved,
+ * removed and added in the list and from the map, the guide replayed in the background.
  */
-export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
+export function GuideViewer({ route, played, timeline, failed, request, keys, onEditSteps, checked, onCheck, edit, reveal, computing }: Props) {
   const t = useT();
-  const lang = useLang();
-  const { meta, outcome } = version;
-  const route = outcome.route;
+  const play = played ?? route;
   const steps = route.steps;
 
-  // The replay comes a little after the guide: straight lines between its steps meanwhile.
-  const [timeline, setTimeline] = useState<Timeline | null>(null);
-  const [failed, setFailed] = useState<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    api
-      .guideTimeline(meta.guide, meta.version, gameLocale(lang))
-      .then((tl) => live && setTimeline(tl))
-      .catch((e) => live && setFailed(String(e)));
-    return () => {
-      live = false;
-    };
-  }, [meta.guide, meta.version, lang]);
+  // Steps shown and played by key (the same steps but while a draft replays).
+  const [shownByKey, playedByKey] = useMemo(
+    () => (keys ? [new Map(keys.shown.map((k, i) => [k, i])), new Map(keys.played.map((k, i) => [k, i]))] : [null, null]),
+    [keys],
+  );
+  const toPlay = useCallback((i: number) => (keys && playedByKey ? playedByKey.get(keys.shown[i]) : i), [keys, playedByKey]);
+  const toShown = useCallback((p: number) => shownOf(keys, shownByKey, p), [keys, shownByKey]);
 
+  const spans = useMemo(() => (timeline ? steps.map((_, i) => timeline.steps[toPlay(i) ?? -1]) : null), [timeline, steps, toPlay]);
   const cards = useMemo(() => buildCards(steps, route.from_level), [steps, route.from_level]);
-  const titles = useMemo(() => cards.map((c) => cardTitle(c, steps, timeline)), [cards, steps, timeline]);
+  const titles = useMemo(() => cards.map((c) => cardTitle(c, steps, spans)), [cards, steps, spans]);
   const segs = useMemo(() => segments(steps), [steps]);
   const quests = useMemo(() => new Map((timeline?.quests ?? []).map((q) => [q.id, q])), [timeline]);
-  const moves = useMemo(() => (timeline ? { start: timeline.start.at, legs: timeline.legs } : straightMoves(steps)), [timeline, steps]);
+  const moves = useMemo(() => (timeline ? { start: timeline.start.at, legs: timeline.legs } : straightMoves(play.steps)), [timeline, play]);
   const tracker = useMemo(() => (timeline ? stateTracker(timeline) : null), [timeline]);
-  const clock = useMemo(() => new Clock(route.total_time), [route]);
+  // One clock for the page: the time stays where it is when a draft's replay comes.
+  const [clock] = useState(() => new Clock(play.total_time));
+  useEffect(() => {
+    clock.total = play.total_time;
+    if (clock.time > clock.total) clock.seek(clock.total);
+  }, [clock, play.total_time]);
   useEffect(() => () => clock.dispose(), [clock]);
 
-  // The step under way: the one of the time (a flight or a boat still the step that takes it),
-  // within the card chosen while the time is in it (steps of no time at its start belong to
-  // it, not to the card before).
-  const pinned = useRef<number | null>(null);
-  const travels = useMemo(() => travelEnds(steps, moves.legs), [steps, moves]);
+  // The step played: the one of the time (a flight or a boat still the step that takes it),
+  // within the steps of the card chosen while the time is in it (steps of no time at its start
+  // belong to it, not to the card before).
+  const pinned = useRef<{ first: number; last: number; start: number; end: number } | null>(null);
+  const travels = useMemo(() => travelEnds(play.steps, moves.legs), [play, moves]);
   const stepOf = useCallback(
     (time: number) => {
-      const i = stepAt(steps, time);
+      const i = stepAt(play.steps, time);
       const p = pinned.current;
-      if (p != null && cards[p] && time >= cards[p].start && time <= cards[p].end) return Math.min(Math.max(i, cards[p].first), cards[p].last);
+      if (p && time >= p.start && time <= p.end) return Math.min(Math.max(i, p.first), p.last);
       return i > 0 && (travels.get(i - 1) ?? -1) > time ? i - 1 : i;
     },
-    [steps, cards, travels],
+    [play, travels],
   );
   const step = useClock(
     clock,
     useCallback((c: Clock) => stepOf(c.time), [stepOf]),
   );
-  const card = cardOf(cards, step);
+  const shownStep = toShown(step);
+  const card = cardOf(cards, shownStep);
   const seg = Math.max(
     0,
-    segs.findIndex((s) => s.first <= step && step <= s.last),
+    segs.findIndex((s) => s.first <= shownStep && shownStep <= s.last),
   );
   const zone = useMemo<[number, number]>(() => (segs[seg] ? [cardOf(cards, segs[seg].first), cardOf(cards, segs[seg].last)] : [0, 0]), [segs, seg, cards]);
   const state = useMemo(() => (tracker ? tracker(step - 1) : null), [tracker, step]);
@@ -95,11 +134,27 @@ export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
     (n: number) => {
       const c = cards[Math.min(cards.length - 1, Math.max(0, n))];
       if (!c) return;
-      pinned.current = c.n;
-      clock.seek(c.start);
+      const at: number[] = [];
+      for (let i = c.first; i <= c.last; i++) {
+        const p = toPlay(i);
+        if (p != null) at.push(p);
+      }
+      if (!at.length) return;
+      const [first, last] = [Math.min(...at), Math.max(...at)];
+      const start = stepStart(play.steps, first);
+      pinned.current = { first, last, start, end: play.steps[last].time };
+      clock.seek(start);
     },
-    [cards, clock],
+    [cards, clock, play, toPlay],
   );
+  // Shown on demand (the first impossible step).
+  useEffect(() => {
+    if (reveal) select(cardOf(cards, reveal.step));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal?.n]);
+  // Editing: what could be added where the guide is watched.
+  const suggestAt = edit?.onSuggestAt;
+  useEffect(() => suggestAt?.(steps.length ? shownStep : null), [suggestAt, shownStep, steps.length]);
 
   const [follow, setFollow] = useState(true);
   const [layers, setLayers] = useState<MapLayers>(() => {
@@ -153,10 +208,18 @@ export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
     return new Set(cards.filter((c) => checked.has(c.first)).map((c) => c.n));
   }, [checked, cards]);
 
+  // Adding a step: the menu beside the line it comes after.
+  const [adding, setAdding] = useState<{ at: number; anchor: { x: number; y: number } } | null>(null);
+  const closeAdding = useCallback(() => setAdding(null), []);
+  const openAdding = useCallback((at: number, anchor: { x: number; y: number }) => setAdding({ at, anchor }), []);
+  const listEdit = useMemo<ListEdit | undefined>(() => edit && { ...edit.list, onAdd: openAdding }, [edit, openAdding]);
+  const titleOf = useCallback((p: number) => titles[cardOf(cards, toShown(p))] ?? "", [titles, cards, toShown]);
+
   const status = (
     <>
+      {computing && <span className="spinner" role="status" aria-label={t("Le guide est rejoué…")} title={t("Le guide est rejoué…")} />}
       {timeline ? (
-        <Activity clock={clock} stepOf={stepOf} version={version} timeline={timeline} quests={quests} cards={cards} titles={titles} />
+        <Activity clock={clock} stepOf={stepOf} route={play} timeline={timeline} quests={quests} titleOf={titleOf} />
       ) : (
         <span className="muted">{failed ? t("Replay indisponible : {error}", { error: failed }) : t("Chargement du replay…")}</span>
       )}
@@ -169,18 +232,19 @@ export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
   );
 
   return (
-    <div className="guide-viewer" ref={root} style={{ height }} onKeyDown={onKeyDown} tabIndex={-1}>
+    <div className={`guide-viewer${edit ? " editing" : ""}`} ref={root} style={{ height }} onKeyDown={onKeyDown} tabIndex={-1}>
       <StepList
         steps={steps}
         cards={cards}
         titles={titles}
         segments={segs}
-        timeline={timeline}
+        spans={spans}
         quests={quests}
         current={card}
         onSelect={select}
         checked={checkedCards}
         onCheck={onCheck && ((n) => onCheck(Array.from({ length: cards[n].last - cards[n].first + 1 }, (_, k) => cards[n].first + k)))}
+        edit={listEdit}
       />
       <GuideMap
         steps={steps}
@@ -188,7 +252,7 @@ export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
         cards={cards}
         titles={titles}
         current={card}
-        currentEnd={Math.max(cards[card]?.end ?? 0, travels.get(cards[card]?.last ?? -1) ?? 0)}
+        currentEnd={Math.max(cards[card]?.end ?? 0, travels.get(step) ?? 0)}
         zone={zone}
         clock={clock}
         follow={follow}
@@ -197,10 +261,12 @@ export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
         onLayers={changeLayers}
         onSelect={select}
         status={status}
+        suggestions={edit?.suggestions ?? null}
+        onPick={edit && ((s) => edit.onInsert(shownStep, s))}
       />
       <CharacterPanel
-        route={route}
-        request={version.request}
+        route={play}
+        request={request}
         timeline={timeline}
         quests={quests}
         state={state}
@@ -211,6 +277,21 @@ export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
         moving={moving}
       />
       <PlaybackBar clock={clock} segments={segs} current={seg} onStep={(d) => select(card + d)} />
+      {edit && adding && (
+        <AddMenu
+          at={adding.at}
+          anchor={adding.anchor}
+          level={steps[adding.at]?.level ?? route.from_level}
+          steps={edit.list.steps}
+          catalog={edit.catalog}
+          names={edit.names}
+          onAdd={(s) => {
+            edit.onInsert(adding.at, s);
+            setAdding(null);
+          }}
+          onClose={closeAdding}
+        />
+      )}
     </div>
   );
 }
@@ -219,19 +300,18 @@ export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
 function Activity({
   clock,
   stepOf,
-  version,
+  route,
   timeline,
   quests,
-  cards,
-  titles,
+  titleOf,
 }: {
   clock: Clock;
   stepOf: (time: number) => number;
-  version: GuideVersion;
+  route: Route;
   timeline: Timeline;
   quests: Map<number, QuestInfo>;
-  cards: Card[];
-  titles: string[];
+  /** The title of the card of a step played. */
+  titleOf: (step: number) => string;
 }) {
   const t = useT();
   const moves = useMemo(() => ({ start: timeline.start.at, legs: timeline.legs }), [timeline]);
@@ -241,10 +321,10 @@ function Activity({
       (c: Clock) => {
         const p = positionAt(moves, c.time);
         const i = stepOf(c.time);
-        const a = activityAt(version.outcome.route, timeline, quests, i, titles[cardOf(cards, i)], c.time, p.leg, p.moving);
+        const a = activityAt(route, timeline, quests, i, titleOf(i), c.time, p.leg, p.moving);
         return `${a.verb}\u0000${a.what}`;
       },
-      [moves, version, timeline, quests, stepOf, cards, titles],
+      [moves, route, timeline, quests, stepOf, titleOf],
     ),
   );
   const [verb, what] = text.split("\u0000");

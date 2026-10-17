@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
-import { api, fmtTime, type GuideSummary, type GuideVersion, type Options } from "../api";
+import { useEffect, useState } from "react";
+import { api, fmtTime, type GuideSummary, type GuideVersion, type Options, type Timeline, type VersionMeta } from "../api";
 import { Character } from "./Character";
+import { EditBar, useEditedView } from "./EditMode";
 import { GuideViewer } from "./GuideViewer";
+import { useDraft } from "./useDraft";
 import { fmtGain } from "./OptimizeProgress";
 import { RouteSummary } from "./RouteSummary";
 import { StepTable } from "./StepTable";
-import { useDate, useT } from "../i18n";
+import { gameLocale, useDate, useLang, useT } from "../i18n";
 import { Icon } from "./Icons";
 import { IssueForm } from "./IssueForm";
 
@@ -17,14 +19,26 @@ interface Props {
   onEdit: (version: GuideVersion) => void;
   /** A new guide from the same configuration (under another name). */
   onClone?: (version: GuideVersion) => void;
-  /** Edit the guide's steps by hand (a new version once saved). */
-  onEditSteps?: (version: GuideVersion) => void;
+  /** The guide's steps edited by hand were saved: this new version. */
+  onSaved?: (meta: VersionMeta) => void;
+  /** The steps are edited and not saved: leaving the page asks first. */
+  onUnsaved?: (unsaved: boolean) => void;
   /** Show another version of the guide. */
   onOpenVersion?: (n: number) => void;
   /** Compare two versions of the guide (`a` the older one). */
   onCompare?: (a: number, b: number) => void;
   /** Options of the game version (race names and factions), when loaded. */
   options?: Options | null;
+  /** Open with its steps edited (not read only). */
+  editing?: boolean;
+}
+
+/** Read a guide and its versions into `set` (null when it cannot be read). */
+function fetchGuide(id: string, set: (guide: GuideSummary | null) => void) {
+  api
+    .getGuide(id)
+    .then(set)
+    .catch(() => set(null));
 }
 
 /** Time difference as "identique", "−3 min" (faster) or "+1h02" (slower). */
@@ -35,11 +49,56 @@ export function Delta({ seconds }: { seconds: number }) {
 }
 
 /** A guide version: watched on its map (steps, character, time), its figures and versions, and what to do with it. */
-export function ResultView({ version, onRerun, onEdit, onClone, onEditSteps, onOpenVersion, onCompare, options }: Props) {
+export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsaved, onOpenVersion, onCompare, options, editing }: Props) {
   const t = useT();
   const date = useDate();
+  const lang = useLang();
   const { meta, outcome } = version;
   const route = outcome.route;
+  // The guide played back: its replay comes a little after it (straight lines meanwhile).
+  const [timeline, setTimeline] = useState<Timeline | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    api
+      .guideTimeline(meta.guide, meta.version, gameLocale(lang))
+      .then((tl) => live && setTimeline(tl))
+      .catch((e) => live && setFailed(String(e)));
+    return () => {
+      live = false;
+    };
+  }, [meta.guide, meta.version, lang]);
+  // Read only, or its steps edited on the page (a draft, saved as a new version).
+  const [readOnly, setReadOnly] = useState(!editing);
+  const draft = useDraft(version, !readOnly);
+  const edited = useEditedView(version, draft);
+  const [saving, setSaving] = useState(false);
+  const [reveal, setReveal] = useState<{ step: number; n: number } | undefined>(undefined);
+  const unsaved = !readOnly && draft.changed;
+  useEffect(() => onUnsaved?.(unsaved), [unsaved, onUnsaved]);
+  useEffect(() => () => onUnsaved?.(false), [onUnsaved]);
+  const startEditing = () => {
+    setTab("map");
+    setReporting(false);
+    setReadOnly(false);
+  };
+  const stopEditing = () => {
+    if (draft.changed && !confirm(t("Quitter l'édition sans enregistrer ? Les modifications seront perdues."))) return;
+    setReadOnly(true);
+  };
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await draft.save();
+      onUnsaved?.(false);
+      onSaved?.(saved);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
   const [guide, setGuide] = useState<GuideSummary | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,10 +125,9 @@ export function ResultView({ version, onRerun, onEdit, onClone, onEditSteps, onO
       return next;
     });
 
-  const loadGuide = useCallback(() => {
-    api.getGuide(meta.guide).then(setGuide).catch(() => setGuide(null));
-  }, [meta.guide]);
-  useEffect(loadGuide, [loadGuide]);
+  // The guide and its versions, read again after each action.
+  useEffect(() => fetchGuide(meta.guide, setGuide), [meta.guide]);
+  const loadGuide = () => fetchGuide(meta.guide, setGuide);
 
   const act = async (action: () => Promise<string | void>) => {
     setError(null);
@@ -118,16 +176,15 @@ export function ResultView({ version, onRerun, onEdit, onClone, onEditSteps, onO
           <button className="icon-only" onClick={() => onEdit(version)} title={t("Modifier la configuration")} aria-label={t("Modifier la configuration")}>
             <Icon name="config" />
           </button>
-          {onEditSteps && (
-            <button
-              className="icon-only"
-              onClick={() => onEditSteps(version)}
-              title={`${t("Modifier les étapes")} : ${t("Déplacer, supprimer ou ajouter des étapes ; le guide est rejoué à chaque modification")}`}
-              aria-label={t("Modifier les étapes")}
-            >
-              <Icon name="steps" />
-            </button>
-          )}
+          <button
+            className={`icon-only${readOnly ? "" : " on"}`}
+            onClick={startEditing}
+            disabled={!readOnly}
+            title={`${t("Modifier les étapes")} : ${t("Déplacer, supprimer ou ajouter des étapes ; le guide est rejoué à chaque modification")}`}
+            aria-label={t("Modifier les étapes")}
+          >
+            <Icon name="steps" />
+          </button>
           {onClone && (
             <button className="icon-only" onClick={() => onClone(version)} title={`${t("Cloner")} : ${t("Nouveau guide à partir de la même configuration")}`} aria-label={t("Cloner")}>
               <Icon name="clone" />
@@ -144,13 +201,20 @@ export function ResultView({ version, onRerun, onEdit, onClone, onEditSteps, onO
           <button
             className="icon-only"
             onClick={() => setReporting(true)}
-            disabled={reporting}
+            disabled={reporting || !readOnly}
             title={`${t("Signaler un problème")} : ${t("Envoyer un signalement sur ce guide, avec les étapes concernées")}`}
             aria-label={t("Signaler un problème")}
           >
             <Icon name="report" />
           </button>
         </div>
+        <label className="read-only" title={t("Désactivé : les étapes se déplacent, s'ajoutent et se suppriment sur la carte et dans la liste")}>
+          <span className="switch">
+            <input type="checkbox" checked={readOnly} onChange={(e) => (e.target.checked ? stopEditing() : startEditing())} />
+            <span />
+          </span>
+          {t("Lecture seule")}
+        </label>
         <div className="view-tabs" role="tablist">
           <button role="tab" aria-selected={tab === "map"} className={tab === "map" ? "active" : ""} onClick={() => setTab("map")}>
             {t("Carte et étapes")}
@@ -176,14 +240,41 @@ export function ResultView({ version, onRerun, onEdit, onClone, onEditSteps, onO
       {message && <div className="success">{message}</div>}
       {error && <div className="error">{error}</div>}
 
-      {tab === "map" ? (
-        <GuideViewer
-          key={`${meta.guide}-${meta.version}`}
+      {!readOnly && (
+        <EditBar
           version={version}
-          onEditSteps={onEditSteps && (() => onEditSteps(version))}
-          checked={reporting ? reported : undefined}
-          onCheck={reporting ? toggleCard : undefined}
+          draft={draft}
+          saving={saving}
+          onSave={save}
+          onDiscard={stopEditing}
+          onReveal={(step) => setReveal((r) => ({ step, n: (r?.n ?? 0) + 1 }))}
         />
+      )}
+      {tab === "map" ? (
+        !readOnly && edited && draft.view ? (
+          <GuideViewer
+            key={`${meta.guide}-${meta.version}`}
+            route={edited.route}
+            played={edited.played}
+            keys={edited.keys}
+            timeline={draft.view.timeline}
+            request={version.request}
+            edit={edited.edit}
+            computing={draft.computing}
+            reveal={reveal}
+          />
+        ) : (
+          <GuideViewer
+            key={`${meta.guide}-${meta.version}`}
+            route={route}
+            timeline={timeline}
+            failed={failed}
+            request={version.request}
+            onEditSteps={readOnly ? startEditing : undefined}
+            checked={reporting ? reported : undefined}
+            onCheck={reporting ? toggleCard : undefined}
+          />
+        )
       ) : (
         <>
           <RouteSummary

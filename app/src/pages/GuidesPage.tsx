@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type GuideSummary, type GuideVersion, type Options, type VersionMeta } from "../api";
 import { Character } from "../components/Character";
 import { CompareView } from "../components/CompareView";
-import { GuideEditor } from "../components/GuideEditor";
 import { ResultView } from "../components/ResultView";
 import { gameLocale, useDate, useGameName, useLang, useT } from "../i18n";
 import { Icon } from "../components/Icons";
@@ -22,7 +21,7 @@ interface Props {
   onEdit: (version: GuideVersion) => void;
   /** A new guide from the same configuration (under another name). */
   onClone: (version: GuideVersion) => void;
-  /** The guide editor has changes not saved (see `GuideEditor`). */
+  /** The steps of the guide open are edited and not saved. */
   onUnsaved?: (unsaved: boolean) => void;
 }
 
@@ -43,8 +42,18 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
   // Column sorted by (none: the saved order), ascending or not.
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean } | null>(null);
   const [open, setOpen] = useState<GuideVersion | null>(null);
-  // The version open in the guide editor.
-  const [editing, setEditing] = useState<GuideVersion | null>(null);
+  // The guide open has its steps edited and not saved: leaving it asks first.
+  const unsaved = useRef(false);
+  const onEdited = useCallback(
+    (u: boolean) => {
+      unsaved.current = u;
+      onUnsaved?.(u);
+    },
+    [onUnsaved],
+  );
+  // The guide opens with its steps edited (from the list's button).
+  const [editOnOpen, setEditOnOpen] = useState(false);
+  const leave = () => !unsaved.current || confirm(t("Quitter l'édition sans enregistrer ? Les modifications seront perdues."));
   // Two versions of the open guide compared (from its page, back to it).
   const [comparing, setComparing] = useState<{ a: number; b: number } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -116,21 +125,6 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
     </th>
   );
 
-  if (editing) {
-    return (
-      <GuideEditor
-        version={editing}
-        onClose={() => setEditing(null)}
-        onChanged={onUnsaved}
-        onSaved={(meta) => {
-          setEditing(null);
-          setMessage(t("Guide modifié enregistré : version {n}", { n: meta.version }));
-          openVersion(meta.guide, meta.version);
-        }}
-      />
-    );
-  }
-
   if (open && comparing) {
     return (
       <div>
@@ -155,6 +149,8 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
         <button
           className="link"
           onClick={() => {
+            if (!leave()) return;
+            setEditOnOpen(false);
             setOpen(null);
             setMessage(null);
             setNotice(null);
@@ -172,9 +168,20 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
           onRerun={onRerun}
           onEdit={onEdit}
           onClone={onClone}
-          onEditSteps={setEditing}
-          onOpenVersion={(n) => openVersion(open.meta.guide, n)}
+          onUnsaved={onEdited}
+          editing={editOnOpen}
+          onSaved={(meta) => {
+            setEditOnOpen(false);
+            setMessage(t("Guide modifié enregistré : version {n}", { n: meta.version }));
+            openVersion(meta.guide, meta.version);
+          }}
+          onOpenVersion={(n) => {
+            if (!leave()) return;
+            setEditOnOpen(false);
+            openVersion(open.meta.guide, n);
+          }}
           onCompare={(a, b) => {
+            if (!leave()) return;
             // The versions made since the list was loaded.
             load();
             setComparing({ a, b });
@@ -285,7 +292,10 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
                   <button className="icon" title={t("Modifier la configuration")} aria-label={t("Modifier la configuration")} onClick={() => withVersion(g, onEdit)}>
                     <Icon name="config" />
                   </button>
-                  <button className="icon" title={t("Modifier les étapes")} aria-label={t("Modifier les étapes")} onClick={() => withVersion(g, setEditing)}>
+                  <button className="icon" title={t("Modifier les étapes")} aria-label={t("Modifier les étapes")} onClick={() => withVersion(g, (v) => {
+                        setEditOnOpen(true);
+                        setOpen(v);
+                      })}>
                     <Icon name="steps" />
                   </button>
                   <button className="icon" title={t("Nouveau guide à partir de la même configuration")} aria-label={t("Cloner")} onClick={() => withVersion(g, onClone)}>
