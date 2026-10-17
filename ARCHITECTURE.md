@@ -257,6 +257,13 @@ jumps) and what changes (quests taken and turned in, objectives done, flight pat
 inn bound, the hearthstone used). The guide's own times are kept: the replay only fills them in.
 The app (`GuideViewer`) rebuilds the character at any moment from those changes.
 
+The steps are edited on that page too (`job/draft.rs`): each change asks for a replay of the
+draft in the background, a newer request making the one under way give up between steps
+(`job::Requests`, checked by `Planner::edit_observed` and the walks' search), which answers
+with a line per step and their timeline. `Editor::suggest` tells what could be added after a
+step of the draft: the quests it never takes that the character can take there, and the
+objectives and turn-ins of the quests in its log that it forgets.
+
 A guide file carries its format (`format.rs`). Reading an older one migrates it one format after
 the other; a migration that cannot carry a guide over refuses it (to compute again), and a guide
 of a newer format asks to update the app. Format 1 (before phrases) keeps its texts as they were
