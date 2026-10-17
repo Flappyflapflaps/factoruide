@@ -142,7 +142,7 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     };
     const cities = all.flatMap((a) => {
       const around = all.find((b) => within(a, b));
-      return around && a.d ? [{ id: a.z.id, d: a.d, around }] : [];
+      return around && a.d ? [{ id: a.z.id, area: a.z.area, rect: a.rect, d: a.d, around }] : [];
     });
     return [all.filter((a) => !all.some((b) => within(a, b))), cities];
   }, [index, base, project]);
@@ -210,11 +210,11 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     placed.current = key;
     if (!follow) return fit();
     const area = steps[cards[current]?.first]?.zone_id;
-    const rect = zones.find((z) => z.z.area === area)?.rect;
+    const rect = zones.find((z) => z.z.area === area)?.rect ?? covers.find((c) => c.area === area)?.rect;
     const k = rect ? Math.min(size.w / rect.w, size.h / rect.h) * 0.95 : fitK * 6;
     center(positionAt(moves, clock.time).at, Math.min(fitK * MAX_ZOOM, k));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, project, size, zones]);
+  }, [base, project, size, zones, covers]);
 
   // At each moment: the character's dot, and the view following it.
   const cache = useRef(new Map());
