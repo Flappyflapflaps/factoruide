@@ -202,10 +202,11 @@ impl Planner<'_> {
         evaluated
     }
 
-    /// The best route found, with the pet quests early again, the quests never turned in dropped
-    /// and the stops after the target level cut. Dropping and cutting are kept only when they do
-    /// not make the route worse; moving a pet quest early may, by up to `class_power_slack` each
-    /// (on purpose: a pet or a form early is worth more to the player than the model says).
+    /// The best route found, with the pet quests early again, the quests never turned in dropped,
+    /// the stops after the target level cut and the dungeon quests without their run dropped.
+    /// Dropping unfinished quests and cutting are kept only when they do not make the route worse
+    /// (the dungeon quests go anyway); moving a pet quest early may, by up to `class_power_slack`
+    /// each (on purpose: a pet or a form early is worth more to the player than the model says).
     /// Its score is returned with it.
     fn clean_up(&self, search: Search) -> (Vec<Stop>, f64) {
         // Only the score and the stops done of each route are kept: the states of a run weigh
@@ -240,7 +241,39 @@ impl Planner<'_> {
         {
             (route, run) = (cut, done(r));
         }
+        if let Some(kept) = self.drop_dungeonless(&route) {
+            route = kept;
+            run = done(self.run(&route).expect("dropped route was valid"));
+        }
         (route, run.0)
+    }
+
+    /// The route without the dungeon quests it takes but whose dungeon it never runs (its run
+    /// cut past the target level, or never planned): they cannot be finished, so they go
+    /// whatever they save. Those another quest needs stay. None when there is nothing to remove.
+    pub(crate) fn drop_dungeonless(&self, route: &[Stop]) -> Option<Vec<Stop>> {
+        let runs: HashSet<u32> = (route.iter())
+            .filter(|s| s.kind == Kind::Dungeon)
+            .map(|s| s.index)
+            .collect();
+        let mut left: Vec<u32> = (route.iter())
+            .filter(|s| s.kind == Kind::Accept && !self.quest(s.index).mandatory)
+            .filter(|s| {
+                (self.quest(s.index).objectives.iter()).any(|o| o.dungeon.is_some_and(|d| !runs.contains(&(d as u32))))
+            })
+            .map(|s| s.index)
+            .collect();
+        left.dedup();
+        let (mut best, mut changed) = (route.to_vec(), false);
+        for q in left {
+            let candidate: Vec<Stop> = (best.iter().copied())
+                .filter(|s| !(s.is_quest() && s.index == q))
+                .collect();
+            if self.simulate(&candidate, None).is_some() {
+                (best, changed) = (candidate, true);
+            }
+        }
+        changed.then_some(best)
     }
 
     /// The run of `candidate`, built once the states of `run` (of `route`) are released: two
