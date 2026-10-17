@@ -77,10 +77,11 @@ impl Trips<'_> {
         self.world.walk_distance_at(a, b, self.danger_level(level)) * self.params.detour / self.params.speed(level)
     }
 
-    /// The level the danger of walks is counted at (0: it does not count).
+    /// The level the danger of walks is counted at (0: it does not count): the top of its band
+    /// of 5 levels, so that the walks remembered serve the whole band.
     pub(crate) fn danger_level(&self, level: i64) -> u8 {
         if self.params.danger_weight > 0.0 {
-            level.clamp(1, 255) as u8
+            ((level.clamp(1, 250) + 4) / 5 * 5) as u8
         } else {
             0
         }

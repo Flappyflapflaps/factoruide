@@ -156,8 +156,9 @@ pub struct Params {
     pub common_item_time: f64,
     /// Use off-road shortcuts (climbs, jumps) declared in `passes.toml`.
     pub shortcuts: bool,
-    /// How much walking near hostile mobs stronger than the character costs (0: not at all;
-    /// 1: a mob 3-4 levels above makes each yard near it count three).
+    /// How much walking near hostile mobs 4 levels or more above the character costs (0: not at
+    /// all; 1: each yard near a mob 4-5 levels above counts three, further above seven): walks
+    /// go round zones far too strong (Western Plaguelands at 20 on the way to Hillsbrad).
     pub danger_weight: f64,
     /// Average wait before boarding a boat, zeppelin or tram (seconds).
     pub link_wait: f64,
@@ -366,7 +367,7 @@ impl Default for Params {
             common_item_sources: 100,
             common_item_time: 60.0,
             shortcuts: true,
-            danger_weight: 0.0,
+            danger_weight: 1.0,
             link_wait: 120.0,
             elite_kill_factor: 3.0,
             approx_sources: false,

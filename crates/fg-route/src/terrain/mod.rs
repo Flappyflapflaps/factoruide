@@ -66,6 +66,10 @@ const WALKED: [u32; 2] = [10, 14];
 const SWUM: [u32; 2] = [15, 21];
 /// No danger counted this close to the ends of a walk (cells): the mobs of the quest are there.
 const DANGER_FREE: i32 = 6;
+/// Levels above the character a mob must be for walking near it to cost more: only the
+/// places too strong for the character (Western Plaguelands on a level 20's way to Hillsbrad),
+/// so the walks among mobs of its level keep the search and memory they had without danger.
+const DANGER_GAP: u8 = 4;
 /// Most a cell costs more for its danger (tenths of a cell).
 const DANGER_MAX: u32 = 400;
 /// Buckets of the path search's open cells: more than the largest rise of an estimate (the
@@ -300,13 +304,13 @@ impl Grid {
             .unwrap_or(0)
     }
 
-    /// Whether a mob of `level - 2` or more is in the tiles around the box of `a` and `b` grown
-    /// by `margin` cells: danger may count on a walk between them.
+    /// Whether a mob of `level + DANGER_GAP` or more is in the tiles around the box of `a` and
+    /// `b` grown by `margin` cells: danger may count on a walk between them.
     fn danger_near(&self, a: (i32, i32), b: (i32, i32), margin: i32, level: u8) -> bool {
         if self.danger_max.is_empty() {
             return false;
         }
-        let at_least = level.saturating_sub(2).max(1);
+        let at_least = level.saturating_add(DANGER_GAP);
         let tile_of = |v: i32, origin: i32| (v - origin).div_euclid(64);
         let rows = self.rows / 64;
         let cols = self.tile_cols as i32;
@@ -319,6 +323,31 @@ impl Grid {
             tile_of(a.1.max(b.1) + margin, self.c0).min(cols - 1),
         );
         (t0..=t1).any(|t| (u0..=u1).any(|u| self.danger_max[(t * cols + u) as usize] >= at_least))
+    }
+
+    /// Whether a mob of `level + DANGER_GAP` or more is in a tile a walk through `points` (its
+    /// turns, in order) crosses.
+    fn danger_on(&self, points: &[(i32, i32)], level: u8) -> bool {
+        if self.danger_max.is_empty() {
+            return false;
+        }
+        let at_least = level.saturating_add(DANGER_GAP);
+        let (rows, cols) = (self.rows / 64, self.tile_cols as i32);
+        let strong = |(r, c): (i32, i32)| {
+            let (t, u) = ((r - self.r0).div_euclid(64), (c - self.c0).div_euclid(64));
+            (0..rows).contains(&t) && (0..cols).contains(&u) && self.danger_max[(t * cols + u) as usize] >= at_least
+        };
+        points.windows(2).any(|w| {
+            let (a, b) = (w[0], w[1]);
+            let n = (a.0 - b.0).abs().max((a.1 - b.1).abs()).max(1) / 32 + 1;
+            (0..=n).any(|k| {
+                let t = f64::from(k) / f64::from(n);
+                strong((
+                    (f64::from(a.0) + t * f64::from(b.0 - a.0)).round() as i32,
+                    (f64::from(a.1) + t * f64::from(b.1 - a.1)).round() as i32,
+                ))
+            })
+        }) || points.len() == 1 && strong(points[0])
     }
 
     fn area(&self, r: i32, c: i32) -> u32 {
@@ -832,13 +861,14 @@ impl Terrain {
         if mob == 0 {
             return 0;
         }
-        // Mobs below the character pull rarely and die fast; above, they hurt and slow.
-        let base = match i32::from(mob) - i32::from(level) {
-            ..=-3 => 0.0,
-            -2..=0 => 2.0,
-            1..=2 => 6.0,
-            3..=4 => 20.0,
-            _ => 60.0,
+        // Mobs up to a few levels above are the character's own zones; far above, they kill.
+        let gap = i32::from(mob) - i32::from(level);
+        let base = if gap < i32::from(DANGER_GAP) {
+            0.0
+        } else if gap < i32::from(DANGER_GAP) + 2 {
+            20.0
+        } else {
+            60.0
         };
         ((base * self.danger_weight).round() as u32).min(DANGER_MAX)
     }
@@ -1119,6 +1149,19 @@ impl Terrain {
         mut trace: Option<&mut Vec<(i32, i32)>>,
     ) -> Option<f64> {
         let far = (ca.0 - cb.0).abs().max((ca.1 - cb.1).abs()) > gates::FAR;
+        // A long walk whose way through the gates crosses no tile with a mob too strong costs
+        // what it costs without danger, the least any walk can: the gates are its way.
+        if far && level > 0 {
+            let mut turns = Vec::new();
+            if let Some(d) = grid.through_gates(ca, cb, Some(&mut turns))
+                && !grid.danger_on(&turns, level)
+            {
+                if let Some(t) = trace.as_deref_mut() {
+                    *t = turns;
+                }
+                return Some(d);
+            }
+        }
         if far && level == 0 {
             grid.through_gates(ca, cb, trace.as_deref_mut())
                 .or_else(|| self.path(grid, ca, cb, MARGINS[MARGINS.len() - 1], level, trace))
@@ -1626,5 +1669,8 @@ mod tests {
         assert!(weak > plain + 2.0 * CELL, "around the camp: {weak} vs {plain}");
         assert!((strong - plain).abs() < 1e-3, "a level 40 walks through: {strong}");
         assert!((t.distance(&a, &b, 0).unwrap() - plain).abs() < 1e-3);
+        // Mobs a few levels above are the character's own zone: walked through.
+        let near = t.distance(&a, &b, 27).unwrap();
+        assert!((near - plain).abs() < 1e-3, "a level 27 walks among level 30s: {near}");
     }
 }
