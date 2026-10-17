@@ -8,6 +8,9 @@
 //! step: Polestar counts a travel done once a later goal of its step is, so that a flight is
 //! behind the player when it lands even where the game names places in another language.
 
+mod source;
+pub use source::{guide_name, pack_json, source};
+
 use super::Arg;
 use super::types::{Route, Step, StepKind, TargetKind};
 use std::fmt::Write as _;
@@ -134,45 +137,74 @@ enum Join {
     Alone,
 }
 
+/// A field's value.
+enum Val {
+    Str(String),
+    /// A number or `true`, as written.
+    Num(String),
+    /// A Lua table, as written.
+    Table(String),
+}
+
+/// A goal of Polestar's (`t` its verb), its fields in their order: written as a Lua table in the
+/// pack, as a line in a guide's source (`source`).
 struct Goal {
-    fields: Vec<String>,
+    verb: &'static str,
+    fields: Vec<(&'static str, Val)>,
     join: Join,
     /// The step's title when it starts one.
     title: Option<String>,
 }
 
 impl Goal {
-    fn new(verb: &str, join: Join) -> Self {
+    fn new(verb: &'static str, join: Join) -> Self {
         Self {
-            fields: vec![format!("t = {}", lua(verb))],
+            verb,
+            fields: Vec::new(),
             join,
             title: None,
         }
     }
 
-    fn str(mut self, key: &str, value: &str) -> Self {
-        self.fields.push(format!("{key} = {}", lua(value)));
+    fn str(mut self, key: &'static str, value: &str) -> Self {
+        self.fields.push((key, Val::Str(value.to_owned())));
         self
     }
 
-    fn num(mut self, key: &str, value: impl std::fmt::Display) -> Self {
-        self.fields.push(format!("{key} = {value}"));
+    fn num(mut self, key: &'static str, value: impl std::fmt::Display) -> Self {
+        self.fields.push((key, Val::Num(value.to_string())));
         self
     }
 
-    fn ids(mut self, key: &str, ids: &[i64]) -> Self {
+    fn ids(mut self, key: &'static str, ids: &[i64]) -> Self {
         if !ids.is_empty() {
-            self.fields.push(format!("{key} = {}", list(ids)));
+            self.fields.push((key, Val::Table(list(ids))));
         }
         self
     }
 
-    fn place(mut self, step: &Step) -> Self {
-        if let Some(m) = &step.map {
-            self.fields
-                .push(format!("map = {}, x = {}, y = {}", m.ui_map, pct(m.x), pct(m.y)));
+    fn place(self, step: &Step) -> Self {
+        match &step.map {
+            Some(m) => self.num("map", m.ui_map).num("x", pct(m.x)).num("y", pct(m.y)),
+            None => self,
         }
-        self
+    }
+
+    /// A field's value as written (a string unquoted).
+    fn get(&self, key: &str) -> Option<&str> {
+        self.fields.iter().find(|(k, _)| *k == key).map(|(_, v)| match v {
+            Val::Str(s) | Val::Num(s) | Val::Table(s) => s.as_str(),
+        })
+    }
+
+    /// The Lua table's fields, `t` first.
+    fn lua_fields(&self) -> Vec<String> {
+        std::iter::once(format!("t = {}", lua(self.verb)))
+            .chain(self.fields.iter().map(|(k, v)| match v {
+                Val::Str(s) => format!("{k} = {}", lua(s)),
+                Val::Num(s) | Val::Table(s) => format!("{k} = {s}"),
+            }))
+            .collect()
     }
 
     /// Where its mobs are when they live in several places: its own place, then the others on
@@ -192,7 +224,8 @@ impl Goal {
                         .map(|p| format!("{{ x = {}, y = {}, r = {RADIUS}{alt} }}", pct(p.x), pct(p.y))),
                 )
                 .collect();
-            self.fields.push(format!("spots = {{ {} }}", spots.join(", ")));
+            self.fields
+                .push(("spots", Val::Table(format!("{{ {} }}", spots.join(", ")))));
         }
         self
     }
@@ -352,7 +385,8 @@ fn goals(step: &Step) -> Vec<Goal> {
         }
         // Elite mobs: Polestar says a group is advised.
         if step.elite && step.kind == StepKind::Objective {
-            goal.fields.push("group = { kind = \"elite\", rank = 1 }".to_owned());
+            goal.fields
+                .push(("group", Val::Table("{ kind = \"elite\", rank = 1 }".to_owned())));
         }
         goal.title = target
             .filter(|t| matches!(t.kind, TargetKind::Npc | TargetKind::Object))
@@ -363,7 +397,7 @@ fn goals(step: &Step) -> Vec<Goal> {
 }
 
 fn has_text(goal: &Goal) -> bool {
-    goal.fields.iter().any(|f| f.starts_with("text = "))
+    goal.get("text").is_some()
 }
 
 /// A quest objective: killing, getting, using an object or buying, else (talking, an area, an
@@ -404,8 +438,8 @@ fn objective(step: &Step, target: Option<&super::Target>, quest: impl Fn(Goal) -
     goal
 }
 
-/// One guide's `RegisterGuide`, in a function of its own.
-fn guide(id: &str, route: &Route) -> String {
+/// The steps of Polestar's guide: each a title and its goals.
+fn plan(route: &Route) -> Vec<(Option<String>, Vec<Goal>)> {
     let mut steps: Vec<(Option<String>, Vec<Goal>)> = Vec::new();
     let mut before: Vec<Goal> = Vec::new();
     let mut last: Option<Join> = None;
@@ -430,6 +464,12 @@ fn guide(id: &str, route: &Route) -> String {
     if !before.is_empty() {
         steps.push((None, before));
     }
+    steps
+}
+
+/// One guide's `RegisterGuide`, in a function of its own.
+fn guide(id: &str, route: &Route) -> String {
+    let steps = plan(route);
     if steps.is_empty() {
         return String::new();
     }
@@ -463,7 +503,7 @@ fn guide(id: &str, route: &Route) -> String {
         }
         out.push_str("goals = {\n");
         for goal in goals {
-            let _ = writeln!(out, "\t\t\t\t{{ {} }},", goal.fields.join(", "));
+            let _ = writeln!(out, "\t\t\t\t{{ {} }},", goal.lua_fields().join(", "));
         }
         out.push_str("\t\t\t} },\n");
     }
@@ -676,7 +716,7 @@ mod tests {
         let steps = goals(&old);
         assert!(
             steps[0]
-                .fields
+                .lua_fields()
                 .contains(&"title = \"Turn in Distracting Jarven to Jarven Thunderbrew\"".to_owned())
         );
     }
@@ -763,7 +803,7 @@ mod tests {
         let goals = goals(&patrol);
         assert!(
             goals[0]
-                .fields
+                .lua_fields()
                 .iter()
                 .any(|f| f == "spots = { { x = 20, y = 50, r = 40 }, { x = 40, y = 60, r = 40 } }")
         );

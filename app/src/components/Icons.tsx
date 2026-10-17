@@ -12,6 +12,8 @@ const PATHS = {
   clone: "M5.5 5.5h8v8h-8zM10.5 5.5v-3h-8v8h3",
   // A flag: report a problem.
   report: "M3.5 14.5v-12M3.5 2.5h8l-2 3 2 3h-8",
+  // A four-pointed star: Polestar.
+  polestar: "M8 1.5l1.6 4.9 4.9 1.6-4.9 1.6L8 14.5l-1.6-4.9L1.5 8l4.9-1.6z",
   // A bin: delete.
   delete: "M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.8 6.5v5M9.2 6.5v5",
 };

@@ -432,6 +432,8 @@ export const api = {
   installAddon: () => invoke<number>("install_addon"),
   /** Whether Polestar is installed in WoW Forever. */
   polestarInstalled: () => invoke<boolean>("polestar_installed"),
+  /** A guide version as a .guide source for Polestar's own tools (English text, WoW Forever only). */
+  polestarSource: (guide: string, version: number) => invoke<string>("polestar_source", { guide, version }),
   /** Whether the addon in the game has the current settings. */
   addonSynced: () => invoke<boolean>("addon_synced"),
   /** Open a page of the project's repository in the browser. */

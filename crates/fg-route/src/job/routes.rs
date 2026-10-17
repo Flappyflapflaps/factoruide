@@ -93,6 +93,19 @@ pub fn write_polestar_pack(conn: &Connection, routes_dir: &Path, dir: &Path, ver
     Ok(guides.len())
 }
 
+/// Write a pack's folder for Polestar's own tools (`export::polestar::source`) into `dir` from
+/// every saved route: its `pack.json` and a `.guide` file each, in English.
+pub fn write_polestar_source(conn: &Connection, routes_dir: &Path, dir: &Path, version: &str) -> Result<usize> {
+    let routes = render_routes(conn, &load_routes(routes_dir)?, Some("enUS"))?;
+    std::fs::create_dir_all(dir)?;
+    std::fs::write(dir.join("pack.json"), export::polestar::pack_json(version))?;
+    for r in &routes {
+        let name = export::polestar::guide_name(&slug(&r.name));
+        std::fs::write(dir.join(format!("{name}.guide")), export::polestar::source(&name, r))?;
+    }
+    Ok(routes.len())
+}
+
 /// Routes written in `locale` (None: each in the language it was made in), the names of each
 /// language read once from the database.
 pub fn render_routes(conn: &Connection, routes: &[Route], locale: Option<&str>) -> Result<Vec<Route>> {

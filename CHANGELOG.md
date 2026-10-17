@@ -19,6 +19,7 @@ Guides watched and edited on a big map, quests that need others planned whole, c
 - Guides are made two to three times faster, and come out a little shorter (about an hour on a 1-60).
 - The window no longer freezes while a guide opens, two versions are compared or the addon is installed.
 - WoW Forever: Polestar can be chosen even when the app does not find it in the game: your guides are installed for it all the same.
+- WoW Forever: "Copy for Polestar" on a guide copies it in Polestar's own guide format, to open it in Polestar's tools (route planner, playground).
 
 ### Guides
 

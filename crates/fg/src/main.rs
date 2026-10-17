@@ -106,9 +106,14 @@ enum Command {
     Addon,
     /// Write the guide pack for the Polestar addon (WoW Forever) from every route JSON
     Polestar {
-        /// The pack's addon folder (e.g. <WoW>/_classic_beta_/Interface/AddOns/Factoruide_Polestar)
+        /// The pack's addon folder (e.g. <WoW>/_classic_beta_/Interface/AddOns/Factoruide_Polestar),
+        /// with --source the pack's folder for Polestar's own tools
         #[arg(long, default_value = "Factoruide_Polestar")]
         out: PathBuf,
+        /// Write the guides' sources instead (pack.json and a .guide file each, in English), for
+        /// Polestar's own tools (route planner, playground, compiler)
+        #[arg(long)]
+        source: bool,
     },
     /// Replay a request exported by the app (debug/request-*.json)
     Replay {
@@ -235,8 +240,13 @@ fn main() -> Result<()> {
         Command::Show { name, full } => route::show(&cli.routes, &name, full)?,
         Command::Diff { a, b, json } => diff::run(&cli.routes, &a, b.as_deref(), json)?,
         Command::Addon => route::write_addon_routes(&open()?, &overrides, &cli.routes, &cli.addon_dir)?,
-        Command::Polestar { out } => {
-            let n = fg_route::job::write_polestar_pack(&open()?, &cli.routes, &out, env!("CARGO_PKG_VERSION"))?;
+        Command::Polestar { out, source } => {
+            let write = if source {
+                fg_route::job::write_polestar_source
+            } else {
+                fg_route::job::write_polestar_pack
+            };
+            let n = write(&open()?, &cli.routes, &out, env!("CARGO_PKG_VERSION"))?;
             eprintln!("wrote {} ({n} guides)", out.display());
         }
         Command::Replay { file, effort } => route::replay(&open()?, &overrides, &file, effort, &cli.routes)?,

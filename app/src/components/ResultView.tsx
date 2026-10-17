@@ -10,6 +10,7 @@ import { StepTable } from "./StepTable";
 import { gameLocale, useDate, useLang, useT } from "../i18n";
 import { Icon } from "./Icons";
 import { IssueForm } from "./IssueForm";
+import { copyText } from "./clipboard";
 
 interface Props {
   version: GuideVersion;
@@ -128,6 +129,14 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
 
   // The guide and its versions, read again after each action.
   useEffect(() => fetchGuide(meta.guide, setGuide), [meta.guide]);
+  // Polestar exists on WoW Forever only.
+  const [forever, setForever] = useState(false);
+  useEffect(() => {
+    api
+      .getSettings()
+      .then((s) => setForever(s.edition === "forever"))
+      .catch(() => setForever(false));
+  }, []);
   const loadGuide = () => fetchGuide(meta.guide, setGuide);
 
   const act = async (action: () => Promise<string | void>) => {
@@ -199,6 +208,21 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
           >
             <Icon name="share" />
           </button>
+          {forever && (
+            <button
+              className="icon-only"
+              onClick={() =>
+                act(async () => {
+                  await copyText(await api.polestarSource(meta.guide, meta.version));
+                  return t("Guide copié pour Polestar : collez-le dans un fichier .guide d'un pack Polestar dont l'id est « factoruide ».");
+                })
+              }
+              title={`${t("Copier pour Polestar")} : ${t("Copie le guide au format .guide de Polestar (en anglais), pour ses outils : planificateur d'itinéraire, terrain de jeu, compilateur")}`}
+              aria-label={t("Copier pour Polestar")}
+            >
+              <Icon name="polestar" />
+            </button>
+          )}
           <button
             className="icon-only"
             onClick={() => setReporting(true)}
