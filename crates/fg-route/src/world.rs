@@ -992,25 +992,48 @@ impl World {
 
     /// Shortest walk from `a` to `b` through the passages of their zones (`pa`, `pb`), or across
     /// the border when shorter, and the first and last passage it takes.
+    ///
+    /// A walk is never shorter than the straight line: the pairs of passages are weighed from
+    /// the least straight trip up, and only walked to while that could beat the best (ties: the
+    /// first pair in the order of `pa` then `pb`, after the walk across).
     fn through_passes(&self, a: &Pos, b: &Pos, pa: &[usize], pb: &[usize], level: u8) -> (f64, Option<(usize, usize)>) {
         let mut best = (self.across(a, b, level), None);
-        // Each walk to a passage once (the inner loop would ask them for every passage left).
-        let to_b: Vec<f64> = (pb.iter())
-            .map(|&j| {
+        let mut best_order = (0, 0);
+        let mut pairs: Vec<(f64, usize, usize)> = Vec::new();
+        for (ki, &i) in pa.iter().enumerate() {
+            if !self.passes[i].taken_from(a.zone) {
+                continue;
+            }
+            let la = a.dist(&self.passes[i].pos);
+            for (kj, &j) in pb.iter().enumerate() {
                 if self.passes[j].leads_to(b.zone) {
-                    self.ground(&self.passes[j].pos, b, level)
-                } else {
-                    f64::INFINITY
+                    let least = la + self.pass_dist[i][j] + self.passes[j].pos.dist(b);
+                    if least.is_finite() {
+                        pairs.push((least, ki, kj));
+                    }
                 }
-            })
-            .collect();
-        for &i in pa.iter().filter(|&&i| self.passes[i].taken_from(a.zone)) {
-            let da = self.ground(a, &self.passes[i].pos, level);
-            for (&j, &db) in pb.iter().zip(&to_b) {
-                let t = da + self.pass_dist[i][j] + db;
-                if t < best.0 {
-                    best = (t, Some((i, j)));
-                }
+            }
+        }
+        pairs.sort_by(|x, y| x.0.total_cmp(&y.0).then((x.1, x.2).cmp(&(y.1, y.2))));
+        // Each walk to a passage once.
+        let mut from_a: Vec<Option<f64>> = vec![None; pa.len()];
+        let mut to_b: Vec<Option<f64>> = vec![None; pb.len()];
+        for (least, ki, kj) in pairs {
+            if least > best.0 {
+                break;
+            }
+            let (i, j) = (pa[ki], pb[kj]);
+            let da = *from_a[ki].get_or_insert_with(|| self.ground(a, &self.passes[i].pos, level));
+            let db = *to_b[kj].get_or_insert_with(|| self.ground(&self.passes[j].pos, b, level));
+            let t = da + self.pass_dist[i][j] + db;
+            let better = match t.partial_cmp(&best.0) {
+                Some(std::cmp::Ordering::Less) => true,
+                Some(std::cmp::Ordering::Equal) => best.1.is_some() && (ki, kj) < best_order,
+                _ => false,
+            };
+            if better {
+                best = (t, Some((i, j)));
+                best_order = (ki, kj);
             }
         }
         best

@@ -5,6 +5,18 @@ use super::state::{Kind, State, Stop, fmt_time};
 use crate::params::Construction;
 use crate::world::Pos;
 
+/// A stop `nearest_stop` weighs: where it is, its weights, the quest that must be worth taking
+/// on the trip, and the least score the trip's bound gives.
+struct Candidate {
+    order: usize,
+    stop: Stop,
+    pos: Pos,
+    weight: f64,
+    stay: f64,
+    worth: Option<u32>,
+    least: f64,
+}
+
 impl Planner<'_> {
     /// Greedy construction: nearest worthwhile stop first.
     pub fn greedy(&self) -> Vec<Stop> {
@@ -106,14 +118,18 @@ impl Planner<'_> {
 
     /// The stop the greedy construction takes next from `s` (None: nothing worth doing at this
     /// level), pulled to a zone by a detour.
+    ///
+    /// The stop of least score, the first of equal ones. Scores grow with the trip, which takes
+    /// at least `TripBound::at`: the stops are weighed from the least bound up, until the bound
+    /// alone scores more than the best (the walks to far stops are never searched).
     fn nearest_stop(&self, s: &State, pull: Option<i64>) -> Option<Stop> {
         let n = self.model.quests.len() as u32;
-        let mut best: Option<(f64, Stop)> = None;
-        let found = std::cell::Cell::new(false);
+        let bound = self.trips().bound(s);
         // Quest value only decides what is worth accepting. Weights favour finishing what
         // is in the log, and class quests.
-        let mut consider = |stop: Stop, weight: f64, s: &State| {
-            let (t, _) = self.trips().fastest(s, &self.places().pos(s, stop));
+        let mut candidates: Vec<Candidate> = Vec::new();
+        let mut add = |stop: Stop, weight: f64, worth: Option<u32>, lower: f64| {
+            let pos = self.places().pos(s, stop);
             let zone = self.places().zone(stop);
             // Finish the zone before leaving it (clear a zone, then move on).
             let stay = if zone == s.zone { 1.0 } else { self.params.zone_stay };
@@ -124,16 +140,29 @@ impl Planner<'_> {
                 _ => stay,
             };
             // Same for another continent (a detour to Kalimdor while Eastern Kingdoms has more).
-            let stay = if self.places().pos(s, stop).continent == s.pos.continent {
+            let stay = if pos.continent == s.pos.continent {
                 stay
             } else {
                 stay * self.params.continent_stay
             };
-            let score = (t + self.params.stop_overhead) * weight * stay;
-            if score.is_finite() && best.as_ref().is_none_or(|b| score < b.0) {
-                best = Some((score, stop));
-                found.set(true);
+            // Never reached: never the best.
+            if !lower.is_finite() {
+                return;
             }
+            let least = if weight * stay > 0.0 {
+                (lower + self.params.stop_overhead) * weight * stay
+            } else {
+                f64::NEG_INFINITY
+            };
+            candidates.push(Candidate {
+                order: candidates.len(),
+                stop,
+                pos,
+                weight,
+                stay,
+                worth,
+                least,
+            });
         };
         for i in 0..n {
             let iu = i as usize;
@@ -147,7 +176,8 @@ impl Planner<'_> {
             if s.accepted[iu] {
                 if self.availability().objectives_done(s, i) {
                     if !guarded(&self.quest(i).end_guard) {
-                        consider(Stop::quest(i, Kind::TurnIn), 0.7 * class, s);
+                        let stop = Stop::quest(i, Kind::TurnIn);
+                        add(stop, 0.7 * class, None, bound.at(&self.places().pos(s, stop)));
                     }
                 } else {
                     let q = self.quest(i);
@@ -155,21 +185,22 @@ impl Planner<'_> {
                         let o = &q.objectives[k];
                         let level_ok = self.combat().need(q, o) <= self.params.reach(s.level, s.bonus);
                         if self.availability().objective_open(s, i, k) && level_ok && o.dungeon.is_none() {
-                            consider(Stop::quest(i, Kind::Objective(k as u8)), class, s);
+                            let stop = Stop::quest(i, Kind::Objective(k as u8));
+                            add(stop, class, None, bound.at(&self.places().pos(s, stop)));
                         }
                     }
                 }
             } else if self.quest(i).min_level <= s.level
                 && !guarded(&self.quest(i).start_guard)
                 && self.availability().can_accept(s, i)
-                && {
-                    let trip = self
-                        .trips()
-                        .fastest(s, &self.places().pos(s, Stop::quest(i, Kind::Accept)))
-                        .0;
-                    self.worth().worth_it(s, i, s.level, trip)
-                }
             {
+                // Worth it on its trip, which is no shorter than the bound: not worth it on the
+                // bound, not worth it at all.
+                let stop = Stop::quest(i, Kind::Accept);
+                let lower = bound.at(&self.places().pos(s, stop));
+                if !self.worth().worth_it(s, i, s.level, lower) {
+                    continue;
+                }
                 // Dungeon quests: worth a detour only when the dungeon is close in level.
                 // Quests of a dungeon close in level: forced ones first, the others weighed by
                 // `dungeon_quest_weight` (the optimizer then keeps the runs that pay off).
@@ -188,45 +219,98 @@ impl Planner<'_> {
                 } else {
                     1.0
                 };
-                consider(
-                    Stop::quest(i, Kind::Accept),
+                add(
+                    stop,
                     1.3 * class
                         * dungeon
                         * preferred
                         * self.worth().level_fit(i, s.level)
                         * self.worth().efficiency_weight(s, i, s.level),
-                    s,
+                    Some(i),
+                    lower,
                 );
             }
         }
 
         for d in 0..self.model.dungeons.len() {
             if let Some(stop) = self.dungeon_ready(s, d) {
-                consider(
-                    stop,
-                    if self.availability().dungeon_forced(d) {
-                        0.5
-                    } else {
-                        0.8
-                    },
-                    s,
-                );
+                let weight = if self.availability().dungeon_forced(d) {
+                    0.5
+                } else {
+                    0.8
+                };
+                add(stop, weight, None, bound.at(&self.places().pos(s, stop)));
             }
+        }
+        if let Some(stop) = self.least_score(s, candidates) {
+            return Some(stop);
         }
 
         // Zone exhausted: move on to the closest quest worth doing on its own, wherever it is.
-        if !found.get() {
-            for i in 0..n {
-                // Its level, and the camp around its giver (`gate_level`).
-                if self.gate_level(s, Stop::quest(i, Kind::Accept)) <= s.level
-                    && self.availability().can_accept(s, i)
-                    && self.worth().worth_it(s, i, s.level, 0.0)
-                {
-                    consider(Stop::quest(i, Kind::Accept), 1.0, s);
+        let mut candidates: Vec<Candidate> = Vec::new();
+        for i in 0..n {
+            // Its level, and the camp around its giver (`gate_level`).
+            if self.gate_level(s, Stop::quest(i, Kind::Accept)) <= s.level
+                && self.availability().can_accept(s, i)
+                && self.worth().worth_it(s, i, s.level, 0.0)
+            {
+                let stop = Stop::quest(i, Kind::Accept);
+                let pos = self.places().pos(s, stop);
+                let zone = self.places().zone(stop);
+                let stay = if zone == s.zone { 1.0 } else { self.params.zone_stay };
+                let stay = match pull {
+                    Some(z) if zone != z => stay * self.params.zone_detour_pull,
+                    _ => stay,
+                };
+                let stay = if pos.continent == s.pos.continent {
+                    stay
+                } else {
+                    stay * self.params.continent_stay
+                };
+                let lower = bound.at(&pos);
+                if lower.is_finite() {
+                    candidates.push(Candidate {
+                        order: candidates.len(),
+                        stop,
+                        pos,
+                        weight: 1.0,
+                        stay,
+                        worth: None,
+                        least: if stay > 0.0 {
+                            (lower + self.params.stop_overhead) * stay
+                        } else {
+                            f64::NEG_INFINITY
+                        },
+                    });
                 }
             }
         }
-        best.map(|(_, stop)| stop)
+        self.least_score(s, candidates)
+    }
+
+    /// The candidate of least score (the first of equal ones), weighed from the least bound up.
+    fn least_score(&self, s: &State, mut candidates: Vec<Candidate>) -> Option<Stop> {
+        candidates.sort_by(|a, b| a.least.total_cmp(&b.least).then(a.order.cmp(&b.order)));
+        let mut best: Option<(f64, usize, Stop)> = None;
+        for c in candidates {
+            if best.is_some_and(|(score, _, _)| c.least > score) {
+                break;
+            }
+            let (t, _) = self.trips().fastest(s, &c.pos);
+            if c.worth.is_some_and(|i| !self.worth().worth_it(s, i, s.level, t)) {
+                continue;
+            }
+            let score = (t + self.params.stop_overhead) * c.weight * c.stay;
+            let better = |(b, order, _): (f64, usize, Stop)| match score.partial_cmp(&b) {
+                Some(std::cmp::Ordering::Less) => true,
+                Some(std::cmp::Ordering::Equal) => c.order < order,
+                _ => false,
+            };
+            if score.is_finite() && best.is_none_or(better) {
+                best = Some((score, c.order, c.stop));
+            }
+        }
+        best.map(|(_, _, stop)| stop)
     }
 
     /// Make a constructed route replay as it was built. The construction does not know the
@@ -447,7 +531,7 @@ impl Planner<'_> {
         fn of(
             i: usize,
             quests: &[crate::model::Quest],
-            index: &std::collections::HashMap<i64, usize>,
+            index: &rustc_hash::FxHashMap<i64, usize>,
             depth: &mut [Option<u32>],
             seen: u32,
         ) -> u32 {

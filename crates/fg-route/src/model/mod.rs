@@ -37,6 +37,7 @@ use anyhow::Result;
 use builder::QuestBuilder;
 use places::Places;
 use rusqlite::Connection;
+use rustc_hash::FxHashMap;
 use sources::Sources;
 use std::collections::HashMap;
 
@@ -51,7 +52,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
     chains::require_prerequisites(&mut quests);
     chains::release_impossible_class_quests(&mut quests);
     dungeons::set_dungeon_levels(&mut sources.dungeons, &quests);
-    let index: HashMap<i64, usize> = quests.iter().enumerate().map(|(i, q)| (q.id, i)).collect();
+    let index: FxHashMap<i64, usize> = quests.iter().enumerate().map(|(i, q)| (q.id, i)).collect();
     let mut teleports = places.teleports;
     teleports.extend(places::quest_teleports(world, profile, &quests));
     let unlocks = chains::chain_values(&quests, &index, &chains::quest_work(&quests, params));

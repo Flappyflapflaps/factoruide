@@ -61,6 +61,27 @@ fn pos_key(p: &Pos, flag: bool, level: u8) -> Option<PosKey> {
     Some([head, p.x.to_bits(), p.y.to_bits()])
 }
 
+/// A lower bound of `Trips::fastest` from a state: every walk is at least the straight line
+/// (the terrain's paths and the passages never are shorter), so a trip takes at least the
+/// straight line from where it starts (here, or a teleport's landing after its cast) or from
+/// where a boat, a portal or a flight lands, after the least time to get there.
+pub(crate) struct TripBound {
+    per_yard: f64,
+    /// Points the last walk starts from, and the least time to stand there.
+    starts: Vec<(Pos, f64)>,
+}
+
+impl TripBound {
+    /// At least how long the trip to `b` takes (infinite: it cannot be made).
+    pub(crate) fn at(&self, b: &Pos) -> f64 {
+        let t = (self.starts.iter())
+            .map(|(p, t)| t + p.dist(b) * self.per_yard)
+            .fold(f64::INFINITY, f64::min);
+        // Below the sums of walks rounded otherwise.
+        t * (1.0 - 1e-9)
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct Trips<'t> {
     pub(crate) world: &'t World,
@@ -124,17 +145,23 @@ impl Trips<'_> {
         let links = &self.world.links;
         let chain = self.world.link_chain(open);
         if !self.explicit && !links.is_empty() && (from.continent != b.continent || walk > 240.0) {
-            // The walks from each link to `b`, once (when a link is worth boarding).
-            let mut to_b: Vec<f64> = Vec::new();
+            // A walk is never shorter than the straight line: the walks to a link and from
+            // one to `b` (each once) only when they could make the trip shorter.
+            let line = |p: &Pos, q: &Pos| p.dist(q) * self.params.detour / self.params.speed(level);
+            let mut to_b: Vec<Option<f64>> = vec![None; links.len()];
             for (i, li) in links.iter().enumerate() {
+                if line(from, &li.from) >= best.0 {
+                    continue;
+                }
                 let wa = self.walk(from, &li.from, level);
                 if !wa.is_finite() || wa >= best.0 {
                     continue;
                 }
-                if to_b.is_empty() {
-                    to_b = links.iter().map(|lj| self.walk(&lj.to, b, level)).collect();
-                }
-                for (j, wb) in to_b.iter().enumerate() {
+                for (j, lj) in links.iter().enumerate() {
+                    if wa + chain[i][j] + line(&lj.to, b) >= best.0 {
+                        continue;
+                    }
+                    let wb = *to_b[j].get_or_insert_with(|| self.walk(&lj.to, b, level));
                     let t = wa + chain[i][j] + wb;
                     if t < best.0 {
                         best = (t, Leg::Link(i, j));
@@ -225,6 +252,58 @@ impl Trips<'_> {
             }
         }
         best
+    }
+
+    /// What `fastest` from `s` takes at least to any place (`TripBound::at`), without walking
+    /// the terrain.
+    pub(crate) fn bound(&self, s: &State) -> TripBound {
+        let per_yard = self.params.detour / self.params.speed(s.level);
+        let line = |a: &Pos, b: &Pos| a.dist(b) * per_yard;
+        // Where the trip starts: here, or where a class teleport lands.
+        let mut starts = vec![(s.pos, 0.0)];
+        if !self.explicit {
+            starts.extend(
+                (self.model.teleports.iter())
+                    .filter(|tp| s.knows(tp))
+                    .map(|tp| (tp.to.pos, self.params.teleport_cast)),
+            );
+        }
+        // Where a boat, a portal or a flight lands, and the least time to get there.
+        let mut hubs = Vec::new();
+        let mut reach = |from: &[(Pos, f64)], to: &Pos, ride: &dyn Fn(usize) -> f64| {
+            let t = (from.iter().enumerate())
+                .flat_map(|(i, (p, _))| starts.iter().map(move |(q, cast)| cast + line(q, p) + ride(i)))
+                .fold(f64::INFINITY, f64::min);
+            if t.is_finite() {
+                hubs.push((*to, t));
+            }
+        };
+        if !self.explicit && !self.world.links.is_empty() {
+            let chain = self.world.link_chain(self.open_links(s));
+            let boardings: Vec<(Pos, f64)> = self.world.links.iter().map(|l| (l.from, 0.0)).collect();
+            for (j, lj) in self.world.links.iter().enumerate() {
+                reach(&boardings, &lj.to, &|i| chain[i][j]);
+            }
+        }
+        if !self.explicit && s.known.count_ones() >= 2 {
+            let flights = self.flight_table(s.known);
+            let nodes: Vec<usize> = (0..self.world.taxi_nodes.len())
+                .filter(|i| s.known & (1u128 << i) != 0)
+                .collect();
+            let takeoffs: Vec<(Pos, f64)> = nodes.iter().map(|&i| (self.world.taxi_nodes[i].pos, 0.0)).collect();
+            for &j in &nodes {
+                reach(&takeoffs, &self.world.taxi_nodes[j].pos, &|k| {
+                    let i = nodes[k];
+                    if i == j {
+                        f64::INFINITY
+                    } else {
+                        flights.0[i][j] + self.params.flight_overhead
+                    }
+                });
+            }
+        }
+        starts.extend(hubs);
+        TripBound { per_yard, starts }
     }
 
     pub(crate) fn flight_table(&self, known: u128) -> Rc<FlightTable> {

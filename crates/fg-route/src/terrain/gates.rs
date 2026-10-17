@@ -16,7 +16,7 @@ use super::{CELL, DIRECTIONS, Grid};
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::BinaryHeap;
 use std::rc::Rc;
 
 /// Walks farther than this (cells, one way or the other) go through the gates.
@@ -37,11 +37,18 @@ type Ends = FxHashMap<(u32, i32, i32, bool), Rc<[u32]>>;
 thread_local! {
     /// The planner walks from and to the same places again and again.
     static ENDS: RefCell<Ends> = RefCell::new(Ends::default());
+    /// The strongest mob near the walk within a tile between two of its cells (gates), by grid
+    /// and cells: the same at every level.
+    static STRONGEST: RefCell<Strongest> = RefCell::new(Strongest::default());
 }
+/// The strongest mob near walks within a tile, by grid and ends (`STRONGEST`).
+type Strongest = FxHashMap<(u32, (i32, i32), (i32, i32)), u8>;
+/// Walks whose strongest mob is remembered, beyond which the memo starts over.
+const STRONGEST_MAX: usize = 1 << 16;
 
 /// Cheapest cost found to each gate (tile, index) of a walk, and the gate it came from
 /// (`FROM_A`: the walk's start).
-type Best = HashMap<(usize, usize), (u32, (usize, usize))>;
+type Best = FxHashMap<(usize, usize), (u32, (usize, usize))>;
 const FROM_A: (usize, usize) = (usize::MAX, usize::MAX);
 
 /// Version of the making of the tiles' graphs: graphs stored by another (`Terrain::gate_graphs`)
@@ -177,6 +184,121 @@ impl Grid {
             }
         }
         cost
+    }
+
+    /// The cells of a cheapest walk within tile `t` from `from` to `to` (both in it), in order,
+    /// None when it does not join them: A* over the tile, ended at `to`.
+    fn local_walk(&self, t: usize, from: (i32, i32), to: (i32, i32)) -> Option<Vec<(i32, i32)>> {
+        let (tr, tc) = self.origin(t);
+        let inside = |(r, c): (i32, i32)| r >= tr && r < tr + 64 && c >= tc && c < tc + 64;
+        let index = |(r, c): (i32, i32)| ((r - tr) * 64 + (c - tc)) as usize;
+        let cell = |k: usize| (tr + (k / 64) as i32, tc + (k % 64) as i32);
+        if !inside(from) || !inside(to) {
+            return None;
+        }
+        let h = |(r, c): (i32, i32)| {
+            let (dr, dc) = ((r - to.0).unsigned_abs(), (c - to.1).unsigned_abs());
+            10 * dr.max(dc) + 4 * dr.min(dc)
+        };
+        let mut cost = vec![NONE; 4096];
+        let mut parent = vec![u16::MAX; 4096];
+        let mut open = BinaryHeap::new();
+        cost[index(from)] = 0;
+        open.push(Reverse((h(from), 0u32, index(from) as u16)));
+        while let Some(Reverse((_, g, k))) = open.pop() {
+            let k = usize::from(k);
+            if g > cost[k] {
+                continue;
+            }
+            let here = cell(k);
+            if here == to {
+                let mut cells = vec![to];
+                let mut k = k;
+                while parent[k] != u16::MAX {
+                    k = usize::from(parent[k]);
+                    cells.push(cell(k));
+                }
+                cells.reverse();
+                return Some(cells);
+            }
+            for (dr, dc) in DIRECTIONS {
+                let next = (here.0 + dr, here.1 + dc);
+                if !inside(next) {
+                    continue;
+                }
+                let Some(step) = self.step(here, next) else {
+                    continue;
+                };
+                // No corner cutting, as cell by cell.
+                if dr != 0
+                    && dc != 0
+                    && (self.step(here, (next.0, here.1)).is_none() || self.step(here, (here.0, next.1)).is_none())
+                {
+                    continue;
+                }
+                let n = index(next);
+                if g + step < cost[n] {
+                    cost[n] = g + step;
+                    parent[n] = k as u16;
+                    open.push(Reverse((g + step + h(next), g + step, n as u16)));
+                }
+            }
+        }
+        None
+    }
+
+    /// Whether a walk through the gates (`through_gates`' trace, its ends first and last) goes
+    /// near a mob of `level + DANGER_GAP` or more, the cells of its ends' surroundings left out
+    /// (`DANGER_FREE`, as cell by cell): its own cells, not the tiles it crosses (a single strong
+    /// mob in a tile would make every walk through it search cell by cell).
+    pub(super) fn danger_along(&self, trace: &[(i32, i32)], level: u8) -> bool {
+        if self.danger_max.is_empty() || trace.len() < 2 {
+            return false;
+        }
+        let at_least = level.saturating_add(super::DANGER_GAP);
+        let (a, b) = (trace[0], trace[trace.len() - 1]);
+        let strongest = |cells: &[(i32, i32)], ends: bool| {
+            (cells.iter())
+                .filter(|&&p| !ends || !super::Terrain::near_end(p, a, b))
+                .map(|&(r, c)| self.danger(r, c))
+                .max()
+                .unwrap_or(0)
+        };
+        trace.windows(2).any(|w| {
+            let (p, q) = (w[0], w[1]);
+            let (Some((t, _)), Some((u, _))) = (self.tile(p.0, p.1), self.tile(q.0, q.1)) else {
+                return true;
+            };
+            if t != u {
+                return strongest(&[p, q], true) >= at_least;
+            }
+            if self.danger_max[t] < at_least {
+                return false;
+            }
+            let ends = p == a || q == b;
+            let key = (self.id, p, q);
+            let known = if ends {
+                None
+            } else {
+                STRONGEST.with(|m| m.borrow().get(&key).copied())
+            };
+            let level = known.unwrap_or_else(|| {
+                let level = self
+                    .local_walk(t, p, q)
+                    .map_or(u8::MAX, |cells| strongest(&cells, ends));
+                if !ends {
+                    STRONGEST.with(|m| {
+                        let mut m = m.borrow_mut();
+                        if m.len() >= STRONGEST_MAX {
+                            m.clear();
+                        }
+                        m.insert(key, level);
+                    });
+                }
+                level
+            });
+            level >= at_least
+        })
     }
 
     /// The walkable areas within tile `t` (cells joined by straight steps taken both ways, as
@@ -334,7 +456,7 @@ impl Grid {
             let (dr, dc) = ((r - b.0).unsigned_abs(), (c - b.1).unsigned_abs());
             10 * dr.max(dc) + 4 * dr.min(dc)
         };
-        let mut best: Best = HashMap::new();
+        let mut best: Best = FxHashMap::default();
         let mut open = BinaryHeap::new();
         let reach = |best: &mut Best,
                      open: &mut BinaryHeap<Reverse<(u32, u32, usize, usize)>>,

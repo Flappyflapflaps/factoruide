@@ -118,11 +118,10 @@ const TURNS_MAX: usize = 1 << 16;
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
 /// The path search's work space, kept from a search to the next in each thread: the cheapest
-/// cost found for each cell of the box (valid when its `round` is this search's: nothing to
-/// clear) and the open cells by estimate.
+/// cost found for each cell of the box and the search it was found in (valid when it is this
+/// one's: nothing to clear), side by side for one memory read, and the open cells by estimate.
 struct Scratch {
-    best: Vec<u32>,
-    round: Vec<u32>,
+    best: Vec<(u32, u32)>,
     current: u32,
     open: Vec<Vec<(u32, i32, i32)>>,
 }
@@ -130,7 +129,6 @@ struct Scratch {
 thread_local! {
     static SCRATCH: RefCell<Scratch> = RefCell::new(Scratch {
         best: Vec::new(),
-        round: Vec::new(),
         current: 0,
         open: (0..BUCKETS).map(|_| Vec::new()).collect(),
     });
@@ -162,6 +160,8 @@ struct Grid {
     graphs: Vec<std::sync::OnceLock<gates::TileGraph>>,
     /// The walkable areas within each tile, found when first needed (`gates`).
     local_areas: Vec<std::sync::OnceLock<Box<[u16]>>>,
+    /// The steps each cell can take (`Grid::moves`), by tile, found when first needed.
+    moves: Vec<std::sync::OnceLock<Box<[u32; 4096]>>>,
 }
 
 /// What a cell is for walking (`Terrain::view`), to look at the terrain.
@@ -191,6 +191,14 @@ struct TileCells {
     surface: [i16; 4096],
     flags: [u8; 4096],
 }
+
+/// Bits of a cell's moves (`Grid::moves`), by direction of `DIRECTIONS`: the step can be taken,
+/// it lands in water swum; and the cell is never stood on (`NO_GO`).
+const MOVE: u32 = 1;
+const MOVE_SWUM: u32 = 1 << 8;
+const MOVE_NO_GO: u32 = 1 << 16;
+/// Index in `DIRECTIONS` of a step (row, column) + 1, as `(dr + 1) * 3 + dc + 1`.
+const DIRECTION_OF: [usize; 9] = [4, 0, 5, 2, usize::MAX, 3, 6, 1, 7];
 
 /// Flags of a cell for a step.
 const STEEP: u8 = 1;
@@ -264,11 +272,77 @@ impl Grid {
     /// cannot be taken: no terrain, magma or the open sea, a rise steeper than 50° or onto a
     /// steep cell, a drop that hurts.
     fn step(&self, a: (i32, i32), b: (i32, i32)) -> Option<u32> {
-        let (from, flags) = self.probe(a.0, a.1);
-        if flags & NO_GO != 0 {
+        let (dr, dc) = (b.0 - a.0, b.1 - a.1);
+        if dr.abs() > 1 || dc.abs() > 1 || (dr, dc) == (0, 0) {
+            let (from, flags) = self.probe(a.0, a.1);
+            if flags & NO_GO != 0 {
+                return None;
+            }
+            return self.step_from(from, b, a.0 != b.0 && a.1 != b.1);
+        }
+        let moves = self.moves(a.0, a.1);
+        let d = DIRECTION_OF[((dr + 1) * 3 + dc + 1) as usize];
+        if moves & MOVE_NO_GO != 0 || moves >> d & MOVE == 0 {
             return None;
         }
-        self.step_from(from, b, a.0 != b.0 && a.1 != b.1)
+        let diagonal = usize::from(d >= 4);
+        Some(if moves >> d & MOVE_SWUM != 0 {
+            SWUM[diagonal]
+        } else {
+            WALKED[diagonal]
+        })
+    }
+
+    /// The steps from a cell to its neighbours, by direction of `DIRECTIONS` (`step_from` from
+    /// its surface; corners not checked): `MOVE` when it can be taken, `MOVE_SWUM` when it lands
+    /// in water swum, and `MOVE_NO_GO` when the cell itself is never stood on. The same for
+    /// every search: computed once a tile.
+    #[inline]
+    fn moves(&self, r: i32, c: i32) -> u32 {
+        if let Some((t, i)) = self.tile(r, c)
+            && let Some(moves) = self.moves[t].get()
+        {
+            return moves[i];
+        }
+        self.first_moves(r, c)
+    }
+
+    /// `moves` of a cell whose tile has not been computed yet (or out of the terrain).
+    #[cold]
+    #[inline(never)]
+    fn first_moves(&self, r: i32, c: i32) -> u32 {
+        let Some((t, i)) = self.tile(r, c) else {
+            return self.compute_moves(r, c);
+        };
+        if self.cells[t].is_none() {
+            return self.compute_moves(r, c);
+        }
+        self.moves[t].get_or_init(|| {
+            let (r0, c0) = (
+                self.r0 + (t / self.tile_cols) as i32 * 64,
+                self.c0 + (t % self.tile_cols) as i32 * 64,
+            );
+            let mut moves = Box::new([0; 4096]);
+            for (k, m) in moves.iter_mut().enumerate() {
+                *m = self.compute_moves(r0 + (k / 64) as i32, c0 + (k % 64) as i32);
+            }
+            moves
+        })[i]
+    }
+
+    fn compute_moves(&self, r: i32, c: i32) -> u32 {
+        let (from, flags) = self.probe(r, c);
+        let mut moves = if flags & NO_GO != 0 { MOVE_NO_GO } else { 0 };
+        for (d, (dr, dc)) in DIRECTIONS.into_iter().enumerate() {
+            let diagonal = dr != 0 && dc != 0;
+            if let Some(cost) = self.step_from(from, (r + dr, c + dc), diagonal) {
+                moves |= MOVE << d;
+                if cost == SWUM[usize::from(diagonal)] {
+                    moves |= MOVE_SWUM << d;
+                }
+            }
+        }
+        moves
     }
 
     /// The same from a cell of surface height `from`.
@@ -323,31 +397,6 @@ impl Grid {
             tile_of(a.1.max(b.1) + margin, self.c0).min(cols - 1),
         );
         (t0..=t1).any(|t| (u0..=u1).any(|u| self.danger_max[(t * cols + u) as usize] >= at_least))
-    }
-
-    /// Whether a mob of `level + DANGER_GAP` or more is in a tile a walk through `points` (its
-    /// turns, in order) crosses.
-    fn danger_on(&self, points: &[(i32, i32)], level: u8) -> bool {
-        if self.danger_max.is_empty() {
-            return false;
-        }
-        let at_least = level.saturating_add(DANGER_GAP);
-        let (rows, cols) = (self.rows / 64, self.tile_cols as i32);
-        let strong = |(r, c): (i32, i32)| {
-            let (t, u) = ((r - self.r0).div_euclid(64), (c - self.c0).div_euclid(64));
-            (0..rows).contains(&t) && (0..cols).contains(&u) && self.danger_max[(t * cols + u) as usize] >= at_least
-        };
-        points.windows(2).any(|w| {
-            let (a, b) = (w[0], w[1]);
-            let n = (a.0 - b.0).abs().max((a.1 - b.1).abs()).max(1) / 32 + 1;
-            (0..=n).any(|k| {
-                let t = f64::from(k) / f64::from(n);
-                strong((
-                    (f64::from(a.0) + t * f64::from(b.0 - a.0)).round() as i32,
-                    (f64::from(a.1) + t * f64::from(b.1 - a.1)).round() as i32,
-                ))
-            })
-        }) || points.len() == 1 && strong(points[0])
     }
 
     fn area(&self, r: i32, c: i32) -> u32 {
@@ -430,9 +479,17 @@ fn shard((_, r1, c1, r2, c2, _): Key) -> usize {
 pub struct Walks {
     /// Fingerprint of the terrain data the paths were searched on (None: not known yet).
     terrain: Mutex<Option<u64>>,
-    shards: Vec<Mutex<HashMap<Key, f32>>>,
+    shards: Vec<Mutex<HashMap<Key, Walk>>>,
     /// Memories added before the terrain was known, merged once it is.
     waiting: Mutex<Vec<WalkMemory>>,
+}
+
+/// A path of the walking memory: its distance, or the search one thread is making, which the
+/// others needing it wait for (the routes built side by side ask the same walks at the same
+/// time).
+enum Walk {
+    Known(f32),
+    Searching(Arc<std::sync::OnceLock<f32>>),
 }
 
 impl Default for Walks {
@@ -487,16 +544,36 @@ impl Walks {
 
     fn insert_all(&self, memory: &WalkMemory) {
         for &(key, d) in &memory.paths {
-            self.shards[shard(key)].lock().unwrap().insert(key, d);
+            self.shards[shard(key)].lock().unwrap().insert(key, Walk::Known(d));
         }
     }
 
     fn get(&self, key: Key) -> Option<f32> {
-        self.shards[shard(key)].lock().unwrap().get(&key).copied()
+        match self.shards[shard(key)].lock().unwrap().get(&key)? {
+            Walk::Known(d) => Some(*d),
+            Walk::Searching(_) => None,
+        }
     }
 
-    fn insert(&self, key: Key, d: f32) {
-        self.shards[shard(key)].lock().unwrap().insert(key, d);
+    /// The distance of a path, from `search` when not known: by one thread, the others needing
+    /// it meanwhile wait for its answer.
+    fn get_or_search(&self, key: Key, search: impl FnOnce() -> f32) -> f32 {
+        let shard = &self.shards[shard(key)];
+        let cell = {
+            let mut map = shard.lock().unwrap();
+            match map.get(&key) {
+                Some(Walk::Known(d)) => return *d,
+                Some(Walk::Searching(cell)) => Arc::clone(cell),
+                None => {
+                    let cell = Arc::new(std::sync::OnceLock::new());
+                    map.insert(key, Walk::Searching(Arc::clone(&cell)));
+                    cell
+                }
+            }
+        };
+        let d = *cell.get_or_init(search);
+        shard.lock().unwrap().insert(key, Walk::Known(d));
+        d
     }
 }
 
@@ -586,6 +663,9 @@ pub struct Terrain {
     enclosed: HashSet<(i64, u32)>,
     /// How much the danger counts (`add_danger`; 0: not at all).
     danger_weight: f64,
+    /// What a dangerous cell costs more, a few levels and far above the character (tenths of a
+    /// cell): `danger_weight` times the base costs.
+    danger_costs: [u32; 2],
     /// The turns of the walks followed (`waypoints`), shared by the threads.
     turns: Turns,
 }
@@ -629,6 +709,7 @@ impl Terrain {
             used: (0..SHARDS).map(|_| Mutex::new(HashSet::new())).collect(),
             enclosed: HashSet::new(),
             danger_weight: 0.0,
+            danger_costs: [0; 2],
             turns: (0..SHARDS).map(|_| Mutex::default()).collect(),
         };
         let exists: bool = conn.query_row(
@@ -733,10 +814,12 @@ impl Terrain {
                 danger_max: Vec::new(),
                 graphs: Vec::new(),
                 local_areas: Vec::new(),
+                moves: Vec::new(),
             };
             grid.label();
             grid.graphs = (0..grid.cells.len()).map(|_| std::sync::OnceLock::new()).collect();
             grid.local_areas = (0..grid.cells.len()).map(|_| std::sync::OnceLock::new()).collect();
+            grid.moves = (0..grid.cells.len()).map(|_| std::sync::OnceLock::new()).collect();
             terrain.grids.insert(map, grid);
         }
         // The gates' graphs the databases hold (made when they were built): none to make.
@@ -863,14 +946,13 @@ impl Terrain {
         }
         // Mobs up to a few levels above are the character's own zones; far above, they kill.
         let gap = i32::from(mob) - i32::from(level);
-        let base = if gap < i32::from(DANGER_GAP) {
-            0.0
+        if gap < i32::from(DANGER_GAP) {
+            0
         } else if gap < i32::from(DANGER_GAP) + 2 {
-            20.0
+            self.danger_costs[0]
         } else {
-            60.0
-        };
-        ((base * self.danger_weight).round() as u32).min(DANGER_MAX)
+            self.danger_costs[1]
+        }
     }
 
     /// The straight line between two cells when each of its steps can be taken on safe ground
@@ -977,6 +1059,7 @@ impl Terrain {
     /// Each mob makes the cells within its pull's reach (about 20 yards) as dangerous as it.
     pub fn add_danger(&mut self, spawns: impl IntoIterator<Item = (Pos, u8)>, weight: f64) {
         self.danger_weight = weight.max(0.0);
+        self.danger_costs = [20.0, 60.0].map(|base: f64| ((base * self.danger_weight).round() as u32).min(DANGER_MAX));
         let mut stamped = 0u64;
         for (p, level) in spawns {
             let Some(grid) = self.grids.get_mut(&p.continent) else {
@@ -1116,12 +1199,11 @@ impl Terrain {
         if let Some(used) = self.used.get(shard(key)) {
             used.lock().unwrap().insert(key);
         }
-        if let Some(d) = self.walks.get(key) {
-            return d.is_finite().then_some(f64::from(d));
-        }
-        let found = self.search_walk(grid, ca, cb, level, None);
-        self.walks.insert(key, found.map_or(f32::INFINITY, |d| d as f32));
-        found
+        let d = self.walks.get_or_search(key, || {
+            self.search_walk(grid, ca, cb, level, None)
+                .map_or(f32::INFINITY, |d| d as f32)
+        });
+        d.is_finite().then_some(f64::from(d))
     }
 
     /// The cells a walk between two cells goes from and to (snapped to a large area), and the
@@ -1149,12 +1231,12 @@ impl Terrain {
         mut trace: Option<&mut Vec<(i32, i32)>>,
     ) -> Option<f64> {
         let far = (ca.0 - cb.0).abs().max((ca.1 - cb.1).abs()) > gates::FAR;
-        // A long walk whose way through the gates crosses no tile with a mob too strong costs
-        // what it costs without danger, the least any walk can: the gates are its way.
+        // A long walk whose way through the gates goes near no mob too strong costs what it
+        // costs without danger, the least any walk can: the gates are its way.
         if far && level > 0 {
             let mut turns = Vec::new();
             if let Some(d) = grid.through_gates(ca, cb, Some(&mut turns))
-                && !grid.danger_on(&turns, level)
+                && !grid.danger_along(&turns, level)
             {
                 if let Some(t) = trace.as_deref_mut() {
                     *t = turns;
@@ -1261,12 +1343,11 @@ impl Terrain {
             let scratch = &mut *scratch.borrow_mut();
             let n = (rows * cols) as usize;
             if scratch.best.len() < n {
-                scratch.best.resize(n, u32::MAX);
-                scratch.round.resize(n, 0);
+                scratch.best.resize(n, (u32::MAX, 0));
             }
             scratch.current = scratch.current.wrapping_add(1);
             if scratch.current == 0 {
-                scratch.round.fill(0);
+                scratch.best.fill((u32::MAX, 0));
                 scratch.current = 1;
             }
             for bucket in &mut scratch.open {
@@ -1281,7 +1362,7 @@ impl Terrain {
                 let current = scratch.current;
                 let cost_of = |(r, c): (i32, i32)| {
                     let inside = r >= r0 && c >= c0 && r < r0 + rows && c < c0 + cols;
-                    (inside && scratch.round[index(r, c)] == current).then(|| scratch.best[index(r, c)])
+                    (inside && scratch.best[index(r, c)].1 == current).then(|| scratch.best[index(r, c)].0)
                 };
                 let mut q = b;
                 while q != a {
@@ -1325,8 +1406,11 @@ impl Terrain {
         index: &impl Fn(i32, i32) -> usize,
     ) -> Option<f64> {
         let current = scratch.current;
-        let (best, round, open) = (&mut scratch.best, &mut scratch.round, &mut scratch.open);
-        let get = |best: &[u32], round: &[u32], k: usize| if round[k] == current { best[k] } else { u32::MAX };
+        let (best, open) = (&mut scratch.best, &mut scratch.open);
+        let get = |best: &[(u32, u32)], k: usize| {
+            let (cost, round) = best[k];
+            if round == current { cost } else { u32::MAX }
+        };
         // Costs in tenths of a cell: 10 straight, 14 diagonal, more swimming or near danger.
         let h = |r: i32, c: i32| {
             let (dr, dc) = ((r - b.0).unsigned_abs(), (c - b.1).unsigned_abs());
@@ -1337,7 +1421,7 @@ impl Terrain {
         // than `BUCKETS`) and the first time the goal comes out is the cheapest.
         let (mut f, mut queued) = (h(a.0, a.1), 1usize);
         let start = index(a.0, a.1);
-        (best[start], round[start]) = (0, current);
+        best[start] = (0, current);
         open[f as usize % BUCKETS].push((0, a.0, a.1));
         while queued > 0 {
             let Some((g, r, c)) = open[f as usize % BUCKETS].pop() else {
@@ -1348,26 +1432,28 @@ impl Terrain {
             if (r, c) == b {
                 return Some(f64::from(g) / 10.0 * CELL);
             }
-            if g > get(best, round, index(r, c)) {
+            if g > get(best, index(r, c)) {
                 continue;
             }
-            let from = grid.probe(r, c).0;
-            for (dr, dc) in DIRECTIONS {
+            let moves = grid.moves(r, c);
+            for (i, (dr, dc)) in DIRECTIONS.into_iter().enumerate() {
+                if moves >> i & MOVE == 0 {
+                    continue;
+                }
+                // No corner cutting: both straight steps around a diagonal one can be taken.
+                if i >= 4 && (moves >> usize::from(dr > 0) & moves >> (2 + usize::from(dc > 0))) & MOVE == 0 {
+                    continue;
+                }
                 let (nr, nc) = (r + dr, c + dc);
                 if nr < r0 || nc < c0 || nr >= r0 + rows || nc >= c0 + cols {
                     continue;
                 }
-                let diagonal = dr != 0 && dc != 0;
-                let Some(cost) = grid.step_from(from, (nr, nc), diagonal) else {
-                    continue;
+                let diagonal = usize::from(i >= 4);
+                let cost = if moves >> i & MOVE_SWUM != 0 {
+                    SWUM[diagonal]
+                } else {
+                    WALKED[diagonal]
                 };
-                // No corner cutting: both straight steps around a diagonal one can be taken.
-                if diagonal
-                    && (grid.step_from(from, (r + dr, c), false).is_none()
-                        || grid.step_from(from, (r, c + dc), false).is_none())
-                {
-                    continue;
-                }
                 let danger = if Self::near_end((nr, nc), a, b) {
                     0
                 } else {
@@ -1375,8 +1461,8 @@ impl Terrain {
                 };
                 let ng = g + cost + danger;
                 let k = index(nr, nc);
-                if ng < get(best, round, k) {
-                    (best[k], round[k]) = (ng, current);
+                if ng < get(best, k) {
+                    best[k] = (ng, current);
                     open[(ng + h(nr, nc)) as usize % BUCKETS].push((ng, nr, nc));
                     queued += 1;
                 }

@@ -357,7 +357,7 @@ pub struct Model {
     pub quests: Vec<Quest>,
     pub dungeons: Vec<Dungeon>,
     pub professions: Vec<ProfessionPlan>,
-    pub index: HashMap<i64, usize>,
+    pub index: FxHashMap<i64, usize>,
     pub start: Loc,
     /// XP of the quests each quest unlocks (whole chain, discounted per step).
     pub unlocks: Vec<f64>,

@@ -7,6 +7,7 @@ use crate::faction::Faction;
 use crate::world::{Pos, World};
 use anyhow::Result;
 use rusqlite::Connection;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Walks shorter than this (yards) are not worked out: the step is in sight.
 const SHORT: f64 = 40.0;
@@ -30,8 +31,11 @@ pub fn walk_world(conn: &Connection, overrides: &Overrides, faction: Faction) ->
 /// straight. None after a boat, a teleport or a step without a place, for the steps done along
 /// the way and inside dungeons.
 pub fn add_walk_paths(world: &World, route: &mut Route) {
+    // The walks, in order (where one starts depends on the steps before), then searched side by
+    // side: each on its own.
+    let mut walks: Vec<(usize, Pos, Pos, u8)> = Vec::new();
     let mut from: Option<Pos> = None;
-    for step in &mut route.steps {
+    for (k, step) in route.steps.iter_mut().enumerate() {
         step.path.clear();
         if step.bg || step.inside {
             continue;
@@ -41,13 +45,7 @@ pub fn add_walk_paths(world: &World, route: &mut Route) {
             && a.continent == b.continent
             && a.dist(b) >= SHORT
         {
-            let walk = world.walk_path(a, b, u8::try_from(step.level.clamp(0, 255)).unwrap_or(0));
-            if walk.len() > 2 {
-                step.path = walk[..walk.len() - 1]
-                    .iter()
-                    .map(|p| [p.x.round(), p.y.round()])
-                    .collect();
-            }
+            walks.push((k, *a, *b, u8::try_from(step.level.clamp(0, 255)).unwrap_or(0)));
         }
         from = match step.kind {
             // Where the flight lands.
@@ -61,6 +59,36 @@ pub fn add_walk_paths(world: &World, route: &mut Route) {
             StepKind::Link | StepKind::Teleport => None,
             _ => here.or(from),
         };
+    }
+    let next = AtomicUsize::new(0);
+    let threads = std::thread::available_parallelism()
+        .map_or(1, usize::from)
+        .min(walks.len());
+    let found: Vec<(usize, Vec<[f64; 2]>)> = std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..threads)
+            .map(|_| {
+                scope.spawn(|| {
+                    let mut found = Vec::new();
+                    while let Some(&(k, a, b, level)) = walks.get(next.fetch_add(1, Ordering::Relaxed)) {
+                        let walk = world.walk_path(&a, &b, level);
+                        if walk.len() > 2 {
+                            found.push((
+                                k,
+                                walk[..walk.len() - 1]
+                                    .iter()
+                                    .map(|p| [p.x.round(), p.y.round()])
+                                    .collect(),
+                            ));
+                        }
+                    }
+                    found
+                })
+            })
+            .collect();
+        workers.into_iter().flat_map(|w| w.join().unwrap()).collect()
+    });
+    for (k, path) in found {
+        route.steps[k].path = path;
     }
 }
 

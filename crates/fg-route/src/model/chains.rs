@@ -2,6 +2,7 @@
 
 use super::types::Quest;
 use crate::params::Params;
+use rustc_hash::FxHashMap;
 use std::collections::{HashMap, HashSet};
 
 /// QuestSort ID of each class's quests (zoneOrSort = -sort).
@@ -24,7 +25,7 @@ pub(crate) fn class_sort(class_id: i64) -> i64 {
 /// followers too (each step discounted, since later steps may not fit the route), less so
 /// when a follower is long to do (`work`, seconds): sixty cloth to gather make the donation
 /// that follows worth little to the first one.
-pub(super) fn chain_values(quests: &[Quest], index: &HashMap<i64, usize>, work: &[f64]) -> Vec<f64> {
+pub(super) fn chain_values(quests: &[Quest], index: &FxHashMap<i64, usize>, work: &[f64]) -> Vec<f64> {
     const DISCOUNT: f64 = 0.7;
     const LOCAL_CHAIN: f64 = 1500.0;
     /// Work (seconds) that halves the share of a follower's XP counted for the chain.
@@ -76,7 +77,7 @@ pub(super) fn chain_values(quests: &[Quest], index: &HashMap<i64, usize>, work: 
 
 /// For each quest, the highest level among the quests it leads to: those requiring it, and the
 /// quest it is a breadcrumb for, along the whole chain.
-pub(super) fn chain_tops(quests: &[Quest], index: &HashMap<i64, usize>) -> Vec<i64> {
+pub(super) fn chain_tops(quests: &[Quest], index: &FxHashMap<i64, usize>) -> Vec<i64> {
     fn top(i: usize, next: &[Vec<usize>], quests: &[Quest], memo: &mut [Option<i64>], depth: u32) -> i64 {
         if let Some(v) = memo[i] {
             return v;
