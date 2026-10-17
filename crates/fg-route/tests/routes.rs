@@ -805,6 +805,7 @@ fn gathering_next_to_kills_overlaps_them() {
             after: 0,
             handed_by: vec![],
             child: None,
+            child_name: None,
             stock: None,
         }];
     }
@@ -1784,6 +1785,7 @@ fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Obj
         after: 0,
         handed_by: vec![],
         child: None,
+        child_name: None,
         stock: None,
     }
 }

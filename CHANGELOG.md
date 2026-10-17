@@ -18,6 +18,7 @@ Guides watched and edited on a big map, quests that need others planned whole, c
 - "Need help" page: questions to check in game (does this NPC offer this quest yet?), answered in one click; each answer fixes the guides of every player.
 - Guides are made two to three times faster, and come out a little shorter (about an hour on a 1-60).
 - The window no longer freezes while a guide opens, two versions are compared or the addon is installed.
+- WoW Forever: Polestar can be chosen even when the app does not find it in the game: your guides are installed for it all the same.
 
 ### Guides
 
@@ -37,6 +38,7 @@ Guides watched and edited on a big map, quests that need others planned whole, c
 - The compass can be moved (drag it), resized (Ctrl + mouse wheel) and widened (drag its ends); /fg compass hides or shows it, /fg lock locks the windows.
 - WoW Forever: with Shortest Path Forever installed, it takes you to the step, and a click on the compass changes where.
 - The guide and the quest panel take less of the game's time while you loot or sell.
+- Polestar: guides made for its latest version (0.2.5): none refused any more, flight paths in every language, the planned camp first, elites marked "group advised", profession quests only for those who have it.
 
 ### WoW data
 

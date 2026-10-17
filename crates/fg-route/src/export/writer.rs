@@ -131,6 +131,7 @@ impl StepWriter<'_> {
             inside: false,
             objective: None,
             child: None,
+            child_name: None,
             text: String::new(),
             say: vec![say],
             target: None,
@@ -230,6 +231,7 @@ impl StepWriter<'_> {
             inside: false,
             objective: None,
             child: None,
+            child_name: None,
             text: String::new(),
             say: Vec::new(),
             target: None,
@@ -346,6 +348,7 @@ impl StepWriter<'_> {
         step.kind = StepKind::Objective;
         step.objective = Some(k);
         step.child = o.child;
+        step.child_name.clone_from(&o.child_name);
         step.elite = o.elite;
         step.mob_level = (o.kills > 0.0 && o.mob_level > 0).then_some(o.mob_level);
         for (id, name) in o.mobs.iter().take(4) {

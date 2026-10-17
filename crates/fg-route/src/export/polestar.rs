@@ -1,5 +1,5 @@
 //! Guides for the Polestar addon (WoW Forever), for players who follow their guide with it: an
-//! addon of its own, a guide pack registering them with Polestar's pack API (format 1: Lua
+//! addon of its own, a guide pack registering them with Polestar's pack API (format 3: Lua
 //! tables, each guide built in a function of its own). Polestar picks the guide of a character
 //! by faction, race, class and level; the profile part of the Factoruide addon keeps recording.
 //!
@@ -15,9 +15,10 @@ use std::fmt::Write as _;
 /// The pack's addon folder, and its id with Polestar (its guides are `factoruide/<guide>`).
 pub const ADDON: &str = "Factoruide_Polestar";
 pub const PACK_ID: &str = "factoruide";
-/// The pack format written, and the first Polestar reading it.
-const FORMAT: u32 = 1;
-const NEEDS: &str = "0.1.0";
+/// The pack format written, and the first Polestar reading it: hand-ins with no accept
+/// (`direct`), flight paths by node and hearths by area are read from 0.2.5 on.
+const FORMAT: u32 = 3;
+const NEEDS: &str = "0.2.5";
 /// Polestar's Interface version (WoW Forever).
 const INTERFACE: &str = "16001";
 
@@ -26,7 +27,7 @@ const INTERFACE: &str = "16001";
 pub fn pack(guides: &[(String, Route)], version: &str) -> Vec<(&'static str, String)> {
     let toc = format!(
         "## Interface: {INTERFACE}\n\
-         ## Title: Polestar Pack: Factoruide\n\
+         ## Title: Polestar Community: Factoruide\n\
          ## Notes: Your guides made in the Factoruide app.\n\
          ## Notes-frFR: Vos guides faits dans l'application Factoruide.\n\
          ## Author: Factoruide\n\
@@ -169,22 +170,27 @@ impl Goal {
     fn place(mut self, step: &Step) -> Self {
         if let Some(m) = &step.map {
             self.fields
-                .push(format!("map = {}, x = {}, y = {}", m.ui_map, m.x, m.y));
+                .push(format!("map = {}, x = {}, y = {}", m.ui_map, pct(m.x), pct(m.y)));
         }
         self
     }
 
     /// Where its mobs are when they live in several places: its own place, then the others on
-    /// its map (Polestar goes to the closest, and on to another by hand).
+    /// its map as alternatives (Polestar leads to the place of the guide, and on to another by
+    /// hand). A patrolling NPC's places along its path: Polestar leads to the closest.
     fn spots(mut self, step: &Step) -> Self {
         /// Radius of a place (yards).
         const RADIUS: u32 = 40;
         let Some(m) = &step.map else { return self };
         let others: Vec<_> = step.spots.iter().filter(|p| p.ui_map == m.ui_map).collect();
         if !others.is_empty() {
-            let spots: Vec<String> = std::iter::once((m.x, m.y))
-                .chain(others.iter().map(|p| (p.x, p.y)))
-                .map(|(x, y)| format!("{{ x = {x}, y = {y}, r = {RADIUS} }}"))
+            let alt = if step.patrol { "" } else { ", alt = true" };
+            let spots: Vec<String> = std::iter::once(format!("{{ x = {}, y = {}, r = {RADIUS} }}", pct(m.x), pct(m.y)))
+                .chain(
+                    others
+                        .iter()
+                        .map(|p| format!("{{ x = {}, y = {}, r = {RADIUS}{alt} }}", pct(p.x), pct(p.y))),
+                )
                 .collect();
             self.fields.push(format!("spots = {{ {} }}", spots.join(", ")));
         }
@@ -195,6 +201,12 @@ impl Goal {
         let text = step.text.trim();
         if text.is_empty() { self } else { self.str("text", text) }
     }
+}
+
+/// A map coordinate as Polestar takes it, from 0 to 100: a place just past the map's edge (a
+/// hive under Silithus) on the edge, rather than the whole guide refused.
+fn pct(v: f64) -> f64 {
+    v.clamp(0.0, 100.0)
 }
 
 /// A name, else the step's text, its quest, its kind: Polestar refuses a whole guide for one
@@ -235,7 +247,7 @@ fn note(step: &Step) -> Goal {
 }
 
 /// The goals of a step of the guide (a grind: going there, then the level).
-fn goals(step: &Step, english: bool) -> Vec<Goal> {
+fn goals(step: &Step) -> Vec<Goal> {
     let target = step.target.as_ref();
     let at = target.map_or(Join::Alone, |t| Join::At(t.kind, t.id));
     let title = step.quest_name.as_deref().unwrap_or("");
@@ -268,9 +280,12 @@ fn goals(step: &Step, english: bool) -> Vec<Goal> {
         StepKind::TurnIn if step.quest.is_some() => source(quest(Goal::new("turnin", at))),
         // A child quest handed in on the way to its parent's turn-in (Distracting Jarven): a
         // hand-in straight from the window, with no accept.
-        StepKind::Objective if let Some(child) = step.child => {
-            source(Goal::new("turnin", at).num("quest", child).num("direct", true))
-        }
+        StepKind::Objective if let Some(child) = step.child => source(
+            Goal::new("turnin", at)
+                .num("quest", child)
+                .str("title", name_or(step.child_name.as_deref().unwrap_or(""), step))
+                .num("direct", true),
+        ),
         StepKind::Objective if step.quest.is_some() => objective(step, target, quest),
         StepKind::Bind => match target {
             Some(t) if t.kind == TargetKind::Npc => Goal::new("talk", at)
@@ -284,17 +299,28 @@ fn goals(step: &Step, english: bool) -> Vec<Goal> {
                 .str("npcName", name_or(&t.name, step)),
             None => travel(step),
         },
+        // Done once the player is there, the place named by the game in its language (`area`).
         StepKind::Hearth => match step.zone.as_deref() {
-            Some(zone) => Goal::new("hearth", Join::Before).str("location", zone),
+            Some(zone) => {
+                let goal = Goal::new("hearth", Join::Before).str("location", zone);
+                match step.zone_id {
+                    Some(area) => goal.num("area", area),
+                    None => goal,
+                }
+            }
             None => travel(step),
         },
+        // Flight points by their node, which Polestar names in the game's language.
         StepKind::Fly => match target {
-            Some(t) => Goal::new("fly", Join::Before).str("location", town(&t.name)),
+            Some(t) => Goal::new("fly", Join::Before)
+                .str("location", town(&t.name))
+                .num("node", t.id),
             None => travel(step),
         },
-        // Polestar knows a flight path by the name the game gives it: in English only.
-        StepKind::FlightMaster if english => match target {
-            Some(t) => Goal::new("getfp", Join::Alone).str("location", town(&t.name)),
+        StepKind::FlightMaster => match target {
+            Some(t) => Goal::new("getfp", Join::Alone)
+                .str("location", town(&t.name))
+                .num("node", t.id),
             None => travel(step),
         },
         // Grinding to a level, or (`xp`) into it: the place, then the level when it is one.
@@ -320,6 +346,14 @@ fn goals(step: &Step, english: bool) -> Vec<Goal> {
     };
     if !matches!(goal.join, Join::Before) {
         goal = goal.place(step).spots(step);
+        // A quest only characters with a profession can take: hidden from the others.
+        if let (Some(_), Some(line), Some(skill)) = (step.quest, step.line, step.skill) {
+            goal = goal.num("profLine", line).num("profRank", skill);
+        }
+        // Elite mobs: Polestar says a group is advised.
+        if step.elite && step.kind == StepKind::Objective {
+            goal.fields.push("group = { kind = \"elite\", rank = 1 }".to_owned());
+        }
         goal.title = target
             .filter(|t| matches!(t.kind, TargetKind::Npc | TargetKind::Object))
             .map(|t| t.name.clone())
@@ -372,12 +406,11 @@ fn objective(step: &Step, target: Option<&super::Target>, quest: impl Fn(Goal) -
 
 /// One guide's `RegisterGuide`, in a function of its own.
 fn guide(id: &str, route: &Route) -> String {
-    let english = route.locale.as_deref().is_none_or(|l| l.starts_with("en"));
     let mut steps: Vec<(Option<String>, Vec<Goal>)> = Vec::new();
     let mut before: Vec<Goal> = Vec::new();
     let mut last: Option<Join> = None;
     for step in &route.steps {
-        for goal in goals(step, english) {
+        for goal in goals(step) {
             if goal.join == Join::Before {
                 before.push(goal);
                 continue;
@@ -563,17 +596,34 @@ mod tests {
     }
 
     #[test]
-    fn flight_paths_by_name_in_english_only() {
+    fn flight_paths_by_their_node_in_every_language() {
         let fp = || {
             step(
-                json!({ "kind": "flight_master", "target": { "kind": "taxi", "id": 2, "name": "Sentinel Hill, Westfall" },
+                json!({ "kind": "flight_master", "target": { "kind": "taxi", "id": 2, "name": "Colline des Sentinelles, Marche de l'Ouest" },
                 "map": at(56.0), "text": "Get the flight path" }),
             )
         };
-        let english = steps(&guide("g", &route(&[fp()], "enUS")));
-        assert!(english[0][0].starts_with("{ t = \"getfp\", location = \"Sentinel Hill\""));
         let french = steps(&guide("g", &route(&[fp()], "frFR")));
-        assert!(french[0][0].starts_with("{ t = \"goto\""));
+        assert!(
+            french[0][0].starts_with("{ t = \"getfp\", location = \"Colline des Sentinelles\", node = 2"),
+            "{french:?}"
+        );
+    }
+
+    #[test]
+    fn hearths_by_their_area() {
+        let r = route(
+            &[
+                step(json!({ "kind": "hearth", "zone": "Dun Morogh", "zone_id": 1, "text": "Hearth" })),
+                step(json!({ "kind": "train", "target": npc(1, "Trainer"), "text": "Train" })),
+            ],
+            "enUS",
+        );
+        let steps = steps(&guide("g", &r));
+        assert!(
+            steps[0][0].starts_with("{ t = \"hearth\", location = \"Dun Morogh\", area = 1 }"),
+            "{steps:?}"
+        );
     }
 
     #[test]
@@ -606,16 +656,72 @@ mod tests {
         let r = route(
             &[step(
                 json!({ "kind": "objective", "quest": 310, "quest_name": "Bitter Rivals", "objective": 2, "child": 308,
+                "child_name": "Distracting Jarven",
                 "target": npc(1373, "Jarven Thunderbrew"), "say": [{ "k": "objective.text" }],
                 "text": "Turn in Distracting Jarven to Jarven Thunderbrew" }),
             )],
             "enUS",
         );
         let steps = steps(&guide("g", &r));
+        // Polestar refuses the whole guide for a turn-in with no title.
         assert!(
             steps[0][0].starts_with(
-                "{ t = \"turnin\", quest = 308, direct = true, npc = 1373, npcName = \"Jarven Thunderbrew\""
+                "{ t = \"turnin\", quest = 308, title = \"Distracting Jarven\", direct = true, npc = 1373, npcName = \"Jarven Thunderbrew\""
             ),
+            "{steps:?}"
+        );
+        // A guide saved without the child quest's name: its step's sentence.
+        let mut old = r.steps[0].clone();
+        old.child_name = None;
+        let steps = goals(&old);
+        assert!(
+            steps[0]
+                .fields
+                .contains(&"title = \"Turn in Distracting Jarven to Jarven Thunderbrew\"".to_owned())
+        );
+    }
+
+    #[test]
+    fn places_past_the_map_edge_on_the_edge() {
+        let r = route(
+            &[step(
+                json!({ "kind": "objective", "quest": 8309, "quest_name": "Glyph Chasing", "objective": 2,
+                "target": { "kind": "item", "id": 20456, "name": "Hive'Regal Rubbing" },
+                "map": { "ui_map": 1451, "x": 52.0, "y": 101.8 },
+                "spots": [{ "ui_map": 1451, "x": -0.5, "y": 50.0 }], "text": "Rubbing" }),
+            )],
+            "enUS",
+        );
+        let steps = steps(&guide("g", &r));
+        assert!(steps[0][0].contains("map = 1451, x = 52, y = 100"), "{steps:?}");
+        assert!(
+            steps[0][0].contains("{ x = 0, y = 50, r = 40, alt = true }"),
+            "{steps:?}"
+        );
+    }
+
+    #[test]
+    fn profession_quests_for_those_with_the_skill_and_elites_in_a_group() {
+        let r = route(
+            &[
+                step(
+                    json!({ "kind": "accept", "quest": 6624, "quest_name": "Triage", "skill": 225, "line": 129,
+                    "target": npc(12939, "Doctor Gustaf VanHowzen"), "text": "Accept Triage" }),
+                ),
+                step(
+                    json!({ "kind": "objective", "quest": 5, "quest_name": "Q", "objective": 0, "elite": true,
+                    "target": npc(299, "Elite Wolf"), "say": [{ "k": "objective.kill" }], "text": "Elite Wolf" }),
+                ),
+            ],
+            "enUS",
+        );
+        let steps = steps(&guide("g", &r));
+        assert!(
+            steps[0][0].contains("optional = true") && steps[0][0].contains("profLine = 129, profRank = 225"),
+            "{steps:?}"
+        );
+        assert!(
+            steps[1][0].contains("group = { kind = \"elite\", rank = 1 }"),
             "{steps:?}"
         );
     }
@@ -636,7 +742,7 @@ mod tests {
     }
 
     #[test]
-    fn mobs_in_several_places_have_spots_on_the_goal_map() {
+    fn mobs_in_several_places_have_the_others_as_alternatives_on_the_goal_map() {
         let r = route(
             &[step(
                 json!({ "kind": "objective", "quest": 5, "quest_name": "Q", "objective": 0,
@@ -648,8 +754,18 @@ mod tests {
         );
         let steps = steps(&guide("g", &r));
         assert!(
-            steps[0][0].contains("spots = { { x = 20, y = 50, r = 40 }, { x = 40, y = 60, r = 40 } }"),
+            steps[0][0].contains("spots = { { x = 20, y = 50, r = 40 }, { x = 40, y = 60, r = 40, alt = true } }"),
             "{steps:?}"
+        );
+        // A patrolling NPC: Polestar leads to the closest place along its path.
+        let mut patrol = r.steps[0].clone();
+        patrol.patrol = true;
+        let goals = goals(&patrol);
+        assert!(
+            goals[0]
+                .fields
+                .iter()
+                .any(|f| f == "spots = { { x = 20, y = 50, r = 40 }, { x = 40, y = 60, r = 40 } }")
         );
     }
 
@@ -672,8 +788,11 @@ mod tests {
         assert!(
             files[0].1.contains("## Dependencies: Polestar\n")
                 && files[0].1.contains("## X-Polestar-Pack: factoruide\n")
+                && files[0]
+                    .1
+                    .contains("## X-Polestar-Format: 3\n## X-Polestar-Needs: 0.2.5\n")
         );
-        assert!(files[1].1.contains("id = \"factoruide\", format = 1") && files[1].1.contains("version = \"1.2.0\""));
+        assert!(files[1].1.contains("id = \"factoruide\", format = 3") && files[1].1.contains("version = \"1.2.0\""));
         assert!(files[2].1.contains("{ t = \"train\", npc = 1, npcName = \"Trainer\""));
         assert_eq!(lua("a\"b\\c\u{1}"), "\"a\\\"b\\\\c\\001\"");
     }

@@ -130,9 +130,10 @@ The addon comes in two parts: **Factoruide_Profile** records your character and 
 shows (profile, collector below), **Factoruide_Guide** shows the guide and everything around it.
 On WoW Forever, the **Addon** page can have [Polestar](https://github.com/fitzforge/polestar) show
 your guides instead: the app then installs them as a Polestar guide pack (Factoruide_Polestar),
-leaves the guide part out, and the profile part keeps recording. In Polestar, choose Factoruide
-under "Suggest guides from" on the "Guide packs" page: it offers each character the guide of its
-race and class.
+leaves the guide part out, and the profile part keeps recording (also when the app does not find
+Polestar: the pack shows once Polestar 0.2.5 or newer is installed). In Polestar, choose Factoruide
+under "Suggest guides from" on the "Community guides" page: it offers each character the guide of
+its race and class.
 
 - Guide: follows the guide chosen for the character in the app and advances by itself; `/fg guide`,
   `/fg next`, `/fg prev`, `/fg step <n>`, `/fg route` (shows it), `/fg waypoint`. Two modes: full

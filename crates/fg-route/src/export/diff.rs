@@ -813,6 +813,7 @@ mod tests {
             inside: false,
             objective: (kind == StepKind::Objective).then_some(0),
             child: None,
+            child_name: None,
             text: format!("{} {id}", kind.as_str()),
             say: Vec::new(),
             target,

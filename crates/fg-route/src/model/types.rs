@@ -147,6 +147,8 @@ pub struct Objective {
     pub stock: Option<u16>,
     /// The child quest this objective hands in (see `LinkKind::Child`): done once it is turned in.
     pub child: Option<i64>,
+    /// That child quest's name.
+    pub child_name: Option<String>,
 }
 
 impl Objective {

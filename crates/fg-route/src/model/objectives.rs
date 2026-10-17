@@ -52,6 +52,7 @@ impl Objective {
             handed_by: vec![],
             stock: None,
             child: None,
+            child_name: None,
         }
     }
 }
@@ -184,9 +185,11 @@ impl QuestBuilder<'_> {
                 }
             }
             hand_in.child = Some(child);
+            hand_in.child_name = Some(row.name.clone());
             hand_in.after = after;
             for alt in &mut hand_in.alts {
                 alt.child = Some(child);
+                alt.child_name = Some(row.name.clone());
                 alt.after = after;
             }
             handed.push((child, objs.len()));

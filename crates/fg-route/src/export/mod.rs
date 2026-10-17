@@ -198,6 +198,9 @@ fn render_step(step: &mut Step, names: &Names) {
     if let (Some(id), Some(name)) = (step.quest, &step.quest_name) {
         step.quest_name = Some(names.get("quest", id, name).to_owned());
     }
+    if let (Some(id), Some(name)) = (step.child, &step.child_name) {
+        step.child_name = Some(names.get("quest", id, name).to_owned());
+    }
     if let Some(t) = &mut step.target {
         let kind = match t.kind {
             TargetKind::Npc => "npc",

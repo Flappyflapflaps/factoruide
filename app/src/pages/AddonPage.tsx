@@ -271,8 +271,8 @@ export function AddonPage() {
   const shownBy = forever ? (settings.guide_addon ?? "factoruide") : "factoruide";
   const withPolestar = shownBy === "polestar";
   const choices = [
-    { value: "factoruide" as const, label: t("Addon Factoruide"), disabled: false },
-    { value: "polestar" as const, label: "Polestar", disabled: !polestar && !withPolestar },
+    { value: "factoruide" as const, label: t("Addon Factoruide") },
+    { value: "polestar" as const, label: "Polestar" },
   ];
 
   return (
@@ -307,7 +307,6 @@ export function AddonPage() {
                   role="radio"
                   aria-checked={c.value === shownBy}
                   className={c.value === shownBy ? "active" : ""}
-                  disabled={c.disabled}
                   onClick={() => {
                     setMessage(null);
                     setSettings({ ...settings, guide_addon: c.value });
@@ -318,7 +317,7 @@ export function AddonPage() {
               ))}
             </div>
           </div>
-          {!polestar && <p className="muted">{t("Polestar n'est pas installé dans WoW Forever.")}</p>}
+          {!polestar && <p className="muted">{t("Polestar n'est pas détecté dans WoW Forever. Vous pouvez quand même le choisir : vos guides sont installés pour Polestar (dossier Factoruide_Polestar des addons du jeu) et s'affichent dès que Polestar est installé.")}</p>}
           <p className="muted">{t("Après un changement ici, installez dans le jeu puis redémarrez WoW : le jeu ne découvre un nouvel addon qu'au démarrage.")}</p>
         </section>
       )}
@@ -328,7 +327,7 @@ export function AddonPage() {
             <h3>{t("Vos guides dans Polestar")}</h3>
             <ul className="polestar-steps">
               <li>{t("Les guides suivis par vos personnages sont installés comme un pack de guides de Polestar, « Factoruide », dans la langue choisie ci-dessous.")}</li>
-              <li>{t("Dans Polestar, page « Guide packs », choisissez Factoruide sous « Suggest guides from » : Polestar propose alors à chaque personnage le guide de sa race et de sa classe.")}</li>
+              <li>{t("Dans Polestar, page « Guides de la communauté », choisissez Factoruide sous « Suggérer les guides de » : Polestar propose alors à chaque personnage le guide de sa race et de sa classe.")}</li>
               <li>{t("Deux personnages de même race et classe qui suivent des guides différents se voient proposer les deux : choisissez-le dans la liste des guides de Polestar.")}</li>
               <li>{t("L'automatisation (quêtes, entraîneurs, vols) et l'affichage se règlent dans les options de Polestar.")}</li>
             </ul>

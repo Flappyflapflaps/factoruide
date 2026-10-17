@@ -149,6 +149,9 @@ pub struct Step {
     /// Jarven for Bitter Rivals): done once that quest is turned in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub child: Option<i64>,
+    /// That child quest's name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child_name: Option<String>,
     /// The step's sentence in a language: written from `say` (`render`), else (a guide of
     /// format 1) kept as it was written.
     #[serde(default)]
@@ -256,6 +259,7 @@ impl Step {
             inside: false,
             objective: None,
             child: None,
+            child_name: None,
             text: String::new(),
             say: Vec::new(),
             target: None,
