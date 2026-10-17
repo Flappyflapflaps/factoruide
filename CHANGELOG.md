@@ -23,6 +23,8 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - Mobs killed on the way no longer include the mobs of the quests in the log: their kills were counted twice, on the way and for the objective (GitHub #20).
 - Guides count on killing 80% of the mobs met on the way, fewer on a crowded server; the share is a new setting next to the other farming on the way settings.
 - A trip to a grinding spot is a step of the guide even when the mobs on the way there already give the level.
+- Steps at an NPC who walks a patrol say so and give places along the path; the addon points at the closest first (Gordo in Tirisfal Glades, GitHub #20).
+- Waiting for respawns counts each mob's own respawn time, and crowded servers bring mobs back faster: a lone mob like Meven Korgal no longer costs a quarter of an hour of waiting (GitHub #20).
 
 ### Addon
 

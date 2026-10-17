@@ -93,9 +93,15 @@ pub struct Params {
     /// Share of the crowd by quest level, one value per 10 levels (1-10, 11-20...; the last one
     /// above): players spread out as they level.
     pub crowd_by_level: Vec<f64>,
-    /// Seconds before a killed mob or a used object is back: an objective asking for more than
-    /// its spot holds waits for them (shared with the other players of a crowded server).
+    /// Seconds before a killed mob or a used object is back, for those whose own time the data
+    /// does not know: an objective asking for more than its spot holds waits for them (shared
+    /// with the other players of a crowded server).
     pub respawn_time: f64,
+    /// How much faster mobs and objects come back with players around (the game shortens
+    /// respawns with the population of an area): respawns are divided by 1 + this times the
+    /// other players at the spot. 0: fixed respawns, the crowd waits its turn; 1: respawns keep
+    /// up with the crowd, each player waits as if alone.
+    pub dynamic_respawn: f64,
     /// Without `allow_elite`, elite objectives of at most this many kills are kept anyway: the
     /// lone elites a player kills solo (Hogger, Tharil'zun, Mor'Ladim...). 0 = none.
     pub solo_elite_kills: f64,
@@ -339,6 +345,7 @@ impl Default for Params {
             crowd_players: 3.0,
             crowd_by_level: vec![1.0, 0.9, 0.8, 0.6, 0.5],
             respawn_time: 300.0,
+            dynamic_respawn: 0.5,
             solo_elite_kills: 2.0,
             zone_stay: 4.0,
             construction_random: true,

@@ -32,6 +32,7 @@ export interface Params {
   crowd_players: number;
   crowd_by_level: number[];
   respawn_time: number;
+  dynamic_respawn: number;
   pull_levels: number;
   quest_log_size: number;
   flight_learn_radius: number;

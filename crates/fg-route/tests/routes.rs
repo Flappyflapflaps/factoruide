@@ -1903,7 +1903,8 @@ fn steps_carry_their_planned_time() {
 
 /// Blackrock Menace (axes from Blackrock orcs, Redridge): its spot near the giver holds only a
 /// few orcs standing in pairs, one point for a Grunt or an Outrunner taking turns. The pairs
-/// make it harder than lone orcs, the ~22 kills wait for respawns, more on a crowded server.
+/// make it harder than lone orcs, the ~22 kills wait for respawns, more on a crowded server, if
+/// less than with fixed respawns (the game shortens them with players around).
 #[test]
 fn small_spot_in_pairs_is_harder_and_slower() {
     let p = human_warrior();
@@ -1915,13 +1916,16 @@ fn small_spot_in_pairs_is_harder_and_slower() {
     let need = planner(p).combat().need(q, &o);
     assert!(need >= o.mob_level as f64 + p.params.pack_extra() + 0.5, "need {need}");
     assert!(o.extra > 0.0, "respawns waited for");
-    let crowded = prepare("human", "warrior", 30, &["progression=cautious", "crowded=1"]);
-    assert!(
-        objective(&crowded).extra > 3.0 * o.extra,
-        "{} vs {}",
-        objective(&crowded).extra,
-        o.extra
-    );
+    let crowded = objective(&prepare("human", "warrior", 30, &["progression=cautious", "crowded=1"])).extra;
+    let fixed = objective(&prepare(
+        "human",
+        "warrior",
+        30,
+        &["progression=cautious", "crowded=1", "dynamic_respawn=0"],
+    ))
+    .extra;
+    assert!(crowded > 1.5 * o.extra, "{crowded} vs {}", o.extra);
+    assert!(fixed > 3.0 * o.extra && fixed > 1.5 * crowded, "{fixed} vs {crowded}");
 }
 
 /// Settings saved before the crowd scale (`crowded: true`) read as a full crowd.

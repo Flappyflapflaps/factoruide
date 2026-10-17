@@ -21,21 +21,43 @@ impl QuestBuilder<'_> {
                 o.extra += crowd * p.crowd_event_time;
                 continue;
             }
-            let (work, each) = if o.kills > 0.0 && !o.elite && !o.mobs.is_empty() {
+            let (work, each, kind) = if o.kills > 0.0 && !o.elite && !o.mobs.is_empty() {
                 let points = self.spot_points(o, EntityKind::Npc);
                 o.spawns = points.len() as u32;
                 if !points.is_empty() {
                     let pulls: u32 = points.iter().map(|q| self.sources.guards.pull_at(q)).sum();
                     o.pack = f64::from(pulls) / points.len() as f64;
                 }
-                (o.kills, p.kill_time(level, 0.0, o.mob_level))
+                (o.kills, p.kill_time(level, 0.0, o.mob_level), EntityKind::Npc)
             } else if o.uses > 0.0 && o.loc.kind == EntityKind::Object {
                 o.spawns = self.spot_points(o, EntityKind::Object).len() as u32;
-                (o.uses, p.object_time)
+                (o.uses, p.object_time, EntityKind::Object)
             } else {
                 continue;
             };
-            o.extra += respawn_wait(work, f64::from(o.spawns), each, p.respawn_time, crowd * p.crowd_players);
+            let crowd = Crowd {
+                others: crowd * p.crowd_players,
+                dynamic: p.dynamic_respawn,
+            };
+            o.extra += respawn_wait(work, f64::from(o.spawns), each, self.respawn(o, kind), crowd);
+        }
+    }
+
+    /// Seconds the objective's mobs (or its object) take to come back: the mean of those the
+    /// data knows (Meven Korgal: a minute), else `Params::respawn_time`.
+    fn respawn(&self, o: &Objective, kind: EntityKind) -> f64 {
+        let ids: Vec<i64> = if kind == EntityKind::Npc {
+            o.mobs.iter().map(|(id, _)| *id).collect()
+        } else {
+            vec![o.loc.id]
+        };
+        let known: Vec<f64> = (ids.iter())
+            .filter_map(|id| self.sources.entities.respawn.get(&(kind, *id)).copied())
+            .collect();
+        if known.is_empty() {
+            self.params.respawn_time
+        } else {
+            known.iter().sum::<f64>() / known.len() as f64
         }
     }
 
@@ -59,18 +81,28 @@ impl QuestBuilder<'_> {
     }
 }
 
-/// Time waiting for respawns: `work` kills (or uses) of `each` seconds at a spot of `spawns`,
-/// shared with `others` players. Once the spot is cleared, one comes back every `respawn` /
-/// spawns seconds; the wait is what that leaves beyond the kill itself. Nothing when the spot
-/// is unknown.
-fn respawn_wait(work: f64, spawns: f64, each: f64, respawn: f64, others: f64) -> f64 {
+/// The other players at a spot, and how much the game shortens respawns for them
+/// (`Params::dynamic_respawn`).
+#[derive(Clone, Copy)]
+struct Crowd {
+    others: f64,
+    dynamic: f64,
+}
+
+/// Time waiting for respawns: `work` kills (or uses) of `each` seconds at a spot of `spawns`
+/// coming back in `respawn` seconds, shared with the crowd. Once the spot is cleared, one comes
+/// back every `respawn` / spawns seconds, sooner with players around (divided by 1 + dynamic x
+/// others); the wait is what that leaves beyond the kill itself. Nothing when the spot is
+/// unknown.
+fn respawn_wait(work: f64, spawns: f64, each: f64, respawn: f64, crowd: Crowd) -> f64 {
     if spawns <= 0.0 {
         return 0.0;
     }
-    let mine = spawns / (1.0 + others);
+    let mine = spawns / (1.0 + crowd.others);
     if work <= mine {
         return 0.0;
     }
+    let respawn = respawn / (1.0 + crowd.dynamic * crowd.others);
     (respawn / mine - each).max(0.0) * (work - mine)
 }
 
@@ -82,15 +114,51 @@ fn is_event(r: &QuestRow, text: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::respawn_wait;
+    use super::{Crowd, respawn_wait};
+
+    const ALONE: Crowd = Crowd {
+        others: 0.0,
+        dynamic: 0.5,
+    };
+    const FIXED: Crowd = Crowd {
+        others: 3.0,
+        dynamic: 0.0,
+    };
 
     /// Enough mobs: no wait; a small spot: the respawns are waited for, longer when shared.
     #[test]
     fn small_spots_wait_for_respawns() {
-        assert!(respawn_wait(10.0, 30.0, 25.0, 300.0, 0.0).abs() < 1e-9);
-        let alone = respawn_wait(22.0, 7.0, 25.0, 300.0, 0.0);
-        let shared = respawn_wait(22.0, 7.0, 25.0, 300.0, 3.0);
+        assert!(respawn_wait(10.0, 30.0, 25.0, 300.0, ALONE).abs() < 1e-9);
+        let alone = respawn_wait(22.0, 7.0, 25.0, 300.0, ALONE);
+        let shared = respawn_wait(22.0, 7.0, 25.0, 300.0, FIXED);
         assert!(alone > 0.0 && shared > 3.0 * alone, "{alone} {shared}");
-        assert!(respawn_wait(22.0, 0.0, 25.0, 300.0, 3.0).abs() < 1e-9, "unknown spot");
+        assert!(respawn_wait(22.0, 0.0, 25.0, 300.0, FIXED).abs() < 1e-9, "unknown spot");
+    }
+
+    /// Meven Korgal (GitHub #20): one spawn back in a minute, killed once on a launch day. With
+    /// every mob at 5 minutes and fixed respawns the wait was a quarter of an hour; his own minute
+    /// shortened for the crowd leaves about one.
+    #[test]
+    fn a_lone_mob_respawning_fast_on_a_crowded_server_is_a_short_wait() {
+        let launch = Crowd {
+            others: 3.0,
+            dynamic: 0.5,
+        };
+        let before = respawn_wait(1.0, 1.0, 25.0, 300.0, FIXED);
+        let now = respawn_wait(1.0, 1.0, 25.0, 60.0, launch);
+        assert!(before > 800.0, "{before}");
+        assert!((20.0..120.0).contains(&now), "{now}");
+    }
+
+    /// Respawns quicken with the crowd: the wait grows with the players less than with fixed
+    /// respawns, and not at all beyond the first share when they keep up (dynamic 1).
+    #[test]
+    fn faster_respawns_with_players_around_soften_the_crowded_wait() {
+        let at = |others: f64, dynamic: f64| respawn_wait(30.0, 10.0, 25.0, 300.0, Crowd { others, dynamic });
+        let (alone, fixed, dynamic) = (at(0.0, 0.5), at(3.0, 0.0), at(3.0, 0.5));
+        assert!(alone < dynamic && dynamic < fixed, "{alone} {dynamic} {fixed}");
+        // Keeping up: each comes back as often for each player as for one alone.
+        let rate = |others: f64| at(others, 1.0) / (30.0 - 10.0 / (1.0 + others));
+        assert!((rate(3.0) - rate(0.0)).abs() < 1e-9, "{} {}", rate(3.0), rate(0.0));
     }
 }
