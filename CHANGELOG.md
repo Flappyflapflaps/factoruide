@@ -44,6 +44,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - TBC: the human and dwarf paladin's Tome of Divinity and Tome of Valor, the draenei shaman's Call of Fire and the Horde rogue's Hinott's Assistance (Poisons) are back in their guides.
 - WoW Forever: Beer Basted Boar Ribs is offered without Cooking, as in game.
 - Data refreshed (Questie, AllTheThings, Wowhead) with the players' latest contributions.
+- WoW Forever: game data read again from the latest client update (1.60.1.70425).
 
 ## 0.10.0 (2026-10-15)
 
