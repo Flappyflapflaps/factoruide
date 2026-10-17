@@ -1633,6 +1633,23 @@ do
 end
 print("npc mark ok")
 
+-- The arrow (off by default): the chevron's frame for a turn (64 frames, 8 a row, counter-
+-- clockwise), on the guide's place when turned on.
+do
+    local f, left, right, top, bottom = FG.Arrow.Frame(0)
+    assert(f == 0 and left == 0 and right == 0.125 and top == 0 and bottom == 0.125, "straight ahead: the first")
+    f, left, _, top = FG.Arrow.Frame(math.pi / 2)
+    assert(f == 16 and left == 0 and top == 0.25, "a quarter turn left: the third row")
+    assert(FG.Arrow.Frame(2 * math.pi - 0.01) == 0, "almost a full turn: ahead again")
+    assert(FG.Arrow:Target() == nil, "off by default")
+    FG:Set("arrowShown", true)
+    local t = FG.Arrow:Target()
+    assert(t and t.m == 1426 and t.x == 40, "on the guide's place")
+    FG:Set("arrowShown", nil)
+    assert(FG.Arrow:Target() == nil, "off again")
+end
+print("arrow ok")
+
 -- The quest panel: one line a quest in both modes; folded, no line.
 local logEntries, logInfo = C_QuestLog.GetNumQuestLogEntries, C_QuestLog.GetInfo
 C_QuestLog.GetNumQuestLogEntries = function() return 6 end

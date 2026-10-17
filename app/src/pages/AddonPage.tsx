@@ -39,6 +39,7 @@ const OPTIONS: { title: string; options: Option[] }[] = [
     title: "Pathing",
     options: [
       { key: "compassShown", kind: "bool", label: "Afficher la boussole", help: "La bande en haut de l'écran : l'étape en cours, bien visible avec sa distance, les autres tâches, les quêtes proches à prendre et les lieux choisis plus bas. Un clic sur un point : le guide pointe dessus.", default: true },
+      { key: "arrowShown", kind: "bool", label: "Flèche en plus de la boussole", help: "Une flèche 3D qui tourne avec le personnage : vers le chemin prévu tant qu'il y en a un, sinon vers l'étape, avec la distance. Elle se déplace en la faisant glisser.", default: false },
       {
         key: "spfLink",
         only: "forever",

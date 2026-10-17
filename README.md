@@ -151,7 +151,8 @@ race and class.
   flight masters, innkeepers, vendors, bankers, mailboxes...; mouse over: what and how far; click:
   go there). A green mark shows the way the guide planned on foot, around cliffs and water,
   orange when you stray from it; the same way is dotted on the world map and the minimap (an
-  option). When the NPC to go to shows its nameplate, a mark sits right above its head. On WoW Forever, [Shortest Path Forever](https://www.curseforge.com/wow/addons/shortest-path-forever)
+  option), and a 3D arrow can follow it next to the compass (another option). When the NPC to go
+  to shows its nameplate, a mark sits right above its head. On WoW Forever, [Shortest Path Forever](https://www.curseforge.com/wow/addons/shortest-path-forever)
   (when installed) gets the place to go to and guides you there with flights, boats and its own
   map lines; a click on the compass changes its destination. Targeting macro "FG Cible"
   (`/fg macro`), quest item button (key binding in the game's

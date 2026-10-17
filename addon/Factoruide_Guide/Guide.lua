@@ -696,6 +696,7 @@ function Guide:Refresh()
     if not shown or not route or not route.steps[state.step] then
         if FG.Compass then FG.Compass:SetPoints(nil) end
         if FG.Pathing then FG.Pathing:SetTarget(nil) end
+        if FG.Arrow then FG.Arrow:SetTarget(nil) end
         if FG.Wind then FG.Wind:SetTarget(nil) end
         ui:Render({ hidden = not shown, message = route and L.done or L.noRoute })
         if FG.XpMarker then FG.XpMarker:Refresh() end
@@ -827,7 +828,7 @@ function Guide:Refresh()
         table.insert(view.pickups, v)
     end
 
-    if FG.Pathing then
+    do
         local info = detour and { title = detour.name, kind = detour.service, npc = detour.npc }
             or {
                 title = TaskView(target, targetIndex, false).name,
@@ -835,8 +836,9 @@ function Guide:Refresh()
                 q = target.q,
                 npc = place == target and target.e == "npc" and TALKS[target.k] and target.id or nil,
             }
-        FG.Pathing:SetTarget(place, not detour and target or nil, info)
+        if FG.Pathing then FG.Pathing:SetTarget(place, not detour and target or nil, info) end
         if FG.PathLines then FG.PathLines:Refresh() end
+        if FG.Arrow then FG.Arrow:SetTarget(place, info.title) end
     end
     SetWaypoint(place)
     local wind = FG.Wind and FG.Wind:Active()
@@ -1132,7 +1134,7 @@ FG:On("PLAYER_LOGIN", function()
     UseRoute(PickRoute())
     FG.Card:Create(state)
     if FG.Mini then FG.Mini:Create(state) end
-    for _, key in ipairs({ "guideMode", "nextTab", "guideShown", "questPanel", "compassShown" }) do
+    for _, key in ipairs({ "guideMode", "nextTab", "guideShown", "questPanel", "compassShown", "arrowShown" }) do
         FG:OnSetting(key, function() Guide:Refresh() end)
     end
     -- Hidden: the game's map pin goes too, and comes back with the guide.

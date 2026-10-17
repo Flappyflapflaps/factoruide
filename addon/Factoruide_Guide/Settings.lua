@@ -57,8 +57,9 @@ FG.defaults = {
     mapPins = true,
     mapPinsCount = 15,
     autoFly = true,
-    -- The compass bar at the top of the screen.
+    -- The compass bar at the top of the screen, and a 3D arrow too.
     compassShown = true,
+    arrowShown = false,
     -- WoW Forever: the place pointed at goes to Shortest Path Forever when it is loaded, which
     -- guides there (and the game's waypoint is left to it).
     spfLink = true,

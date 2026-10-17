@@ -21,6 +21,7 @@ Card.lua
 Mini.lua
 Compass.lua
 Pathing.lua
+Arrow.lua
 Nearby.lua
 NpcMark.lua
 Poulpix.lua
