@@ -42,6 +42,8 @@ const MAX_ZOOM = 24;
 const MIN_ZOOM = 0.6;
 /** From this zoom (times the whole continent's) the zones' own maps, sharper, are drawn over the continent's. */
 const ZONE_DETAIL = 2;
+/** How far past their outlines the zones' maps fill the gaps between them (pixels of the continent's map, both sides). */
+const GROW = 8;
 /** A zone's map this much over a bigger zone's is a city's (seen from inside, or drawn by that zone's map too). */
 const CITY_SHARE = 0.5;
 /** Cards before and after the current one with a full marker (the others: a dot). */
@@ -106,8 +108,8 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
       .catch((e) => setError(String(e)));
   }, []);
 
-  // Continents the guide goes to, and the one shown.
-  const continents = useMemo(() => CONTINENTS.filter((c) => steps.some((s) => s.world?.[0] === c) || moves.legs.some((l) => l.to[0] === c)), [steps, moves]);
+  // The game version's continents, and the one shown.
+  const continents = useMemo(() => CONTINENTS.filter((c) => index?.some((m) => m.kind === 2 && m.bounds?.map === c)), [index]);
   const [continent, setContinent] = useState<number>(() => moves.start[0]);
   const base = useMemo(
     () => index?.filter((m) => m.kind === 2 && m.bounds?.map === continent).sort((a, b) => b.width - a.width)[0] ?? null,
@@ -380,6 +382,11 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
                 <path d={d} fillRule="evenodd" />
               </clipPath>
             ))}
+            {shown.map(({ z, d }) => d && (
+              <mask key={z.id} id={`gm-grow-${z.id}`} maskUnits="userSpaceOnUse">
+                <path d={d} fillRule="evenodd" fill="#fff" stroke="#fff" strokeWidth={GROW} strokeLinejoin="round" />
+              </mask>
+            ))}
             {hidden.map((c) => (
               <clipPath key={c.id} id={`gm-cover-${c.id}`}>
                 <path d={c.d} fillRule="evenodd" />
@@ -388,12 +395,14 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
           </defs>
           <g ref={layer}>
             {base && <MapImage id={base.id} x={0} y={0} w={base.width} h={base.height} />}
-            {/* The zones' maps whole first (biggest under), filling the gaps their simplified
-                outlines leave, then each within its outline. */}
+            {/* The zones' maps a little past their outlines first (biggest under), filling the
+                gaps the simplified outlines leave, then each within its outline. */}
             {[...shown]
               .sort((a, b) => b.rect.w * b.rect.h - a.rect.w * a.rect.h)
-              .map(({ z, rect }) => (
-                <MapImage key={z.id} id={z.id} x={rect.x} y={rect.y} w={rect.w} h={rect.h} />
+              .map(({ z, rect, d }) => (
+                <g key={z.id} mask={d ? `url(#gm-grow-${z.id})` : undefined}>
+                  <MapImage id={z.id} x={rect.x} y={rect.y} w={rect.w} h={rect.h} />
+                </g>
               ))}
             {shown.map(({ z, rect, d }) => (
               <g key={z.id} clipPath={d ? `url(#gm-clip-${z.id})` : undefined}>
