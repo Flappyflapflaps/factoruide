@@ -246,6 +246,17 @@ that each step did only its own action. `Planner::edit` replays the steps like `
 same time, but checks each step instead of giving up on the first impossible one: an impossible step is reported with the reason and left out (the
 guide cannot be saved), a step with nothing left to do (done before) is skipped. The edited guide is then written from that replay like any other.
 
+A guide's page plays it back (`job/timeline.rs`, `guide_timeline` in the app): its steps are
+replayed as the editor replays them (`Planner::edit`, the character kept after each step), the
+guide is written again from the replay and tied step by step to the guide as saved (the same
+steps, or the same in another order; a step the replay does not find, the data having changed
+since, gets a straight walk to it), and the replay is cut at the event of each step: its time
+split into travel, combat, interaction and waiting, the character's moves (walks around the
+terrain, simplified; flights along their taxi paths; boats; the hearthstone and teleports as
+jumps) and what changes (quests taken and turned in, objectives done, flight paths learned, the
+inn bound, the hearthstone used). The guide's own times are kept: the replay only fills them in.
+The app (`GuideViewer`) rebuilds the character at any moment from those changes.
+
 A guide file carries its format (`format.rs`). Reading an older one migrates it one format after
 the other; a migration that cannot carry a guide over refuses it (to compute again), and a guide
 of a newer format asks to update the app. Format 1 (before phrases) keeps its texts as they were
