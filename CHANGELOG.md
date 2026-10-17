@@ -20,6 +20,9 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - The start zone's letter to the class trainer is always taken (Encrypted Sigil, Consecrated Rune, Simple Parchment…).
 - A quest started by a boss's drop is taken during the dungeon run, not before entering (Unending Torment, Ruins of Lordaeron).
 - "Speak with" objectives are talks, no longer kills of the NPC.
+- Mobs killed on the way no longer include the mobs of the quests in the log: their kills were counted twice, on the way and for the objective (GitHub #20).
+- Guides count on killing 80% of the mobs met on the way, fewer on a crowded server; the share is a new setting next to the other farming on the way settings.
+- A trip to a grinding spot is a step of the guide even when the mobs on the way there already give the level.
 
 ### Addon
 

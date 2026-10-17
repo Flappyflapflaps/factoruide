@@ -22,7 +22,7 @@ mod sources;
 mod types;
 
 pub(crate) use chains::{class_sort, required_by_name};
-pub use farm::FarmMobs;
+pub use farm::{FarmMobs, Met};
 pub use guard::Guards;
 pub use loot::CommonLoot;
 pub use names::Names;
@@ -57,7 +57,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
     let unlocks = chains::chain_values(&quests, &index, &chains::quest_work(&quests, params));
     let chain_top = chains::chain_tops(&quests, &index);
     let (explore, explore_by_zone) = explore::load_explore(conn, world)?;
-    let farm = FarmMobs::load(conn, world)?;
+    let farm = FarmMobs::load(conn, world, &quests)?;
     let power = crate::power::PowerModel::load(
         conn,
         profile.class_id,

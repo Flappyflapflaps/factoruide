@@ -64,8 +64,12 @@ pub struct Params {
     /// ask): those within `farm_corridor` of the path, from `farm_below` levels under the
     /// character to `farm_above` over it (lower ones give little XP, higher ones are slow and
     /// risky). It replaces grinding: limited to `farm_cap` of each level, weighed like grinding.
+    /// Of the mobs along the corridor, `farm_share` are killed (some are dead, out of reach or
+    /// fighting someone), fewer on a crowded server (see `farm_share_at`). The mobs of the log's
+    /// quests are not farmed: their objectives count them where they are done.
     pub farm_on_way: bool,
     pub farm_corridor: f64,
+    pub farm_share: f64,
     pub farm_below: i64,
     pub farm_above: i64,
     /// Quests of the route whose NPC is within this distance of a stop are taken and turned in
@@ -323,6 +327,7 @@ impl Default for Params {
             flight_learn_radius: 300.0,
             farm_on_way: true,
             farm_corridor: 25.0,
+            farm_share: 0.8,
             farm_below: 3,
             farm_above: 1,
             camp_radius: 0.0,
@@ -469,6 +474,13 @@ impl Params {
             .copied()
             .unwrap_or(1.0);
         self.crowded * share.clamp(0.0, 1.0)
+    }
+
+    /// Share of the mobs along a walk a character of `level` kills on the way: `farm_share`,
+    /// split with the other players around as the crowd shares an objective's spot (one in
+    /// 1 + `crowd_at` × `crowd_players` is left to the character).
+    pub fn farm_share_at(&self, level: i64) -> f64 {
+        self.farm_share.clamp(0.0, 1.0) / (1.0 + self.crowd_at(level) * self.crowd_players.max(0.0))
     }
 
     /// How much a minute of grinding beyond `grind_cap` weighs for the optimizer.

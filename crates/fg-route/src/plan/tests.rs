@@ -331,3 +331,125 @@ fn a_quest_taken_and_given_up_costs_the_route() {
     let (given_up, _) = score(&p, &route);
     assert!(given_up - left_out < 30.0, "{given_up} vs {left_out}");
 }
+
+/// A road east of the start lined with mobs of level 1: three of quest 0's (its objective is
+/// done at the end of the road) and three others. Farming on the way is on, without a cap, and
+/// every mob met is killed (`farm_share` 1).
+fn road_of_mobs() -> (Prepared, crate::world::Pos, crate::world::Pos) {
+    let mut p = quests_at_start(1);
+    p.profile.to_level = 10;
+    p.world.terrain = crate::terrain::Terrain::default();
+    (
+        p.params.farm_on_way,
+        p.params.farm_cap,
+        p.params.farm_share,
+        p.params.crowded,
+    ) = (true, 1.0, 1.0, 0.0);
+    let start = p.model.start.pos;
+    let mut end = p.model.start.clone();
+    end.pos.x += 400.0;
+    let mut spawns = Vec::new();
+    for i in 0..3 {
+        let x = start.x + 100.0 * f64::from(i + 1);
+        spawns.push((crate::world::Pos { x, ..start }, 1, 777));
+        spawns.push((
+            crate::world::Pos {
+                x,
+                y: start.y + 5.0,
+                ..start
+            },
+            1,
+            888,
+        ));
+    }
+    p.model.quests[0].objectives = vec![Objective {
+        loc: end.clone(),
+        text: "Kill 3 wolves".into(),
+        kills: 3.0,
+        mob_level: 1,
+        uses: 0.0,
+        extra: 0.0,
+        dungeon: None,
+        elite: false,
+        count: 3.0,
+        mobs: vec![(777, "Wolf".into())],
+        pull: 1.0,
+        spawns: 3,
+        pack: 1.0,
+        spots: None,
+        guard: Guard::default(),
+        alts: vec![],
+        after: 0,
+        handed_by: vec![],
+        stock: None,
+    }];
+    p.model.farm = crate::model::FarmMobs::from_spawns(&spawns, &p.model.quests);
+    (p, start, end.pos)
+}
+
+/// Mobs killed and XP farmed on the walk from `a` to `b`, from state `s`.
+fn farmed_on_walk(
+    planner: &Planner<'_>,
+    mut s: super::State,
+    a: &crate::world::Pos,
+    b: &crate::world::Pos,
+) -> (u32, i64) {
+    let mut kills = 0;
+    planner.farm_along(&mut s, a, b, &mut |_, e| {
+        if let super::Event::Farm { kills: k, .. } = e {
+            kills += k;
+        }
+    });
+    (kills, s.spent.farm_xp)
+}
+
+/// The mobs of a quest of the log are not farmed on the way, to its objective or back: the
+/// objective counts them where it is done (GitHub #20). Before it is taken, and once it is
+/// turned in, they are mobs like the others.
+#[test]
+fn the_logs_quest_mobs_are_not_farmed_on_the_way() {
+    let (p, start, end) = road_of_mobs();
+    let planner = planner(&p);
+    let s0 = planner.initial_state();
+    assert_eq!(farmed_on_walk(&planner, s0.clone(), &start, &end).0, 6, "not taken yet");
+    let mut taken = s0.clone();
+    taken.accepted.set(0, true);
+    assert_eq!(
+        farmed_on_walk(&planner, taken.clone(), &start, &end).0,
+        3,
+        "on the way there"
+    );
+    let mut done = taken.clone();
+    done.objectives[0] = 1;
+    assert_eq!(
+        farmed_on_walk(&planner, done.clone(), &end, &start).0,
+        3,
+        "on the way back"
+    );
+    let mut turned = done;
+    turned.turned.set(0, true);
+    assert_eq!(farmed_on_walk(&planner, turned, &start, &end).0, 6, "turned in");
+}
+
+/// Farming on the way kills `farm_share` of the mobs met, and fewer on a crowded server: the
+/// share left by the other players around, as at an objective's spot (one in 1 + crowd ×
+/// `crowd_players`).
+#[test]
+fn farming_on_the_way_kills_a_share_of_the_mobs_met() {
+    let (mut p, start, end) = road_of_mobs();
+    let xp = |p: &Prepared| {
+        let planner = planner(p);
+        farmed_on_walk(&planner, planner.initial_state(), &start, &end).1 as f64
+    };
+    let all = xp(&p);
+    assert!(all > 0.0);
+    p.params.farm_share = 0.8;
+    let most = xp(&p);
+    assert!((most - 0.8 * all).abs() <= 1.0, "{most} of {all}");
+    (p.params.crowded, p.params.crowd_players) = (1.0, 3.0);
+    let crowd = p.params.crowd_at(1);
+    assert!(crowd > 0.0);
+    let crowded = xp(&p);
+    let expected = 0.8 * all / (1.0 + crowd * 3.0);
+    assert!((crowded - expected).abs() <= 1.0, "{crowded} vs {expected}");
+}

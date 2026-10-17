@@ -45,6 +45,9 @@ level:
 - **On the way**: class training when the new spells are worth it, flight paths picked up nearby,
   dungeon runs, the normal mobs met on foot (`farm_on_way`, mobs near the character's level, up to
   `farm_cap` of each level: 20% on Classic and TBC, 10% on Forever, which has more quests).
+  `farm_share` (80%) of the mobs met are killed, fewer on a crowded server (the other players
+  take their share, as at an objective's spot); the mobs of the log's quests are left to their
+  objectives, which count them where they are done.
   Professions add no time: only their quests are planned, once the skill curve reaches them
   (optional in the guide).
 - **Every action is a step**: each take, objective and turn-in of a quest is a stop of the route,

@@ -4,7 +4,7 @@
 
 use super::Planner;
 use super::state::{Event, Kind, Landed, Leg, State, Stop};
-use crate::model::Loc;
+use crate::model::{Loc, Met};
 use crate::world::Pos;
 use crate::xp;
 use rustc_hash::FxHashMap;
@@ -19,8 +19,8 @@ pub(crate) const CAMP_AHEAD: u32 = 30;
 /// zones (the passages taken between them), then the bits of its ends' coordinates.
 pub(crate) type FarmKey = (u64, [u64; 4]);
 
-/// Normal mobs met on each walk, by level: (level, count).
-pub(crate) type FarmWalks = std::cell::RefCell<FxHashMap<FarmKey, Rc<[(u8, u16)]>>>;
+/// Normal mobs met on each walk, by level (see `FarmMobs::along`).
+pub(crate) type FarmWalks = std::cell::RefCell<FxHashMap<FarmKey, Rc<[Met]>>>;
 
 /// Walks whose farmed mobs are remembered, beyond which the memo starts over.
 const FARM_MEMO: usize = 1 << 20;
@@ -148,10 +148,12 @@ impl Planner<'_> {
         }
     }
 
-    /// On a walk from `a` to `b`, kill the normal mobs met (`Params::farm_on_way`): those within
-    /// `farm_corridor` of the path walked (`World::walk_path`) whose level is close to the
-    /// character's, until grinding has given its share of the level (`farm_cap`). All of them
-    /// when the walk is asked to (`farm_all`, once).
+    /// On a walk from `a` to `b`, kill the normal mobs met (`Params::farm_on_way`): of those
+    /// within `farm_corridor` of the path walked (`World::walk_path`) whose level is close to the
+    /// character's, the share left to it (`Params::farm_share_at`), until farming has given its
+    /// share of the level (`farm_cap`); beyond it when the walk is asked to (`farm_all`, once).
+    /// Never the mobs of the log's quests: their objectives count them, where they are done
+    /// (the walk there, the spot itself and the walk away from it).
     pub(crate) fn farm_along(&self, s: &mut State, a: &Pos, b: &Pos, record: &mut impl FnMut(&State, Event)) {
         let p = self.params;
         let all = self.farm_all.replace(false);
@@ -165,19 +167,28 @@ impl Planner<'_> {
         let mobs = self.farm_walk(a, b, self.trips().danger_level(s.level));
         let content = xp::content_at(a.continent, a.zone);
         let reach = p.reach(s.level, s.bonus);
+        let share = p.farm_share_at(s.level);
+        let in_log = |q: u32| s.accepted[q as usize] && !s.turned[q as usize];
         let (mut time, mut gained, mut killed) = (0.0, 0.0, 0.0);
-        for &(level, count) in mobs.iter() {
-            let level = i64::from(level);
+        for m in mobs.iter() {
+            let level = i64::from(m.level);
             if level < s.level - p.farm_below || level > s.level + p.farm_above || level as f64 > reach {
+                continue;
+            }
+            if self.model.farm.quests(m.tag).iter().any(|&q| in_log(q)) {
                 continue;
             }
             let each = self.rules().mob_xp(s.level, level, content) * p.group_xp_share();
             if each <= 0.0 {
                 continue;
             }
-            let kills = f64::from(count).min(((budget as f64 - gained) / each).floor());
-            if kills < 1.0 {
+            let room = ((budget as f64 - gained) / each).floor();
+            if room < 1.0 {
                 break;
+            }
+            let kills = (f64::from(m.count) * share).min(room);
+            if kills <= 0.0 {
+                continue;
             }
             time += kills * p.kill_time(s.level, s.bonus, level);
             gained += kills * each;
@@ -195,7 +206,7 @@ impl Planner<'_> {
         record(
             s,
             Event::Farm {
-                kills: killed as u32,
+                kills: killed.round() as u32,
                 seconds: time,
             },
         );
@@ -203,8 +214,8 @@ impl Planner<'_> {
 
     /// Normal mobs by level along a walk (the terrain's path for a character whose walks count
     /// the danger at `level`), computed once per walk.
-    fn farm_walk(&self, a: &Pos, b: &Pos, level: u8) -> Rc<[(u8, u16)]> {
-        let farm = || -> Rc<[(u8, u16)]> {
+    fn farm_walk(&self, a: &Pos, b: &Pos, level: u8) -> Rc<[Met]> {
+        let farm = || -> Rc<[Met]> {
             let path = self.world.walk_path(a, b, level);
             self.model.farm.along(&path, self.params.farm_corridor).into()
         };

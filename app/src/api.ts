@@ -37,6 +37,7 @@ export interface Params {
   flight_learn_radius: number;
   farm_on_way: boolean;
   farm_corridor: number;
+  farm_share: number;
   farm_below: number;
   farm_above: number;
   camp_radius: number;
