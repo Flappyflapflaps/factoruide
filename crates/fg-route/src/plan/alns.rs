@@ -4,7 +4,7 @@
 use super::Planner;
 use super::evaluate::Run;
 use super::state::{Kind, Stop};
-use rand::Rng;
+use rand::RngExt;
 use rand::rngs::SmallRng;
 
 /// Ruin-and-recreate operators of the large neighbourhood search (see `Params::alns`).

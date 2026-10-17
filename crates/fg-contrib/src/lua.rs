@@ -4,7 +4,8 @@
 //! with holes (`{"a", nil, 3}`) stay distinguishable.
 
 use anyhow::{Context, Result};
-use mlua::{ChunkMode, HookTriggers, Lua, LuaOptions, StdLib, Table, Value as LV, VmState};
+use mlua::chunk::{Chunk, ChunkMode};
+use mlua::{HookTriggers, Lua, LuaOptions, StdLib, Table, Value as LV, VmState};
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -159,7 +160,7 @@ fn convert_within(v: &LV, text: usize) -> Result<Val> {
 }
 
 /// A Lua string, counted against the text left.
-fn take_text(s: &mlua::String, text: &mut usize) -> Result<String> {
+fn take_text(s: &mlua::LuaString, text: &mut usize) -> Result<String> {
     let s = s.to_string_lossy();
     *text = text.checked_sub(s.len()).context("Lua data too large once converted")?;
     Ok(s)
@@ -201,7 +202,7 @@ pub fn new_lua() -> Lua {
 /// Text only (Lua 5.1 bytecode is unverified, so it can corrupt memory), an empty environment
 /// so the file reaches none of the base library (`dofile`, `loadfile`, …), and a budget of
 /// instructions after the file's size.
-fn sandboxed(lua: &Lua, path: &Path) -> Result<(mlua::Chunk<'static>, Table)> {
+fn sandboxed(lua: &Lua, path: &Path) -> Result<(Chunk<'static>, Table)> {
     let src = std::fs::read(path).with_context(|| format!("reading {}", path.display()))?;
     let budget = BASE_INSTRUCTIONS + INSTRUCTIONS_PER_BYTE * src.len() as u64;
     lua.set_memory_limit(MAX_MEMORY.min(BASE_MEMORY + MEMORY_PER_BYTE * src.len()))?;

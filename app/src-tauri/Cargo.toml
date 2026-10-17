@@ -11,13 +11,13 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 anyhow.workspace = true
 fg-route = { path = "../../crates/fg-route" }
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-zstd = "0.13"
+zstd = "0.14"
 fg-contrib.workspace = true
-ureq = { version = "2", features = ["json"] }
-getrandom = "0.3"
+ureq = { version = "3", features = ["json"] }
+getrandom = "0.4"
 tauri = { version = "2", features = [] }
 # Updates published with the GitHub releases (latest.json), and the restart after installing one.
 tauri-plugin-updater = "2"

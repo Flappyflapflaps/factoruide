@@ -2027,28 +2027,35 @@ fn retry_after_secs(value: &str) -> Option<u64> {
 /// no cookie, no proxy from the environment, and no redirect followed (it could take the
 /// document to another host).
 fn post_contribution(url: &str, body: &[u8]) -> Posted {
-    let agent = ureq::AgentBuilder::new()
-        .redirects(0)
-        .try_proxy_from_env(false)
-        .timeout_connect(std::time::Duration::from_secs(20))
-        .timeout(std::time::Duration::from_secs(120))
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .max_redirects(0)
+        .proxy(None)
+        .timeout_connect(Some(std::time::Duration::from_secs(20)))
+        .timeout_global(Some(std::time::Duration::from_secs(120)))
         .user_agent("Factoruide")
-        .build();
-    let message = |r: ureq::Response| {
-        let json: serde_json::Value = r.into_json().unwrap_or_default();
-        json["error"]
-            .as_str()
-            .or(json["status"].as_str())
-            .unwrap_or("")
-            .to_owned()
+        // Error answers are read below (their message, a 429's Retry-After).
+        .http_status_as_error(false)
+        .build()
+        .into();
+    let mut r = match agent.post(url).header("Content-Type", "application/json").send(body) {
+        Ok(r) => r,
+        Err(e) => return Posted::Failed(err(e)),
     };
-    match agent.post(url).set("Content-Type", "application/json").send_bytes(body) {
-        Ok(r) if r.status() == 201 => Posted::Accepted,
-        Ok(r) if r.status() == 200 => Posted::AlreadyReceived,
-        Ok(r) => Posted::Failed(format!("{}: unexpected answer", r.status())),
-        Err(ureq::Error::Status(429, r)) => Posted::RateLimited(r.header("Retry-After").and_then(retry_after_secs)),
-        Err(ureq::Error::Status(code, r)) => Posted::Failed(format!("{code}: {}", message(r))),
-        Err(e) => Posted::Failed(err(e)),
+    match r.status().as_u16() {
+        201 => Posted::Accepted,
+        200 => Posted::AlreadyReceived,
+        429 => Posted::RateLimited(
+            r.headers()
+                .get("Retry-After")
+                .and_then(|v| v.to_str().ok())
+                .and_then(retry_after_secs),
+        ),
+        code @ 400.. => {
+            let json: serde_json::Value = r.body_mut().read_json().unwrap_or_default();
+            let message = json["error"].as_str().or(json["status"].as_str()).unwrap_or("");
+            Posted::Failed(format!("{code}: {message}"))
+        }
+        code => Posted::Failed(format!("{code}: unexpected answer")),
     }
 }
 

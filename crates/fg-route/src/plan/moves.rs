@@ -6,7 +6,7 @@ use super::evaluate::Run;
 use super::hearth::INNS_TRIED;
 use super::state::{Kind, Stop, same_item};
 use crate::world::Pos;
-use rand::Rng;
+use rand::RngExt;
 use rand::rngs::SmallRng;
 
 /// Changed stops of a candidate route: first and last index, and whether the stops were only

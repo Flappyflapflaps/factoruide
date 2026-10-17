@@ -8,7 +8,7 @@ use super::evaluate::Run;
 use super::moves::Change;
 use super::state::{Event, Kind, Stop, fmt_time};
 use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use std::collections::HashSet;
 use std::time::Duration;
 use std::time::Instant;

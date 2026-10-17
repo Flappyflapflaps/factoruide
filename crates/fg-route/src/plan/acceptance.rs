@@ -2,7 +2,7 @@
 //! of `lahc` steps ago (late acceptance), or by chance early on (simulated annealing: moving a
 //! whole zone earlier only pays once the rest follows).
 
-use rand::Rng;
+use rand::RngExt;
 use rand::rngs::SmallRng;
 
 pub(crate) struct Acceptance {

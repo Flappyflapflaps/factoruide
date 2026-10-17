@@ -10,7 +10,7 @@ use crate::model::{Model, Profile};
 use crate::params::{Construction, Params};
 use crate::plan::{Effort, Exchange, Member, Planner, Stop, ZoneChange, fmt_time};
 use crate::world::World;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 use std::cell::Cell;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -726,7 +726,7 @@ const MAJOR_STAY: f64 = 1800.0;
 /// A detour (see `Params::zone_detour`) of one of the zone changes `changes` (level, time, from,
 /// to) into a long stay, and what it does: left earlier (from the stay before) or later, or for
 /// the zone of a later stay.
-fn detour(changes: &[ZoneChange], rng: &mut impl Rng) -> (Vec<i64>, String) {
+fn detour(changes: &[ZoneChange], rng: &mut impl RngExt) -> (Vec<i64>, String) {
     let major: Vec<usize> = (0..changes.len())
         .filter(|&i| {
             changes
