@@ -40,7 +40,7 @@ impl Planner<'_> {
         self.simulate_full(route, trace).map(|(t, _)| t)
     }
 
-    /// Quests `route` accepts (bit 1) and turns in (bit 2).
+    /// Quests `route` accepts (bit 1), turns in (bit 2) or does an objective of (bit 4).
     pub(crate) fn planned(&self, route: &[Stop]) -> Rc<Planned> {
         let n = self.model.quests.len();
         let mut planned = Planned {
@@ -55,6 +55,7 @@ impl Planner<'_> {
                     planned.accept_at[i] = planned.accept_at[i].min(k as u32);
                 }
                 Kind::TurnIn => planned.flags[i] |= 2,
+                Kind::Objective(_) => planned.flags[i] |= 4,
                 _ => {}
             }
         }
@@ -74,8 +75,7 @@ impl Planner<'_> {
 
     /// The score of `route` and the character's state at its end.
     fn simulate_state(&self, route: &[Stop], mut trace: Option<&mut Vec<Timed>>) -> Option<(f64, State)> {
-        let mut s = self.initial_state();
-        s.planned = self.planned(route);
+        let mut s = self.start_state(self.planned(route));
         for (k, &stop) in route.iter().enumerate() {
             if self.ended(&s) {
                 break;
@@ -105,8 +105,7 @@ impl Planner<'_> {
     /// `run`, the places looked at hand recorded by `while_here` meanwhile.
     fn replay_states(&self, route: &[Stop]) -> Option<Run> {
         let recorded = || self.heres.borrow().as_ref().map_or(0, Vec::len) as u32;
-        let mut s = self.initial_state();
-        s.planned = self.planned(route);
+        let mut s = self.start_state(self.planned(route));
         let mut states = Vec::with_capacity(route.len() + 1);
         let mut here_at = Vec::with_capacity(route.len() + 1);
         states.push(s.clone());
@@ -167,7 +166,10 @@ impl Planner<'_> {
             }
         };
         for i in 0..new.flags.len() {
-            let (flags, at) = ((old.flags[i], new.flags[i]), (old.accept_at[i], new.accept_at[i]));
+            let (flags, at) = (
+                (old.flags[i] & 3, new.flags[i] & 3),
+                (old.accept_at[i], new.accept_at[i]),
+            );
             if flags.0 == flags.1 && at.0 == at.1 {
                 continue;
             }
@@ -202,13 +204,25 @@ impl Planner<'_> {
         let a = a.saturating_sub(1);
         // Positions of the accepts change even when the stops are only reordered.
         let planned = self.planned(candidate);
-        let start = self.replanned_from(run, &planned, a);
+        // The quests of the character's log given up at the start changed: from the start.
+        let old = &run.states[0].planned;
+        let restart =
+            (self.model.initial.accepted.iter()).any(|&i| Planned::left(old, i) != Planned::left(&planned, i));
+        let start = if restart {
+            0
+        } else {
+            self.replanned_from(run, &planned, a)
+        };
         if run.reached && start >= run.states.len() - 1 {
             return Some(run.total); // after the target level: no effect
         }
-        let mut s = run.states[start].clone();
-        s.planned = planned;
-        let mut k = start;
+        let (mut s, mut k) = if restart {
+            (self.start_state(planned), 0)
+        } else {
+            let mut s = run.states[start].clone();
+            s.planned = planned;
+            (s, start)
+        };
         while k < candidate.len() {
             if self.ended(&s) {
                 break;
@@ -282,8 +296,7 @@ impl Planner<'_> {
     /// First stop that makes a route invalid, with the reason. Replayed as `simulate` does: with
     /// the route's plan (the quests taken and turned in at hand), up to the target level.
     pub fn diagnose(&self, route: &[Stop]) -> Option<(usize, String)> {
-        let mut s = self.initial_state();
-        s.planned = self.planned(route);
+        let mut s = self.start_state(self.planned(route));
         for (n, &stop) in route.iter().enumerate() {
             if self.ended(&s) {
                 break;

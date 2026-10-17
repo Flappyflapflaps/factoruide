@@ -2,7 +2,7 @@
 //! saved at each logout) becomes the planner's initial state, so that the guide goes on from
 //! where the character stands.
 
-use crate::model::{Initial, Model};
+use crate::model::{Initial, Model, Objective, Quest};
 use crate::params::Params;
 use crate::world::World;
 use serde::{Deserialize, Serialize};
@@ -153,8 +153,17 @@ impl StartState {
             .filter(|id| !in_log.contains(id))
             .filter_map(|id| model.index.get(id).copied())
             .collect();
-        // The quests of the log count as never taken: the guide takes those it wants (the addon
-        // skips taking a quest already in the log), the others are abandoned at its start.
+        // The quests of the log are taken, as far along as the log says: the guide finishes
+        // those it wants (only the turn-in left for one complete), the others are abandoned at
+        // its start.
+        for q in &self.log {
+            if let Some(&i) = model.index.get(&q.id) {
+                init.accepted.push(i);
+                for (k, share) in objective_progress(&model.quests[i], q) {
+                    init.progress.push((i, k, share));
+                }
+            }
+        }
         init.log = self
             .log
             .iter()
@@ -221,6 +230,52 @@ impl StartState {
 fn at(world: &World, p: MapPos) -> Option<(crate::world::Pos, i64)> {
     let zone = world.zone_of_ui_map(p.map)?;
     Some((world.to_world(zone, p.x, p.y)?, zone))
+}
+
+/// What the log says of a quest's objectives: (objective, share done) for those started. The
+/// log lists them in its own order and its own language: matched by the name of their target,
+/// else by the amount asked when only one objective asks it, else the only objective. One left
+/// unmatched counts as not started (the guide goes to do it, the game shows it done).
+fn objective_progress(q: &Quest, log: &LogQuest) -> Vec<(u8, f64)> {
+    let n = q.objectives.len().min(32);
+    if log.complete {
+        return (0..n).map(|k| (k as u8, 1.0)).collect();
+    }
+    let mut free = vec![true; n];
+    let mut out = Vec::new();
+    for lo in &log.objectives {
+        let share = if lo.finished {
+            1.0
+        } else if lo.need > 0 {
+            (lo.done as f64 / lo.need as f64).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let text = lo.text.to_lowercase();
+        let named = |o: &Objective| {
+            o.mobs
+                .iter()
+                .any(|(_, m)| !m.is_empty() && text.contains(&m.to_lowercase()))
+                || (!o.loc.name.is_empty() && text.contains(&o.loc.name.to_lowercase()))
+        };
+        let counted = |o: &Objective| lo.need > 0 && (o.count - lo.need as f64).abs() < 0.5;
+        let candidates = || (0..n).filter(|&k| free[k]);
+        let found = candidates()
+            .find(|&k| named(&q.objectives[k]) && counted(&q.objectives[k]))
+            .or_else(|| candidates().find(|&k| named(&q.objectives[k])))
+            .or_else(|| {
+                let mut c = candidates().filter(|&k| counted(&q.objectives[k]));
+                c.next().filter(|_| c.next().is_none())
+            })
+            .or_else(|| (n == 1 && log.objectives.len() == 1 && free[0]).then_some(0));
+        if let Some(k) = found {
+            free[k] = false;
+            if share > 0.0 {
+                out.push((k as u8, share));
+            }
+        }
+    }
+    out
 }
 
 #[cfg(test)]

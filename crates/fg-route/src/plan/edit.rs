@@ -105,8 +105,7 @@ impl Planner<'_> {
                 _ => None,
             })
             .collect();
-        let mut s = self.initial_state();
-        s.planned = self.planned(&stops);
+        let mut s = self.start_state(self.planned(&stops));
         let mut trace = Vec::new();
         let mut route = Vec::new();
         let mut steps = Vec::with_capacity(edits.len());

@@ -101,11 +101,65 @@ impl Worth<'_> {
         if past && worth <= 0.0 {
             return false;
         }
-        let efficiency = worth / (trip + self.quest_cost(i, level, bonus)).max(1.0);
+        self.beats_grinding(s, worth, trip + self.quest_cost(i, level, bonus), level)
+    }
+
+    /// Whether `worth` XP for `cost` seconds beats grinding.
+    fn beats_grinding(&self, s: &State, worth: f64, cost: f64, level: i64) -> bool {
+        let efficiency = worth / cost.max(1.0);
         // Grinding weighs grind_weight times its duration: compare with its effective rate.
         efficiency
-            >= self.params.min_efficiency * self.combat.grind_rate(level, bonus, &s.pos)
+            >= self.params.min_efficiency * self.combat.grind_rate(level, s.bonus, &s.pos)
                 / self.params.grind_weight().max(1.0)
+    }
+
+    /// Whether quest `i`, in the log, is worth finishing from where the character stands: what
+    /// is left of it (its objectives not done, its turn-in) against grinding, as `worth_it`
+    /// weighs a quest to take.
+    pub(crate) fn finish_worth_it(&self, s: &State, i: u32) -> bool {
+        let q = self.quest(i);
+        let level = s.level;
+        let left: Vec<_> = (q.objectives.iter().enumerate())
+            .filter(|(k, _)| s.objectives[i as usize] & (1 << k) == 0)
+            .map(|(_, o)| o)
+            .collect();
+        let hardest = (left.iter())
+            .filter(|o| o.dungeon.is_none())
+            .map(|o| self.combat.need(q, o))
+            .fold(0.0, f64::max);
+        if hardest > self.params.reach(level + 1, s.bonus) {
+            return false;
+        }
+        if q.mandatory {
+            return true;
+        }
+        if let Some(d) = left.iter().find_map(|o| o.dungeon) {
+            let dungeon = &self.model.dungeons[d];
+            return self.availability.dungeon_allowed(d)
+                && level <= dungeon.max_level
+                && level + self.params.dungeon_pickup_ahead >= dungeon.min_level;
+        }
+        let past = level >= self.to_level;
+        let mobs: f64 = left.iter().map(|o| o.kills * self.combat.mob_xp(level, o)).sum();
+        let worth = if past {
+            self.reputation_xp(s, i, level)
+        } else {
+            self.quest_worth(i, level) + mobs + self.growth.gear_xp(s, i, level) + self.reputation_xp(s, i, level)
+        };
+        if past && worth <= 0.0 {
+            return false;
+        }
+        let mut path = vec![s.pos];
+        path.extend(left.iter().map(|o| o.loc.pos));
+        path.push(q.ends[0].pos);
+        let travel: f64 = (path.windows(2))
+            .map(|w| self.trips.leg(&w[0], &w[1], level, 0, u8::MAX).0)
+            .sum();
+        let work: f64 = (left.iter())
+            .map(|o| o.kills * self.combat.kill_time(level, s.bonus, o) + o.uses * self.params.object_time + o.extra)
+            .sum();
+        let cost = travel + work + self.params.stop_overhead * (1 + left.len()) as f64;
+        self.beats_grinding(s, worth, cost, level)
     }
 
     /// What the reputation a quest gives towards the goals not reached yet is worth, in XP: the

@@ -1086,15 +1086,20 @@ fn quest_given_up_opens_no_follow_up() {
     );
     p.model.initial.turned.clear();
     p.model.initial.accepted = vec![mail as usize];
+    // In the log, and turned in by the route if it could be.
+    let kept = [first, Stop::quest(mail, Kind::TurnIn)];
     let mut trace = Vec::new();
-    assert!(planner(&p).simulate(&route[..1], Some(&mut trace)).is_some());
+    assert!(planner(&p).simulate(&kept, Some(&mut trace)).is_some());
     assert!(
         trace
             .iter()
             .any(|t| matches!(t.event, Event::Abandon { quest } if quest == mail as usize)),
         "Fire Hardened Mail is given up"
     );
-    assert!(planner(&p).simulate(&route, None).is_none(), "given up, it does not");
+    assert!(
+        planner(&p).simulate(&[kept[0], kept[1], route[1]], None).is_none(),
+        "given up, it does not"
+    );
 }
 
 /// No mob is farmed on a walk through a capital: what the sources know nothing of there is a
@@ -1327,7 +1332,8 @@ fn orc_met_in_game(objectives: Vec<LogObjective>, complete: bool, rested: i64) -
 }
 
 /// A character met in game goes on from where it stands: its level, the quests it did open
-/// their follow-ups, and a quest of its log is there to take (as if never taken) next to it.
+/// their follow-ups, and a quest complete in its log is turned in next to it, without taking it
+/// again.
 #[test]
 fn a_character_met_in_game_goes_on_from_where_it_stands() {
     let new = orc_warlock();
@@ -1347,18 +1353,50 @@ fn a_character_met_in_game_goes_on_from_where_it_stands() {
     );
     assert_eq!(p.profile.from_level, 4);
     let scorpids = quest(&p, 789).unwrap();
-    let accept = Stop::quest(scorpids, Kind::Accept);
+    let turn_in = Stop::quest(scorpids, Kind::TurnIn);
     let mut trace = Vec::new();
     assert!(
-        planner(&p).simulate(&[accept], Some(&mut trace)).is_some(),
-        "Cutting Teeth done: open"
+        planner(&p).simulate(&[turn_in], Some(&mut trace)).is_some(),
+        "in the log, complete"
     );
     let at = trace
         .iter()
-        .find(|t| matches!(t.event, Event::Stop { stop, .. } if stop == accept))
+        .find(|t| matches!(t.event, Event::Stop { stop, .. } if stop == turn_in))
         .unwrap();
     assert!(at.time < 30.0, "next to Gornek: no walk ({} s)", at.time);
     assert!(at.level >= 4);
+}
+
+/// The log's objectives done count, matched to the quest's whatever the game's language: the
+/// route only does what is left.
+#[test]
+fn objectives_done_in_the_log_are_not_done_again() {
+    let log = |done| {
+        vec![LogObjective {
+            text: "Queue de scorpide ouvrier : 0/10".into(),
+            done,
+            need: 10,
+            finished: done == 10,
+        }]
+    };
+    let mob_xp = |done| {
+        let p = prepare_from(
+            "orc",
+            "warlock",
+            30,
+            &["progression=cautious", "farm_on_way=false"],
+            Some(orc_met_in_game(log(done), false, 0)),
+        );
+        let scorpids = quest(&p, 789).unwrap();
+        let route = [
+            Stop::quest(scorpids, Kind::Objective(0)),
+            Stop::quest(scorpids, Kind::TurnIn),
+        ];
+        planner(&p).simulate_full(&route, None).unwrap().1.mob_xp
+    };
+    let (none, half, all) = (mob_xp(0), mob_xp(5), mob_xp(10));
+    assert!(none > 0 && half < none && half > 0, "{none} then {half}");
+    assert_eq!(all, 0);
 }
 
 /// Rested XP doubles the XP of kills until it runs out.
@@ -1391,10 +1429,10 @@ fn rested_xp_doubles_kill_xp() {
     assert!((rested - 2 * plain).abs() <= 10, "{rested} vs 2 x {plain}");
 }
 
-/// The quests of the log count as never taken: the guide takes again those it wants, and
-/// abandons the others at its start (the quest the model does not have too).
+/// The quests of the log are taken: the guide finishes those it wants, and abandons the others
+/// at its start (the quest the model does not have too).
 #[test]
-fn quests_of_the_log_the_guide_does_not_take_are_abandoned_first() {
+fn quests_of_the_log_the_guide_does_not_finish_are_abandoned_first() {
     let mut start = orc_met_in_game(vec![], false, 0);
     start.log.push(LogQuest {
         id: 999_999,
@@ -1413,7 +1451,37 @@ fn quests_of_the_log_the_guide_does_not_take_are_abandoned_first() {
             .collect()
     };
     assert_eq!(abandoned(&[]), [789, 999_999]);
-    assert_eq!(abandoned(&[Stop::quest(scorpids, Kind::Accept)]), [999_999]);
+    let finished = [
+        Stop::quest(scorpids, Kind::Objective(0)),
+        Stop::quest(scorpids, Kind::TurnIn),
+    ];
+    assert_eq!(abandoned(&finished), [999_999]);
+}
+
+/// A quest complete in the log whose turn-in the route passes by later is kept rather than
+/// given up: the construction puts its turn-in where the route goes there.
+#[test]
+fn quest_complete_in_the_log_is_turned_in_on_the_way() {
+    let mut p = prepare_from(
+        "orc",
+        "warlock",
+        30,
+        &["progression=cautious"],
+        Some(orc_met_in_game(vec![], true, 0)),
+    );
+    p.profile.to_level = 8;
+    let planner = planner(&p);
+    let scorpids = quest(&p, 789).unwrap();
+    let route = planner.construct(|_| {});
+    assert!(route.contains(&Stop::quest(scorpids, Kind::TurnIn)), "{route:?}");
+    assert!(!route.contains(&Stop::quest(scorpids, Kind::Accept)));
+    let guide = fg_route::export::build(&planner, &p.profile, &route);
+    assert!(
+        !guide
+            .steps
+            .iter()
+            .any(|s| s.kind == fg_route::export::StepKind::Abandon)
+    );
 }
 
 /// The hearthstone goes where the character bound it, the flight paths it knows are known, and

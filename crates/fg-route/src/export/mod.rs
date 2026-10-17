@@ -92,16 +92,15 @@ pub fn build_traced(
     let mut steps = Vec::new();
     // XP the route has after each step (in its level).
     let mut xps = Vec::new();
-    // The quests of the character's log the guide does not take are abandoned first.
-    let taken: HashSet<i64> = trace
-        .iter()
-        .filter_map(|t| match &t.event {
-            Event::Stop { stop, .. } if stop.kind == Kind::Accept => Some(planner.model.quests[stop.index as usize].id),
-            _ => None,
-        })
+    // The quests of the character's log the guide leaves are abandoned first.
+    let model = planner.model;
+    let left: HashSet<i64> = planner
+        .left_at_start(&planner.planned(route))
+        .map(|i| model.quests[i].id)
         .collect();
+    let kept = |id: &i64| model.index.get(id).is_some_and(|i| model.initial.accepted.contains(i)) && !left.contains(id);
     if let Some(first) = trace.first() {
-        for (id, name) in planner.model.initial.log.iter().filter(|(id, _)| !taken.contains(id)) {
+        for (id, name) in model.initial.log.iter().filter(|(id, _)| !kept(id)) {
             steps.push(writer.abandon_unused(first, *id, name));
             xps.push(planner.model.initial.xp);
         }

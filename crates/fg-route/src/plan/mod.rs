@@ -333,6 +333,24 @@ impl<'a> Planner<'a> {
         s
     }
 
+    /// The initial state of a route of plan `planned`: the quests of the character's log it has
+    /// no stop of are abandoned at once (`left_at_start`), freeing their place in the log. Not
+    /// the route's choice: no penalty (`Params::abandon_weight`), no event (the guide's first
+    /// steps, `export`).
+    pub(crate) fn start_state(&self, planned: Rc<Planned>) -> State {
+        let mut s = self.initial_state();
+        for i in self.left_at_start(&planned) {
+            Self::abandon(&mut s, i as u32, &mut |_, _| {});
+        }
+        s.planned = planned;
+        s
+    }
+
+    /// The quests of the character's log a route of plan `planned` has nothing to do with.
+    pub(crate) fn left_at_start<'p>(&'p self, planned: &'p Planned) -> impl Iterator<Item = usize> + 'p {
+        (self.model.initial.accepted.iter().copied()).filter(|&i| planned.left(i))
+    }
+
     /// Whether the guide is over: the target level reached, the quests of the forced zones
     /// done and the reputation goals met.
     pub(crate) fn ended(&self, s: &State) -> bool {

@@ -255,10 +255,10 @@ impl Planner<'_> {
         new
     }
 
-    /// The route without the quests it takes but never turns in (given up, or still in the log at
-    /// the end) when that costs nothing: taking them costs only seconds, so the search leaves
-    /// them, but a guide should not ask for them. Those another quest needs stay. None when
-    /// there is nothing to remove.
+    /// The route without the quests it takes (or finds in the character's log) but never turns
+    /// in (given up, or still in the log at the end) when that costs nothing: taking them costs
+    /// only seconds, so the search leaves them, but a guide should not ask for them. Those
+    /// another quest needs stay. None when there is nothing to remove.
     pub(crate) fn drop_unfinished(&self, route: &[Stop], score: f64) -> Option<Vec<Stop>> {
         let mut trace = Vec::new();
         self.simulate_full(route, Some(&mut trace))?;
@@ -269,12 +269,14 @@ impl Planner<'_> {
                 _ => None,
             })
             .collect();
-        let mut unfinished: Vec<u32> = route
+        let taken = |s: &Stop| s.kind == Kind::Accept || (s.is_quest() && self.in_log_at_start(s.index));
+        let mut seen = HashSet::new();
+        let unfinished: Vec<u32> = route
             .iter()
-            .filter(|s| s.kind == Kind::Accept && !turned.contains(&s.index) && !self.quest(s.index).mandatory)
+            .filter(|s| taken(s) && !turned.contains(&s.index) && !self.quest(s.index).mandatory)
             .map(|s| s.index)
+            .filter(|&q| seen.insert(q))
             .collect();
-        unfinished.dedup();
         let (mut best, mut score, mut changed) = (route.to_vec(), score, false);
         for q in unfinished {
             let candidate: Vec<Stop> = best

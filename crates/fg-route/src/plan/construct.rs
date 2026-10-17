@@ -9,6 +9,13 @@ impl Planner<'_> {
     /// Greedy construction: nearest worthwhile stop first.
     pub fn greedy(&self) -> Vec<Stop> {
         let mut s = self.initial_state();
+        // The quests of the character's log not worth finishing from here are given up (the
+        // replay does it too, `start_state`): `keep_log_quests` puts back those on the way.
+        for &i in &self.model.initial.accepted {
+            if s.accepted[i] && !self.worth().finish_worth_it(&s, i as u32) {
+                Self::abandon(&mut s, i as u32, &mut |_, _| {});
+            }
+        }
         let mut route = Vec::new();
         let mut changes = Vec::new();
         // The detour (`Params::zone_detour`): the zone held until its level, once begun.
@@ -250,8 +257,7 @@ impl Planner<'_> {
     }
 
     pub(crate) fn settle_once(&self, route: &[Stop]) -> Vec<Stop> {
-        let mut s = self.initial_state();
-        s.planned = self.planned(route);
+        let mut s = self.start_state(self.planned(route));
         let mut dropped = vec![false; self.model.quests.len()];
         let mut out = Vec::with_capacity(route.len());
         for (pos, &stop) in route.iter().enumerate() {
@@ -313,6 +319,7 @@ impl Planner<'_> {
         } else {
             self.insert_missing_mandatory(self.settle(route))
         };
+        let route = self.keep_log_quests(route);
         let route = self.place_hearths(self.rebind(self.place_hearths(self.power_first(route))));
         if std::env::var_os("FG_DEBUG").is_some() {
             for (reason, n) in self.explain_unused(&route) {
@@ -325,6 +332,35 @@ impl Planner<'_> {
                 route.len(),
                 self.simulate(&route, None).map(fmt_time)
             ));
+        }
+        route
+    }
+
+    /// The quests of the character's log the route does not turn in (given up, or left after
+    /// an objective), each put back where the route passes closest to what is left of it (often
+    /// only the turn-in, in a town it goes through later) when the route gets better for it.
+    pub(crate) fn keep_log_quests(&self, mut route: Vec<Stop>) -> Vec<Stop> {
+        let turned_in = |route: &[Stop], q: u32| route.contains(&Stop::quest(q, Kind::TurnIn));
+        if (self.model.initial.accepted.iter()).all(|&i| turned_in(&route, i as u32)) {
+            return route;
+        }
+        let Some(mut best) = self.simulate(&route, None) else {
+            return route;
+        };
+        for &i in &self.model.initial.accepted {
+            let q = i as u32;
+            if self.aborted() || turned_in(&route, q) {
+                continue;
+            }
+            let mut candidate: Vec<Stop> = (route.iter().copied())
+                .filter(|s| !(s.is_quest() && s.index == q))
+                .collect();
+            self.insert_quest(&mut candidate, q);
+            if let Some(t) = self.simulate(&candidate, None)
+                && t < best
+            {
+                (route, best) = (candidate, t);
+            }
         }
         route
     }
@@ -455,13 +491,23 @@ impl Planner<'_> {
     }
 
     /// Insert quest `q` as `insert_quest`, its accept not before `after`. Returns the first index
-    /// changed: the accept, or the dungeon run moved after it from earlier in the route.
+    /// changed: the accept, or the dungeon run moved after it from earlier in the route. A quest
+    /// of the character's log has no accept, nor the objectives it has done.
     pub(crate) fn insert_quest_after(&self, route: &mut Vec<Stop>, q: u32, after: usize) -> usize {
         let quest = self.quest(q);
-        let mut at = self.insert_near(route, &quest.starts[0].pos, after);
-        route.insert(at, Stop::quest(q, Kind::Accept));
-        let mut first = at;
+        let in_log = self.in_log_at_start(q);
+        // First index the next stop may take.
+        let mut next = after;
+        let mut first = usize::MAX;
+        if !in_log {
+            let at = self.insert_near(route, &quest.starts[0].pos, after);
+            route.insert(at, Stop::quest(q, Kind::Accept));
+            (first, next) = (at, at + 1);
+        }
         for k in 0..quest.objectives.len() {
+            if in_log && self.done_at_start(q, k) {
+                continue;
+            }
             if let Some(d) = quest.objectives[k].dungeon {
                 // Done by the dungeon run, which must come after accepting.
                 let run = Stop {
@@ -469,35 +515,40 @@ impl Planner<'_> {
                     kind: Kind::Dungeon,
                 };
                 match route.iter().position(|s| *s == run) {
-                    Some(p) if p > at => at = at.max(p),
-                    Some(p) => {
-                        route.remove(p);
-                        first = first.min(p);
-                        at -= 1;
-                        let r = self
-                            .insert_near(route, &quest.objectives[k].loc.pos, at + 1)
-                            .max(at + 1);
+                    Some(p) if p >= next => next = p + 1,
+                    found => {
+                        if let Some(p) = found {
+                            route.remove(p);
+                            first = first.min(p);
+                            next -= 1;
+                        }
+                        let r = self.insert_near(route, &quest.objectives[k].loc.pos, next).max(next);
                         route.insert(r, run);
-                        at = r;
-                    }
-                    None => {
-                        let r = self
-                            .insert_near(route, &quest.objectives[k].loc.pos, at + 1)
-                            .max(at + 1);
-                        route.insert(r, run);
-                        at = r;
+                        first = first.min(r);
+                        next = r + 1;
                     }
                 }
                 continue;
             }
-            at = self
-                .insert_near(route, &quest.objectives[k].loc.pos, at + 1)
-                .max(at + 1);
+            let at = self.insert_near(route, &quest.objectives[k].loc.pos, next).max(next);
             route.insert(at, Stop::quest(q, Kind::Objective(k as u8)));
+            first = first.min(at);
+            next = at + 1;
         }
-        at = self.insert_near(route, &quest.ends[0].pos, at + 1).max(at + 1);
+        let at = self.insert_near(route, &quest.ends[0].pos, next).max(next);
         route.insert(at, Stop::quest(q, Kind::TurnIn));
-        first
+        first.min(at)
+    }
+
+    /// Quest `q` is in the character's log at the start.
+    pub(crate) fn in_log_at_start(&self, q: u32) -> bool {
+        self.model.initial.accepted.contains(&(q as usize))
+    }
+
+    /// Objective `k` of quest `q` is done in the character's log at the start.
+    fn done_at_start(&self, q: u32, k: usize) -> bool {
+        (self.model.initial.progress.iter())
+            .any(|&(i, o, share)| i == q as usize && usize::from(o) == k && share >= 1.0)
     }
 
     /// Insert a quest: accepted where the character is around its level (closest to the giver),
@@ -515,7 +566,9 @@ impl Planner<'_> {
         };
         let giver = quest.starts[0].pos;
         // Each distance once (the first of the nearest, as `min_by` keeps).
+        // A quest of the log is not accepted: its stops go where they fit best.
         let at = (0..=route.len())
+            .filter(|_| !self.in_log_at_start(q))
             .filter(|&p| (lo..=hi).contains(&level(levels, p)))
             .map(|p| {
                 let d = if p == 0 {

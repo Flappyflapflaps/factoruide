@@ -349,11 +349,19 @@ pub struct Breakdown {
     pub reputation_missing: f64,
 }
 
-/// Quests a route accepts (bit 1) and turns in (bit 2), and where it first accepts each.
+/// Quests a route accepts (bit 1), turns in (bit 2) or does an objective of (bit 4), and where
+/// it first accepts each.
 #[derive(Default)]
 pub(crate) struct Planned {
     pub(crate) flags: Vec<u8>,
     pub(crate) accept_at: Vec<u32>,
+}
+
+impl Planned {
+    /// No objective nor turn-in of quest `i`: one in the log at the start is given up.
+    pub(crate) fn left(&self, i: usize) -> bool {
+        self.flags[i] & 6 == 0
+    }
 }
 
 /// Same quest (any of its stops), or the same visit.

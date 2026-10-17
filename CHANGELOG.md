@@ -18,6 +18,7 @@ Quests that need others are planned whole, camps counted with their real number 
 - NPCs of your own side are no longer to "kill": Sentinel Shaya is healed, the Lazy Peons woken with the Foreman's Blackjack.
 - Walks go round places with mobs far above your level (no more crossing the Western Plaguelands at level 20 on the way to Hillsbrad).
 - WoW Forever: camps are no longer counted with several times their mobs: guides go back to zones they avoided (Darkshore for the Alliance), and their times count the real waits for respawns (a little longer).
+- Starting from your character: the quests already in your log are kept when the guide goes their way, a complete one is turned in on the way instead of abandoned, and none has to be taken again from its giver.
 
 ### WoW data
 
