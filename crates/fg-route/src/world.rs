@@ -62,6 +62,8 @@ pub struct World {
     pub direct: Vec<Vec<f64>>,
     /// Price in copper of the direct flights, INFINITY when no direct path.
     pub direct_cost: Vec<Vec<f64>>,
+    /// The way each direct flight goes (world x, y, its ends included), by node indexes.
+    taxi_paths: HashMap<(usize, usize), Vec<(f64, f64)>>,
     pub links: Vec<Link>,
     /// Quests whose taking opens links (`LinkDef::after_quest`).
     pub link_quests: Vec<i64>,
@@ -87,6 +89,8 @@ pub struct World {
 
 /// A named place of a zone map (Ratchet, Valley of Trials...), at the center of its overlay.
 struct Landmark {
+    /// Its area (AreaTable ID).
+    id: i64,
     pos: Pos,
     zone: i64,
     name: String,
@@ -177,6 +181,7 @@ impl World {
             let (from, to, x, y) = row?;
             paths.entry((from, to)).or_default().push((x, y));
         }
+        let mut taxi_paths = HashMap::new();
         for ((from, to), points) in paths {
             let (Some(&a), Some(&b)) = (index.get(&from), index.get(&to)) else {
                 continue;
@@ -185,7 +190,10 @@ impl World {
                 .windows(2)
                 .map(|w| ((w[0].0 - w[1].0).powi(2) + (w[0].1 - w[1].1).powi(2)).sqrt())
                 .sum();
-            flight[a][b] = flight[a][b].min(len / flight_speed);
+            if len / flight_speed < flight[a][b] {
+                flight[a][b] = len / flight_speed;
+                taxi_paths.insert((a, b), points);
+            }
         }
         let mut cost = vec![vec![f64::INFINITY; n]; n];
         for (i, row) in cost.iter_mut().enumerate() {
@@ -217,6 +225,19 @@ impl World {
                 .collect()
         };
         let (flight, cost) = (kept(flight), kept(cost));
+        // Node indexes once the others are left out.
+        let renumbered: Vec<Option<usize>> = keep
+            .iter()
+            .scan(0, |next, &k| {
+                let at = k.then_some(*next);
+                *next += usize::from(k);
+                Some(at)
+            })
+            .collect();
+        let taxi_paths = taxi_paths
+            .into_iter()
+            .filter_map(|((a, b), points)| Some(((renumbered[a]?, renumbered[b]?), points)))
+            .collect();
         let taxi_nodes: Vec<TaxiNode> = taxi_nodes
             .into_iter()
             .zip(&keep)
@@ -229,6 +250,7 @@ impl World {
             taxi_nodes,
             direct: flight,
             direct_cost: cost,
+            taxi_paths,
             links: Vec::new(),
             link_quests: Vec::new(),
             link_chains: vec![Vec::new()],
@@ -320,6 +342,56 @@ impl World {
     /// (seconds) of the fastest itinerary and its price (copper, each hop paid).
     pub fn flights(&self, known: u128) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
         fastest_flights(&self.direct, &self.direct_cost, known)
+    }
+
+    /// The way the fastest flight from node `from` to node `to` goes through the `known` ones
+    /// (as `flights` times it): the flight paths of its direct flights one after the other, its
+    /// ends included. Straight between nodes whose path is not known; only the ends when no
+    /// flight goes there.
+    pub fn flight_path(&self, from: usize, to: usize, known: u128) -> Vec<Pos> {
+        let n = self.taxi_nodes.len();
+        let usable = |i: usize| i == from || i == to || known & (1u128 << i) != 0;
+        // Dijkstra on the direct flights (few nodes: a scan for the nearest each time).
+        let (mut best, mut before, mut done) = (vec![f64::INFINITY; n], vec![usize::MAX; n], vec![false; n]);
+        best[from] = 0.0;
+        while let Some(i) = (0..n)
+            .filter(|&i| !done[i] && best[i].is_finite())
+            .min_by(|&a, &b| best[a].total_cmp(&best[b]))
+        {
+            done[i] = true;
+            if i == to {
+                break;
+            }
+            for j in (0..n).filter(|&j| !done[j] && usable(j)) {
+                let t = best[i] + self.direct[i][j];
+                if t < best[j] {
+                    best[j] = t;
+                    before[j] = i;
+                }
+            }
+        }
+        let at = |i: usize, (x, y): (f64, f64)| Pos {
+            x,
+            y,
+            ..self.taxi_nodes[i].pos
+        };
+        let node = |i: usize| self.taxi_nodes[i].pos;
+        if !best[to].is_finite() || from == to {
+            return vec![node(from), node(to)];
+        }
+        let mut hops = vec![to];
+        while let Some(&i) = hops.last().filter(|&&i| i != from) {
+            hops.push(before[i]);
+        }
+        hops.reverse();
+        let mut path = vec![node(from)];
+        for w in hops.windows(2) {
+            if let Some(points) = self.taxi_paths.get(&(w[0], w[1])) {
+                path.extend(points.iter().map(|&p| at(w[0], p)));
+            }
+            path.push(node(w[1]));
+        }
+        path
     }
 }
 
@@ -432,11 +504,17 @@ impl World {
 
     /// Name of the place at a world position (a town, a valley), when a named place is close.
     pub fn place_name(&self, p: &Pos) -> Option<&str> {
+        self.place(p).map(|(_, name)| name)
+    }
+
+    /// The place at a world position (a town, a valley), when a named place is close: its area
+    /// (AreaTable ID, to name it in another language) and its English name.
+    pub fn place(&self, p: &Pos) -> Option<(i64, &str)> {
         self.landmarks
             .iter()
             .filter(|l| l.pos.continent == p.continent && l.pos.dist(p) <= LANDMARK_NAME_RADIUS)
             .min_by(|a, b| a.pos.dist(p).total_cmp(&b.pos.dist(p)))
-            .map(|l| l.name.as_str())
+            .map(|l| (l.id, l.name.as_str()))
     }
 
     /// Named places: one per exploration overlay area of the zone maps, at the overlay's center.
@@ -467,7 +545,7 @@ impl World {
             if seen.insert(id)
                 && let Some(pos) = self.to_world(zone, x, y)
             {
-                out.push(Landmark { pos, zone, name });
+                out.push(Landmark { id, pos, zone, name });
             }
         }
         Ok(out)
