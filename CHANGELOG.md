@@ -43,6 +43,7 @@ Guides watched and edited on a big map, quests that need others planned whole, c
 - WoW Forever: quests whose objectives were only described are back: Discipline, A Light in the Darkness, Unwelcome Guests, Gatehouse Goods, Hillsbrad's Hoard, several escorts and deliveries.
 - WoW Forever: The Great Outdoors says to sit by the campfire, The Gift of Skysight and Reading the Ley Lines to cast the racial spell; Finding the Source to use Krakle's Thermometer (all versions).
 - WoW Forever: mob places recorded on a quest giver where the game has none are gone (Scrawny Ursera in Thendal Village).
+- WoW Forever: the undead paladin's letter, A Difficult Path, is offered after The Mindless Ones, as in the game (GitHub #26).
 
 ## 0.11.0 (2026-10-17)
 
