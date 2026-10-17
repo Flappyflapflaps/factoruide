@@ -59,6 +59,7 @@ const OPTIONS: { title: string; options: Option[] }[] = [
           { value: "off", label: "Jamais" },
         ],
       },
+      { key: "pathMap", kind: "bool", label: "Chemin sur la carte et la minicarte", help: "Le chemin vers l'étape en pointillés verts sur la carte du monde et la minicarte, quand la boussole le montre.", default: true },
     ],
   },
   {

@@ -113,7 +113,7 @@ fn places_of_services() {
     let mage = find("Marryk Nurribit");
     assert!(
         mage.iter()
-            .any(|p| p.service == Service::Class && p.of == 8 && p.factions == "A")
+            .any(|p| p.service == Service::Class && p.of == 8 && p.factions == "A" && p.npc == 944)
     );
     assert!(find("Aubergiste Farley").iter().any(|p| p.service == Service::Inn));
     assert!(find("Thor").iter().any(|p| p.service == Service::Flight));
@@ -122,5 +122,5 @@ fn places_of_services() {
     // One place per NPC standing somewhere.
     assert_eq!(mage.iter().filter(|p| p.service == Service::Class).count(), 1);
     let lua = job::services_lua(&places);
-    assert!(lua.contains(r#"{ "class", "A", 8, 0, "#), "{}", &lua[..300]);
+    assert!(lua.contains(r#"{ "class", "A", 8, 0, "#) && lua.contains(r#""Marryk Nurribit", 944 }"#));
 }

@@ -124,6 +124,7 @@ function Nearby:Around(continent, north, west)
                 sub = kind.label,
                 icon = p[1] == "profession" and PROFESSIONS[p[3]] or kind.icon,
                 service = p[1],
+                npc = p[11] ~= 0 and p[11] or nil,
                 place = true,
             })
         end

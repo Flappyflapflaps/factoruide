@@ -58,9 +58,10 @@ end
 
 -- The walk ---------------------------------------------------------------------------------
 
--- { continent, points = { { north, west }, ..., the place } }, the step it leads to, and the leg
--- reached (only goes on: a walk going back on itself is not pointed backwards).
-local walk, walkStep, reached
+-- { continent, points = { { north, west }, ..., the place } } (the place alone when the walk
+-- goes straight), the place it leads to, and the leg reached (only goes on: a walk going back on
+-- itself is not pointed backwards).
+local walk, walkPlace, reached
 
 --- The closest point of the leg from `a` to `b` to (`n`, `w`), and how far it is.
 local function Project(a, b, n, w)
@@ -71,23 +72,35 @@ local function Project(a, b, n, w)
     return qn, qw, math.sqrt((n - qn) ^ 2 + (w - qw) ^ 2)
 end
 
+--- The walk to `place`: the step's planned one when the place is the step's own, else straight.
 local function SetWalk(place, step)
-    if not (step and place == step and step.wp and #step.wp >= 2 and step.m) then
-        walk, walkStep = nil, nil
-        return
-    end
-    if walkStep == step then return end
-    local continent, north, west = FG.Compass.World(step.m, step.x / 100, step.y / 100)
-    if not continent then
-        walk, walkStep = nil, nil
-        return
-    end
+    if walkPlace == place then return end
+    walk, walkPlace, reached = nil, place, 1
+    if not place or not place.m or not place.x then return end
+    local continent, north, west = FG.Compass.World(place.m, place.x / 100, place.y / 100)
+    if not continent then return end
     local points = {}
-    for i = 1, #step.wp - 1, 2 do
-        points[#points + 1] = { step.wp[i], step.wp[i + 1] }
+    if step and place == step and step.wp and #step.wp >= 2 then
+        for i = 1, #step.wp - 1, 2 do
+            points[#points + 1] = { step.wp[i], step.wp[i + 1] }
+        end
     end
     points[#points + 1] = { north, west }
-    walk, walkStep, reached = { continent = continent, points = points }, step, 1
+    walk = { continent = continent, points = points }
+end
+
+--- The leg of the walk closest to (`north`, `west`) from the one reached on, the closest point on
+--- it and how far it is; nil when the walk goes straight.
+local function Closest(north, west)
+    local points = walk.points
+    local best, bestDistance, bestN, bestW
+    for k = reached, #points - 1 do
+        local qn, qw, d = Project(points[k], points[k + 1], north, west)
+        if not bestDistance or d < bestDistance then
+            best, bestDistance, bestN, bestW = k, d, qn, qw
+        end
+    end
+    return best, bestDistance, bestN, bestW
 end
 
 --- Where the compass shows the way for a character at (`north`, `west`) of `continent`: AHEAD
@@ -97,13 +110,7 @@ end
 function Pathing:Aim(continent, north, west)
     if not walk or walk.continent ~= continent or not self:PathShown() then return nil end
     local points = walk.points
-    local best, bestDistance, bestN, bestW
-    for k = reached, #points - 1 do
-        local qn, qw, d = Project(points[k], points[k + 1], north, west)
-        if not bestDistance or d < bestDistance then
-            best, bestDistance, bestN, bestW = k, d, qn, qw
-        end
-    end
+    local best, bestDistance, bestN, bestW = Closest(north, west)
     if not best or bestDistance > REJOIN then return nil end
     reached = best
     if best == #points - 1 then return nil end
@@ -118,6 +125,31 @@ function Pathing:Aim(continent, north, west)
         end
     end
     return n, w, bestDistance > CORRIDOR
+end
+
+--- The walk left to the place for a character at (`north`, `west`) of `continent`, to draw it:
+--- { { north, west }, ... } from the character (or from the walk's closest point when on it) to
+--- the place; the whole walk left when far from it; nil without a walk or with it not shown.
+function Pathing:Remaining(continent, north, west)
+    if not walk or walk.continent ~= continent or not self:PathShown() then return nil end
+    local points = walk.points
+    local out = {}
+    local best, bestDistance, bestN, bestW = Closest(north, west)
+    if not best then
+        out[1] = { north, west }
+    elseif bestDistance > REJOIN then
+        for k = reached, #points - 1 do
+            out[#out + 1] = points[k]
+        end
+    else
+        if bestDistance > CORRIDOR then out[1] = { north, west } end
+        out[#out + 1] = { bestN, bestW }
+        for k = best + 1, #points - 1 do
+            out[#out + 1] = points[k]
+        end
+    end
+    out[#out + 1] = points[#points]
+    return out
 end
 
 -- Shortest Path Forever -------------------------------------------------------------------
@@ -141,10 +173,15 @@ local function Cancel(api)
     sent = nil
 end
 
---- The place the guide points at (nil: none), with what stands there for Shortest Path
---- Forever: { title, kind (a step's or a compass place's), q (its quest) }.
+-- The NPC standing at the place pointed at.
+local targetNpc
+
+--- The place the guide points at (nil: none), with what stands there: { title, kind (a step's
+--- or a compass place's), q (its quest), npc (its NPC ID) }.
 function Pathing:SetTarget(place, step, info)
     SetWalk(place, step)
+    targetNpc = place and info and info.npc or nil
+    if FG.NpcMark then FG.NpcMark:SetNpc(targetNpc) end
     local api = self:SpfLinked() and API()
     if not api then return end
     if not subscribed and api.Subscribe then
@@ -167,6 +204,9 @@ function Pathing:SetTarget(place, step, info)
     -- next refresh.
     if api.NavigateRoute(OWNER, { stop }) then sent = key end
 end
+
+--- The NPC standing at the place pointed at (nil: none, or not an NPC).
+function Pathing:TargetNpc() return targetNpc end
 
 --- Whether Shortest Path Forever guides to the guide's place now (the game's waypoint is its).
 function Pathing:Guiding()

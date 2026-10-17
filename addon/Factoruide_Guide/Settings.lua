@@ -65,6 +65,8 @@ FG.defaults = {
     -- The guide's walk on the compass, the way around the steep ground: "on", "off", or "auto"
     -- (unless Shortest Path Forever guides).
     pathMode = "auto",
+    -- That walk dotted on the world map and the minimap too.
+    pathMap = true,
     -- Places shown on the compass closer than `compassRange` yards: the class trainer, the
     -- trainers of the character's professions, flight masters, innkeepers, repairers, food and
     -- drink, bankers, auctioneers, stable masters (hunters), mailboxes.

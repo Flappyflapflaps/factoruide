@@ -22,6 +22,7 @@ Mini.lua
 Compass.lua
 Pathing.lua
 Nearby.lua
+NpcMark.lua
 Poulpix.lua
 Wind.lua
 Macro.lua
@@ -35,5 +36,6 @@ Timing.lua
 XpMarker.lua
 Bank.lua
 MapPins.lua
+PathLines.lua
 MapPins.xml
 Tracker.lua

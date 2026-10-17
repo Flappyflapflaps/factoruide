@@ -1573,6 +1573,66 @@ do
 end
 print("shortest path ok")
 
+-- The walk drawn on the maps: what is left of it from where the character is (its closest point
+-- on it, then its turns, then the place), dots along it, and where they go on the minimap (north
+-- up, or turned with the character).
+do
+    onQuest[8102] = true
+    FG.Guide:PointToStep(2)
+    onQuest[8102] = nil
+    FG.Guide:PointToStep(1)
+    local left = FG.Pathing:Remaining(0, 299.3, 712)
+    assert(#left == 4 and math.abs(left[1][1] - 299) < 1 and math.abs(left[1][2] - 712) < 1, "from its closest point")
+    assert(left[2][2] == 800 and left[3][1] == 400 and math.abs(left[4][1] - 400) < 1, "its turns, then the place")
+    left = FG.Pathing:Remaining(0, 240, 712)
+    assert(left[1][1] == 240 and #left == 5, "beside it: from the character")
+    FG:Set("pathMode", "off")
+    assert(FG.Pathing:Remaining(0, 299.3, 712) == nil, "not drawn when off")
+    FG:Set("pathMode", nil)
+
+    local dots = FG.PathLines.Sample({ { 0, 0 }, { 0, 10 } }, 5, 100)
+    assert(#dots == 3 and dots[3][2] == 10, "a dot every step")
+    assert(#FG.PathLines.Sample({ { 0, 0 }, { 0, 100 } }, 5, 4) == 4, "at most so many")
+    local x, y = FG.PathLines.OnMinimap(10, 0, 2, nil)
+    assert(close(x, 0) and close(y, 20), "north: up")
+    x, y = FG.PathLines.OnMinimap(0, 10, 2, nil)
+    assert(close(x, -20) and close(y, 0), "west: left")
+    x, y = FG.PathLines.OnMinimap(0, 10, 2, math.pi / 2)
+    assert(math.abs(x) < 1e-9 and close(y, 20), "facing west on a turning minimap: west is up")
+end
+print("walk on the maps ok")
+
+-- The NPC pointed at is marked above its head when its nameplate shows: a place picked on the
+-- compass (Marryk Nurribit, NPC 944), on the nameplate showing him, gone with it, back when it
+-- shows again.
+do
+    local realGUID, realExists = UnitGUID, UnitExists
+    local plates = { nameplate2 = "Creature-0-1-2-3-299-0000", nameplate3 = "Creature-0-1-2-3-944-0000" }
+    UnitGUID = function(u) return plates[u] or realGUID(u) end
+    UnitExists = function(u) return plates[u] ~= nil end
+    C_NamePlate = { GetNamePlateForUnit = function(u) return plates[u] and CreateFrame("Frame") end }
+    local marryk
+    for _, p in ipairs(FG.Nearby:Around(0, 299.3, 712)) do
+        if p.npc == 944 then marryk = p end
+    end
+    assert(marryk, "the place knows its NPC")
+    -- Out of reach for the arrival test: far from the character.
+    marryk.x = 40
+    FG.Guide:PointToPlace(marryk)
+    assert(FG.NpcMark:Unit() == "nameplate3", "marked on his nameplate")
+    plates.nameplate3 = nil
+    fire("NAME_PLATE_UNIT_REMOVED", "nameplate3")
+    assert(FG.NpcMark:Unit() == nil, "gone with it")
+    plates.nameplate3 = "Creature-0-1-2-3-944-0000"
+    fire("NAME_PLATE_UNIT_ADDED", "nameplate3")
+    assert(FG.NpcMark:Unit() == "nameplate3", "back with it")
+    FG.Guide:PointToStep(1)
+    assert(FG.NpcMark:Unit() == nil, "another target: no mark")
+    UnitGUID, UnitExists, C_NamePlate = realGUID, realExists, nil
+    FG.Nearby:Forget()
+end
+print("npc mark ok")
+
 -- The quest panel: one line a quest in both modes; folded, no line.
 local logEntries, logInfo = C_QuestLog.GetNumQuestLogEntries, C_QuestLog.GetInfo
 C_QuestLog.GetNumQuestLogEntries = function() return 6 end
@@ -2124,16 +2184,21 @@ assert(root:IsShown(), "nothing pending any more")
 root.SetShown = originalSetShown
 
 -- The world map's pins and the game's waypoint go at once and stay away on later refreshes.
+-- `pins`: the steps' pins (the walk's dots have their own template).
 local provider, pins = nil, 0
 WorldMapFrame = {
     AddDataProvider = function(self, p)
-        provider = p
+        provider = provider or p
         p.GetMap = function() return self end
     end,
     IsShown = function() return true end,
-    RemoveAllPinsByTemplate = function() pins = 0 end,
+    RemoveAllPinsByTemplate = function(_, template)
+        if template == "FGStepPinTemplate" then pins = 0 end
+    end,
     GetMapID = function() return 1426 end,
-    AcquirePin = function() pins = pins + 1 end,
+    AcquirePin = function(_, template)
+        if template == "FGStepPinTemplate" then pins = pins + 1 end
+    end,
 }
 FG.MapPins:Refresh()
 assert(pins > 0 and waypoint, "map pins and waypoint shown")

@@ -18,4 +18,15 @@
             <OnLoad method="OnLoad"/>
         </Scripts>
     </Frame>
+    <Frame name="FGWalkDotTemplate" mixin="FGWalkDotMixin" virtual="true">
+        <Size x="6" y="6"/>
+        <Layers>
+            <Layer level="ARTWORK">
+                <Texture parentKey="Dot" file="Interface\COMMON\Indicator-Gray" setAllPoints="true"/>
+            </Layer>
+        </Layers>
+        <Scripts>
+            <OnLoad method="OnLoad"/>
+        </Scripts>
+    </Frame>
 </Ui>

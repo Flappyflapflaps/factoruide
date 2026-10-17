@@ -59,6 +59,10 @@ pub struct Place {
     pub map_x: f64,
     pub map_y: f64,
     pub name: String,
+    /// The NPC (0: an object): the addon marks it above its head when its nameplate shows.
+    pub npc: i64,
+    /// Only seen from afar by players (where they stood, not where it stands).
+    pub rough: bool,
 }
 
 const CLASSES: [(&str, i64); 9] = [
@@ -203,7 +207,13 @@ fn services(title: &str, flags: i64, edition: Edition) -> Vec<(Service, i64)> {
 /// Every place of a service that some faction may use, names in the language of `names`.
 pub fn places(conn: &Connection, world: &World, edition: Edition, names: &Names) -> Result<Vec<Place>> {
     let mut out = Vec::new();
-    let mut place = |service: Service, of: i64, factions: &str, zone: i64, x: f64, y: f64, name: String| {
+    let mut place = |service: Service,
+                     of: i64,
+                     factions: &str,
+                     (zone, x, y): (i64, f64, f64),
+                     name: String,
+                     npc: i64,
+                     rough: bool| {
         let Some(pos) = world.to_world(zone, x, y) else {
             return;
         };
@@ -221,10 +231,13 @@ pub fn places(conn: &Connection, world: &World, edition: Edition, names: &Names)
             map_x: map.x,
             map_y: map.y,
             name,
+            npc,
+            rough,
         });
     };
     let mut stmt = conn.prepare(
-        "SELECT n.id, n.name, coalesce(n.subname, ''), coalesce(n.npc_flags, 0), n.friendly_to, s.zone_id, s.x, s.y
+        "SELECT n.id, n.name, coalesce(n.subname, ''), coalesce(n.npc_flags, 0), n.friendly_to, s.zone_id, s.x, s.y,
+                coalesce(s.sources, '')
          FROM m_npc n JOIN m_spawn s ON s.entity_type = 'npc' AND s.entity_id = n.id
          WHERE coalesce(n.friendly_to, '') != '' AND s.x IS NOT NULL AND s.y IS NOT NULL
          ORDER BY n.id, s.zone_id, s.x, s.y",
@@ -239,23 +252,25 @@ pub fn places(conn: &Connection, world: &World, edition: Edition, names: &Names)
             r.get::<_, i64>(5)?,
             r.get::<_, f64>(6)?,
             r.get::<_, f64>(7)?,
+            r.get::<_, String>(8)?,
         ))
     })?;
     for row in rows {
-        let (id, name, title, flags, factions, zone, x, y) = row?;
+        let (id, name, title, flags, factions, zone, x, y, sources) = row?;
         // Left in the data by the game's makers: "[UNUSED] Smith Theo".
         if name.starts_with('[') || name.contains("UNUSED") {
             continue;
         }
+        let rough = sources.split(',').all(|s| s == SEEN);
         for (service, of) in services(&title, flags, edition) {
             place(
                 service,
                 of,
                 &factions,
-                zone,
-                x,
-                y,
+                (zone, x, y),
                 names.get("npc", id, &name).to_owned(),
+                id,
+                rough,
             );
         }
     }
@@ -280,29 +295,37 @@ pub fn places(conn: &Connection, world: &World, edition: Edition, names: &Names)
             Service::Mail,
             0,
             "AH",
-            zone,
-            x,
-            y,
+            (zone, x, y),
             names.get("object", id, &name).to_owned(),
+            0,
+            false,
         );
     }
     Ok(dedupe(out))
 }
 
-/// Places closer than this (yards) to another of the same name and service are the same.
+/// The source of the places where players saw an NPC from (rough: they stood there, the NPC
+/// stood somewhere around).
+const SEEN: &str = "collector_seen";
+/// Places closer than this (yards) to another of the same NPC and service are the same; a place
+/// only seen from afar this close to another of the same NPC too.
 const SAME: f64 = 15.0;
+const SAME_SEEN: f64 = 150.0;
 
 /// One place per NPC standing somewhere: the data may hold its spawn several times, a few yards
-/// apart (from several sources).
+/// apart (from several sources), and where players saw it from. Those seen from afar only count
+/// where no other place of the same NPC is close.
 fn dedupe(places: Vec<Place>) -> Vec<Place> {
     let mut kept: Vec<Place> = Vec::with_capacity(places.len());
-    let mut by_name: std::collections::HashMap<(String, &'static str, i64), Vec<usize>> =
+    let mut same: std::collections::HashMap<(String, i64, &'static str, i64), Vec<usize>> =
         std::collections::HashMap::new();
-    for p in places {
-        let same = by_name.entry((p.name.clone(), p.service.key(), p.of)).or_default();
-        let near = |q: &Place| q.continent == p.continent && (q.x - p.x).hypot(q.y - p.y) < SAME;
-        if !same.iter().any(|&i| near(&kept[i])) {
-            same.push(kept.len());
+    let (exact, rough): (Vec<Place>, Vec<Place>) = places.into_iter().partition(|p| !p.rough);
+    for p in exact.into_iter().chain(rough) {
+        let radius = if p.rough { SAME_SEEN } else { SAME };
+        let others = same.entry((p.name.clone(), p.npc, p.service.key(), p.of)).or_default();
+        let near = |q: &Place| q.continent == p.continent && (q.x - p.x).hypot(q.y - p.y) < radius;
+        if !others.iter().any(|&i| near(&kept[i])) {
+            others.push(kept.len());
             kept.push(p);
         }
     }
@@ -310,17 +333,17 @@ fn dedupe(places: Vec<Place>) -> Vec<Place> {
 }
 
 /// The addon's Services.lua: every place as `{ kind, factions, class or skill line, continent,
-/// x, y, map, map x, map y, name }`.
+/// x, y, map, map x, map y, name, NPC }`.
 pub fn services_lua(places: &[Place]) -> String {
     let mut out = String::from(
         "-- Generated by the Factoruide app. Do not edit.\nlocal FG = Factoruide\n\
          -- Places for the compass: kind, factions, class ID or profession skill line, continent,\n\
-         -- world x, y (yards), map, x, y (percent), name.\nFG.Services = {\n",
+         -- world x, y (yards), map, x, y (percent), name, NPC ID (0: an object).\nFG.Services = {\n",
     );
     for p in places {
         let _ = writeln!(
             out,
-            "  {{ {:?}, {:?}, {}, {}, {}, {}, {}, {}, {}, {:?} }},",
+            "  {{ {:?}, {:?}, {}, {}, {}, {}, {}, {}, {}, {:?}, {} }},",
             p.service.key(),
             p.factions,
             p.of,
@@ -330,7 +353,8 @@ pub fn services_lua(places: &[Place]) -> String {
             p.ui_map,
             p.map_x,
             p.map_y,
-            p.name
+            p.name,
+            p.npc
         );
     }
     out.push_str("}\n");
@@ -362,6 +386,37 @@ mod tests {
         assert_eq!(services("", 4096, classic), [(Service::Auction, 0)]);
         assert_eq!(services("Weapon Merchant", 16388, classic), [(Service::Repair, 0)]);
         assert_eq!(services("Food & Drink", 4, classic), [(Service::Food, 0)]);
+    }
+
+    fn at(x: f64, rough: bool) -> Place {
+        Place {
+            service: Service::Flight,
+            of: 0,
+            factions: "A".into(),
+            continent: 0,
+            x,
+            y: 0.0,
+            ui_map: 1436,
+            map_x: 0.0,
+            map_y: 0.0,
+            name: "Thor".into(),
+            npc: 523,
+            rough,
+        }
+    }
+
+    /// Where players saw an NPC from is dropped near its spawn, kept where nothing else is.
+    #[test]
+    fn places_seen_from_afar_give_way_to_the_spawn() {
+        let kept = dedupe(vec![
+            at(50.0, true),
+            at(0.0, false),
+            at(5.0, false),
+            at(900.0, true),
+            at(950.0, true),
+        ]);
+        let xs: Vec<f64> = kept.iter().map(|p| p.x).collect();
+        assert_eq!(xs, [0.0, 900.0]);
     }
 
     #[test]

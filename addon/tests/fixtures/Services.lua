@@ -1,9 +1,9 @@
 -- A few places for the smoke test (the real Services.lua is written by the app and not
 -- versioned): kind, factions, class ID or profession skill line, continent, world x, y (yards),
--- map, x, y (percent), name.
+-- map, x, y (percent), name, NPC ID.
 local FG = Factoruide
 FG.Services = {
-    { "class", "A", 8, 0, 300, 712, 1426, 30, 71.2, "Marryk Nurribit" },
+    { "class", "A", 8, 0, 300, 712, 1426, 30, 71.2, "Marryk Nurribit", 944 },
     { "class", "A", 1, 0, 301, 713, 1426, 30.1, 71.3, "Thran Khorman" },
     { "class", "H", 8, 0, 302, 712, 1426, 30.2, 71.2, "Horde Mage" },
     { "profession", "A", 164, 0, 310, 712, 1426, 31, 71.2, "Smith" },

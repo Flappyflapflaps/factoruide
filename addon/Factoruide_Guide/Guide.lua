@@ -683,6 +683,9 @@ function Guide:StepTooltip(owner, index)
     GameTooltip:Show()
 end
 
+-- Steps done by talking to their NPC: it is marked above its head when its nameplate shows.
+local TALKS = { accept = true, turnin = true, train = true, bind = true, flight_master = true, fly = true }
+
 -- The compass shows the quests to pick up closer than this (yards).
 local PICKUP_NEAR = 100
 
@@ -825,9 +828,15 @@ function Guide:Refresh()
     end
 
     if FG.Pathing then
-        local info = detour and { title = detour.name, kind = detour.service }
-            or { title = TaskView(target, targetIndex, false).name, kind = target.k, q = target.q }
+        local info = detour and { title = detour.name, kind = detour.service, npc = detour.npc }
+            or {
+                title = TaskView(target, targetIndex, false).name,
+                kind = target.k,
+                q = target.q,
+                npc = place == target and target.e == "npc" and TALKS[target.k] and target.id or nil,
+            }
         FG.Pathing:SetTarget(place, not detour and target or nil, info)
+        if FG.PathLines then FG.PathLines:Refresh() end
     end
     SetWaypoint(place)
     local wind = FG.Wind and FG.Wind:Active()
