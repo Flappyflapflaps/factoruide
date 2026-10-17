@@ -1014,7 +1014,7 @@ struct Comparison {
 }
 
 /// Versions `a` and `b` of a guide compared, written in `locale` (game locale).
-#[tauri::command]
+#[tauri::command(async)]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
@@ -1064,7 +1064,7 @@ fn compare_versions(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
@@ -1076,8 +1076,9 @@ fn get_version(
     locale: Option<String>,
 ) -> CmdResult<GuideVersion> {
     let mut v = state.version(&guide, version)?;
-    // The walking memory stays in the files (the app does not show it).
+    // The walking memory and the plan stay in the files (the app shows neither).
     v.outcome.walks = None;
+    v.outcome.plan.clear();
     if let Some(locale) = locale {
         v.outcome.route = state.render(&v.outcome.route, Some(&locale))?;
     }
@@ -1085,7 +1086,7 @@ fn get_version(
 }
 
 /// The version of a guide its characters follow (`None`: the latest), written to the addon.
-#[tauri::command]
+#[tauri::command(async)]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
@@ -1102,7 +1103,7 @@ fn set_installed(state: State<'_, AppState>, guide: String, version: Option<u32>
     install_addon(state)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn delete_version(state: State<'_, AppState>, guide: String, version: u32) -> CmdResult<()> {
     std::fs::remove_dir_all(state.guides().join(&guide).join(format!("v{version}"))).map_err(err)?;
     let info = state.guide_info(&guide)?;
@@ -1126,7 +1127,7 @@ fn delete_version(state: State<'_, AppState>, guide: String, version: u32) -> Cm
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
@@ -1156,7 +1157,7 @@ fn list_assignments(state: State<'_, AppState>) -> BTreeMap<String, String> {
 
 /// Make a character follow a guide (`None`: no guide), then write the addon. Returns the number
 /// of guides in the addon.
-#[tauri::command]
+#[tauri::command(async)]
 fn assign_guide(state: State<'_, AppState>, character: String, guide: Option<String>) -> CmdResult<usize> {
     let mut assignments = state.assignments();
     match guide {
@@ -1175,12 +1176,15 @@ fn assign_guide(state: State<'_, AppState>, character: String, guide: Option<Str
 /// Copy the addon into the game, with Routes.lua holding the guides assigned to a character (in
 /// the version they follow) and who follows which, and Config.lua the settings. Returns the
 /// number of guides in the addon.
-#[tauri::command]
+#[tauri::command(async)]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
 )]
 fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
+    // Off the main thread, two installs could write the same files at once: one at a time.
+    static INSTALLING: Mutex<()> = Mutex::new(());
+    let _one = INSTALLING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let settings = state.settings();
     let addons = settings.addons_dir(settings.edition);
     migrate_legacy_addon(&addons);
@@ -1424,7 +1428,7 @@ const SHARE_FORMAT: &str = "factoruide-guide";
 const LEGACY_SHARE_FORMAT: &str = "brouzquest-result";
 
 /// Write a version as a .fgguide file in the Downloads folder; returns its path.
-#[tauri::command]
+#[tauri::command(async)]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
@@ -1445,7 +1449,7 @@ fn export_version(app: AppHandle, state: State<'_, AppState>, guide: String, ver
 }
 
 /// Add a guide received as a .fgguide file (its content): a new version of the guide of its name.
-#[tauri::command]
+#[tauri::command(async)]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
@@ -1545,7 +1549,7 @@ fn is_forgotten(forgotten: &BTreeMap<String, i64>, edition: Edition, profile: &S
 
 /// Take a character out of the Characters page (deleted in game): it no longer follows a guide.
 /// Played again, it is back.
-#[tauri::command]
+#[tauri::command(async)]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
@@ -1614,7 +1618,7 @@ fn characters(state: &AppState) -> CmdResult<Vec<CharacterInfo>> {
 // Maps -----------------------------------------------------------------------------
 
 /// Map index written by `fg maps` (ids, names, sizes, world bounds).
-#[tauri::command]
+#[tauri::command(async)]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
