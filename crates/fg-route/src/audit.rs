@@ -66,7 +66,21 @@ pub const CHECKS: &[Check] = &[
                a quest offered from the start is accepted",
         error: false,
     },
+    Check {
+        name: "broken-chains",
+        what: "quests left out because the data does not know an objective or its place (an area \
+               to reach, a mob, an object, an item's source) while quests of the guide need them \
+               first: the rest of the chain is lost with them. Give the place in the quest data, \
+               or accept a quest the game no longer offers",
+        error: true,
+    },
 ];
+
+/// Why a quest is left out when its objectives or their places are unknown to the data (the
+/// reasons of the quest builder that say "unknown").
+fn unknown_in_data(why: &str) -> bool {
+    why.contains("unknown")
+}
 
 /// One problem found.
 #[derive(Debug, Clone)]
@@ -184,6 +198,9 @@ pub fn audit(
         }
         if chain_order_on {
             chain_order(&prepared.model, &old_quests).into_iter().for_each(&mut add);
+        }
+        if on("broken-chains") {
+            broken_chains(&prepared.model).into_iter().for_each(&mut add);
         }
         if on("source-items") {
             uncovered_source_items(&prepared.model, &source_items)
@@ -634,10 +651,71 @@ fn chain_order(model: &Model, old_quests: &HashSet<i64>) -> Vec<Finding> {
     out
 }
 
+/// Quests left out for something the data does not know (`unknown_in_data`) that quests of the
+/// guide need first: all of them (`pre_all`), or the only ones of a choice (`pre_any`, all left
+/// out). Secure the Mountain's den had no place, which lost the report taken back after it.
+fn broken_chains(model: &Model) -> Vec<Finding> {
+    let unknown: HashMap<i64, (&str, &str)> = (model.skipped.iter())
+        .filter(|(_, _, why)| unknown_in_data(why))
+        .map(|(id, name, why)| (*id, (name.as_str(), why.as_str())))
+        .collect();
+    let mut needed: BTreeMap<i64, Vec<String>> = BTreeMap::new();
+    for q in &model.quests {
+        let any_lost = !q.pre_any.is_empty() && q.pre_any.iter().all(|p| !model.index.contains_key(p));
+        let lost = (q.pre_all.iter())
+            .chain(q.pre_any.iter().filter(|_| any_lost))
+            .filter(|p| unknown.contains_key(p));
+        for p in lost {
+            let by = needed.entry(*p).or_default();
+            let next = format!("{} ({})", q.name, q.id);
+            if !by.contains(&next) {
+                by.push(next);
+            }
+        }
+    }
+    needed
+        .into_iter()
+        .map(|(id, by)| {
+            let (name, why) = unknown[&id];
+            Finding {
+                check: "broken-chains",
+                key: format!("quest {id}"),
+                detail: format!("{name} ({id}) left out: {why}; needed first by {}", by.join(", ")),
+                races: Vec::new(),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::plan::tests::quests_at_start;
+
+    /// Secure the Mountain's case: a quest left out because an objective has no place, needed
+    /// first by a quest of the guide. Not found for a reason the data does not cause (elites),
+    /// nor when another quest of a choice stays.
+    #[test]
+    fn a_quest_left_out_for_an_unknown_place_that_a_kept_quest_needs_is_found() {
+        let mut p = quests_at_start(2);
+        let first = p.model.quests[0].id;
+        let lost = 990_001;
+        p.model.skipped = vec![
+            (lost, "Secure the Mountain".into(), "exploration area unknown".into()),
+            (990_002, "Elites".into(), "elite objective".into()),
+        ];
+        let keys = |m: &Model| -> Vec<String> { broken_chains(m).into_iter().map(|f| f.key).collect() };
+        assert!(keys(&p.model).is_empty(), "nothing needs it");
+        p.model.quests[0].pre_all = vec![lost];
+        assert_eq!(keys(&p.model), [format!("quest {lost}")]);
+        p.model.quests[0].pre_all = vec![990_002];
+        assert!(keys(&p.model).is_empty(), "left out for an elite, not the data");
+        p.model.quests[0].pre_all.clear();
+        p.model.quests[1].pre_any = vec![lost, first];
+        assert!(keys(&p.model).is_empty(), "the other quest of the choice stays");
+        p.model.quests[1].pre_any = vec![lost];
+        assert_eq!(keys(&p.model), [format!("quest {lost}")]);
+    }
 
     /// Walton's case: two quests of one NPC, one he also takes back, no link between them. Found
     /// until the data links them, or when the quest is in the 1.12 data.
