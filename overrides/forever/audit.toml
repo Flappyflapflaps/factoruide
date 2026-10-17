@@ -56,62 +56,62 @@ reason = "A Conqueror's Crown: where the Conqueror's Helm comes from (Badlands) 
 [[accept]]
 check = "chain-order"
 key = "quest 92514"
-reason = "Welcome to Shen'dar Village: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "Welcome to Shen'dar Village: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
 key = "quest 92742"
-reason = "Testing the Wells: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "Testing the Wells: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
 key = "quest 93461"
-reason = "Welcome to Shen'dar Village: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "Welcome to Shen'dar Village: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
 key = "quest 93680"
-reason = "Key to the City: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "Key to the City: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
 key = "quest 95494"
-reason = "Bruised Pride and Lion Hides: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "Bruised Pride and Lion Hides: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
 key = "quest 95507"
-reason = "Vrang's Game: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "Vrang's Game: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
 key = "quest 95647"
-reason = "Lost in the Thicket Things: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "Lost in the Thicket Things: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
 key = "quest 96408"
-reason = "A Visitor to Dun Morogh: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "A Visitor to Dun Morogh: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
 key = "quest 97279"
-reason = "Wayward Weapons: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "Wayward Weapons: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
 key = "quest 97914"
-reason = "Expanding Horizons: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "Expanding Horizons: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
 key = "quest 98387"
-reason = "Blackrock Blockade: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "Blackrock Blockade: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
 key = "quest 99046"
-reason = "The Lost Runner: offered from the start (first of its series, or beside the giver\'s other quests)"
+reason = "The Lost Runner: offered from the start (first of its series, or beside the giver's other quests)"
 
 [[accept]]
 check = "chain-order"
