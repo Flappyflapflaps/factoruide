@@ -41,6 +41,9 @@ export interface ListEdit {
   onReplace: (i: number, step: RouteStep) => void;
   /** Open the menu to add a step after line `i` (-1: at the start), beside a point of the window. */
   onAdd: (i: number, anchor: { x: number; y: number }) => void;
+  /** Grinding added after the last step to reach the target level (seconds), and that level. */
+  finalGrind: number;
+  toLevel: number;
 }
 
 /** Where what is dragged lands: before line `at`. */
@@ -128,6 +131,13 @@ export function StepList({ steps, cards, titles, segments, spans, quests, curren
             onDrop={setDrop}
           />
         ))}
+        {edit && edit.finalGrind >= 1 && (
+          <div className="sl-final-grind" title={t("Les étapes n'amènent pas au niveau {level} : farm ajouté après la dernière.", { level: edit.toLevel })}>
+            <span className="sl-time">{fmtClock(cards[cards.length - 1]?.end ?? 0)}</span>
+            <span className="sl-title">{t("Farm final jusqu'au niveau {level}", { level: edit.toLevel })}</span>
+            <span className="sl-dur">{fmtClock(edit.finalGrind)}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -209,6 +219,9 @@ const anchorOf = (el: Element) => {
   return { x: r.right + 8, y: r.top };
 };
 
+/** A drag starts: no text stays selected (it would be left greyed over the lines). */
+const clearSelection = () => window.getSelection()?.removeAllRanges();
+
 /** The lines dragged, read back from a drag. */
 function dragged(e: React.DragEvent): [number, number] | null {
   const m = /^(\d+)-(\d+)$/.exec(e.dataTransfer.getData(DRAG_TYPE));
@@ -278,6 +291,7 @@ const CardView = memo(function CardView({ card, title, steps, spans, quests, act
         draggable={!!edit}
         title={edit ? t("Glisser pour déplacer") : undefined}
         onDragStart={(e) => {
+          clearSelection();
           e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData(DRAG_TYPE, `${card.first}-${card.last}`);
         }}
@@ -397,6 +411,7 @@ function EditLine({ index: i, step: s, quests, edit, drop, onDrop }: EditLinePro
       title={s.text}
       onDragStart={(e) => {
         e.stopPropagation();
+        clearSelection();
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData(DRAG_TYPE, `${i}-${i}`);
       }}

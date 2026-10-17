@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { fmtTime, type GuideVersion, type Route, type RouteStep, type Step } from "../api";
 import { useT } from "../i18n";
 import { draftLine, useNames } from "./editing";
@@ -51,10 +51,16 @@ export function useEditedView(version: GuideVersion, draft: Draft): EditedView |
     (i: number, step: RouteStep) => change((list) => ({ items: list.map((x, k) => (k === i ? { ...x, step } : x)), touched: [list[i].key] })),
     [change],
   );
+  // A dungeon is run once: adding a run the draft has moves it there.
   const onInsert = useCallback(
     (after: number, step: RouteStep) => {
-      const added = item(step);
-      change((list) => ({ items: [...list.slice(0, after + 1), added, ...list.slice(after + 1)], touched: [added.key] }));
+      change((list) => {
+        const run = step.kind === "dungeon" ? list.findIndex((x) => x.step.kind === "dungeon" && x.step.dungeon === step.dungeon) : -1;
+        const added = run >= 0 ? list[run] : item(step);
+        const rest = run >= 0 ? list.filter((_, k) => k !== run) : list;
+        const at = run >= 0 && run <= after ? after : after + 1;
+        return { items: [...rest.slice(0, at), added, ...rest.slice(at)], touched: [added.key] };
+      });
     },
     [change],
   );
@@ -83,6 +89,8 @@ export function useEditedView(version: GuideVersion, draft: Draft): EditedView |
           onMove,
           onRemove,
           onReplace,
+          finalGrind: view.report.final_grind,
+          toLevel: route.to_level,
         },
         catalog,
         names,
@@ -92,6 +100,29 @@ export function useEditedView(version: GuideVersion, draft: Draft): EditedView |
       },
     };
   }, [draft.opened, draft.suggestions, draft.suggestAfter, view, viewItems, items, replayed, reports, pending, label, names, version, onMove, onRemove, onReplace, onInsert]);
+}
+
+/**
+ * Undo (Ctrl+Z) and redo (Ctrl+Y, Ctrl+Shift+Z) while editing: not while typing in a field or
+ * choosing in the add menu (they keep their own).
+ */
+export function useUndoKeys(draft: Draft, active: boolean) {
+  const { undo, redo } = draft;
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const el = e.target instanceof Element ? e.target : null;
+      if (el?.closest("input, textarea, select, [contenteditable], .add-menu")) return;
+      const key = e.key.toLowerCase();
+      const action = key === "z" ? (e.shiftKey ? redo : undo) : key === "y" && !e.shiftKey ? redo : null;
+      if (!action) return;
+      e.preventDefault();
+      action();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, undo, redo]);
 }
 
 interface BarProps {
@@ -164,8 +195,11 @@ export function EditBar({ version, draft, saving, onSave, onDiscard, onReveal }:
       {draft.error && <span className="error-text">{draft.error}</span>}
       {opened.rebuilt && <span className="muted" title={t("Ce guide a été calculé avant l'éditeur : ses étapes ont été relues depuis le guide, son temps peut un peu différer.")}>ⓘ</span>}
       <span className="edit-bar-fill" />
-      <button onClick={draft.undo} disabled={!draft.canUndo}>
+      <button onClick={draft.undo} disabled={!draft.canUndo} title="Ctrl+Z">
         {t("Annuler la dernière modification")}
+      </button>
+      <button onClick={draft.redo} disabled={!draft.canRedo} title="Ctrl+Y / Ctrl+Shift+Z">
+        {t("Rétablir")}
       </button>
       <button className="primary" disabled={!canSave} onClick={onSave} title={errors > 0 ? t("Corrigez les étapes impossibles pour enregistrer") : undefined}>
         {saving ? t("Enregistrement…") : t("Enregistrer (nouvelle version)")}

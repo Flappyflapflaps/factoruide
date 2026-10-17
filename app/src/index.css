@@ -2749,7 +2749,7 @@ button.dungeon.excluded b {
 .gm-offer {
   cursor: copy;
 }
-.gm-offer circle {
+.gm-offer .gm-offer-shape {
   stroke-width: 2;
 }
 .gm-offer > text {
@@ -2757,7 +2757,7 @@ button.dungeon.excluded b {
   font-weight: 800;
   pointer-events: none;
 }
-.gm-untaken circle {
+.gm-untaken .gm-offer-shape {
   fill: color-mix(in srgb, var(--cat-4) 22%, rgba(8, 12, 20, 0.9));
   stroke: #ffc13b;
   stroke-width: 2.5;
@@ -2766,14 +2766,14 @@ button.dungeon.excluded b {
 .gm-untaken > text {
   fill: #ffc13b;
 }
-.gm-objective circle {
+.gm-objective .gm-offer-shape {
   fill: var(--bad);
   stroke: #fff;
 }
 .gm-objective > text {
   fill: #fff;
 }
-.gm-turn-in circle {
+.gm-turn-in .gm-offer-shape {
   fill: #1a1405;
   stroke: var(--bad);
   stroke-width: 3.5;
@@ -2781,8 +2781,35 @@ button.dungeon.excluded b {
 .gm-turn-in > text {
   fill: #ffd23f;
 }
-.gm-offer:hover circle {
+.gm-offer:hover .gm-offer-shape {
   stroke: #fff;
+}
+/* Quests in the game's colors: their level against the character's then. */
+.gm-diff-grey {
+  --diff: #9d9d9d;
+}
+.gm-diff-green {
+  --diff: #40bf40;
+}
+.gm-diff-yellow {
+  --diff: #ffd100;
+}
+.gm-diff-orange {
+  --diff: #ff8040;
+}
+.gm-diff-red {
+  --diff: #ff2020;
+}
+.gm-untaken[class*="gm-diff-"] .gm-offer-shape {
+  stroke: var(--diff);
+  fill: color-mix(in srgb, var(--diff) 14%, rgba(8, 12, 20, 0.92));
+}
+.gm-untaken[class*="gm-diff-"] > text {
+  fill: var(--diff);
+}
+/* Done in a dungeon: a diamond, as the runs on the route. */
+.gm-in-dungeon .gm-offer-shape {
+  stroke-width: 3;
 }
 
 /* Characters ------------------------------------------------------------------------ */
@@ -3471,6 +3498,27 @@ button.link.cmp-jump {
 }
 .sl-card:focus-visible {
   outline-offset: -2px;
+}
+/* Cards are buttons and dragged: no text selection left greyed over them. */
+.step-list {
+  user-select: none;
+}
+.step-list input {
+  user-select: text;
+}
+.sl-final-grind {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 6px 0 2px;
+  padding: 6px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: default;
+}
+.sl-final-grind .sl-title {
+  flex: 1;
 }
 .sl-card-head {
   display: flex;

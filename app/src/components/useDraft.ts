@@ -41,9 +41,12 @@ export interface Draft {
   /** The draft differs from the version. */
   changed: boolean;
   canUndo: boolean;
+  canRedo: boolean;
   /** A change of the draft as it is then. */
   change: (edit: (draft: Item[]) => Changed) => void;
   undo: () => void;
+  /** Puts back the change undone last. */
+  redo: () => void;
   save: () => Promise<VersionMeta>;
   /** What could be added after step `after` of the draft (null: before the first), and asking for it. */
   suggestions: Suggestions | null;
@@ -56,7 +59,9 @@ export function useDraft(version: GuideVersion, active: boolean): Draft {
   const [opened, setOpened] = useState<EditOpened | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
+  // The drafts before each change, and those undone (the latest last).
   const [history, setHistory] = useState<Item[][]>([]);
+  const [undone, setUndone] = useState<Item[][]>([]);
   const [replayed, setReplayed] = useState<{ items: Item[]; view: EditView } | null>(null);
   const [touched, setTouched] = useState<Set<number>>(new Set());
   const [suggestions, setSuggestions] = useState<Suggestions | null>(null);
@@ -78,6 +83,7 @@ export function useDraft(version: GuideVersion, active: boolean): Draft {
         setOpened(o);
         setItems(first);
         setHistory([]);
+        setUndone([]);
         setTouched(new Set());
         setReplayed({ items: first, view: o.view });
       })
@@ -136,6 +142,7 @@ export function useDraft(version: GuideVersion, active: boolean): Draft {
     const { items: next, touched: keys } = edit(before);
     now.current = next;
     setHistory((h) => [...h.slice(-99), before]);
+    setUndone([]);
     setItems(next);
     setTouched((t) => new Set([...t, ...keys]));
     setSuggestions(null);
@@ -144,9 +151,20 @@ export function useDraft(version: GuideVersion, active: boolean): Draft {
     const previous = history[history.length - 1];
     if (!previous) return;
     setHistory(history.slice(0, -1));
+    setUndone([...undone, now.current]);
+    now.current = previous;
     setItems(previous);
     setSuggestions(null);
-  }, [history]);
+  }, [history, undone]);
+  const redo = useCallback(() => {
+    const next = undone[undone.length - 1];
+    if (!next) return;
+    setUndone(undone.slice(0, -1));
+    setHistory([...history, now.current]);
+    now.current = next;
+    setItems(next);
+    setSuggestions(null);
+  }, [history, undone]);
   const save = useCallback(async () => {
     const meta = await api.editSave(steps);
     saved.current = true;
@@ -164,8 +182,10 @@ export function useDraft(version: GuideVersion, active: boolean): Draft {
     pending: touched,
     changed,
     canUndo: history.length > 0,
+    canRedo: undone.length > 0,
     change,
     undo,
+    redo,
     save,
     suggestions,
     suggestAfter: setAfter,

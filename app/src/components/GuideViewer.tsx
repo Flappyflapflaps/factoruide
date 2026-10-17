@@ -18,7 +18,7 @@ export interface ViewerEdit {
   list: Omit<ListEdit, "onAdd">;
   catalog: EditCatalog;
   names: ReturnType<typeof useNames>;
-  /** What could be added where the guide is watched, and asking for it after a step (null: before the first). */
+  /** What could be added before the step watched (asked for after the step before it, null: before the first). */
   suggestions: Suggestions | null;
   onSuggestAt: (after: number | null) => void;
   /** Add a step after step `after` (-1: first). */
@@ -154,7 +154,7 @@ export function GuideViewer({ route, played, timeline, failed, request, keys, on
   }, [reveal?.n]);
   // Editing: what could be added where the guide is watched.
   const suggestAt = edit?.onSuggestAt;
-  useEffect(() => suggestAt?.(steps.length ? shownStep : null), [suggestAt, shownStep, steps.length]);
+  useEffect(() => suggestAt?.(shownStep > 0 ? shownStep - 1 : null), [suggestAt, shownStep]);
 
   const [follow, setFollow] = useState(true);
   const [layers, setLayers] = useState<MapLayers>(() => {
@@ -262,7 +262,7 @@ export function GuideViewer({ route, played, timeline, failed, request, keys, on
         onSelect={select}
         status={status}
         suggestions={edit?.suggestions ?? null}
-        onPick={edit && ((s) => edit.onInsert(shownStep, s))}
+        onPick={edit && ((s) => edit.onInsert(shownStep - 1, s))}
       />
       <CharacterPanel
         route={play}

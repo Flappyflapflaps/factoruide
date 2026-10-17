@@ -26,6 +26,7 @@ export const REASONS: Record<string, string> = {
   "hearthstone already bound there": "pierre de foyer déjà liée ici",
   "no such spell": "sort pas appris",
   "dungeon already run or left out": "donjon déjà fait ou exclu",
+  "dungeon quest taken but its dungeon is not run": "quête de donjon prise mais son donjon n'est pas fait",
   "not possible": "impossible",
   unreachable: "inaccessible",
   "done before": "déjà fait plus tôt (sur place ou en chemin)",

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmtTime, type GuideSummary, type GuideVersion, type Options, type Timeline, type VersionMeta } from "../api";
 import { Character } from "./Character";
-import { EditBar, useEditedView } from "./EditMode";
+import { EditBar, useEditedView, useUndoKeys } from "./EditMode";
 import { GuideViewer } from "./GuideViewer";
 import { useDraft } from "./useDraft";
 import { fmtGain } from "./OptimizeProgress";
@@ -72,6 +72,7 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
   const [readOnly, setReadOnly] = useState(!editing);
   const draft = useDraft(version, !readOnly);
   const edited = useEditedView(version, draft);
+  useUndoKeys(draft, !readOnly);
   const [saving, setSaving] = useState(false);
   const [reveal, setReveal] = useState<{ step: number; n: number } | undefined>(undefined);
   const unsaved = !readOnly && draft.changed;

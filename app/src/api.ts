@@ -762,15 +762,29 @@ export interface QuestAt {
   quest: number;
   name: string;
   level: number;
+  /** How hard it is for the character then, as the game colors it. */
+  difficulty: Difficulty;
+  /** The dungeon its objectives are done in (its name), if any. */
+  dungeon?: string;
   places: PlaceAt[];
 }
+
+export type Difficulty = "grey" | "green" | "yellow" | "orange" | "red";
 
 /** What could be added after a step of a draft. */
 export interface Suggestions {
   /** Quests the draft never takes that the character can take then, the nearest first. */
   untaken: QuestAt[];
   /** Objectives of quests in the log the draft does not do; the index of a place is its spot. */
-  objectives: { quest: number; objective: number; name: string; text: string; places: PlaceAt[] }[];
+  objectives: {
+    quest: number;
+    objective: number;
+    name: string;
+    text: string;
+    /** Done in a dungeon run (its area ID and name): the place is its entrance. */
+    dungeon?: [number, string];
+    places: PlaceAt[];
+  }[];
   /** Quests in the log, their objectives done, that the draft does not turn in. */
   turn_ins: QuestAt[];
 }

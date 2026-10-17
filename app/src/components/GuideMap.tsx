@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { Leg, MapInfo, RouteStep, Step, Suggestions, WorldPoint } from "../api";
+import type { Difficulty, Leg, MapInfo, RouteStep, Step, Suggestions, WorldPoint } from "../api";
 import { useAreaName, useT } from "../i18n";
 import { type Card, type Moves, positionAt } from "./guideTimeline";
 import type { Clock } from "./playback";
@@ -50,6 +50,10 @@ interface Offer {
   glyph: string;
   label: string;
   step: RouteStep;
+  /** A quest's color for the character then (its level against the character's). */
+  difficulty?: Difficulty;
+  /** Done in a dungeon: drawn as a dungeon (a diamond). */
+  dungeon?: boolean;
 }
 
 /** Continents (game maps), west to east. */
@@ -286,6 +290,8 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
   const drag = useRef<{ x: number; y: number; vx: number; vy: number; moved: boolean } | null>(null);
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
+    // A text selected elsewhere would stay greyed (and grow) while the map is dragged.
+    window.getSelection()?.removeAllRanges();
     drag.current = { x: e.clientX, y: e.clientY, vx: view.current.x, vy: view.current.y, moved: false };
   };
   const onPointerMove = (e: React.PointerEvent) => {
@@ -344,13 +350,20 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     for (const q of suggestions.untaken)
       q.places.filter((p) => on(p.at)).forEach((p, k) => {
         const [x, y] = project(p.at[1], p.at[2]);
-        out.push({ key: `u${q.quest}/${k}`, x, y, kind: "untaken", glyph: "!", label: `${q.name} · ${p.name}`, step: { kind: "accept", quest: q.quest } });
+        const label = [`[${q.level}] ${q.name}`, p.name, q.dungeon].filter(Boolean).join(" · ");
+        out.push({ key: `u${q.quest}/${k}`, x, y, kind: "untaken", glyph: "!", label, step: { kind: "accept", quest: q.quest }, difficulty: q.difficulty, dungeon: !!q.dungeon });
       });
     for (const o of suggestions.objectives)
       o.places.forEach((p, spot) => {
         if (!on(p.at)) return;
         const [x, y] = project(p.at[1], p.at[2]);
-        out.push({ key: `o${o.quest}/${o.objective}/${spot}`, x, y, kind: "objective", glyph: "✕", label: `${o.text} · ${o.name}`, step: { kind: "objective", quest: o.quest, objective: o.objective, spot } });
+        // A dungeon's objective is done in its run: picking it adds the run.
+        const step: RouteStep = o.dungeon ? { kind: "dungeon", dungeon: o.dungeon[0] } : { kind: "objective", quest: o.quest, objective: o.objective, spot };
+        // One mark per dungeon (its entrance), naming all its objectives left.
+        const key = o.dungeon ? `d${o.dungeon[0]}` : `o${o.quest}/${o.objective}/${spot}`;
+        const same = o.dungeon && out.find((m) => m.key === key);
+        if (same) same.label += ` ; ${o.text}`;
+        else out.push({ key, x, y, kind: "objective", glyph: "✕", label: o.dungeon ? `${o.dungeon[1]} : ${o.text}` : `${o.text} · ${o.name}`, step, dungeon: !!o.dungeon });
       });
     for (const q of suggestions.turn_ins)
       q.places.filter((p) => on(p.at)).forEach((p, k) => {
@@ -495,13 +508,13 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
             {offers.map((o) => (
               <g
                 key={o.key}
-                className={`gm-offer gm-${o.kind}`}
+                className={`gm-offer gm-${o.kind}${o.difficulty ? ` gm-diff-${o.difficulty}` : ""}${o.dungeon ? " gm-in-dungeon" : ""}`}
                 transform={`translate(${o.x} ${o.y}) scale(${s})`}
                 onClick={() => !drag.current?.moved && onPick?.(o.step)}
                 onPointerEnter={() => setOffered(o.key)}
                 onPointerLeave={() => setOffered((k) => (k === o.key ? null : k))}
               >
-                <circle r={9} />
+                {o.dungeon ? <rect className="gm-offer-shape" x={-8} y={-8} width={16} height={16} transform="rotate(45)" /> : <circle className="gm-offer-shape" r={9} />}
                 <text textAnchor="middle" dominantBaseline="central">
                   {o.glyph}
                 </text>
