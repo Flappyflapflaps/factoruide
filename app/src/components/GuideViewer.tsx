@@ -3,7 +3,7 @@ import { api, type GuideVersion, type QuestInfo, type Timeline } from "../api";
 import { gameLocale, useLang, useT } from "../i18n";
 import { CharacterPanel } from "./CharacterPanel";
 import { DEFAULT_LAYERS, GuideMap, type MapLayers } from "./GuideMap";
-import { activityAt, buildCards, type Card, cardOf, cardTitle, positionAt, stateTracker, stepAt, straightMoves } from "./guideTimeline";
+import { activityAt, buildCards, type Card, cardOf, cardTitle, positionAt, stateTracker, stepAt, straightMoves, travelEnds } from "./guideTimeline";
 import { PlaybackBar } from "./PlaybackBar";
 import { Clock, useClock } from "./playback";
 import { segments } from "./segments";
@@ -55,17 +55,19 @@ export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
   const clock = useMemo(() => new Clock(route.total_time), [route]);
   useEffect(() => () => clock.dispose(), [clock]);
 
-  // The step under way: the one of the time, within the card chosen while the time is in it
-  // (steps of no time at its start belong to it, not to the card before).
+  // The step under way: the one of the time (a flight or a boat still the step that takes it),
+  // within the card chosen while the time is in it (steps of no time at its start belong to
+  // it, not to the card before).
   const pinned = useRef<number | null>(null);
+  const travels = useMemo(() => travelEnds(steps, moves.legs), [steps, moves]);
   const stepOf = useCallback(
     (time: number) => {
       const i = stepAt(steps, time);
       const p = pinned.current;
       if (p != null && cards[p] && time >= cards[p].start && time <= cards[p].end) return Math.min(Math.max(i, cards[p].first), cards[p].last);
-      return i;
+      return i > 0 && (travels.get(i - 1) ?? -1) > time ? i - 1 : i;
     },
-    [steps, cards],
+    [steps, cards, travels],
   );
   const step = useClock(
     clock,

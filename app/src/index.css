@@ -3244,6 +3244,22 @@ button.link.cmp-jump {
   margin-bottom: 14px;
 }
 
+/* A problem report on the guide page floats over the viewer (its steps checked on the left). */
+.result-view {
+  position: relative;
+}
+.result-view > .issue-form {
+  position: absolute;
+  top: 56px;
+  right: 0;
+  z-index: 30;
+  width: min(460px, 42vw);
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  margin: 0;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
 /* The guide viewer: steps | map | character, the time under them. */
 .guide-viewer {
   display: grid;

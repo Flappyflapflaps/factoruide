@@ -38,7 +38,7 @@ interface Props {
 /** Continents (game maps), west to east. */
 const CONTINENTS = [1, 0, 530];
 /** Zoom range, in screen pixels per pixel of the continent's map, relative to the whole continent in view. */
-const MAX_ZOOM = 48;
+const MAX_ZOOM = 24;
 const MIN_ZOOM = 0.6;
 /** From this zoom the zones' own maps (sharper) are drawn over the continent's. */
 const ZONE_DETAIL = 1.8;
@@ -112,25 +112,29 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
     [index, continent],
   );
   const project = useMemo(() => (base ? projector(base) : null), [base]);
-  const zones = useMemo(
-    () =>
-      base && project
-        ? (index ?? [])
-            .filter((m) => m.kind === 3 && m.parent === base.id && m.bounds)
-            .map((z) => {
-              const b = z.bounds!;
-              const [x1, y1] = project(b.max_x, b.max_y);
-              const [x2, y2] = project(b.min_x, b.min_y);
-              const rect = { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
-              const rings = z.shape?.length ? z.shape : null;
-              const d = rings ? rings.map((r) => `M${r.map(([x, y]) => `${x},${y}`).join("L")}Z`).join("") : null;
-              return { z, rect, d, label: rings ? labelPoint(rings) : ([rect.x + rect.w / 2, rect.y + rect.h / 2] as [number, number]) };
-            })
-            // A map inside another zone's is a city seen from inside (Undercity, Ironforge): left out.
-            .filter((a, _, all) => !all.some((b) => b !== a && b.rect.x <= a.rect.x && b.rect.y <= a.rect.y && b.rect.x + b.rect.w >= a.rect.x + a.rect.w && b.rect.y + b.rect.h >= a.rect.y + a.rect.h))
-        : [],
-    [index, base, project],
-  );
+  // The zones' maps, and where a city seen from inside (Undercity, Ironforge: a map inside
+  // another zone's) is, covered with the map of the zone around it instead.
+  const [zones, covers] = useMemo(() => {
+    if (!base || !project) return [[], []];
+    const all = (index ?? [])
+      .filter((m) => m.kind === 3 && m.parent === base.id && m.bounds)
+      .map((z) => {
+        const b = z.bounds!;
+        const [x1, y1] = project(b.max_x, b.max_y);
+        const [x2, y2] = project(b.min_x, b.min_y);
+        const rect = { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+        const rings = z.shape?.length ? z.shape : null;
+        const d = rings ? rings.map((r) => `M${r.map(([x, y]) => `${x},${y}`).join("L")}Z`).join("") : null;
+        return { z, rect, d, label: rings ? labelPoint(rings) : ([rect.x + rect.w / 2, rect.y + rect.h / 2] as [number, number]) };
+      });
+    type Zone = (typeof all)[number];
+    const within = (a: Zone, b: Zone) => b !== a && b.rect.x <= a.rect.x && b.rect.y <= a.rect.y && b.rect.x + b.rect.w >= a.rect.x + a.rect.w && b.rect.y + b.rect.h >= a.rect.y + a.rect.h;
+    const cities = all.flatMap((a) => {
+      const around = all.find((b) => within(a, b));
+      return around && a.d ? [{ id: a.z.id, d: a.d, around }] : [];
+    });
+    return [all.filter((a) => !all.some((b) => within(a, b))), cities];
+  }, [index, base, project]);
 
   // The frame's size, and the view: screen = map * k + (x, y). Kept out of React (it changes at
   // every frame while following); `scale` follows its zoom by steps, for what is drawn at a
@@ -317,6 +321,7 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
     );
   const s = 1 / scale;
   const shown = useMemo(() => zones.filter((z) => shownZones.includes(z.z.id)), [zones, shownZones]);
+  const hidden = useMemo(() => covers.filter((c) => shownZones.includes(c.around.z.id)), [covers, shownZones]);
 
   return (
     <div className="guide-map">
@@ -369,11 +374,21 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
                 <path d={d} fillRule="evenodd" />
               </clipPath>
             ))}
+            {hidden.map((c) => (
+              <clipPath key={c.id} id={`gm-cover-${c.id}`}>
+                <path d={c.d} fillRule="evenodd" />
+              </clipPath>
+            ))}
           </defs>
           <g ref={layer}>
             {base && <MapImage id={base.id} x={0} y={0} w={base.width} h={base.height} />}
             {shown.map(({ z, rect, d }) => (
               <g key={z.id} clipPath={d ? `url(#gm-clip-${z.id})` : undefined}>
+                <MapImage id={z.id} x={rect.x} y={rect.y} w={rect.w} h={rect.h} />
+              </g>
+            ))}
+            {hidden.map(({ id, around: { z, rect } }) => (
+              <g key={id} clipPath={`url(#gm-cover-${id})`}>
                 <MapImage id={z.id} x={rect.x} y={rect.y} w={rect.w} h={rect.h} />
               </g>
             ))}
