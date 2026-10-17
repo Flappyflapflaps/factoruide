@@ -1066,4 +1066,6 @@ export const CATALOG: Record<string, Entry> = {
   "En donjon": { en: "In dungeon", de: "Im Dungeon", es: "En mazmorra", pt: "Na masmorra", ru: "В подземелье", ko: "던전 진행 중", zhCN: "副本中", zhTW: "地城中" },
   "S'entraîne": { en: "Training", de: "Trainiert", es: "Entrenando", pt: "Treinando", ru: "Обучается", ko: "기술 습득 중", zhCN: "训练", zhTW: "訓練" },
   "Abandonne": { en: "Abandoning", de: "Bricht ab", es: "Abandonando", pt: "Abandonando", ru: "Отменяет", ko: "포기 중", zhCN: "放弃", zhTW: "放棄" },
+  "Zone": { en: "Zone", de: "Zone", es: "Zona", pt: "Zona", ru: "Зона", ko: "지역", zhCN: "区域", zhTW: "區域" },
+  "(tuer ~{n} mobs en chemin)": { en: "(kill ~{n} mobs on the way)", de: "(~{n} Mobs unterwegs töten)", es: "(matar ~{n} monstruos por el camino)", pt: "(matar ~{n} monstros no caminho)", ru: "(убить ~{n} мобов по пути)", ko: "(가는 길에 몹 ~{n}마리 처치)", zhCN: "（途中击杀约{n}个怪物）", zhTW: "（途中擊殺約{n}隻怪物）" },
 };

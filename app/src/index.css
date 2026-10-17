@@ -690,6 +690,11 @@ h3 {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.table td.coords {
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
 .table tr.clickable {
   cursor: pointer;
 }
@@ -745,6 +750,9 @@ button.disclosure:disabled {
 }
 .route-table col.c-level {
   width: 84px;
+}
+.route-table col.c-last {
+  width: 96px;
 }
 .route-table td {
   overflow-wrap: anywhere;

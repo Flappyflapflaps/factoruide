@@ -4,6 +4,7 @@ import { Character } from "./Character";
 import { GuideViewer } from "./GuideViewer";
 import { fmtGain } from "./OptimizeProgress";
 import { RouteSummary } from "./RouteSummary";
+import { StepTable } from "./StepTable";
 import { useDate, useT } from "../i18n";
 import { Icon } from "./Icons";
 import { IssueForm } from "./IssueForm";
@@ -261,6 +262,7 @@ export function ResultView({ version, onRerun, onEdit, onClone, onEditSteps, onO
               </table>
             </section>
           )}
+          <StepTable route={route} />
         </>
       )}
     </div>
