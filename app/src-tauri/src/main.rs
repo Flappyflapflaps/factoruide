@@ -1696,6 +1696,7 @@ fn main() {
             contribution_preview,
             send_contribution,
             send_issue,
+            need_help,
             set_auto_contribute,
             list_guides,
             get_guide,
@@ -2294,6 +2295,27 @@ fn guide_report(state: &AppState, g: &IssueGuide) -> CmdResult<(Edition, fg_cont
             steps,
         },
     ))
+}
+
+/// What players can check in game for the current game version ("Need help" page), with the
+/// names in `locale` (the game's language).
+#[tauri::command]
+async fn need_help(app: AppHandle, locale: String) -> CmdResult<Vec<fg_route::help::Check>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let edition = state.edition();
+        let defs = fg_route::help::load(
+            |name| {
+                let (_, bytes) = embedded::OVERRIDES.iter().find(|(n, _)| *n == name)?;
+                Some(String::from_utf8_lossy(bytes).into_owned())
+            },
+            edition,
+        )
+        .map_err(err)?;
+        fg_route::help::resolve(&state.open_db()?, &defs, edition, &locale).map_err(err)
+    })
+    .await
+    .map_err(err)?
 }
 
 /// Send a problem the player reports to the contribution server. Errors: "rate_limited", or

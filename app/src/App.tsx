@@ -10,12 +10,13 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { CharactersPage } from "./pages/CharactersPage";
 import { ChangelogPage } from "./pages/ChangelogPage";
 import { ContributePage } from "./pages/ContributePage";
+import { NeedHelpPage } from "./pages/NeedHelpPage";
 import { IssueForm } from "./components/IssueForm";
 import { UpdateBanner } from "./components/UpdateBanner";
 
 const EDITION_LABELS: Record<Edition, string> = { forever: "Forever", classic: "Classic", tbc: "TBC" };
 
-type Page = "characters" | "plan" | "results" | "addon" | "contribute" | "settings" | "changelog" | "report";
+type Page = "characters" | "plan" | "results" | "addon" | "contribute" | "help" | "settings" | "changelog" | "report";
 
 const PAGES: { id: Page; label: string }[] = [
   { id: "plan", label: "Nouveau guide" },
@@ -23,6 +24,7 @@ const PAGES: { id: Page; label: string }[] = [
   { id: "results", label: "Guides" },
   { id: "addon", label: "Addon" },
   { id: "contribute", label: "Contribuer" },
+  { id: "help", label: "Besoin d'aide" },
   { id: "settings", label: "Réglages" },
 ];
 
@@ -236,6 +238,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
           </div>
         )}
         {page === "contribute" && <ContributePage edition={edition} />}
+        {page === "help" && <NeedHelpPage key={edition ?? ""} />}
         {page === "settings" && <SettingsPage onLanguage={onLanguage} version={version} />}
       </main>
     </div>

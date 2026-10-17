@@ -3200,3 +3200,33 @@ button.link.cmp-jump {
   margin-right: 6px;
   vertical-align: middle;
 }
+
+/* "Need help": checks players can make in game. */
+.need-help-intro {
+  max-width: 760px;
+}
+.need-help-bar {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin: 8px 0 12px;
+}
+.need-help-list {
+  display: grid;
+  gap: 12px;
+  max-width: 760px;
+}
+.need-help-card h3 {
+  margin: 0 0 6px;
+}
+.need-help-card textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  color: inherit;
+}
+.need-help-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}

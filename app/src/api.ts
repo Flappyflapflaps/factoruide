@@ -414,6 +414,8 @@ export const api = {
   contributionPreview: () => invoke<ContributionPreview>("contribution_preview"),
   /** Sends what is new, in up to 3 documents (rejects with "nothing_to_send", "rate_limited" or the server's message when none was accepted). */
   sendContribution: () => invoke<SendReport>("send_contribution"),
+  /** What players can check in game for the current game version, names in `locale`. */
+  needHelp: (locale: string) => invoke<HelpCheck[]>("need_help", { locale }),
   /** Sends a problem report to the contribution server (rejects with "rate_limited" or the reason). */
   sendIssue: (draft: IssueDraft) => invoke<"accepted" | "already_received">("send_issue", { draft }),
   /** Turns the automatic contributions on or off (that setting only). */
@@ -583,6 +585,19 @@ export interface IssueDraft {
   name?: string;
   language: string;
   guide?: { guide: string; version: number; steps: number[]; locale: string };
+}
+
+/** A check players can make in game ("Need help" page): is `quest` offered before `before` are turned in? */
+export interface HelpCheck {
+  /** Stable id, sent with the answer (`forever/offered-before/96259`). */
+  id: string;
+  quest: { id: number; name: string };
+  giver: { id: number; name: string } | null;
+  /** The giver's zone and percent coordinates. */
+  place: { zone: string; x: number; y: number } | null;
+  before: { id: number; name: string }[];
+  min_level: number;
+  side: "alliance" | "horde" | "both";
 }
 
 /** What a contribution of this computer would hold now (current game version): only what was not sent yet. */
