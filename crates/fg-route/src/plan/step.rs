@@ -505,6 +505,7 @@ impl Planner<'_> {
         self.growth().gather(s, o.loc.zone, kills);
         s.time += kill_work + other;
         s.spent.fighting += kill_work + other;
+        s.spent.waiting += extra;
         let mob_xp = (kills * self.combat().mob_xp(s.level, o)) as i64;
         s.spent.mob_xp += self.growth().gain_kills(s, mob_xp);
         s.objectives[i] |= 1 << k;

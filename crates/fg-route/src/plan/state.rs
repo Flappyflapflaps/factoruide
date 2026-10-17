@@ -326,6 +326,10 @@ pub struct Breakdown {
     /// XP from discovering areas.
     #[serde(default)]
     pub explore_xp: i64,
+    /// The objectives' fixed time on top of their kills and uses (part of `fighting`): waiting
+    /// for respawns, for an event or for the other players, buying, exploring.
+    #[serde(default)]
+    pub waiting: f64,
     /// Copper spent on flights.
     #[serde(default)]
     pub flight_cost: i64,
