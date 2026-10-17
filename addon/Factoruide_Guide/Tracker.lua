@@ -664,7 +664,8 @@ end
 local function Schedule()
     if not dirty then
         dirty = true
-        C_Timer.After(0.1, function() FG:Try("tracker", Tracker.Refresh, Tracker) end)
+        -- Bags and the quest log change in bursts (looting, selling): one refresh after them.
+        C_Timer.After(0.3, function() FG:Try("tracker", Tracker.Refresh, Tracker) end)
     end
 end
 

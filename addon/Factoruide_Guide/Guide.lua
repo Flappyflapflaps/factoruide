@@ -1194,10 +1194,20 @@ FG:On("PARTY_KILL", function(attackerGUID, targetGUID)
     if source == UnitGUID("player") or source == UnitGUID("pet") then Guide:CountKill(select(2, FG.ParseGUID(dest))) end
 end)
 
+-- The quest log updates in bursts (several a second while looting): one advance after them.
+local advancing = false
+FG:On("QUEST_LOG_UPDATE", function()
+    if advancing then return end
+    advancing = true
+    C_Timer.After(0.2, function()
+        advancing = false
+        FG:Try("guide", Guide.Advance, Guide)
+    end)
+end)
+
 for _, event in ipairs({
     "QUEST_ACCEPTED",
     "QUEST_TURNED_IN",
-    "QUEST_LOG_UPDATE",
     "QUEST_REMOVED",
     "PLAYER_LEVEL_UP",
     "PLAYER_CONTROL_LOST",

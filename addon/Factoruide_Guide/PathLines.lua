@@ -12,7 +12,7 @@ local GREEN = { 0.29, 0.871, 0.502 }
 -- World map: a dot every this much of the map's width, at most MAP_DOTS of them.
 local MAP_STEP, MAP_DOTS = 0.008, 400
 -- Minimap: a dot every this part of its radius, MINI_DOTS at most; drawn every MINI_EVERY seconds.
-local MINI_STEP, MINI_DOTS, MINI_EVERY = 0.1, 60, 0.05
+local MINI_STEP, MINI_DOTS, MINI_EVERY = 0.1, 60, 0.1
 -- The minimap's diameter in yards at each zoom, without C_Minimap.GetViewRadius.
 local MINIMAP_YARDS = {
     indoor = { [0] = 300, 240, 180, 120, 80, 50 },

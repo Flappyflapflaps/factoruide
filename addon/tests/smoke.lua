@@ -331,6 +331,7 @@ SlashCmdList.FACTORUIDE("prev")
 FG.Guide:Advance()
 assert(char.guide.step == 2, "stays after manual navigation")
 fire("QUEST_LOG_UPDATE")
+runTimers()
 assert(char.guide.step == 2, "quest events do not move a manual position")
 FG.Guide:Resync()
 assert(char.guide.step == 4, "resync goes to the first step not done")
@@ -720,9 +721,11 @@ FG.Routes["teleport-test"] = {
 }
 useRoute("teleport-test")
 fire("QUEST_LOG_UPDATE")
+runTimers()
 assert(char.guide.step == 1, "far from it: not there yet, step " .. char.guide.step)
 char.guide.step = 2
 fire("QUEST_LOG_UPDATE")
+runTimers()
 assert(char.guide.step == 3, "arrived, step " .. char.guide.step)
 print("teleport ok")
 
@@ -1081,15 +1084,19 @@ assert(char.guide.step == 1, "accept first, step " .. char.guide.step)
 onQuest[9301] = true
 -- QUEST_ACCEPTED would add a collector row the checks further down do not expect.
 fire("QUEST_LOG_UPDATE")
+runTimers()
 assert(char.guide.step == 2, "no objectives yet: not done, step " .. char.guide.step)
 loading = { { text = "", finished = false } }
 fire("QUEST_LOG_UPDATE")
+runTimers()
 assert(char.guide.step == 2, "blank objectives: not done, step " .. char.guide.step)
 loading = { { text = "Barak Kodobane slain: 0/1", finished = false } }
 fire("QUEST_LOG_UPDATE")
+runTimers()
 assert(char.guide.step == 2, "objective not finished, step " .. char.guide.step)
 loading, loadingDone = { { text = "Barak Kodobane slain: 1/1", finished = true } }, true
 fire("QUEST_LOG_UPDATE")
+runTimers()
 assert(char.guide.step == 3, "objective finished, step " .. char.guide.step)
 -- The same while grinding: its XP is not counted before the objectives are there.
 FG.Routes["loading-test"].steps[1] = { k = "grind", t = "Be level 3 and 300 xp", lvl = 3, xp = 300 }
@@ -1844,6 +1851,7 @@ end
 assert(page() == "1,2", "the two objectives together: " .. page())
 ravagers[1].numFulfilled, ravagers[1].finished = 10, true
 fire("QUEST_LOG_UPDATE")
+runTimers()
 assert(page() == "1,2" and char.guide.step == 2, "the page stays until both are done: " .. page())
 SlashCmdList.FACTORUIDE("next")
 assert(page() == "3", "the turn-in alone, not its objectives again: " .. page())
