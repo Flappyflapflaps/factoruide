@@ -234,6 +234,11 @@ pub struct Step {
     /// quest, a planned reward, training.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub keep: bool,
+    /// The event of the replay it is written from (index in its trace; not saved): ties a guide
+    /// built from a replay back to it (`job::timeline`). None for the steps added after it
+    /// (checkpoints, the quests of the character's log given up first).
+    #[serde(skip)]
+    pub event: Option<usize>,
 }
 
 /// A level where many quests open: a player reaching it before `step` (index in the steps) may

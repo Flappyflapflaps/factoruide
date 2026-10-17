@@ -155,6 +155,8 @@ struct AppState {
     walks: Mutex<HashMap<Edition, Arc<Walks>>>,
     /// The guide version open in the editor.
     editor: Mutex<Option<EditSession>>,
+    /// The last guide version replayed to be watched (`guide_timeline`): opened again at once.
+    timeline: Mutex<Option<(TimelineKey, job::Timeline)>>,
     /// Held while a contribution is read, sent and recorded: one send at a time, manual or
     /// automatic.
     send_lock: Mutex<()>,
@@ -807,6 +809,34 @@ struct EditOpened {
     rebuilt: bool,
     report: EditReport,
     catalog: EditCatalog,
+}
+
+/// A guide version replayed (game version, guide, version, when it was computed, language).
+type TimelineKey = (Edition, String, u32, u64, String);
+
+/// A version replayed to be watched: when each step starts and ends, the character's moves and
+/// what it has after each step (`locale`: language of the names).
+#[tauri::command]
+async fn guide_timeline(app: AppHandle, guide: String, version: u32, locale: String) -> CmdResult<job::Timeline> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let v = state.version(&guide, version)?;
+        let edition = v.request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
+        let key: TimelineKey = (edition, guide, version, v.meta.created, locale);
+        if let Some((k, timeline)) = state.timeline.lock().unwrap().as_ref()
+            && *k == key
+        {
+            return Ok(timeline.clone());
+        }
+        let conn = open_db(&state.db_path(edition)?)?;
+        let walks = state.walks(edition);
+        let editor = job::Editor::open(&conn, &overrides(edition)?, &v.request, Some(&walks)).map_err(err)?;
+        let timeline = editor.timeline(&v.outcome, &*state.names(&key.4)?);
+        *state.timeline.lock().unwrap() = Some((key, timeline.clone()));
+        Ok(timeline)
+    })
+    .await
+    .map_err(err)?
 }
 
 /// Open a version in the editor (`locale`: language of the lines and names shown).
@@ -1681,6 +1711,7 @@ fn main() {
                 plan_interrupt: job::Interrupt::default(),
                 walks: Mutex::new(HashMap::default()),
                 editor: Mutex::new(None),
+                timeline: Mutex::new(None),
                 send_lock: Mutex::new(()),
                 auto_wake,
             });
@@ -1726,6 +1757,7 @@ fn main() {
             map_index,
             map_image,
             list_characters,
+            guide_timeline,
             edit_open,
             edit_simulate,
             edit_save,

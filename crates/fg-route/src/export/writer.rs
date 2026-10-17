@@ -36,6 +36,28 @@ fn entity(loc: &Loc) -> Arg {
     }
 }
 
+/// The sentence of an objective's step.
+pub(super) fn objective_phrase(o: &Objective) -> Phrase {
+    let n = o.count.round().max(1.0) as i64;
+    // The database's text (English) says it best in English, and for dungeons and areas.
+    let text = Arg::Text(o.text.clone());
+    // Creatures acted on (healed, a spell cast on them: uses, no kills) too: talking is not it.
+    let acted_on = o.loc.kind == EntityKind::Npc && o.kills <= 0.0 && o.uses > 0.0;
+    if o.dungeon.is_some() || o.loc.kind == EntityKind::Area || acted_on {
+        Phrase::new("objective.text").arg("text", text)
+    } else {
+        let (key, counted) = match o.loc.kind {
+            EntityKind::Npc if o.kills > 0.0 => ("objective.kill", true),
+            EntityKind::Npc => ("objective.talk", false),
+            EntityKind::Object => ("objective.use", true),
+            EntityKind::Item if o.text.starts_with("Buy ") => ("objective.buy", true),
+            _ => ("objective.get", true),
+        };
+        let phrase = Phrase::new(key).arg("who", entity(&o.loc)).arg("text", text);
+        if counted { phrase.arg("n", num(n)) } else { phrase }
+    }
+}
+
 impl StepWriter<'_> {
     /// The step of an event of the trace.
     pub(super) fn step(&self, t: &Timed) -> Step {
@@ -126,6 +148,7 @@ impl StepWriter<'_> {
             farm: None,
             level,
             keep: true,
+            event: None,
             ..at.clone()
         }
     }
@@ -234,6 +257,7 @@ impl StepWriter<'_> {
             power: power.map(|_| (t.power * 10.0).round() / 10.0),
             gear: power.map(|_| (t.gear * 10.0).round() / 10.0),
             keep: false,
+            event: None,
         }
     }
 
@@ -330,25 +354,7 @@ impl StepWriter<'_> {
                 step.mob_ids.push(*id);
             }
         }
-        let n = o.count.round().max(1.0) as i64;
-        // The database's text (English) says it best in English, and for dungeons and areas.
-        let text = Arg::Text(o.text.clone());
-        // Creatures acted on (healed, a spell cast on them: uses, no kills) too: talking is not it.
-        let acted_on = o.loc.kind == EntityKind::Npc && o.kills <= 0.0 && o.uses > 0.0;
-        let say = if o.dungeon.is_some() || o.loc.kind == EntityKind::Area || acted_on {
-            Phrase::new("objective.text").arg("text", text)
-        } else {
-            let (key, counted) = match o.loc.kind {
-                EntityKind::Npc if o.kills > 0.0 => ("objective.kill", true),
-                EntityKind::Npc => ("objective.talk", false),
-                EntityKind::Object => ("objective.use", true),
-                EntityKind::Item if o.text.starts_with("Buy ") => ("objective.buy", true),
-                _ => ("objective.get", true),
-            };
-            let phrase = Phrase::new(key).arg("who", entity(&o.loc)).arg("text", text);
-            if counted { phrase.arg("n", num(n)) } else { phrase }
-        };
-        step.say.push(say);
+        step.say.push(objective_phrase(o));
     }
 
     /// A quest of the character's log the guide does not take: abandoned at its start (it would

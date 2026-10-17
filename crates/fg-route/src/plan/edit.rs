@@ -57,7 +57,7 @@ pub struct EditedStep {
     pub event: Option<usize>,
     /// Its events in the trace: its action, and what is not one (mobs farmed on the way, the
     /// reward picked).
-    events: Range<usize>,
+    pub(crate) events: Range<usize>,
     /// Time before and after it, level after it, and the XP it gave.
     pub start: f64,
     pub end: f64,
@@ -98,6 +98,12 @@ impl Planner<'_> {
     /// Replay an edited route as the optimizer simulates its own (`simulate_full`: the same
     /// route gives the same time), each step checked: an impossible one is reported and left out.
     pub fn edit(&self, edits: &[Edit]) -> Edited {
+        self.edit_observed(edits, &mut |_| {})
+    }
+
+    /// `edit`, `observe` shown the character before the first step, after each step, and once
+    /// the guide is over (the final grind done).
+    pub(crate) fn edit_observed(&self, edits: &[Edit], observe: &mut dyn FnMut(&State)) -> Edited {
         let stops: Vec<Stop> = edits
             .iter()
             .filter_map(|e| match e {
@@ -110,6 +116,7 @@ impl Planner<'_> {
         let mut route = Vec::new();
         let mut steps = Vec::with_capacity(edits.len());
         let mut at = 0;
+        observe(&s);
         // The next stop of each step (an objective is done at its place on the way to it).
         let nexts: Vec<Option<Stop>> = (0..edits.len())
             .map(|e| {
@@ -214,9 +221,11 @@ impl Planner<'_> {
                 farm: farmed(&trace[first..], s.spent.farm_xp - farm_xp),
                 farm_all,
             });
+            observe(&s);
         }
         let grinding = s.spent.grinding;
         let score = self.finish(&mut s, Some(&mut trace));
+        observe(&s);
         // Taken and never turned in by the route, left in the log or given up (those it turns in
         // after the target level are not: the guide ends there).
         let has = |i: usize, kind: Kind| stops.iter().any(|t| t.index as usize == i && t.kind == kind);

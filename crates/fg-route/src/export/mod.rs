@@ -106,12 +106,13 @@ pub fn build_traced(
         }
     }
     let mut farmed = 0;
-    for t in trace {
+    for (n, t) in trace.iter().enumerate() {
         match &t.event {
             Event::Reward { quest, item } => writer.add_reward(&mut steps, *quest, *item),
             Event::Farm { kills, .. } => farmed += kills,
             _ => {
                 let mut step = writer.step(t);
+                step.event = Some(n);
                 if farmed > 0 {
                     StepWriter::add_farm(&mut step, farmed);
                     farmed = 0;
@@ -180,6 +181,11 @@ pub fn build_traced(
         step.text = phrase::render_all(&step.say, &planner.model.names);
     }
     route_of(planner, profile, route, (total, breakdown), checkpoints, steps)
+}
+
+/// The sentence an objective's step says, in the language of `names`.
+pub fn objective_text(objective: &crate::model::Objective, names: &Names) -> String {
+    writer::objective_phrase(objective).render(names)
 }
 
 /// The line of the guide each event of a replayed route writes, in the language of `names`

@@ -163,7 +163,7 @@ impl RouteStep {
     }
 
     /// The step for the planner, or why it cannot be one (not in this character's data).
-    fn resolve(&self, planner: &Planner<'_>) -> Result<Edit, &'static str> {
+    pub(super) fn resolve(&self, planner: &Planner<'_>) -> Result<Edit, &'static str> {
         let (model, world) = (planner.model, planner.world);
         let quest = |id: i64| model.index.get(&id).map(|&i| i as u32).ok_or("quest not available");
         let node = |id: i64| {
@@ -257,7 +257,7 @@ impl RouteStep {
 
 /// A computed guide being edited: the character, its settings and the world, loaded once.
 pub struct Editor {
-    prepared: Prepared,
+    pub(super) prepared: Prepared,
 }
 
 /// A guide edited by hand as replayed.
@@ -375,7 +375,7 @@ impl Editor {
     }
 
     /// The planner of the edited guides: it does only what the steps say (`Planner::explicit`).
-    fn planner(&self) -> Planner<'_> {
+    pub(super) fn planner(&self) -> Planner<'_> {
         let p = &self.prepared;
         Planner::new(&p.model, &p.world, &p.params, &p.profile).explicit()
     }

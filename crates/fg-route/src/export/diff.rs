@@ -842,6 +842,7 @@ mod tests {
             power: None,
             gear: None,
             keep: false,
+            event: None,
             spots: Vec::new(),
             patrol: false,
         }
