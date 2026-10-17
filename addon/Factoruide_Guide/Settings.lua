@@ -143,6 +143,82 @@ function FG:Zoomable(frame)
     frame:EnableMouseWheel(false)
 end
 
+-- Moving the windows: dragged from anywhere on them. Their rows and buttons pass the drag on to
+-- their window (`FG:DragHandle`) and keep their clicks and tooltips. Not while the windows are
+-- locked, nor during combat for a window the game protects (a secure quest item button hangs on
+-- it: moving it would be blocked).
+
+-- Per window: how it saves its place, the window moved instead, whether it is moving, when it
+-- was dropped. Handles whose click was guarded.
+local windows, guarded = {}, {}
+
+local function Window(f)
+    while f and not windows[f] do
+        f = f:GetParent()
+    end
+    local target = f and windows[f].target
+    if target then f = target(f) end
+    return f and windows[f] and f
+end
+
+--- Whether `f`'s window is being dragged, or was dropped by this very mouse release (no click then).
+function FG.JustDragged(f)
+    local w = Window(f)
+    local d = w and windows[w]
+    return d ~= nil and (d.moving or d.dropped == GetTime())
+end
+
+-- A drag ends with the button released over the row: no click on it then.
+local function NoClickOnDrop(f)
+    if guarded[f] then return end
+    guarded[f] = true
+    local click = f:HasScript("OnClick") and f:GetScript("OnClick")
+    if not click then return end
+    f:SetScript("OnClick", function(self, ...)
+        if FG.JustDragged(self) then return end
+        return click(self, ...)
+    end)
+end
+
+local function DragStart(f)
+    local w = Window(f)
+    local d = w and windows[w]
+    if not d or d.moving or FG:Get("lockFrames") or not FG.CanLayout(w) then return end
+    if f ~= w then NoClickOnDrop(f) end
+    d.moving = true
+    w:StartMoving()
+end
+
+local function DragStop(f)
+    local w = Window(f)
+    local d = w and windows[w]
+    if not d or not d.moving then return end
+    d.moving = false
+    d.dropped = GetTime()
+    w:StopMovingOrSizing()
+    d.onDrop(w)
+end
+
+--- Make `frame` a window moved with the left button: `onDrop(frame)` saves where it was dropped.
+--- `target(frame)` (optional): the window to move instead (another `FG:Draggable` window), nil for
+--- none.
+function FG:Draggable(frame, onDrop, target)
+    windows[frame] = { onDrop = onDrop, target = target, moving = false }
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    self:DragHandle(frame)
+    -- Hidden while dragged: no drag stop from the game, dropped there.
+    frame:HookScript("OnHide", DragStop)
+end
+
+--- Dragging `f` (a row, a button of a window) moves its window. Not for secure buttons.
+function FG:DragHandle(f)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", DragStart)
+    f:SetScript("OnDragStop", DragStop)
+    return f
+end
+
 FG:On("MODIFIER_STATE_CHANGED", function(key, down)
     if key ~= "LCTRL" and key ~= "RCTRL" then return end
     for _, frame in ipairs(zoomable) do

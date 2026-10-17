@@ -88,7 +88,7 @@ local function ShowTooltip(self)
 end
 
 local function MakeMarker()
-    local m = CreateFrame("Button", nil, frame)
+    local m = FG:DragHandle(CreateFrame("Button", nil, frame))
     m:SetSize(16, 16)
     m:SetScript("OnEnter", ShowTooltip)
     m:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -128,17 +128,11 @@ local function Create()
     frame = CreateFrame("Frame", "FactoruideCompass", FG.UIRoot)
     frame:SetSize(WIDTH, HEIGHT)
     frame:SetClampedToScreen(true)
-    frame:SetMovable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function(self)
-        if not attached and not FG:Get("lockFrames") then self:StartMoving() end
-    end)
-    frame:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
+    -- Over the minimal guide's strip, it moves the strip.
+    FG:Draggable(frame, function(self)
         local p, _, rp, x, y = self:GetPoint()
         if FG.Guide then FG.Guide:State().compassPoint = { p, "UIParent", rp, x, y } end
-    end)
+    end, function(self) return attached or self end)
 
     -- A light veil, fading out at both ends, and a thin line at the bottom.
     local c = Skin.colors.bg

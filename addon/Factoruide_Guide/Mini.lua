@@ -52,14 +52,7 @@ end
 local function Movable(f, key, default)
     f:SetClampedToScreen(true)
     f:SetPoint(unpack(state[key] or default))
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", function(self)
-        if not FG:Get("lockFrames") then self:StartMoving() end
-    end)
-    f:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
+    FG:Draggable(f, function(self)
         local p, _, rp, x, y = self:GetPoint()
         state[key] = { p, "UIParent", rp, x, y }
     end)
@@ -107,7 +100,7 @@ local function CreateStrip()
     strip.fill:SetPoint("BOTTOMLEFT", strip.track)
     -- Clicks on the strip: left points at the task, right marks it done.
     strip:SetScript("OnMouseUp", function(self, button)
-        if not self.index then return end
+        if not self.index or FG.JustDragged(self) then return end
         if button == "RightButton" then
             FG.Guide:ToggleSkip(self.index)
         else
@@ -121,7 +114,7 @@ end
 local function Tag(i)
     local tag = tags.list[i]
     if tag then return tag end
-    tag = CreateFrame("Button", nil, tags, "BackdropTemplate")
+    tag = FG:DragHandle(CreateFrame("Button", nil, tags, "BackdropTemplate"))
     tag:SetHeight(18)
     tag:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     tag:SetScript("OnClick", function(self, button)
@@ -168,7 +161,7 @@ end
 local function DropRow(i)
     local row = drop.rows[i]
     if row then return row end
-    row = CreateFrame("Button", nil, drop)
+    row = FG:DragHandle(CreateFrame("Button", nil, drop))
     row:SetHeight(15)
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:SetScript("OnClick", function(self, button)
@@ -203,7 +196,7 @@ local function Tool(parent, texture, tooltip, onClick)
     b:SetScript("OnClick", onClick)
     b:SetScript("OnEnter", function(self) Tooltip(self, tooltip) end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    return b
+    return FG:DragHandle(b)
 end
 
 local function TextButton(parent, text, onClick)
@@ -215,16 +208,19 @@ local function TextButton(parent, text, onClick)
     b.label:SetText(text)
     b:SetSize((tonumber(b.label:GetStringWidth()) or 50) + 14, 18)
     b:SetScript("OnClick", onClick)
-    return b
+    return FG:DragHandle(b)
 end
 
 local function CreateDrop()
     drop = CreateFrame("Frame", "FactoruideMiniNext", strip, "BackdropTemplate")
     drop:SetWidth(DROP_WIDTH)
+    -- Its background moves the strip too.
+    drop:EnableMouse(true)
+    FG:DragHandle(drop)
     drop.rows = {}
     drop.title = Skin:Text(drop, 9, "muted")
     drop.title:SetPoint("TOPLEFT", 12, -7)
-    drop.tab = CreateFrame("Button", nil, drop)
+    drop.tab = FG:DragHandle(CreateFrame("Button", nil, drop))
     drop.tab:SetSize(120, 14)
     drop.tab:SetPoint("TOPRIGHT", -10, -4)
     drop.tab.label = Skin:Text(drop.tab, 9, "accent")
@@ -271,7 +267,7 @@ end
 
 -- Ahead of a checkpoint: a line over the compass.
 local function CreateAhead()
-    aheadBar = CreateFrame("Button", nil, strip, "BackdropTemplate")
+    aheadBar = FG:DragHandle(CreateFrame("Button", nil, strip, "BackdropTemplate"))
     aheadBar:SetHeight(20)
     aheadBar:SetBackdrop({ bgFile = Skin.WHITE, edgeFile = Skin.WHITE, edgeSize = 1 })
     aheadBar:SetBackdropColor(0.035, 0.067, 0.122, 0.9)
@@ -303,7 +299,7 @@ local function CreateButtons()
     buttons.itemLabel.kind:SetText(L.questItem)
     Skin:Style(buttons.itemLabel, "panel", { buttons.itemLabel.name, buttons.itemLabel.kind })
 
-    local talent = CreateFrame("Button", nil, buttons)
+    local talent = FG:DragHandle(CreateFrame("Button", nil, buttons))
     talent:SetSize(36, 36)
     talent:SetPoint("LEFT", 270, 0)
     talent.icon = talent:CreateTexture(nil, "ARTWORK")
@@ -324,7 +320,7 @@ local function CreateButtons()
     talent.label.kind:SetPoint("TOPLEFT", 8, -16)
     talent.label.kind:SetText(L.talent)
     Skin:Style(talent.label, "panel", { talent.label.name, talent.label.kind })
-    talent.learn = CreateFrame("Button", nil, talent)
+    talent.learn = FG:DragHandle(CreateFrame("Button", nil, talent))
     talent.learn.bg = talent.learn:CreateTexture(nil, "BACKGROUND")
     talent.learn.bg:SetAllPoints()
     Skin:AccentLine(talent.learn.bg)
@@ -601,11 +597,13 @@ function Mini:Render(view)
         tags:Hide()
         xpBar:Hide()
         drop:SetAlpha(0)
+        drop:EnableMouse(false)
         aheadBar:Hide()
         if FG.CanLayout(buttons) then buttons:Hide() end
         return
     end
     drop:SetAlpha(1)
+    drop:EnableMouse(true)
     tags:Show()
     xpBar:Show()
     local kind = FG.Guide.KINDS[main.kind] or {}

@@ -205,7 +205,7 @@ local function Minimal() return FG:Get("guideMode") == "minimal" end
 local function Line(i)
     local line = rows[i]
     if line then return line end
-    line = CreateFrame("Button", nil, frame)
+    line = FG:DragHandle(CreateFrame("Button", nil, frame))
     line:SetHeight(15)
     line:RegisterForClicks("LeftButtonUp")
     line.icon = line:CreateTexture(nil, "ARTWORK")
@@ -320,20 +320,12 @@ local function Create()
     frame = CreateFrame("Frame", "FactoruideTracker", FG.UIRoot, "BackdropTemplate")
     frame:SetWidth(WIDTH)
     frame:SetClampedToScreen(true)
-    frame:SetMovable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function(self)
-        if not FG:Get("lockFrames") then self:StartMoving() end
-    end)
-    frame:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        Dropped(self)
-    end)
+    -- Its secure quest item buttons make it protected: not moved during combat (FG:Draggable).
+    FG:Draggable(frame, Dropped)
     -- Tabs: small words in the header, the one shown in white over a thin line.
     tabs = {}
     for _, key in ipairs(TABS) do
-        local b = CreateFrame("Button", nil, frame)
+        local b = FG:DragHandle(CreateFrame("Button", nil, frame))
         b:SetHeight(18)
         b.label = Skin:Text(b, 10, "muted")
         b.label:SetPoint("CENTER", 0, 1)

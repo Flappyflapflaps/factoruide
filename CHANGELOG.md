@@ -35,6 +35,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - Right after accepting a quest, its kill or loot step is no longer passed before the game shows the objectives (Kolkar Leaders).
 - A kill step is no longer passed when another objective of its quest holding its name is done: Night Web Spider after Young Night Web Spider (GitHub #20).
 - Mobs on the way no longer count the mobs the current steps are done on (GitHub #20).
+- The windows move when dragged from anywhere on them, their lines and buttons included (GitHub #1). Thanks to @maenorhio.
 
 ### WoW data
 

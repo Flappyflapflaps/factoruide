@@ -78,7 +78,7 @@ local function Tool(parent, texture, tooltip, onClick)
     b:SetScript("OnClick", onClick)
     b:SetScript("OnEnter", function(self) Tooltip(self, tooltip) end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    return b
+    return FG:DragHandle(b)
 end
 
 --- A text button: `color` text on a light background.
@@ -92,7 +92,7 @@ local function TextButton(parent, size, color)
         self.label:SetText(text)
         self:SetSize((tonumber(self.label:GetStringWidth()) or 40) + 14, size + 8)
     end
-    return b
+    return FG:DragHandle(b)
 end
 
 -- Rows ------------------------------------------------------------------------------
@@ -101,6 +101,7 @@ local function TaskRow(i)
     local row = frame.rows[i]
     if row then return row end
     row = CreateFrame("Button", nil, frame)
+    FG:DragHandle(row)
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:SetScript("OnClick", function(self, button)
         if not self.index then return end
@@ -241,6 +242,7 @@ local function NextRow(i)
     local row = frame.nextRows[i]
     if row then return row end
     row = CreateFrame("Button", nil, frame)
+    FG:DragHandle(row)
     row:SetHeight(15)
     row:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     row:SetScript("OnClick", function(self, button)
@@ -382,7 +384,7 @@ local function Sections()
         b:SetScript("OnClick", function() FG:Save("nextTab", key) end)
         frame.tabs[key] = b
     end
-    frame.more = CreateFrame("Button", nil, frame)
+    frame.more = FG:DragHandle(CreateFrame("Button", nil, frame))
     frame.more:SetHeight(14)
     frame.more.label = Skin:Text(frame.more, 10, "accent")
     frame.more.label:SetPoint("LEFT")
@@ -393,7 +395,7 @@ local function Sections()
     frame.empty = Skin:Text(frame, 10, "muted")
 
     -- Ahead of a checkpoint: skip to it.
-    local ahead = CreateFrame("Button", nil, frame, "BackdropTemplate")
+    local ahead = FG:DragHandle(CreateFrame("Button", nil, frame, "BackdropTemplate"))
     ahead:SetHeight(24)
     ahead:SetBackdrop({ bgFile = Skin.WHITE, edgeFile = Skin.WHITE, edgeSize = 1 })
     ahead:SetBackdropColor(1, 0.82, 0, 0.08)
@@ -417,7 +419,7 @@ local function Sections()
     talent.icon:SetSize(22, 22)
     talent.icon:SetPoint("LEFT", 6, 0)
     talent.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    talent.button = CreateFrame("Button", nil, talent)
+    talent.button = FG:DragHandle(CreateFrame("Button", nil, talent))
     talent.button.bg = talent.button:CreateTexture(nil, "BACKGROUND")
     talent.button.bg:SetAllPoints()
     Skin:AccentLine(talent.button.bg)
@@ -454,16 +456,7 @@ function Card:Create(guideState)
     frame:SetWidth(WIDTH)
     frame:SetClampedToScreen(true)
     frame:SetPoint(unpack(state.point or { "TOPRIGHT", UIParent, "TOPRIGHT", -30, -190 }))
-    frame:SetMovable(true)
-    frame:EnableMouse(true)
-    frame:RegisterForDrag("LeftButton")
-    frame:SetScript("OnDragStart", function(self)
-        if not FG:Get("lockFrames") then self:StartMoving() end
-    end)
-    frame:SetScript("OnDragStop", function(self)
-        self:StopMovingOrSizing()
-        state.point = FG.PinTopLeft(self) or state.point
-    end)
+    FG:Draggable(frame, function(self) state.point = FG.PinTopLeft(self) or state.point end)
     frame.rows, frame.nextRows = {}, {}
     Header()
     Sections()

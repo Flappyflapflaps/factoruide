@@ -32,9 +32,9 @@ end
 
 -- Frames know their name, parent and whether they are shown (a hidden parent hides its children);
 -- in fields of their own, the addon sets its own fields on its frames (`strip.name`...).
-CreateFrame = function(_, name, parent)
+CreateFrame = function(kind, name, parent)
     local f = stub()
-    f._name, f._parent, f._shown = name, parent, true
+    f._name, f._parent, f._shown, f._button = name, parent, true, kind == "Button"
     function f:SetShown(value)
         assert(type(value) == "boolean", "SetShown(" .. tostring(value) .. ")")
         self._shown = value
@@ -45,6 +45,8 @@ CreateFrame = function(_, name, parent)
     function f:GetName() return self._name end
     function f:SetParent(p) self._parent = p end
     function f:GetParent() return self._parent end
+    function f:HasScript(name) return name ~= "OnClick" or self._button == true end
+    function f:GetScript(name) return rawget(self, name) end
     function f:IsVisible()
         local p = self._parent
         return self._shown and (not p or not p.IsVisible or p:IsVisible())
@@ -1689,6 +1691,122 @@ InCombatLockdown = function() return false end
 fire("PLAYER_REGEN_ENABLED")
 assert(resized, "resized after the fight")
 print("combat layout ok")
+
+-- Every window moves when dragged from anywhere on it, its rows and buttons too (GitHub #1); where
+-- it was dropped is saved. Nothing moves while the windows are locked, nor a window the game
+-- protects during combat. A click on a row still acts, not the release that ends a drag.
+local function named(name)
+    for _, f in ipairs(frames) do
+        if f:GetName() == name then return f end
+    end
+end
+local function childOf(window, test)
+    for _, f in ipairs(frames) do
+        local p = rawget(f, "_parent")
+        while type(p) == "table" and p ~= window do
+            p = rawget(p, "_parent")
+        end
+        if p == window and rawget(f, "OnDragStart") and test(f) then return f end
+    end
+end
+local function watchMoves(window)
+    local d = { moves = 0 }
+    window.StartMoving = function() d.moves = d.moves + 1 end
+    window.StopMovingOrSizing = function() d.stops = (d.stops or 0) + 1 end
+    window.GetLeft = function() return 120 end
+    window.GetTop = function() return 640 end
+    window.GetPoint = function() return "TOPLEFT", UIParent, "BOTTOMLEFT", 120, 640 end
+    return d
+end
+local function drag(handle)
+    handle.OnDragStart(handle, "LeftButton")
+    handle.OnDragStop(handle)
+end
+local realDragTime = GetTime
+local dragNow = 100
+GetTime = function() return dragNow end
+local pointed
+local realPointToStep = FG.Guide.PointToStep
+FG.Guide.PointToStep = function(_, index) pointed = index end
+
+local card = FG.Card:Frame()
+local cardMoves = watchMoves(card)
+local stepRow = card.rows[1]
+assert(stepRow and stepRow.index and stepRow.OnDragStart, "the card's first step row passes drags on")
+FG.Guide:State().point = nil
+drag(stepRow)
+local saved = FG.Guide:State().point
+assert(cardMoves.moves == 1 and cardMoves.stops == 1, "dragging a step row moves the card")
+assert(saved and saved[1] == "TOPLEFT" and saved[4] == 120 and saved[5] == 640, "the card's place saved")
+pointed = nil
+stepRow.OnClick(stepRow, "LeftButton")
+assert(pointed == nil, "the release ending the drag is no click")
+dragNow = dragNow + 1
+stepRow.OnClick(stepRow, "LeftButton")
+assert(pointed == stepRow.index, "a click on the row still points at its step")
+assert(rawget(stepRow, "OnEnter"), "the row keeps its tooltip")
+FG.Config.lockFrames = true
+FG.Guide:State().point = nil
+drag(stepRow)
+drag(card)
+assert(cardMoves.moves == 1 and FG.Guide:State().point == nil, "locked windows do not move")
+FG.Config.lockFrames = nil
+drag(card)
+assert(cardMoves.moves == 2, "the card itself still moves")
+
+-- The quest panel: its lines move it; protected by its secure quest item buttons, not in combat.
+local tracker = named("FactoruideTracker")
+local trackerMoves = watchMoves(tracker)
+local trackerLine = childOf(tracker, function(f) return rawget(f, "track") ~= nil end)
+assert(trackerLine, "the quest panel's lines pass drags on")
+local secureItem = named("FactoruideItemButton1")
+assert(not secureItem or not rawget(secureItem, "OnDragStart"), "secure quest item buttons left alone")
+FG.Guide:State().trackerPoint = nil
+drag(trackerLine)
+assert(trackerMoves.moves == 1, "dragging a quest line moves the quest panel")
+assert(FG.Guide:State().trackerPoint and FG.Guide:State().trackerPoint[4] == 120, "the quest panel's place saved")
+tracker.IsProtected = function() return true end
+InCombatLockdown = function() return true end
+drag(trackerLine)
+assert(trackerMoves.moves == 1, "a protected window does not move during combat")
+InCombatLockdown = function() return false end
+drag(trackerLine)
+assert(trackerMoves.moves == 2, "it moves again after the fight")
+tracker.IsProtected = nil
+FG.Guide:State().trackerPoint = nil
+tracker.placed = nil
+FG.Tracker:Refresh()
+
+-- The minimal guide: its strip, the next steps under it and the compass over it move the strip.
+SlashCmdList.FACTORUIDE("mode")
+local strip = FG.Mini:Frame()
+local stripMoves = watchMoves(strip)
+local drop = named("FactoruideMiniNext")
+local dropRow = childOf(drop, function(f) return rawget(f, "dot") ~= nil end)
+assert(dropRow, "the next steps under the strip pass drags on")
+FG.Guide:State().miniPoint = nil
+drag(dropRow)
+assert(stripMoves.moves == 1, "dragging the next steps moves the strip")
+assert(FG.Guide:State().miniPoint and FG.Guide:State().miniPoint[4] == 120, "the strip's place saved")
+pointed = nil
+strip.OnMouseUp(strip, "LeftButton")
+assert(pointed == nil, "dropping the strip does not point at its step")
+dragNow = dragNow + 1
+strip.OnMouseUp(strip, "LeftButton")
+assert(pointed ~= nil and pointed == strip.index, "a click on the strip still points at its step")
+local compass = named("FactoruideCompass")
+local compassMoves = watchMoves(compass)
+drag(compass)
+assert(stripMoves.moves == 2 and compassMoves.moves == 0, "the compass over the strip moves the strip")
+SlashCmdList.FACTORUIDE("mode")
+drag(compass)
+assert(compassMoves.moves == 1, "on its own, the compass moves itself")
+local compassPoint = FG.Guide:State().compassPoint
+assert(compassPoint and compassPoint[4] == 120, "the compass's place saved")
+FG.Guide:State().compassPoint, FG.Guide:State().miniPoint = nil, nil
+FG.Guide.PointToStep = realPointToStep
+GetTime = realDragTime
+print("drag anywhere ok")
 
 -- `/fg hide` hides every window and mark of the addon at once (one parent frame), for the
 -- session; `/fg show` brings them back as they were. Progress and settings are kept.
