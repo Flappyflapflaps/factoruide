@@ -6,10 +6,13 @@ Writing an entry: one short line per change, saying what the player sees or gets
 
 ## Unreleased
 
-Quests that need others are planned whole, camps counted with their real number of mobs, walks round places too strong, a "Need help" page to check things in game, and a compass that shows the way.
+Guides watched and edited on a big map, quests that need others planned whole, camps counted with their real number of mobs, walks round places too strong, a "Need help" page to check things in game, and a compass that shows the way.
 
 ### App
 
+- A guide's page shows it on a big map: play it back in real time or faster, with its steps beside it and your character's level, quests, items, flight paths and hearthstone at each moment.
+- Guides are edited on that same page: drag the steps, add from the map the quests left out (in the game's level colors) and the objectives or turn-ins the guide forgets (in red); Ctrl+Z and Ctrl+Y undo and redo.
+- The guide line by line is now in the Summary tab of its page.
 - "Need help" page: questions to check in game (does this NPC offer this quest yet?), answered in one click; each answer fixes the guides of every player.
 
 ### Guides
