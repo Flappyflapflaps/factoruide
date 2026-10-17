@@ -121,6 +121,10 @@ pub fn to_lua(routes: &[Route]) -> String {
             if let Some(m) = &s.map {
                 fields.push(format!("m = {}, x = {}, y = {}", m.ui_map, m.x, m.y));
             }
+            // Its NPC patrols: the spots are along its path, the nearest pointed at first.
+            if s.patrol {
+                fields.push("pt = true".into());
+            }
             if !s.spots.is_empty() {
                 fields.push(format!(
                     "spots = {{ {} }}",

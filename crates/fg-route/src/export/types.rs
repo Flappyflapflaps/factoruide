@@ -165,6 +165,10 @@ pub struct Step {
     /// (mobs to kill or loot, the mob dropping the item that starts a quest).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub spots: Vec<MapPointOut>,
+    /// The step's NPC patrols: `spots` are places along its path (the addon points at the
+    /// nearest first).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub patrol: bool,
     /// World position: [continent (map ID), x, y], to draw the route on any map.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub world: Option<[f64; 3]>,

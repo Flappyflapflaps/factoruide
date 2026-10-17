@@ -394,6 +394,9 @@ pub struct Model {
     pub rewards: Vec<(Vec<u16>, Vec<u16>)>,
     /// Items each dungeon's bosses drop, with the chance the character gets each.
     pub dungeon_loot: Vec<Vec<(u16, f64)>>,
+    /// The paths NPCs who patrol walk (NPC ID -> its points in order): the guide shows places
+    /// along them, the planner goes to their usual place.
+    pub patrols: HashMap<i64, Vec<Pos>>,
 }
 
 /// A class spell taking the character to a city (a mage's "Teleport: Stormwind"): learned at the

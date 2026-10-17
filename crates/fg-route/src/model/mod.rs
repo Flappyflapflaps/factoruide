@@ -66,6 +66,10 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         &profile.spell_weights,
         params,
     )?;
+    let patrols = (sources.entities.paths.keys())
+        .map(|&id| (id, sources.entities.path(world, id)))
+        .filter(|(_, path)| path.len() >= 2)
+        .collect();
     let (rewards, dungeon_loot) = match &power {
         Some(p) => rewards::load_rewards(conn, p, &quests, sources.dungeons.len(), &sources.inside, params)?,
         None => (
@@ -97,6 +101,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         power,
         rewards,
         dungeon_loot,
+        patrols,
     })
 }
 

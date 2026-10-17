@@ -17,6 +17,10 @@ pub(super) struct Entities {
     pub(super) hostile: HashSet<i64>,
     /// NPCs friendly to the character: objectives on them are talks, not kills.
     pub(super) friendly: HashSet<i64>,
+    /// Seconds NPCs and objects take to come back once killed or used, where known.
+    pub(super) respawn: HashMap<(EntityKind, i64), f64>,
+    /// The paths patrolling NPCs walk: zone and percent coordinates of each point, in order.
+    pub(super) paths: HashMap<i64, Vec<(i64, f64, f64)>>,
 }
 
 impl Entities {
@@ -74,6 +78,33 @@ impl Entities {
                 spawns.entry((kind, id)).or_default().push((z, x, y));
             }
         }
+        let has = |table: &str| -> Result<bool> {
+            Ok(
+                conn.query_row("SELECT count(*) > 0 FROM sqlite_schema WHERE name = ?1", [table], |r| {
+                    r.get(0)
+                })?,
+            )
+        };
+        let mut respawn = HashMap::new();
+        if has("m_respawn")? {
+            let mut stmt = conn.prepare("SELECT entity_type, entity_id, seconds FROM m_respawn")?;
+            for row in stmt.query_map([], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, f64>(2)?))
+            })? {
+                let (t, id, seconds) = row?;
+                if let Some(kind) = EntityKind::parse(&t) {
+                    respawn.insert((kind, id), seconds);
+                }
+            }
+        }
+        let mut paths: HashMap<i64, Vec<(i64, f64, f64)>> = HashMap::new();
+        if has("m_npc_path")? {
+            let mut stmt = conn.prepare("SELECT npc_id, zone_id, x, y FROM m_npc_path ORDER BY npc_id, point")?;
+            for row in stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, (r.get(1)?, r.get(2)?, r.get(3)?))))? {
+                let (id, point) = row?;
+                paths.entry(id).or_default().push(point);
+            }
+        }
         Ok(Self {
             npc,
             object,
@@ -81,6 +112,8 @@ impl Entities {
             spawns,
             hostile,
             friendly,
+            respawn,
+            paths,
         })
     }
 
@@ -100,6 +133,13 @@ impl Entities {
 
     pub(super) fn is_elite(&self, id: i64) -> bool {
         self.npc.get(&id).is_some_and(|n| matches!(n.3, 1..=3))
+    }
+
+    /// The path a patrolling NPC walks, in world positions (none: it stands at its spawns).
+    pub(super) fn path(&self, world: &World, id: i64) -> Vec<Pos> {
+        (self.paths.get(&id).into_iter().flatten())
+            .filter_map(|&(z, x, y)| world.to_world(z, x, y))
+            .collect()
     }
 
     /// World positions of an entity's spawns.

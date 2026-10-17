@@ -427,10 +427,12 @@ end
 -- A step whose mobs live in several places (`spots`, the closest first): the compass points at
 -- its own place, then at the closest one not visited yet once the character has stood at the
 -- shown one a while without fighting (nothing there), or on `/fg spot`. For the session only.
+-- An NPC who patrols (`pt`): its spots are along its path, and the closest place to the
+-- character is pointed at first.
 
 -- At a place within this many yards; moved on after this many seconds there out of combat.
 local SPOT_NEAR, SPOT_WAIT = 40, 20
-local spot = { index = nil, at = 1, visited = {}, since = nil }
+local spot = { index = nil, step = nil, at = 1, visited = {}, since = nil }
 local placesOf = setmetatable({}, { __mode = "k" })
 
 --- A step's places: itself, then its spots (same text and zone).
@@ -470,8 +472,18 @@ end
 local function SpotTarget(step, index)
     if not step.spots then return step end
     local places = Places(step)
-    if spot.index ~= index then
-        spot.index, spot.at, spot.visited, spot.since = index, 1, {}, nil
+    -- Another step, or the same index of another guide.
+    if spot.index ~= index or spot.step ~= step then
+        spot.index, spot.step, spot.at, spot.visited, spot.since = index, step, 1, {}, nil
+        if step.pt then
+            local best
+            for i, p in ipairs(places) do
+                local d = Distance(p)
+                if d and (not best or d < best) then
+                    best, spot.at = d, i
+                end
+            end
+        end
     end
     local d = Distance(places[spot.at])
     if d and d < SPOT_NEAR and not UnitAffectingCombat("player") then

@@ -212,6 +212,20 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "suffix.patrol",
+        [
+            "(patrols: look along the path)",
+            "(patrouille : chercher le long du chemin)",
+            "(patrouilliert: entlang des Weges suchen)",
+            "(patrulla: buscar a lo largo del camino)",
+            "(patrulha: procurar ao longo do caminho)",
+            "(патрулирует: ищите вдоль маршрута)",
+            "(순찰 중: 경로를 따라 찾기)",
+            "（巡逻中：沿路线寻找）",
+            "（巡邏中：沿路線尋找）",
+        ],
+    ),
+    (
         "suffix.farm",
         [
             "(kill ~{n} mobs on the way)",

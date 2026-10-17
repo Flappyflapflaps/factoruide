@@ -822,6 +822,43 @@ do
     print("spots ok")
 end
 
+-- An NPC who patrols (Gordo on Tirisfal's road, GitHub #20): its spots are along its path and
+-- the arrow points first at the one closest to the character, not at the step's own place.
+do
+    local realCombat = UnitAffectingCombat
+    UnitAffectingCombat = function() return false end
+    FG.Routes["patrol"] = {
+        race = 7,
+        class = 8,
+        faction = "Alliance",
+        fromLevel = 1,
+        toLevel = 2,
+        steps = {
+            {
+                k = "accept",
+                t = "Accept Gordo's Task from Gordo (patrols: look along the path)",
+                q = 901,
+                m = 1426,
+                x = 80,
+                y = 80,
+                lvl = 1,
+                pt = true,
+                spots = { { m = 1426, x = 50, y = 50 }, { m = 1426, x = 30, y = 70 } },
+            },
+        },
+    }
+    local before, beforeStep = char.guide.route, char.guide.step
+    useRoute("patrol")
+    FG.Guide:Refresh()
+    assert(waypoint.x == 0.3 and waypoint.y == 0.7, "the place of its path closest to the character")
+    local places, at = FG.Guide:SpotPlaces()
+    assert(#places == 3 and at == 3, "its own place and its path's")
+    useRoute(before)
+    FG.Guide:Go(beforeStep)
+    UnitAffectingCombat = realCombat
+    print("patrol ok")
+end
+
 -- Profile: what the app plans a guide from, saved at login, logout and on /fg profile.
 local profile = FactoruideDB.profiles["Brouz-Realm"]
 assert(profile and profile.level == 1 and profile.race == 7 and profile.class == "MAGE", "profile saved")

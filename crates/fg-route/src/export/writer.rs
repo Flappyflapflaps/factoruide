@@ -211,6 +211,7 @@ impl StepWriter<'_> {
             zone_id: None,
             map: None,
             spots: Vec::new(),
+            patrol: false,
             world: None,
             skill: None,
             line: None,
@@ -244,19 +245,59 @@ impl StepWriter<'_> {
             .groups((first.x, first.y), MAX)
             .into_iter()
             .filter_map(|(x, y)| {
-                let pos = Pos {
-                    continent: spots.continent,
-                    x,
-                    y,
-                    zone: 0,
-                };
-                let inside = |(m, _): &(MapPoint, Pos)| (0.0..=100.0).contains(&m.x) && (0.0..=100.0).contains(&m.y);
-                self.place(&pos, Some(zone))
-                    .filter(inside)
-                    .or_else(|| self.place(&pos, None))
-                    .map(|(m, _)| m.into())
+                self.map_point(
+                    &Pos {
+                        continent: spots.continent,
+                        x,
+                        y,
+                        zone: 0,
+                    },
+                    zone,
+                )
             })
             .collect()
+    }
+
+    /// A place on the map of the step's zone `zone` when it is on it (by the border), else on
+    /// its own zone's.
+    fn map_point(&self, pos: &Pos, zone: i64) -> Option<MapPointOut> {
+        let inside = |(m, _): &(MapPoint, Pos)| (0.0..=100.0).contains(&m.x) && (0.0..=100.0).contains(&m.y);
+        self.place(pos, Some(zone))
+            .filter(inside)
+            .or_else(|| self.place(pos, None))
+            .map(|(m, _)| m.into())
+    }
+
+    /// A step at an NPC who patrols (Gordo walking Tirisfal's road): its other places are spread
+    /// along the path, away from the step's own, and the step says it. Nothing when the path
+    /// stays around the place.
+    fn patrol(&self, step: &mut Step, loc: &Loc) {
+        /// Points picked along the path, and how far apart the places shown are (yards).
+        const SAMPLES: usize = 8;
+        const APART: f64 = 100.0;
+        let Some(path) = self
+            .planner
+            .model
+            .patrols
+            .get(&loc.id)
+            .filter(|_| loc.kind == EntityKind::Npc)
+        else {
+            return;
+        };
+        let mut shown: Vec<Pos> = vec![loc.pos];
+        for p in along(path, SAMPLES) {
+            if p.continent == loc.pos.continent && shown.iter().all(|s| s.dist(&p) > APART) {
+                shown.push(p);
+            }
+        }
+        // A few steps around the place (Junior Apothecary Holland in Brill): not a patrol.
+        let spots: Vec<MapPointOut> = shown[1..].iter().filter_map(|p| self.map_point(p, loc.zone)).collect();
+        if spots.is_empty() {
+            return;
+        }
+        step.spots = spots;
+        step.patrol = true;
+        step.say.push(Phrase::new("suffix.patrol"));
     }
 
     fn place(&self, p: &Pos, zone: Option<i64>) -> Place {
@@ -619,6 +660,7 @@ impl StepWriter<'_> {
                     _ => Phrase::new("accept"),
                 };
                 step.say.push(say.arg("quest", quest).arg("who", who));
+                self.patrol(step, loc);
                 if let Some(limit) = q.time_limit {
                     step.say
                         .push(Phrase::new("suffix.timed").arg("minutes", num((limit / 60.0).round() as i64)));
@@ -641,6 +683,14 @@ impl StepWriter<'_> {
                 Self::objective(step, o, k);
                 if o.dungeon.is_none() {
                     step.spots = self.spots(o.spots.as_ref(), &loc.pos, loc.zone);
+                    self.patrol(
+                        step,
+                        &Loc {
+                            pos: loc.pos,
+                            zone: loc.zone,
+                            ..o.loc.clone()
+                        },
+                    );
                 }
                 step.bg = self.background.contains(&(stop.index, k));
             }
@@ -648,9 +698,113 @@ impl StepWriter<'_> {
                 step.kind = StepKind::TurnIn;
                 step.reward_xp = Some(self.planner.growth().quest_reward(q, step.level));
                 step.say.push(Phrase::new("turnin").arg("quest", quest).arg("who", who));
+                self.patrol(step, loc);
             }
             Kind::LearnFlight | Kind::Bind | Kind::Dungeon | Kind::Hearth => unreachable!(),
         }
         self.place(&loc.pos, Some(loc.zone))
+    }
+}
+
+/// `n` points spread evenly along a path (by its length), its two ends included.
+fn along(path: &[Pos], n: usize) -> Vec<Pos> {
+    let legs: Vec<f64> = path.windows(2).map(|w| w[0].dist(&w[1])).collect();
+    let total: f64 = legs.iter().sum();
+    if path.len() < 2 || total <= 0.0 || n < 2 {
+        return path.first().copied().into_iter().collect();
+    }
+    let mut out = Vec::with_capacity(n);
+    let (mut leg, mut walked) = (0, 0.0);
+    for k in 0..n {
+        let at = total * k as f64 / (n - 1) as f64;
+        while leg + 1 < legs.len() && walked + legs[leg] < at {
+            walked += legs[leg];
+            leg += 1;
+        }
+        let t = if legs[leg] > 0.0 {
+            ((at - walked) / legs[leg]).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let (a, b) = (path[leg], path[leg + 1]);
+        out.push(Pos {
+            x: a.x + (b.x - a.x) * t,
+            y: a.y + (b.y - a.y) * t,
+            ..a
+        });
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::along;
+    use crate::export::{StepKind, build};
+    use crate::plan::tests::quests_at_start;
+    use crate::plan::{Kind, Planner, Stop};
+    use crate::world::Pos;
+
+    /// Gordo's case (GitHub #20): a quest given and taken back by an NPC who walks ~700 yards
+    /// along a road. Its steps say he patrols and give places along his path, away from the
+    /// step's own; the steps of NPCs who stand still have none.
+    #[test]
+    fn steps_at_a_patrolling_npc_say_it_and_show_places_along_the_path() {
+        let mut p = quests_at_start(1);
+        let here = p.model.start.clone();
+        let route = [Stop::quest(0, Kind::Accept), Stop::quest(0, Kind::TurnIn)];
+        let steps = |p: &crate::job::Prepared| {
+            let planner = Planner::new(&p.model, &p.world, &p.params, &p.profile);
+            build(&planner, &p.profile, &route).steps
+        };
+        let at_npc = |s: &crate::export::Step| matches!(s.kind, StepKind::Accept | StepKind::TurnIn);
+        let still = |p: &crate::job::Prepared| {
+            steps(p)
+                .iter()
+                .filter(|s| at_npc(s))
+                .all(|s| !s.patrol && s.spots.is_empty())
+        };
+        assert!(still(&p), "standing still");
+        // A few steps around the place: not a patrol.
+        let around = |d: f64| Pos {
+            x: here.pos.x + d,
+            ..here.pos
+        };
+        p.model
+            .patrols
+            .insert(here.id, vec![around(0.0), around(40.0), around(-30.0)]);
+        assert!(still(&p), "walking around its post");
+        let path: Vec<Pos> = (0..=7)
+            .map(|k| Pos {
+                x: here.pos.x + 100.0 * f64::from(k),
+                ..here.pos
+            })
+            .collect();
+        p.model.patrols.insert(here.id, path);
+        let steps = steps(&p);
+        let at = steps.iter().filter(|s| at_npc(s)).collect::<Vec<_>>();
+        assert_eq!(at.len(), 2, "{steps:?}");
+        for s in at {
+            assert!(s.patrol, "{s:?}");
+            assert!(s.say.iter().any(|ph| ph.key == "suffix.patrol"), "{:?}", s.say);
+            assert!(
+                (3..=7).contains(&s.spots.len()),
+                "places along 700 yards: {:?}",
+                s.spots
+            );
+        }
+    }
+
+    /// Points spread by length: the ends and the middle of a straight path.
+    #[test]
+    fn points_along_a_path_are_spread_by_its_length() {
+        let p = |x: f64| Pos {
+            continent: 0,
+            x,
+            y: 0.0,
+            zone: 0,
+        };
+        let points = along(&[p(0.0), p(100.0), p(400.0)], 3);
+        let xs: Vec<f64> = points.iter().map(|q| q.x).collect();
+        assert_eq!(xs, [0.0, 200.0, 400.0]);
     }
 }
