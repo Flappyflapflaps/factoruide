@@ -156,7 +156,9 @@ impl QuestBuilder<'_> {
                 if item.0 != ObjectiveKind::Item {
                     continue;
                 }
-                let got = objs[..first].iter().position(|o| o.loc.kind == EntityKind::Item && Some(o.loc.id) == item.1);
+                let got = objs[..first]
+                    .iter()
+                    .position(|o| o.loc.kind == EntityKind::Item && Some(o.loc.id) == item.1);
                 if let Some(at) = got {
                     asked |= bits(at..at + 1);
                 } else if let Ok(Some(o)) = self.objective(quest, item.clone()) {
