@@ -49,3 +49,241 @@ reason = "A Dynamite Plan needs Coarse Dynamite, made by engineers (auction hous
 check = "broken-chains"
 key = "quest 92743"
 reason = "A Conqueror's Crown: where the Conqueror's Helm comes from (Badlands) is known to no source yet, to check in game"
+
+# chain-order (2026-10-17): quests offered from the start (first of their series, or beside the
+# giver's other quests), and collections whose quests are independent.
+
+[[accept]]
+check = "chain-order"
+key = "quest 92514"
+reason = "Welcome to Shen'dar Village: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 92742"
+reason = "Testing the Wells: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 93461"
+reason = "Welcome to Shen'dar Village: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 93680"
+reason = "Key to the City: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 95494"
+reason = "Bruised Pride and Lion Hides: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 95507"
+reason = "Vrang's Game: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 95647"
+reason = "Lost in the Thicket Things: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 96408"
+reason = "A Visitor to Dun Morogh: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 97279"
+reason = "Wayward Weapons: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 97914"
+reason = "Expanding Horizons: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 98387"
+reason = "Blackrock Blockade: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 99046"
+reason = "The Lost Runner: offered from the start (first of its series, or beside the giver\'s other quests)"
+
+[[accept]]
+check = "chain-order"
+key = "quest 78124"
+reason = "Nar'thalas Almanac: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 78127"
+reason = "The Dalaran Digest: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 78142"
+reason = "Bewitchments and Glamours: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 78143"
+reason = "Secrets of the Dreamers: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 78145"
+reason = "Arcanic Systems Manual: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 78146"
+reason = "Goaz Scrolls: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 78147"
+reason = "Crimes Against Anatomy: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 78149"
+reason = "Fury of the Land: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 79091"
+reason = "Archmage Antonidas: The Unabridged Autobiography: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 79093"
+reason = "Rumi of Gnomeregan: The Collected Works: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 79094"
+reason = "The Lessons of Ta'zo: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 79096"
+reason = "Ataeric: On Arcane Curiosities: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 79097"
+reason = "Baxtan: On Destructive Magics: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 79535"
+reason = "Basilisks: Should Petrification be Feared?: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 79947"
+reason = "Geomancy: The Stone-Cold Truth: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 79949"
+reason = "A Web of Lies: Debunking Myths and Legends: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 79951"
+reason = "Mummies: A Guide to the Unsavory Undead: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 79952"
+reason = "RwlRwlRwlRwl!: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 81947"
+reason = "Sanguine Sorcery: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 81949"
+reason = "Legends of the Tidesages: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 81952"
+reason = "Everyday Etiquette: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 81953"
+reason = "Stonewrought Design: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 81954"
+reason = "Venomous Journeys: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 81955"
+reason = "A Mind of Metal: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 81956"
+reason = "Conjurer's Codex: a library book handed in to Garion Wendell, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 84395"
+reason = "Undead Potatoes: a library book handed in to Jennea Cannon, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 84396"
+reason = "Magma or Lava?: a library book handed in to Jennea Cannon, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 84397"
+reason = "Northern Kalimdor - A Comprehensive Guide: a library book handed in to Jennea Cannon, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 84398"
+reason = "A Study of the Light: a library book handed in to Jennea Cannon, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 84399"
+reason = "Ka-Boom!: a library book handed in to Jennea Cannon, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 84400"
+reason = "The Knight and the Lady: a library book handed in to Jennea Cannon, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 84401"
+reason = "Scourge: Undead Menace or Misunderstood?: a library book handed in to Jennea Cannon, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 84402"
+reason = "Necromancy 101: a library book handed in to Jennea Cannon, one of a collection whose books are independent"
+
+[[accept]]
+check = "chain-order"
+key = "quest 96339"
+reason = "Legacy Reward: Replica Ironforge Air Rifle: a Legacy reward, independent of the innkeeper's other rewards"
+
+[[accept]]
+check = "chain-order"
+key = "quest 96383"
+reason = "Legacy Reward: Spectral Bear Cub: a Legacy reward, independent of the innkeeper's other rewards"
