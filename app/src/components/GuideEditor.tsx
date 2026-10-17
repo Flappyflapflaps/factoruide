@@ -4,7 +4,7 @@ import { gameLocale, useLang, useT } from "../i18n";
 import { NumberInput } from "./NumberInput";
 import { Delta } from "./ResultView";
 import { segments, steps as steps_, type Segment } from "./segments";
-import { keepTableInView, keepZoneInView, useFollowPointer } from "./stepTable";
+import { keepTableInView, keepZoneInView, useFollowPointer } from "./zoneTable";
 import { useWidth } from "./useWidth";
 import { ZoneMap, type NumberedStep } from "./ZoneMap";
 
