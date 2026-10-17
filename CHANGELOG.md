@@ -6,7 +6,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 
 ## Unreleased
 
-Quests that need others are planned whole, camps counted with their real number of mobs, walks round places too strong, and a "Need help" page to check things in game.
+Quests that need others are planned whole, camps counted with their real number of mobs, walks round places too strong, a "Need help" page to check things in game, and a compass that shows the way.
 
 ### App
 
@@ -19,6 +19,15 @@ Quests that need others are planned whole, camps counted with their real number 
 - Walks go round places with mobs far above your level (no more crossing the Western Plaguelands at level 20 on the way to Hillsbrad).
 - WoW Forever: camps are no longer counted with several times their mobs: guides go back to zones they avoided (Darkshore for the Alliance), and their times count the real waits for respawns (a little longer).
 - Starting from your character: the quests already in your log are kept when the guide goes their way, a complete one is turned in on the way instead of abandoned, and none has to be taken again from its giver.
+
+### Addon
+
+- The compass shows the step to go to much more clearly, with its distance even when it is behind you.
+- The way the guide planned on foot, around cliffs and water, shows on the compass, the world map and the minimap.
+- Trainers of your class and professions, flight masters, innkeepers, vendors, bankers and mailboxes close by on the compass, each kind chosen in the app; a click takes you there.
+- A mark above the head of the NPC to go to, once its nameplate shows.
+- An optional 3D arrow next to the compass.
+- WoW Forever: with Shortest Path Forever installed, it takes you to the step, and a click on the compass changes where.
 
 ### WoW data
 
