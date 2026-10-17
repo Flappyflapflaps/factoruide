@@ -4,6 +4,28 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 Writing an entry: one short line per change, saying what the player sees or gets (not how it works inside), grouped under App, Guides, Addon and WoW data. Numbers and examples only when they tell the change better than words; details go to the commit.
 
+## Unreleased
+
+Quests that need others are planned whole, camps counted with their real number of mobs, walks round places too strong, and a "Need help" page to check things in game.
+
+### App
+
+- "Need help" page: questions to check in game (does this NPC offer this quest yet?), answered in one click; each answer fixes the guides of every player.
+
+### Guides
+
+- Quests finished by handing in other quests on the way are planned whole: for Bitter Rivals, Jarven gets his Thunder Ale first; Keeping Pace has Zamek's distraction.
+- NPCs of your own side are no longer to "kill": Sentinel Shaya is healed, the Lazy Peons woken with the Foreman's Blackjack.
+- Walks go round places with mobs far above your level (no more crossing the Western Plaguelands at level 20 on the way to Hillsbrad).
+- WoW Forever: camps are no longer counted with several times their mobs: guides go back to zones they avoided (Darkshore for the Alliance), and their times count the real waits for respawns (a little longer).
+
+### WoW data
+
+- WoW Forever: quests the guides took too early now wait for the one the game asks first: Bandarion Keep, Scout Support, Ivar the Foul, Holy Diver, Stop the Spread, The Cult of the Damned, Remnants of War, Farsen's Watch, Horrors in the Highland.
+- WoW Forever: quests whose objectives were only described are back: Discipline, A Light in the Darkness, Unwelcome Guests, Gatehouse Goods, Hillsbrad's Hoard, several escorts and deliveries.
+- WoW Forever: The Great Outdoors says to sit by the campfire, The Gift of Skysight and Reading the Ley Lines to cast the racial spell; Finding the Source to use Krakle's Thermometer (all versions).
+- WoW Forever: mob places recorded on a quest giver where the game has none are gone (Scrawny Ursera in Thendal Village).
+
 ## 0.11.0 (2026-10-17)
 
 A new look for the addon (one card, minimal mode, compass bar, quest panel, 10 languages), farming on the way and respawn waits closer to the game, patrolling NPCs followed along their path, class quests planned for their spell, and windows that move from anywhere.
