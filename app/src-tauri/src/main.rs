@@ -1666,6 +1666,74 @@ fn map_image(state: State<'_, AppState>, id: i64) -> CmdResult<tauri::ipc::Respo
     Ok(tauri::ipc::Response::new(bytes.to_vec()))
 }
 
+/// An edition's minimap pack (`fg minimap`): its index, `(map, level, x, y)` -> (offset, length)
+/// in the images after it.
+struct Minimap {
+    tiles: HashMap<(i64, u32, u32, u32), (usize, usize)>,
+    images: &'static [u8],
+}
+
+fn minimap(edition: Edition) -> Option<&'static Minimap> {
+    static PACKS: std::sync::OnceLock<HashMap<&'static str, Minimap>> = std::sync::OnceLock::new();
+    let packs = PACKS.get_or_init(|| {
+        embedded::MINIMAPS
+            .iter()
+            .filter_map(|&(edition, pack)| {
+                let len = u32::from_le_bytes(pack.get(4..8)?.try_into().ok()?) as usize;
+                if pack.get(..4)? != b"FGMM" {
+                    return None;
+                }
+                let index: Vec<(i64, u32, u32, u32, usize, usize)> =
+                    serde_json::from_slice(pack.get(8..8 + len)?).ok()?;
+                let tiles = index
+                    .into_iter()
+                    .map(|(m, l, x, y, o, n)| ((m, l, x, y), (o, n)))
+                    .collect();
+                Some((
+                    edition,
+                    Minimap {
+                        tiles,
+                        images: &pack[8 + len..],
+                    },
+                ))
+            })
+            .collect()
+    });
+    packs.get(edition.key())
+}
+
+/// The minimap's images of the current game version: `[map, level, x, y]` of each (none
+/// without a minimap).
+#[tauri::command(async)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn minimap_index(state: State<'_, AppState>) -> Vec<(i64, u32, u32, u32)> {
+    let mut tiles: Vec<_> = minimap(state.edition())
+        .map(|m| m.tiles.keys().copied().collect())
+        .unwrap_or_default();
+    tiles.sort_unstable();
+    tiles
+}
+
+/// A minimap image (WebP): of game map `map`, at `level` (2^level ADT tiles a side), the
+/// `x`-th from the west and `y`-th from the north.
+#[tauri::command(async)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn minimap_image(state: State<'_, AppState>, map: i64, level: u32, x: u32, y: u32) -> CmdResult<tauri::ipc::Response> {
+    let m = minimap(state.edition()).ok_or("no minimap")?;
+    let &(offset, len) = m
+        .tiles
+        .get(&(map, level, x, y))
+        .ok_or_else(|| format!("no minimap image {map}/{level}/{x}/{y}"))?;
+    let bytes = m.images.get(offset..offset + len).ok_or("minimap pack truncated")?;
+    Ok(tauri::ipc::Response::new(bytes.to_vec()))
+}
+
 /// WebKitGTK renders a blank window under WSLg (no usable GPU for DMA-BUF/EGL),
 /// and its DMA-BUF renderer dies with "Error 71 (Protocol error)" on Wayland with
 /// the NVIDIA driver: fall back to its software paths in those cases.
@@ -1793,6 +1861,8 @@ fn main() {
             import_guide,
             map_index,
             map_image,
+            minimap_index,
+            minimap_image,
             list_characters,
             guide_timeline,
             edit_open,

@@ -30,11 +30,38 @@ export const loadImage = (id: number) => {
   return p;
 };
 
+let minimapPromise: Promise<Set<string>> | null = null;
+const minimapImages = new Map<string, Promise<string>>();
+/** Minimap images kept loaded (the oldest forgotten past this). */
+const MINIMAP_KEPT = 600;
+/** The minimap's images of the game version, as `map/level/x/y` (loaded once). */
+export const loadMinimapIndex = () => (minimapPromise ??= api.minimapIndex().then((all) => new Set(all.map((t) => t.join("/")))));
+/** A minimap image (kept while among the last loaded). */
+export const loadMinimapImage = (map: number, level: number, x: number, y: number) => {
+  const key = `${map}/${level}/${x}/${y}`;
+  let p = minimapImages.get(key);
+  if (p) {
+    minimapImages.delete(key);
+  } else {
+    p = api.minimapImage(map, level, x, y);
+  }
+  minimapImages.set(key, p);
+  for (const [k, old] of minimapImages) {
+    if (minimapImages.size <= MINIMAP_KEPT) break;
+    minimapImages.delete(k);
+    old.then(URL.revokeObjectURL, () => {});
+  }
+  return p;
+};
+
 /** Forget the maps (another game version shows other maps). */
 export function clearMapCache() {
   indexPromise = null;
   for (const p of images.values()) p.then(URL.revokeObjectURL, () => {});
   images.clear();
+  minimapPromise = null;
+  for (const p of minimapImages.values()) p.then(URL.revokeObjectURL, () => {});
+  minimapImages.clear();
 }
 
 /** Our own map gives each zone one of these earth tones (`.tint-N`), as the game's map does. */

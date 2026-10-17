@@ -420,6 +420,12 @@ export const api = {
     invoke<ArrayBuffer>("map_image", { id }).then((bytes) =>
       URL.createObjectURL(new Blob([bytes], { type: "image/webp" })),
     ),
+  /** The minimap's images of the current game version: [map, level, x, y] of each (level l: 2^l game tiles a side, x from the west, y from the north). */
+  minimapIndex: () => invoke<[number, number, number, number][]>("minimap_index"),
+  minimapImage: (map: number, level: number, x: number, y: number) =>
+    invoke<ArrayBuffer>("minimap_image", { map, level, x, y }).then((bytes) =>
+      URL.createObjectURL(new Blob([bytes], { type: "image/webp" })),
+    ),
   exportRequest: (request: PlanRequest) => invoke<string>("export_request", { request }),
   /** Copies the addon into the game with the installed guides. */
   /** Returns the number of guides installed. */

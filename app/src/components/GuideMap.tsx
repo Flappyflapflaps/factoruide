@@ -3,7 +3,7 @@ import type { Difficulty, Leg, MapInfo, RouteStep, Step, Suggestions, WorldPoint
 import { useAreaName, useT } from "../i18n";
 import { type Card, type Moves, positionAt } from "./guideTimeline";
 import type { Clock } from "./playback";
-import { labelPoint, loadImage, loadIndex } from "./WorldMap";
+import { labelPoint, loadImage, loadIndex, loadMinimapImage, loadMinimapIndex } from "./WorldMap";
 
 /** What the map draws: the kinds of moves, the step markers, the whole guide or the current zone only. */
 export interface MapLayers {
@@ -63,6 +63,14 @@ const MAX_ZOOM = 24;
 const MIN_ZOOM = 0.6;
 /** From this zoom (times the whole continent's) the zones' own maps, sharper, are drawn over the continent's. */
 const ZONE_DETAIL = 2;
+/** From this zoom (times the whole continent's) the game's minimap, far more detailed, is drawn instead of the zones' maps. */
+const MINIMAP_DETAIL = 3;
+/** Pixels a side of a minimap image, the levels it has (level l: 2^l game tiles a side), and a game tile's size in yards. */
+const MINIMAP_SIZE = 256;
+const MINIMAP_LEVELS = 3;
+const TILE = 1600 / 3;
+/** The minimap's open sea. */
+const MINIMAP_SEA = "#05080a";
 /** How far past their outlines the zones' maps fill the gaps between them (pixels of the continent's map, both sides). */
 const GROW = 8;
 /** A zone's map this much over a bigger zone's is a city's (seen from inside, or drawn by that zone's map too). */
@@ -176,6 +184,13 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [scale, setScale] = useState(1);
   const [shownZones, setShownZones] = useState<number[]>([]);
+  const [minimap, setMinimap] = useState<Set<string> | null>(null);
+  const [shownTiles, setShownTiles] = useState<MinimapTile[]>([]);
+  useEffect(() => {
+    loadMinimapIndex()
+      .then(setMinimap)
+      .catch(() => setMinimap(new Set()));
+  }, []);
   const fitK = base && size.w ? Math.min(size.w / base.width, size.h / base.height) : 1;
 
   useEffect(() => {
@@ -194,8 +209,10 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     settle.current = 0;
     const v = view.current;
     setScale(2 ** (Math.round(Math.log2(v.k) * 4) / 4));
-    if (!size.w || v.k < fitK * ZONE_DETAIL) return setShownZones((z) => (z.length ? [] : z));
     const [x0, y0, x1, y1] = [-v.x / v.k, -v.y / v.k, (size.w - v.x) / v.k, (size.h - v.y) / v.k];
+    const tiles = size.w && base && minimap?.size && v.k >= fitK * MINIMAP_DETAIL ? minimapTiles(base, minimap, v.k, [x0, y0, x1, y1]) : [];
+    setShownTiles((old) => (old.map((o) => o.key).join() === tiles.map((o) => o.key).join() ? old : tiles));
+    if (!size.w || v.k < fitK * ZONE_DETAIL || tiles.length) return setShownZones((z) => (z.length ? [] : z));
     const ids = zones.filter(({ rect: r }) => r.x < x1 && r.x + r.w > x0 && r.y < y1 && r.y + r.h > y0).map((z) => z.z.id);
     setShownZones((z) => (z.join() === ids.join() ? z : ids));
   };
@@ -205,6 +222,8 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     if (!settle.current) settle.current = window.setTimeout(() => refresh.current(), 150);
   }, []);
   useEffect(() => () => clearTimeout(settle.current), []);
+  // The minimap known: drawn if zoomed in already.
+  useEffect(() => refresh.current(), [minimap]);
 
   const center = useCallback(
     (p: WorldPoint, k = view.current.k) => {
@@ -470,6 +489,11 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
                 <MapImage id={z.id} x={rect.x} y={rect.y} w={rect.w} h={rect.h} />
               </g>
             ))}
+            {/* The open sea, where the game has no minimap: its color there, not the continent's parchment. */}
+            {shownTiles.length > 0 && base && <rect x={-base.width} y={-base.height} width={3 * base.width} height={3 * base.height} fill={MINIMAP_SEA} />}
+            {shownTiles.map((tile) => (
+              <MinimapImage key={tile.key} tile={tile} />
+            ))}
             {scale >= 1.2 * fitK &&
               zones
                 .filter((z) => z.z.area)
@@ -566,6 +590,55 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
 }
 
 /** A map image of the game, loaded once. */
+/** A minimap image in view: its game map, level and place, and its rectangle on the continent's map. */
+interface MinimapTile {
+  key: string;
+  map: number;
+  level: number;
+  x: number;
+  y: number;
+  rect: { x: number; y: number; w: number; h: number };
+}
+
+/** The minimap images over `box` (x0, y0, x1, y1 on `base`'s map) at zoom `k`: of the level
+ * whose images are drawn closest to their own size. */
+function minimapTiles(base: MapInfo, have: Set<string>, k: number, [x0, y0, x1, y1]: number[]): MinimapTile[] {
+  const b = base.bounds!;
+  const map = b.map;
+  // A game tile (x eastwards from world y = 32 tiles, y southwards from world x = 32 tiles) on the map.
+  const sx = (base.width / (b.max_y - b.min_y)) * TILE;
+  const sy = (base.height / (b.max_x - b.min_x)) * TILE;
+  const ox = ((b.max_y - 32 * TILE) / (b.max_y - b.min_y)) * base.width;
+  const oy = ((b.max_x - 32 * TILE) / (b.max_x - b.min_x)) * base.height;
+  const level = Math.max(0, Math.min(MINIMAP_LEVELS - 1, Math.round(Math.log2(MINIMAP_SIZE / (sx * k)))));
+  const span = 2 ** level;
+  const [w, h] = [sx * span, sy * span];
+  const out: MinimapTile[] = [];
+  for (let gx = Math.max(0, Math.floor((x0 - ox) / w)); gx <= Math.min(64 / span - 1, Math.floor((x1 - ox) / w)); gx++) {
+    for (let gy = Math.max(0, Math.floor((y0 - oy) / h)); gy <= Math.min(64 / span - 1, Math.floor((y1 - oy) / h)); gy++) {
+      const key = `${map}/${level}/${gx}/${gy}`;
+      if (have.has(key)) out.push({ key, map, level, x: gx, y: gy, rect: { x: ox + gx * w, y: oy + gy * h, w, h } });
+    }
+  }
+  return out;
+}
+
+const MinimapImage = memo(function MinimapImage({ tile: { map, level, x, y, rect } }: { tile: MinimapTile }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    loadMinimapImage(map, level, x, y)
+      .then((s) => live && setSrc(s))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [map, level, x, y]);
+  // A hair bigger: no seam between neighbors.
+  const pad = rect.w / 512;
+  return src ? <image href={src} x={rect.x - pad} y={rect.y - pad} width={rect.w + 2 * pad} height={rect.h + 2 * pad} preserveAspectRatio="none" className="gm-image" /> : null;
+});
+
 const MapImage = memo(function MapImage({ id, x, y, w, h }: { id: number; x: number; y: number; w: number; h: number }) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {

@@ -58,6 +58,19 @@ fn main() {
             );
         }
     }
+    // Each edition's minimap (`fg minimap`), when it has one.
+    let mut minimaps = String::new();
+    for edition in ["forever", "classic", "tbc"] {
+        let pack = dir.join(format!("maps/{edition}/minimap.pack"));
+        println!("cargo:rerun-if-changed={}", pack.display());
+        if let Ok(path) = pack.canonicalize() {
+            let _ = writeln!(
+                minimaps,
+                "    ({edition:?}, include_bytes!({:?})),",
+                path.to_str().unwrap()
+            );
+        }
+    }
     assert!(
         !databases.is_empty(),
         "no database in {}: run `fg bundle`",
@@ -68,6 +81,8 @@ fn main() {
          pub const DATABASES: &[(&str, &[u8])] = &[\n{databases}];\n\
          /// (\"<edition>/<map id>.webp\", image) of every edition's maps.\n\
          pub const MAPS: &[(&str, &[u8])] = &[\n{}];\n\
+         /// (edition, pack of its minimap's images) of the editions with one.\n\
+         pub const MINIMAPS: &[(&str, &[u8])] = &[\n{minimaps}];\n\
          pub const OVERRIDES: &[(&str, &[u8])] = &[\n{}];\n\
          /// The addon's two parts: the profile and recordings, and the guide.\n\
          pub const PROFILE_ADDON: &[(&str, &[u8])] = &[\n{}];\n\
