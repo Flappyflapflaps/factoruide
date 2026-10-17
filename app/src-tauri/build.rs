@@ -74,7 +74,7 @@ fn main() {
          pub const GUIDE_ADDON: &[(&str, &[u8])] = &[\n{}];\n",
         files(&dir.join("maps"), &["webp"], &[], true),
         files(&root.join("overrides"), &["toml"], &[], true),
-        // Routes.lua, Config.lua and Sent.lua are written on install; textures are in Media/.
+        // Routes.lua, Services.lua, Config.lua and Sent.lua are written on install; textures are in Media/.
         files(
             &root.join("addon/Factoruide_Profile"),
             &["lua", "toc", "xml"],
@@ -84,7 +84,7 @@ fn main() {
         files(
             &root.join("addon/Factoruide_Guide"),
             &["lua", "toc", "xml", "tga"],
-            &["Routes.lua", "Config.lua"],
+            &["Routes.lua", "Services.lua", "Config.lua"],
             true
         ),
     );

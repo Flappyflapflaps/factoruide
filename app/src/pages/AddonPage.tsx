@@ -4,10 +4,12 @@ import { SettingRow } from "../components/ParamField";
 import { Hint } from "../components/Hint";
 import { gameLocale, LANGS, useLang, useT } from "../i18n";
 
-type Option =
+/** `only`: shown for that edition only. */
+type Option = { only?: Settings["edition"] } & (
   | { key: string; kind: "bool"; label: string; help?: string; default: boolean }
   | { key: string; kind: "number"; label: string; help?: string; default: number; min: number; max: number; step: number; percent?: boolean }
-  | { key: string; kind: "select"; label: string; help?: string; default: string; options: { value: string; label: string }[] };
+  | { key: string; kind: "select"; label: string; help?: string; default: string; options: { value: string; label: string }[] }
+);
 
 /** Mirror of `FG.defaults` in addon/Factoruide_Guide/Settings.lua. */
 const OPTIONS: { title: string; options: Option[] }[] = [
@@ -28,9 +30,51 @@ const OPTIONS: { title: string; options: Option[] }[] = [
       },
       { key: "scale", kind: "number", label: "Taille des fenêtres", help: "Taille de toutes les fenêtres de l'addon (guide, suivi, boussole).", default: 1, min: 0.6, max: 1.6, step: 0.05, percent: true },
       { key: "lockFrames", kind: "bool", label: "Verrouiller les fenêtres", help: "Empêche de déplacer les fenêtres de l'addon par erreur.", default: false },
-      { key: "waypoints", kind: "bool", label: "Repère de navigation du jeu", help: "Le point de navigation du jeu vers l'étape en cours, sur la carte et à l'écran (pas sur Classic).", default: true },
+      { key: "waypoints", kind: "bool", label: "Repère de navigation du jeu", help: "Le point de navigation du jeu vers l'étape en cours, sur la carte et à l'écran (pas sur Classic ; laissé à Shortest Path Forever quand il vous guide).", default: true },
       { key: "xpMarker", kind: "bool", label: "Repère du guide sur la barre d'XP", help: "Un trait jaune sur la barre d'expérience montre l'XP que le guide prévoit à l'étape en cours ; au survol, votre avance ou votre retard.", default: true },
       { key: "suiteSkin", kind: "bool", label: "Style de la suite d'interface", help: "Avec ElvUI, EllesmereUI ou SpartanUI : leur style à la place de celui de Factoruide. Pris en compte après /reload.", default: false },
+    ],
+  },
+  {
+    title: "Pathing",
+    options: [
+      { key: "compassShown", kind: "bool", label: "Afficher la boussole", help: "La bande en haut de l'écran : l'étape en cours, bien visible avec sa distance, les autres tâches, les quêtes proches à prendre et les lieux choisis plus bas. Un clic sur un point : le guide pointe dessus.", default: true },
+      {
+        key: "spfLink",
+        only: "forever",
+        kind: "bool",
+        label: "Lier Shortest Path Forever",
+        help: "Si l'addon Shortest Path Forever est installé, il reçoit l'étape en cours et vous y guide : vols, bateaux, chemin à pied et repère du jeu. Un clic sur un point de la boussole change sa destination.",
+        default: true,
+      },
+      {
+        key: "pathMode",
+        kind: "select",
+        label: "Chemin calculé sur la boussole",
+        help: "Le chemin à pied prévu par le guide, autour des falaises et de l'eau : une marque verte sur la boussole montre par où passer, orange quand vous vous en écartez. Automatique : sauf quand Shortest Path Forever vous guide.",
+        default: "auto",
+        options: [
+          { value: "auto", label: "Automatique" },
+          { value: "on", label: "Toujours" },
+          { value: "off", label: "Jamais" },
+        ],
+      },
+    ],
+  },
+  {
+    title: "Lieux sur la boussole",
+    options: [
+      { key: "compassClass", kind: "bool", label: "Maître de votre classe", default: true },
+      { key: "compassProfession", kind: "bool", label: "Maîtres de vos métiers", help: "Ceux des métiers appris ou prévus par le guide.", default: true },
+      { key: "compassFlight", kind: "bool", label: "Maîtres de vol", default: true },
+      { key: "compassInn", kind: "bool", label: "Aubergistes", default: false },
+      { key: "compassRepair", kind: "bool", label: "Réparation", default: false },
+      { key: "compassFood", kind: "bool", label: "Nourriture et boissons", default: false },
+      { key: "compassBank", kind: "bool", label: "Banquiers", default: false },
+      { key: "compassAuction", kind: "bool", label: "Hôtels des ventes", default: false },
+      { key: "compassStable", kind: "bool", label: "Maîtres des écuries", help: "Chasseurs seulement.", default: false },
+      { key: "compassMail", kind: "bool", label: "Boîtes aux lettres", default: false },
+      { key: "compassRange", kind: "number", label: "Distance des lieux (mètres)", help: "Les plus proches de chaque sorte à moins de cette distance du personnage.", default: 300, min: 100, max: 1000, step: 50 },
     ],
   },
   {
@@ -212,7 +256,8 @@ export function AddonPage() {
 
   const value = (o: Option) => settings.addon[o.key] ?? o.default;
   const plain = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
-  const matches = (o: Option) => !query.trim() || plain(`${t(o.label)} ${o.help ? t(o.help) : ""}`).includes(plain(query.trim()));
+  const matches = (o: Option) =>
+    (!o.only || o.only === settings.edition) && (!query.trim() || plain(`${t(o.label)} ${o.help ? t(o.help) : ""}`).includes(plain(query.trim())));
   const update = (key: string, v: boolean | number | string) => {
     setMessage(null);
     setSettings({ ...settings, addon: { ...settings.addon, [key]: v } });

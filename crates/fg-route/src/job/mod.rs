@@ -6,10 +6,12 @@ mod edit;
 mod notes;
 mod options;
 mod overrides;
+mod paths;
 mod race;
 mod reputation;
 mod request;
 mod routes;
+mod services;
 mod start;
 
 pub use edit::{
@@ -17,12 +19,15 @@ pub use edit::{
 };
 pub use options::{FactionOption, NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes};
 pub use overrides::{Overrides, RaceDef};
+pub use paths::{add_walk_paths, walk_world};
 pub use race::{optimize, optimize_interruptible};
 pub use reputation::race_base;
 pub use request::{PlanOutcome, PlanRequest, Prepared};
 pub use routes::{
-    load_routes, render_routes, save_route, slug, write_addon_config, write_addon_routes, write_polestar_pack,
+    addon_walks, load_routes, render_routes, save_route, slug, write_addon_config, write_addon_routes,
+    write_polestar_pack,
 };
+pub use services::{Place, Service, places, services_lua};
 pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};
 
 use crate::export;

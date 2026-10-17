@@ -116,6 +116,9 @@ local arrivedDone = false
 local waypointStep
 -- Step picked by hand (left-click on a row): the compass points at it until it is done.
 local pointed
+-- Place picked on the compass (a trainer, a flight master...): pointed at until reached.
+local detour
+local DETOUR_ARRIVED = 10
 local Distance -- defined below, used by IsDone
 
 -- Progress -------------------------------------------------------------------
@@ -508,6 +511,11 @@ function Guide:SpotPlaces()
 end
 
 local function SetWaypoint(step)
+    -- Shortest Path Forever guides there with the game's waypoint.
+    if FG.Pathing and FG.Pathing:Guiding() then
+        waypointStep = nil
+        return
+    end
     if not FG:Get("uiShown") or not step or not step.m or not FG:Get("waypoints") or step == waypointStep then
         return
     end
@@ -684,6 +692,7 @@ function Guide:Refresh()
     local shown = FG:Get("guideShown")
     if not shown or not route or not route.steps[state.step] then
         if FG.Compass then FG.Compass:SetPoints(nil) end
+        if FG.Pathing then FG.Pathing:SetTarget(nil) end
         if FG.Wind then FG.Wind:SetTarget(nil) end
         ui:Render({ hidden = not shown, message = route and L.done or L.noRoute })
         if FG.XpMarker then FG.XpMarker:Refresh() end
@@ -767,8 +776,10 @@ function Guide:Refresh()
     end
     local hasSpots = target.spots ~= nil
     local place = SpotTarget(target, targetIndex)
+    if detour and (Distance(detour) or math.huge) < DETOUR_ARRIVED then detour = nil end
+    if detour then place = detour end
     for _, v in ipairs(view.tasks) do
-        v.target = v.kind ~= "farm" and v.index == targetIndex and not v.done
+        v.target = not detour and v.kind ~= "farm" and v.index == targetIndex and not v.done
     end
 
     view.step, view.total = state.step, #route.steps
@@ -813,15 +824,20 @@ function Guide:Refresh()
         table.insert(view.pickups, v)
     end
 
+    if FG.Pathing then
+        local info = detour and { title = detour.name, kind = detour.service }
+            or { title = TaskView(target, targetIndex, false).name, kind = target.k, q = target.q }
+        FG.Pathing:SetTarget(place, not detour and target or nil, info)
+    end
     SetWaypoint(place)
     local wind = FG.Wind and FG.Wind:Active()
     if FG.Wind then FG.Wind:SetTarget(wind and place or nil) end
-    if wind and FG.Compass then
+    if FG.Compass and (wind or not FG:Get("compassShown")) then
         FG.Compass:SetPoints(nil)
     elseif FG.Compass then
         -- The target, the other tasks, the close quests to pick up and the next turn-in.
         local points = {}
-        local function Point(step, i, main)
+        local function Point(step, i, main, task)
             if not step or not step.m or not step.x then return end
             local v = TaskView(route.steps[i], i, false)
             table.insert(points, {
@@ -830,15 +846,31 @@ function Guide:Refresh()
                 y = step.y,
                 index = i,
                 main = main,
+                task = task,
                 kind = v.kind,
                 icon = v.icon,
                 name = v.name,
                 sub = v.sub,
             })
         end
-        Point(place, targetIndex, true)
+        if detour then
+            table.insert(points, {
+                m = detour.m,
+                x = detour.x,
+                y = detour.y,
+                main = true,
+                place = true,
+                icon = detour.icon,
+                name = detour.name,
+                sub = detour.sub,
+            })
+        else
+            Point(place, targetIndex, true)
+        end
         for _, v in ipairs(view.tasks) do
-            if v.kind ~= "farm" and not v.done and v.index ~= targetIndex then Point(v.step, v.index) end
+            if v.kind ~= "farm" and not v.done and (detour or v.index ~= targetIndex) then
+                Point(v.step, v.index, false, true)
+            end
         end
         for _, v in ipairs(view.pickups) do
             if v.distance and v.distance <= PICKUP_NEAR and not listed[v.index] then Point(v.step, v.index) end
@@ -914,7 +946,7 @@ function Guide:Resync()
         state.step = 1
         SkipDone()
     end
-    waypointStep, pointed = nil, nil
+    waypointStep, pointed, detour = nil, nil, nil
     self:Refresh()
 end
 
@@ -1001,7 +1033,7 @@ function Guide:Go(n)
             if not s.bg and not IsDone(s, i) then arrivedDone = false end
         end
     end
-    waypointStep, pointed = nil, nil
+    waypointStep, pointed, detour = nil, nil, nil
     self:Refresh()
 end
 
@@ -1091,7 +1123,7 @@ FG:On("PLAYER_LOGIN", function()
     UseRoute(PickRoute())
     FG.Card:Create(state)
     if FG.Mini then FG.Mini:Create(state) end
-    for _, key in ipairs({ "guideMode", "nextTab", "guideShown", "questPanel" }) do
+    for _, key in ipairs({ "guideMode", "nextTab", "guideShown", "questPanel", "compassShown" }) do
         FG:OnSetting(key, function() Guide:Refresh() end)
     end
     -- Hidden: the game's map pin goes too, and comes back with the guide.
@@ -1252,7 +1284,15 @@ end
 function Guide:PointToStep(index)
     local step = route and route.steps[index]
     if not step or not step.m then return end
-    pointed = index
+    pointed, detour = index, nil
+    self:Refresh()
+end
+
+--- Point the compass and the waypoint (Shortest Path Forever when linked) at a place of the
+--- compass (`Nearby:Around`) until the character is there, or a step is picked.
+function Guide:PointToPlace(place)
+    if not place or not place.m then return end
+    detour = place
     self:Refresh()
 end
 

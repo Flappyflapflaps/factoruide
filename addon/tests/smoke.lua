@@ -22,6 +22,9 @@ local function stub()
     function o:SetShown(shown) assert(type(shown) == "boolean", "SetShown(" .. tostring(shown) .. ")") end
     function o:GetPoint() return "TOP", nil, "TOP", 0, 0 end
     function o:GetID() return 1 end
+    function o:SetFrameLevel(level) self._level = level end
+    function o:GetFrameLevel() return rawget(self, "_level") or 1 end
+    function o:GetStringWidth() return #(rawget(self, "text") or "") * 5 end
     setmetatable(o, {
         __index = function()
             return function() return stub() end
@@ -244,13 +247,14 @@ SlashCmdList = {}
 local function load(addon)
     local private = {}
     for line in io.lines("addon/" .. addon .. "/" .. addon .. ".toc") do
-        -- Config.lua, Routes.lua and Sent.lua are written by the app and not versioned.
+        -- Config.lua, Routes.lua, Services.lua and Sent.lua are written by the app and not
+        -- versioned.
         if line == "Config.lua" then
             Factoruide.Config = {}
         elseif line == "Sent.lua" then
             FactoruideSent = nil
-        elseif line == "Routes.lua" then
-            assert(loadfile("addon/tests/fixtures/Routes.lua"))(addon, private)
+        elseif line == "Routes.lua" or line == "Services.lua" then
+            assert(loadfile("addon/tests/fixtures/" .. line))(addon, private)
         elseif line:match("%.lua$") then
             local chunk = assert(loadfile("addon/" .. addon .. "/" .. line:gsub("\\", "/")))
             chunk(addon, private)
@@ -1405,6 +1409,169 @@ do
     assert(FG.Poulpix.Alpha(0.2, false) == 0.2 and FG.Poulpix.Alpha(0.2, true) == 1, "faded, full under the mouse")
 end
 print("wind ok")
+
+-- The compass's places (tests/fixtures/Services.lua): for a gnome mage, the mage trainer, not
+-- another class's nor the Horde's, the flight masters; not the trainer of a profession neither
+-- learned nor planned, the innkeepers (off by default), the stable masters (hunters), the far
+-- ones. A kind turned on shows; a profession the guide plans shows its trainers.
+do
+    local function Names()
+        local names = {}
+        for _, p in ipairs(FG.Nearby:Around(0, 299.3, 712)) do
+            names[p.name] = p
+        end
+        return names
+    end
+    local names = Names()
+    assert(names["Marryk Nurribit"] and names["Marryk Nurribit"].service == "class", "the mage trainer")
+    assert(not names["Thran Khorman"] and not names["Horde Mage"], "not another class's nor the Horde's")
+    assert(names["Flight Master"], "flight masters by default")
+    assert(not names["Innkeeper"] and not names["Stable Master"], "no innkeepers by default, stables for hunters")
+    assert(not names["Far Mage Trainer"] and not names["Smith"], "not the far ones nor other professions")
+    FG:Set("compassInn", true)
+    assert(Names()["Innkeeper"], "innkeepers turned on")
+    FG:Set("compassInn", nil)
+    local route = FG.Guide:Route()
+    route.professions = { { line = 197 } }
+    FG.Nearby:Forget()
+    assert(Names()["Tailor"] and not Names()["Smith"], "the trainers of a profession the guide plans")
+    route.professions = nil
+    FG.Nearby:Forget()
+
+    -- A click on a place: the compass and the game's waypoint point at it, until reached.
+    FG.Guide:PointToPlace(names["Flight Master"])
+    local first = FG.Compass:Points()[1]
+    assert(first.main and first.place and first.name == "Flight Master", "the place is the target")
+    assert(waypoint and close(waypoint.x, 0.32), "the waypoint on the place")
+    local realPosition = C_Map.GetPlayerMapPosition
+    C_Map.GetPlayerMapPosition = function()
+        return { GetXY = function() return 0.32, 0.712 end }
+    end
+    FG.Guide:Refresh()
+    first = FG.Compass:Points()[1]
+    assert(first.main and not first.place and first.index, "reached: back to the guide's step")
+    C_Map.GetPlayerMapPosition = realPosition
+
+    -- The compass turned off.
+    FG:Set("compassShown", false)
+    assert(#FG.Compass:Points() == 0, "no compass")
+    FG:Set("compassShown", nil)
+    assert(#FG.Compass:Points() > 0, "the compass back")
+end
+print("compass places ok")
+
+-- The planned walk (`wp`: its start and turns, world yards): the compass points along it, a bit
+-- ahead of its closest point; going back to it when beside it; not when far from it, nor on its
+-- last leg (straight to the place), nor with the setting off.
+FG.Routes["walk-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        {
+            k = "accept",
+            t = "Accept Far",
+            q = 8101,
+            id = 6,
+            m = 1426,
+            x = 40,
+            y = 71.2,
+            lvl = 1,
+            wp = { 299, 712, 299, 800, 400, 800 },
+        },
+        {
+            k = "objective",
+            t = "Kill wolves",
+            n = "Wolf",
+            q = 8102,
+            o = 1,
+            id = 7,
+            m = 1426,
+            x = 35,
+            y = 71.2,
+            lvl = 1,
+        },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+useRoute("walk-test")
+do
+    local n, w, back = FG.Pathing:Aim(0, 299.3, 712)
+    assert(n and math.abs(n - 299) < 1 and math.abs(w - 742) < 1 and not back, "along the first leg")
+    n, w, back = FG.Pathing:Aim(0, 240, 712)
+    assert(n and math.abs(w - 742) < 1 and back, "beside the walk: back to it")
+    assert(FG.Pathing:Aim(0, 0, 712) == nil, "far from the walk")
+    FG:Set("pathMode", "off")
+    assert(FG.Pathing:Aim(0, 299.3, 712) == nil, "the walk turned off")
+    FG:Set("pathMode", nil)
+    assert(FG.Pathing:Aim(0, 400, 790) == nil, "on the last leg: straight to the place")
+    assert(FG.Pathing:Aim(0, 299.3, 712) == nil, "a leg passed is not pointed at again")
+end
+print("walk ok")
+
+-- Shortest Path Forever: the target sent once, with what stands there; while it guides, no
+-- walk on the compass ("auto") and the game's waypoint is its; a journey the player replaces is
+-- not sent again until picked on the compass; an objective stays held on its quest's area;
+-- unlinked, the journey is cancelled.
+do
+    local sent, current, ended, subscribers = {}, nil, nil, {}
+    ShortestPathForever = {
+        API = {
+            NavigateRoute = function(owner, stops)
+                table.insert(sent, { owner = owner, stop = stops[1] })
+                current = 1
+                return true
+            end,
+            CurrentStop = function() return current end,
+            Ended = function() return ended end,
+            Cancel = function()
+                current, ended = nil, "cancelled"
+                return true
+            end,
+            Subscribe = function(fn)
+                table.insert(subscribers, fn)
+                return function() end
+            end,
+        },
+    }
+    FG.Pathing:Forget()
+    useRoute("walk-test")
+    assert(#sent == 1 and sent[1].owner == "Factoruide", "the target sent")
+    local stop = sent[1].stop
+    assert(stop.map == 1426 and close(stop.x, 0.4) and close(stop.y, 0.712) and stop.kind == "pickup", "where and what")
+    waypoint = nil
+    FG.Guide:Refresh()
+    assert(#sent == 1, "sent once")
+    assert(waypoint == nil, "the game's waypoint left to it")
+    assert(FG.Pathing:Aim(0, 299.3, 712) == nil, "no walk on the compass while it guides")
+
+    current, ended = nil, "replaced"
+    for _, fn in ipairs(subscribers) do
+        fn({ ended = true })
+    end
+    FG.Guide:Refresh()
+    assert(#sent == 1, "the player's journey kept")
+    assert(waypoint ~= nil, "the game's waypoint back")
+    FG.Pathing:Forget()
+    FG.Guide:PointToStep(1)
+    assert(#sent == 2, "picked on the compass: sent again")
+
+    onQuest[8102] = true
+    FG.Guide:PointToStep(2)
+    stop = sent[#sent].stop
+    assert(stop.kind == "objective" and stop.hold and stop.questID == 8102 and stop.radius, "an objective held")
+    onQuest[8102] = nil
+
+    FG:Set("spfLink", false)
+    assert(current == nil and ended == "cancelled", "unlinked: cancelled")
+    FG:Set("spfLink", nil)
+    ShortestPathForever = nil
+    FG.Pathing:Forget()
+end
+print("shortest path ok")
 
 -- The quest panel: one line a quest in both modes; folded, no line.
 local logEntries, logInfo = C_QuestLog.GetNumQuestLogEntries, C_QuestLog.GetInfo

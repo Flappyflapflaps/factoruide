@@ -176,6 +176,12 @@ pub struct Step {
     /// World position: [continent (map ID), x, y], to draw the route on any map.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub world: Option<[f64; 3]>,
+    /// The walk to the step from the step before when it does not go straight (world x, y on
+    /// the step's continent): where it starts, then where it turns, around the steep ground and
+    /// through the passages between zones. Worked out when the addon is installed
+    /// (`job::add_walk_paths`), not saved.
+    #[serde(default, skip)]
+    pub path: Vec<[f64; 2]>,
     /// Profession skill a profession quest needs (its accept step is optional: skipped without
     /// it); in routes made before professions left the guide, the skill to reach (practice) or
     /// the rank cap learned (profession).

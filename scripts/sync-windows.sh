@@ -9,6 +9,7 @@ rsync -a --delete \
     --exclude target/ --exclude node_modules/ --exclude 'app/dist/' --exclude 'app/src-tauri/gen/' \
     --exclude '.git/' --exclude '/data/*.sqlite' --exclude '/routes/' --exclude '/debug/' \
     --exclude 'addon/Factoruide_Guide/Config.lua' --exclude 'addon/Factoruide_Guide/Routes.lua' \
+    --exclude 'addon/Factoruide_Guide/Services.lua' \
     --exclude 'addon/Factoruide_Profile/Sent.lua' \
     "$src/" "$dest/"
 echo "synced to $dest"

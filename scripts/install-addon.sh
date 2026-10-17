@@ -1,7 +1,8 @@
 #!/bin/sh
 # Copy the addon (Factoruide_Profile and Factoruide_Guide) into the WoW client. After a change:
 # /reload in game (a full client restart is needed when files are added or a .toc changes).
-# Config.lua, Routes.lua and Sent.lua are written by the Factoruide app: existing ones are kept.
+# Config.lua, Routes.lua, Services.lua and Sent.lua are written by the Factoruide app: existing
+# ones are kept.
 set -eu
 wow_dir=${FG_WOW_DIR:-"/mnt/g/Jeux/World of Warcraft"}
 client=${FG_CLIENT:-_classic_beta_}
@@ -40,14 +41,15 @@ for addon in Factoruide_Profile Factoruide_Guide; do
     mkdir -p "$dest"
     for f in "$dest"/*.lua "$dest"/*.toc "$dest"/*.xml; do
         [ -e "$f" ] || continue
-        case "$(basename "$f")" in Config.lua | Routes.lua | Sent.lua) continue ;; esac
+        case "$(basename "$f")" in Config.lua | Routes.lua | Services.lua | Sent.lua) continue ;; esac
         rm -f "$f"
     done
     for f in "$src"/*.lua "$src"/*.toc "$src"/*.xml; do
         [ -e "$f" ] || continue
         name=$(basename "$f")
         case "$name" in Sent.lua) continue ;; esac
-        if { [ "$name" = "Config.lua" ] || [ "$name" = "Routes.lua" ]; } && [ -e "$dest/$name" ]; then
+        if { [ "$name" = "Config.lua" ] || [ "$name" = "Routes.lua" ] || [ "$name" = "Services.lua" ]; } \
+            && [ -e "$dest/$name" ]; then
             continue
         fi
         cp "$f" "$dest/"

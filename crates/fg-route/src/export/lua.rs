@@ -121,6 +121,17 @@ pub fn to_lua(routes: &[Route]) -> String {
             if let Some(m) = &s.map {
                 fields.push(format!("m = {}, x = {}, y = {}", m.ui_map, m.x, m.y));
             }
+            // The walk to it (world x, y): where it starts and turns, for the compass.
+            if !s.path.is_empty() {
+                fields.push(format!(
+                    "wp = {{ {} }}",
+                    s.path
+                        .iter()
+                        .map(|[x, y]| format!("{x}, {y}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
+            }
             // Its NPC patrols: the spots are along its path, the nearest pointed at first.
             if s.patrol {
                 fields.push("pt = true".into());

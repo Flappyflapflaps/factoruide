@@ -234,7 +234,7 @@ fn main() -> Result<()> {
         )?,
         Command::Show { name, full } => route::show(&cli.routes, &name, full)?,
         Command::Diff { a, b, json } => diff::run(&cli.routes, &a, b.as_deref(), json)?,
-        Command::Addon => route::write_addon_routes(&open()?, &cli.routes, &cli.addon_dir)?,
+        Command::Addon => route::write_addon_routes(&open()?, &overrides, &cli.routes, &cli.addon_dir)?,
         Command::Polestar { out } => {
             let n = fg_route::job::write_polestar_pack(&open()?, &cli.routes, &out, env!("CARGO_PKG_VERSION"))?;
             eprintln!("wrote {} ({n} guides)", out.display());

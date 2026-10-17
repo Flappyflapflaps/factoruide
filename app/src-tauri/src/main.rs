@@ -1136,6 +1136,19 @@ fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
             write_addon_files(&dest, embedded::GUIDE_ADDON)?;
             let mut routes = assigned.values().map(render).collect::<CmdResult<Vec<_>>>()?;
             routes.sort_by(|a, b| a.name.cmp(&b.name));
+            // The walks of the guides for the compass, and the places of the trainers, vendors...
+            let locale = (settings.guide_locale.clone())
+                .or_else(|| routes.first().and_then(|r| r.locale.clone()))
+                .unwrap_or_else(|| "enUS".into());
+            let services = job::addon_walks(
+                &state.open_db()?,
+                &overrides(settings.edition)?,
+                settings.edition,
+                &mut routes,
+                &*state.names(&locale)?,
+            )
+            .map_err(err)?;
+            std::fs::write(dest.join("Services.lua"), services).map_err(err)?;
             // The addon finds a character's route by its name.
             let mut lua = fg_route::export::to_lua(&routes);
             lua.push_str("\n-- Which guide each character follows (assigned in the app).\nFG.Assignments = {\n");

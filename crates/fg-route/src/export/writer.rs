@@ -167,6 +167,7 @@ impl StepWriter<'_> {
             zone_id: at.zone_id,
             map: at.map.clone(),
             world: at.world,
+            path: Vec::new(),
             ..grind.clone()
         }
     }
@@ -215,6 +216,7 @@ impl StepWriter<'_> {
             spots: Vec::new(),
             patrol: false,
             world: None,
+            path: Vec::new(),
             skill: None,
             line: None,
             mobs: Vec::new(),

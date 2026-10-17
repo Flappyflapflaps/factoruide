@@ -1,7 +1,11 @@
 //! Routes saved as JSON, and the addon's data files.
 
+use super::{Overrides, add_walk_paths, places, services_lua, walk_world};
 use crate::export::{self, Route};
+use crate::faction::Faction;
 use crate::model::Names;
+use crate::world::World;
+use crate::xp::Edition;
 use anyhow::Result;
 use rusqlite::Connection;
 use std::collections::HashMap;
@@ -32,11 +36,49 @@ pub fn save_route(routes_dir: &Path, route: &Route) -> Result<()> {
     Ok(())
 }
 
-/// Regenerate the addon's Routes.lua from every saved route, each written in its own language.
-pub fn write_addon_routes(conn: &Connection, routes_dir: &Path, addon_dir: &Path) -> Result<usize> {
-    let routes = render_routes(conn, &load_routes(routes_dir)?, None)?;
+/// Regenerate the addon's Routes.lua from every saved route, each written in its own language,
+/// with their walks, and Services.lua (`addon_walks`).
+pub fn write_addon_routes(
+    conn: &Connection,
+    overrides: &Overrides,
+    edition: Edition,
+    routes_dir: &Path,
+    addon_dir: &Path,
+) -> Result<usize> {
+    let mut routes = render_routes(conn, &load_routes(routes_dir)?, None)?;
+    let locale = routes
+        .first()
+        .and_then(|r| r.locale.clone())
+        .unwrap_or_else(|| "enUS".into());
+    let services = addon_walks(conn, overrides, edition, &mut routes, &Names::load(conn, &locale)?)?;
     std::fs::write(addon_dir.join("Routes.lua"), export::to_lua(&routes))?;
+    std::fs::write(addon_dir.join("Services.lua"), services)?;
     Ok(routes.len())
+}
+
+/// The walks of the guides (`add_walk_paths`, the world of each guide's faction), and the
+/// addon's Services.lua with the names of `names`.
+pub fn addon_walks(
+    conn: &Connection,
+    overrides: &Overrides,
+    edition: Edition,
+    routes: &mut [Route],
+    names: &Names,
+) -> Result<String> {
+    let mut worlds: HashMap<Faction, World> = HashMap::new();
+    for route in routes.iter_mut() {
+        let world = match worlds.entry(route.faction) {
+            std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+            std::collections::hash_map::Entry::Vacant(e) => e.insert(walk_world(conn, overrides, route.faction)?),
+        };
+        add_walk_paths(world, route);
+    }
+    // Where a place is does not depend on the faction.
+    let world = match worlds.into_values().next() {
+        Some(w) => w,
+        None => walk_world(conn, overrides, Faction::Alliance)?,
+    };
+    Ok(services_lua(&places(conn, &world, edition, names)?))
 }
 
 /// Write the guide pack for the Polestar addon (`export::polestar`) into `dir` from every saved

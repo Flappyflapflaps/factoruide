@@ -824,6 +824,7 @@ mod tests {
                 y: 50.0,
             }),
             world: None,
+            path: Vec::new(),
             skill: None,
             line: None,
             mobs: Vec::new(),

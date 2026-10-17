@@ -106,12 +106,14 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
         );
     }
     job::save_route(&opts.routes_dir, route)?;
-    write_addon_routes(conn, &opts.routes_dir, &opts.addon_dir)
+    write_addon_routes(conn, &opts.overrides, &opts.routes_dir, &opts.addon_dir)
 }
 
-/// Regenerate the addon's Routes.lua from every route JSON (each in its own language).
-pub fn write_addon_routes(conn: &Connection, routes_dir: &Path, addon_dir: &Path) -> Result<()> {
-    let n = job::write_addon_routes(conn, routes_dir, addon_dir)?;
+/// Regenerate the addon's Routes.lua from every route JSON (each in its own language), and
+/// Services.lua.
+pub fn write_addon_routes(conn: &Connection, overrides_dir: &Path, routes_dir: &Path, addon_dir: &Path) -> Result<()> {
+    let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
+    let n = job::write_addon_routes(conn, &overrides, crate::edition(), routes_dir, addon_dir)?;
     eprintln!("wrote {} ({n} routes)", addon_dir.join("Routes.lua").display());
     Ok(())
 }

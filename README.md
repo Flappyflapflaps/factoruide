@@ -145,9 +145,15 @@ race and class.
   the upgrade line of item tooltips, safety alerts) and `/fg show` brings them back as they were. For the session only:
   progress is kept and the automation goes on; typed in combat, it applies when the fight ends.
 - Size: Ctrl + mouse wheel over a window, or `/fg scale <size>`.
-- Helpers: a compass bar at the top of the screen with the step to go to, the other current
-  tasks, the quests to pick up close by and the next turn-in (mouse over: what and how far;
-  click: go there), targeting macro "FG Cible" (`/fg macro`), quest item button (key binding in the game's
+- Helpers: a compass bar at the top of the screen with the step to go to (it stands out, with its
+  distance, even behind you), the other current tasks, the quests to pick up close by, the next
+  turn-in and the places you choose in the app (your class trainer, your professions' trainers,
+  flight masters, innkeepers, vendors, bankers, mailboxes...; mouse over: what and how far; click:
+  go there). A green mark shows the way the guide planned on foot, around cliffs and water,
+  orange when you stray from it. On WoW Forever, [Shortest Path Forever](https://www.curseforge.com/wow/addons/shortest-path-forever)
+  (when installed) gets the place to go to and guides you there with flights, boats and its own
+  map lines; a click on the compass changes its destination. Targeting macro "FG Cible"
+  (`/fg macro`), quest item button (key binding in the game's
   key bindings, Factoruide section), the step's flight taken automatically, next steps numbered on
   the world map.
 - Vendors: sells gray items, repairs, buys food, water and ammunition for your level (disabled by

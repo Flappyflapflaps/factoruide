@@ -57,6 +57,28 @@ FG.defaults = {
     mapPins = true,
     mapPinsCount = 15,
     autoFly = true,
+    -- The compass bar at the top of the screen.
+    compassShown = true,
+    -- WoW Forever: the place pointed at goes to Shortest Path Forever when it is loaded, which
+    -- guides there (and the game's waypoint is left to it).
+    spfLink = true,
+    -- The guide's walk on the compass, the way around the steep ground: "on", "off", or "auto"
+    -- (unless Shortest Path Forever guides).
+    pathMode = "auto",
+    -- Places shown on the compass closer than `compassRange` yards: the class trainer, the
+    -- trainers of the character's professions, flight masters, innkeepers, repairers, food and
+    -- drink, bankers, auctioneers, stable masters (hunters), mailboxes.
+    compassClass = true,
+    compassProfession = true,
+    compassFlight = true,
+    compassInn = false,
+    compassRepair = false,
+    compassFood = false,
+    compassBank = false,
+    compassAuction = false,
+    compassStable = false,
+    compassMail = false,
+    compassRange = 300,
     -- The wind instead of the compass: "off", "on", or "auto" (with Poulpix UI Immersive).
     windGuide = "auto",
     -- "wind" (trails), "mist", "leaves" or "wisps".
