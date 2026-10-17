@@ -4,7 +4,9 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 Writing an entry: one short line per change, saying what the player sees or gets (not how it works inside), grouped under App, Guides, Addon and WoW data. Numbers and examples only when they tell the change better than words; details go to the commit.
 
-## Unreleased
+## 0.11.0 (2026-10-17)
+
+A new look for the addon (one card, minimal mode, compass bar, quest panel, 10 languages), farming on the way and respawn waits closer to the game, patrolling NPCs followed along their path, class quests planned for their spell, and windows that move from anywhere.
 
 ### App
 
@@ -51,7 +53,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - WoW Forever: Beer Basted Boar Ribs is offered without Cooking, as in game.
 - WoW Forever: Secure the Mountain (Dun Morogh) is back in Alliance guides: Mountaineer Cornelius is found in the Grizzled Den.
 - Quests whose place was unknown are back with the rest of their chain: Overmaster Pyron, Glyph Chasing, Jail Break!, Elemental Bracers (Classic); WoW Forever: Testing the Wells, From the Ashes, Accessories of the Lost, Key to the City, Bloom of the Heavens, Blackrock Blockade, Vengeful Trail; TBC: Ar'tor's Charge, Nat's Bargain, Imbuing the Headpiece.
-- Data refreshed (Questie, AllTheThings, Wowhead) with the players' latest contributions.
+- Quest data refreshed, with the players' latest contributions.
 - WoW Forever: game data read again from the latest client update (1.60.1.70425).
 
 ## 0.10.0 (2026-10-15)
