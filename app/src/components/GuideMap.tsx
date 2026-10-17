@@ -40,8 +40,8 @@ const CONTINENTS = [1, 0, 530];
 /** Zoom range, in screen pixels per pixel of the continent's map, relative to the whole continent in view. */
 const MAX_ZOOM = 24;
 const MIN_ZOOM = 0.6;
-/** From this zoom the zones' own maps (sharper) are drawn over the continent's. */
-const ZONE_DETAIL = 1.8;
+/** From this zoom (times the whole continent's) the zones' own maps, sharper, are drawn over the continent's. */
+const ZONE_DETAIL = 2;
 /** A zone's map this much over a bigger zone's is a city's (seen from inside, or drawn by that zone's map too). */
 const CITY_SHARE = 0.5;
 /** Cards before and after the current one with a full marker (the others: a dot). */
@@ -163,25 +163,24 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
     return () => ro.disconnect();
   }, []);
 
-  // The zones in view (their maps drawn when zoomed in), worked out a little after the view moves.
+  // The zones in view (their maps drawn when zoomed in), worked out now and then while the view
+  // moves (at every frame while following).
   const settle = useRef(0);
-  const refresh = useCallback(() => {
+  const refresh = useRef(() => {});
+  refresh.current = () => {
+    settle.current = 0;
     const v = view.current;
     setScale(2 ** (Math.round(Math.log2(v.k) * 4) / 4));
-    if (!size.w || v.k < ZONE_DETAIL) return setShownZones((z) => (z.length ? [] : z));
+    if (!size.w || v.k < fitK * ZONE_DETAIL) return setShownZones((z) => (z.length ? [] : z));
     const [x0, y0, x1, y1] = [-v.x / v.k, -v.y / v.k, (size.w - v.x) / v.k, (size.h - v.y) / v.k];
     const ids = zones.filter(({ rect: r }) => r.x < x1 && r.x + r.w > x0 && r.y < y1 && r.y + r.h > y0).map((z) => z.z.id);
     setShownZones((z) => (z.join() === ids.join() ? z : ids));
-  }, [zones, size]);
-  const apply = useCallback(
-    (v: View) => {
-      view.current = v;
-      layer.current?.setAttribute("transform", `translate(${v.x} ${v.y}) scale(${v.k})`);
-      clearTimeout(settle.current);
-      settle.current = window.setTimeout(refresh, 120);
-    },
-    [refresh],
-  );
+  };
+  const apply = useCallback((v: View) => {
+    view.current = v;
+    layer.current?.setAttribute("transform", `translate(${v.x} ${v.y}) scale(${v.k})`);
+    if (!settle.current) settle.current = window.setTimeout(() => refresh.current(), 150);
+  }, []);
   useEffect(() => () => clearTimeout(settle.current), []);
 
   const center = useCallback(
@@ -203,7 +202,7 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
   useEffect(() => {
     if (!base || !project || !size.w) return;
     const key = `${base.id}`;
-    if (placed.current === key) return void refresh();
+    if (placed.current === key) return void refresh.current();
     placed.current = key;
     if (!follow) return fit();
     const area = steps[cards[current]?.first]?.zone_id;
@@ -317,7 +316,7 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
     return out.sort((a, b) => Number(a.near) - Number(b.near) || Number(a.n === current) - Number(b.n === current));
   }, [project, layers.markers, zone, cards, continent, steps, current]);
 
-  const kinds = (d: { walk: string; flight: string; link: string; jump: string } | null, cls: string) =>
+  const routeLayer = (d: { walk: string; flight: string; link: string; jump: string } | null, cls: string) =>
     d && (
       <g className={cls}>
         {layers.walk && d.walk && <path d={d.walk} className="gm-walk" vectorEffect="non-scaling-stroke" />}
@@ -414,9 +413,9 @@ export function GuideMap({ steps, moves, cards, titles, current, zone, clock, fo
                     {areaName(z)}
                   </text>
                 ))}
-            {layers.scope === "all" && kinds(all, "gm-all")}
-            {kinds(zoneTrace, layers.scope === "all" ? "gm-zone" : "gm-zone only")}
-            {kinds(lit, "gm-lit")}
+            {layers.scope === "all" && routeLayer(all, "gm-all")}
+            {routeLayer(zoneTrace, layers.scope === "all" ? "gm-zone" : "gm-zone only")}
+            {routeLayer(lit, "gm-lit")}
             {markers.map((m) => (
               <g
                 key={m.n}

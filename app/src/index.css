@@ -3271,7 +3271,7 @@ button.link.cmp-jump {
   background: var(--surface-0);
   box-shadow: var(--card-shadow);
 }
-.guide-viewer:focus-within {
+.guide-viewer:focus {
   outline: none;
 }
 .cat-travel {

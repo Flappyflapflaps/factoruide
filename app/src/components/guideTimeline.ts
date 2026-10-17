@@ -18,7 +18,7 @@ export interface Card {
   zone?: string;
   /** Travel cards: a flight, a boat, the hearthstone, a teleport. */
   travel: boolean;
-  /** Levels reached in it (none: no level gained). */
+  /** The level it reaches (none: no level gained in it). */
   ding: number | null;
   /** Mobs killed on the way to it. */
   farm: number;

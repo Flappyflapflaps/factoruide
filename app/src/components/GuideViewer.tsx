@@ -135,7 +135,9 @@ export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
     };
   }, []);
 
-  // Space plays or pauses, the arrows go from card to card (not while typing).
+  // Space plays or pauses, the arrows go from card to card (not while typing): the viewer has
+  // the keyboard once open.
+  useEffect(() => root.current?.focus({ preventScroll: true }), []);
   const onKeyDown = (e: React.KeyboardEvent) => {
     const target = e.target as HTMLElement;
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || target.getAttribute("role") === "slider") return;
@@ -167,7 +169,7 @@ export function GuideViewer({ version, onEditSteps, checked, onCheck }: Props) {
   );
 
   return (
-    <div className="guide-viewer" ref={root} style={{ height }} onKeyDown={onKeyDown}>
+    <div className="guide-viewer" ref={root} style={{ height }} onKeyDown={onKeyDown} tabIndex={-1}>
       <StepList
         steps={steps}
         cards={cards}
