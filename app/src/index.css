@@ -2558,107 +2558,10 @@ button.dungeon.excluded b {
   flex: none;
   margin: 0;
 }
-/* The lines being edited: dragged, a step to add after them or to remove on hover, why they are
-   not possible, those waiting for their replay hatched. */
 .sl-add-first {
   margin-left: auto;
   margin-right: 8px;
   font-size: 11px;
-}
-.sl-card-head[draggable="true"] {
-  cursor: grab;
-}
-.sl-card.invalid {
-  border-left-color: var(--bad);
-}
-.sl-card.drop-before {
-  box-shadow: inset 0 2px 0 var(--accent-text);
-}
-.sl-line.edit {
-  display: block;
-  margin: 0 -4px;
-  padding: 1px 4px;
-  border-radius: 4px;
-  cursor: grab;
-  white-space: normal;
-}
-.sl-line.edit:hover {
-  background: var(--surface-3);
-}
-.sl-edit-main {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  white-space: nowrap;
-}
-.sl-grip {
-  flex: none;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-.sl-edit-main .sl-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text-secondary);
-}
-.sl-tools {
-  flex: none;
-  display: none;
-  gap: 2px;
-}
-.sl-line.edit:hover .sl-tools {
-  display: inline-flex;
-}
-.sl-tools button.icon {
-  padding: 0 5px;
-  font-size: 11px;
-  line-height: 1.4;
-}
-.sl-tools button.icon.danger:hover:not(:disabled) {
-  border-color: var(--bad);
-  color: var(--bad);
-}
-.sl-why,
-.sl-option {
-  margin-left: 16px;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.sl-why.error {
-  color: var(--bad);
-}
-.sl-option {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 6px;
-  color: var(--text-secondary);
-  cursor: default;
-}
-.sl-option input[type="checkbox"] {
-  margin: 0;
-}
-.sl-option input[type="text"] {
-  width: 64px;
-  padding: 1px 6px;
-}
-.sl-line.invalid {
-  background: color-mix(in srgb, var(--bad) 14%, transparent);
-}
-.sl-line.skipped {
-  opacity: 0.6;
-}
-.sl-line.pending {
-  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 5px, transparent 5px 10px);
-  outline: 1px dashed color-mix(in srgb, var(--accent-text) 55%, transparent);
-}
-.sl-line.drop-before {
-  box-shadow: 0 -2px 0 var(--accent-text);
-}
-.sl-line.drop-after {
-  box-shadow: 0 2px 0 var(--accent-text);
 }
 /* What can be added after a step, in a small menu beside it. */
 .add-menu {
@@ -3414,20 +3317,9 @@ button.link.cmp-jump {
 .guide-viewer:focus {
   outline: none;
 }
-.cat-travel {
-  background: var(--cat-1);
-}
-.cat-combat {
-  background: var(--cat-8);
-}
-.cat-interact {
-  background: var(--cat-7);
-}
-.cat-wait {
-  background: var(--text-muted);
-}
 
-/* Steps: zones with their head stuck at the top, a card per place. */
+/* Steps: zones with their head stuck at the top, a line per step (more on hover). Only the lines
+   in view are drawn: their heights are fixed (ZONE_H, ROW_H in StepList.tsx). */
 .step-list {
   display: flex;
   flex-direction: column;
@@ -3441,122 +3333,115 @@ button.link.cmp-jump {
   align-items: baseline;
   padding: 9px 12px 4px;
 }
-.sl-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 10px;
-  padding: 0 12px 8px;
-  font-size: 11px;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
-}
-.sl-legend i {
-  display: inline-block;
-  width: 10px;
-  height: 3px;
-  border-radius: 2px;
-  vertical-align: middle;
-}
-.sl-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-.sl-zone-head {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 7px 12px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border-strong);
-}
-.sl-zone-head small {
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
 .sl-next {
   color: var(--accent-text);
 }
-/* Cards out of view are not laid out (a long guide has a thousand). */
-.sl-card {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 84px;
-  padding: 7px 10px 8px 9px;
-  border-bottom: 1px solid var(--grid);
-  border-left: 3px solid transparent;
-  cursor: pointer;
-}
-.sl-card:hover {
-  background: var(--surface-2);
-}
-.sl-card.active {
-  background: color-mix(in srgb, var(--accent) 22%, var(--surface-1));
-  border-left-color: var(--accent-text);
-}
-.sl-card:focus-visible {
-  outline-offset: -2px;
-}
-/* Cards are buttons and dragged: no text selection left greyed over them. */
+/* Lines are buttons and dragged: no text selection left greyed over them. */
 .step-list {
   user-select: none;
 }
 .step-list input {
   user-select: text;
 }
-.sl-final-grind {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin: 6px 0 2px;
-  padding: 6px 8px;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  cursor: default;
-}
-.sl-final-grind .sl-title {
+.sl-scroll {
   flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid var(--border);
 }
-.sl-card-head {
+.sl-rows {
+  position: relative;
+}
+.sl-zone-head {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 44px;
+  box-sizing: border-box;
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 0 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-strong);
+  white-space: nowrap;
+  overflow: hidden;
 }
-.sl-time,
+.sl-zone-head strong,
+.sl-zone-head small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sl-zone-head small {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.sl-zone-head.sl-stuck {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.sl-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 26px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 5px;
+  border-left: 3px solid transparent;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sl-row.head {
+  border-top: 1px solid var(--grid);
+}
+.sl-row:hover {
+  background: var(--surface-2);
+}
+.sl-row.active {
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface-1));
+  border-left-color: var(--accent-text);
+}
+.sl-row:focus-visible {
+  outline-offset: -2px;
+}
+.sl-n {
+  flex: none;
+  width: 2.6em;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.sl-row b {
+  flex: none;
+  width: 1em;
+  text-align: center;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--kind, var(--text-muted)) 80%, var(--text-primary));
+}
+.sl-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+}
+.sl-row.checkpoint .sl-text,
+.sl-row.skipped .sl-text {
+  color: var(--text-muted);
+  font-style: italic;
+}
 .sl-dur {
   flex: none;
   font-size: 11px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
-}
-.sl-time {
-  width: 3.4em;
-  text-align: right;
-}
-.sl-dur {
-  color: var(--text-secondary);
-}
-.sl-n {
-  flex: none;
-  min-width: 1.9em;
-  padding: 0 3px;
-  border-radius: 4px;
-  background: var(--surface-3);
-  color: var(--text-secondary);
-  font-size: 11px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-.sl-title {
-  flex: 1;
-  min-width: 0;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .sl-ding {
   flex: none;
@@ -3568,38 +3453,171 @@ button.link.cmp-jump {
   font-weight: 700;
   letter-spacing: 0.04em;
 }
-.sl-lines {
-  list-style: none;
-  margin: 3px 0 0;
-  padding: 0 0 0 calc(3.4em + 6px);
-  font-size: 12px;
-}
-.sl-line {
-  display: flex;
-  gap: 6px;
-  white-space: nowrap;
-  line-height: 1.5;
-}
-.sl-line b {
+.sl-row .step-check {
   flex: none;
-  width: 5.6em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 600;
+  width: 13px;
+  margin: 0;
+}
+.sl-final-grind {
+  color: var(--text-secondary);
+  border: 1px dashed var(--border);
+  cursor: default;
+}
+/* Editing: lines dragged, a step to add after them or to remove on hover, those impossible in
+   red (why on hover), those doing nothing faded, those waiting for their replay hatched. */
+.sl-row.edit {
+  cursor: grab;
+}
+.sl-tools {
+  flex: none;
+  display: none;
+  gap: 2px;
+}
+.sl-row.edit:hover .sl-tools {
+  display: inline-flex;
+}
+.sl-tools button.icon {
+  padding: 0 5px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.sl-tools button.icon.danger:hover:not(:disabled) {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.sl-row.invalid {
+  background: color-mix(in srgb, var(--bad) 14%, transparent);
+  border-left-color: var(--bad);
+}
+.sl-row.skipped {
+  opacity: 0.6;
+}
+.sl-row.pending {
+  background: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0 5px, transparent 5px 10px);
+}
+.sl-row.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent-text);
+}
+.sl-row.drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent-text);
+}
+/* A step's tip, beside its line (placed by StepTip): glass like the hints, its kind in color. */
+.sl-tip {
+  position: fixed;
+  z-index: 100;
+  width: max-content;
+  min-width: 220px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 11px 10px;
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid color-mix(in srgb, var(--kind, var(--accent-text)) 80%, var(--text-primary));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-1) 94%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+.sl-tip-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sl-tip-head b {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   color: color-mix(in srgb, var(--kind, var(--text-muted)) 80%, var(--text-primary));
 }
-.sl-line span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.sl-tip-time {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.sl-tip-title {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.sl-tip-where {
   color: var(--text-secondary);
 }
-.sl-line.checkpoint {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.sl-tip-text,
+.sl-tip-note {
   color: var(--text-muted);
-  font-style: italic;
+}
+.sl-tip-bar {
+  display: flex;
+  height: 4px;
+  margin-top: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--grid);
+}
+.sl-tip-bar i {
+  display: block;
+  height: 100%;
+}
+.sl-tip-parts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.sl-tip-parts i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+.sl-tip .cat-travel {
+  background: var(--cat-1);
+}
+.sl-tip .cat-combat {
+  background: var(--cat-8);
+}
+.sl-tip .cat-interact {
+  background: var(--cat-7);
+}
+.sl-tip .cat-wait {
+  background: var(--text-muted);
+}
+.sl-tip-why {
+  margin-top: 2px;
+  color: var(--text-secondary);
+}
+.sl-tip-why.error {
+  color: var(--bad);
+}
+/* Killing the mobs on the way to an objective: a small toggle, what it gives on hover. */
+.sl-farm-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.sl-farm-toggle.on {
+  color: var(--cat-8);
+}
+.sl-farm-toggle input {
+  margin: 0;
+}
+.sl-num input {
+  width: 52px;
+  padding: 0 4px;
+  font-size: 11px;
 }
 .obj-kill {
   --kind: var(--cat-8);
@@ -3611,30 +3629,6 @@ button.link.cmp-jump {
 .obj-talk,
 .obj-other {
   --kind: var(--cat-7);
-}
-.sl-more,
-.sl-farm {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-.sl-farm {
-  padding-left: calc(3.4em + 6px);
-}
-.sl-bar {
-  display: flex;
-  height: 3px;
-  margin: 5px 0 0 calc(3.4em + 6px);
-  border-radius: 2px;
-  overflow: hidden;
-  background: var(--grid);
-}
-.sl-bar i {
-  display: block;
-  height: 100%;
-}
-.sl-card .step-check {
-  margin: 0;
-  align-self: center;
 }
 
 /* The map: a bar (continent, following, layers), what the character does, then the map. */

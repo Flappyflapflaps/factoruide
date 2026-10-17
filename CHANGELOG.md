@@ -14,6 +14,7 @@ Guides watched and edited on a big map, quests that need others planned whole, c
 - Guides are edited on that same page: drag the steps, add from the map the quests left out (in the game's level colors) and the objectives or turn-ins the guide forgets (in red); Ctrl+Z and Ctrl+Y undo and redo.
 - The guide line by line is now in the Summary tab of its page.
 - Zoomed in, the guide's map shows the game's minimap: roads, buildings and paths instead of the blurry world map.
+- Each step has its own line in the list and its own marker on the map, in the guide's order; hover a line for its details. Long guides scroll and edit without slowing the window.
 - "Need help" page: questions to check in game (does this NPC offer this quest yet?), answered in one click; each answer fixes the guides of every player.
 - Guides are made two to three times faster, and come out a little shorter (about an hour on a 1-60).
 - The window no longer freezes while a guide opens, two versions are compared or the addon is installed.

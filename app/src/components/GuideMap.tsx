@@ -78,6 +78,8 @@ const CITY_SHARE = 0.5;
 /** Cards before and after the current one with a full marker (the others: a dot). */
 const NEAR_BEFORE = 2;
 const NEAR_AFTER = 8;
+/** Screen pixels between the markers of steps at the same place. */
+const SAME_PLACE_GAP = 22;
 
 interface View {
   k: number;
@@ -349,13 +351,20 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
   const [hover, setHover] = useState<number | null>(null);
   const markers = useMemo(() => {
     if (!project || !layers.markers) return [];
-    const out: { n: number; x: number; y: number; kind: string; glyph: string; near: boolean }[] = [];
+    const out: { n: number; x: number; y: number; dx: number; kind: string; glyph: string; near: boolean }[] = [];
     for (let n = zone[0]; n <= zone[1] && n < cards.length; n++) {
       const c = cards[n];
       if (!c.world || c.world[0] !== continent) continue;
       const [x, y] = project(c.world[1], c.world[2]);
-      out.push({ n, x, y, ...markerKind(steps, c), near: n >= current - NEAR_BEFORE && n <= current + NEAR_AFTER });
+      out.push({ n, x, y, dx: 0, ...markerKind(steps, c), near: n >= current - NEAR_BEFORE && n <= current + NEAR_AFTER });
     }
+    // Steps at the same place (quests of one NPC): side by side in the guide's order, not hidden under each other.
+    const places = new Map<string, typeof out>();
+    for (const m of out) {
+      const key = `${Math.round(m.x * 4)},${Math.round(m.y * 4)}`;
+      places.set(key, [...(places.get(key) ?? []), m]);
+    }
+    for (const same of places.values()) same.forEach((m, i) => (m.dx = (i - (same.length - 1) / 2) * SAME_PLACE_GAP));
     // The current card on top, the near ones over the dots.
     return out.sort((a, b) => Number(a.near) - Number(b.near) || Number(a.n === current) - Number(b.n === current));
   }, [project, layers.markers, zone, cards, continent, steps, current]);
@@ -509,7 +518,7 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
               <g
                 key={m.n}
                 className={`gm-marker gm-${m.kind}${m.n === current ? " current" : ""}${m.near ? "" : " far"}`}
-                transform={`translate(${m.x} ${m.y}) scale(${s})`}
+                transform={`translate(${m.x} ${m.y}) scale(${s}) translate(${m.dx} 0)`}
                 onClick={() => !drag.current?.moved && onSelect(m.n)}
                 onPointerEnter={() => setHover(m.n)}
                 onPointerLeave={() => setHover((h) => (h === m.n ? null : h))}

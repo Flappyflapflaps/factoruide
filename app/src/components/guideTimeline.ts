@@ -1,9 +1,9 @@
 // What the guide viewer shows, from a guide's steps and its timeline (`api.guideTimeline`):
-// the steps grouped by place (cards), the character's position at any time, what it is doing,
+// the steps as cards, the character's position at any time, what it is doing,
 // and what it holds. Pure functions, shared with the guide editor.
 import type { Leg, QuestInfo, Route, Step, Timeline, TimelineStep, WorldPoint } from "../api";
 
-/** Steps of the guide done one after the other at one place, shown as one card. */
+/** A step of the guide, shown as one card, with the steps without a place of their own after it. */
 export interface Card {
   /** Index of the card (its number is `n + 1`). */
   n: number;
@@ -26,8 +26,6 @@ export interface Card {
 
 /** Step kinds that move the character elsewhere: a card of their own. */
 const TRAVEL_KINDS = new Set(["fly", "link", "hearth", "teleport"]);
-/** Steps farther apart than this (yards) are different places (the quest givers of a village are one). */
-const PLACE_RADIUS = 60;
 
 /** Checkpoints: a level to have before going on, nothing done (zero time). */
 export const isCheckpoint = (s: Step) => s.kind === "grind" && !!s.keep;
@@ -35,33 +33,21 @@ export const isCheckpoint = (s: Step) => s.kind === "grind" && !!s.keep;
 /** Time at which step `i` starts: the end of the one before. */
 export const stepStart = (steps: Step[], i: number) => (i > 0 ? steps[i - 1].time : 0);
 
-/** The guide's steps grouped by place: a card each time the place, the zone or the way of travelling changes. */
+/** The guide's steps as cards: one a step, in the guide's order (each seen and moved on its own). */
 export function buildCards(steps: Step[], fromLevel: number): Card[] {
   const cards: Card[] = [];
-  let anchor: WorldPoint | undefined;
   steps.forEach((s, i) => {
     const last = cards[cards.length - 1];
     const travel = TRAVEL_KINDS.has(s.kind);
-    // Checkpoints and steps without a place (abandoning a quest) belong to the card before.
-    const attached = last && (isCheckpoint(s) || !s.world || s.inside);
-    const near =
-      last &&
-      !last.travel &&
-      !travel &&
-      s.kind !== "dungeon" &&
-      s.zone === last.zone &&
-      anchor &&
-      s.world &&
-      anchor[0] === s.world[0] &&
-      Math.hypot(anchor[1] - s.world[1], anchor[2] - s.world[2]) <= PLACE_RADIUS;
-    if (last && (attached || near)) {
+    // Checkpoints, quests abandoned (no place) and quests done in a dungeon belong to the card
+    // before. A step without a place yet (edited, not replayed) keeps its own.
+    if (last && (isCheckpoint(s) || (s.kind === "abandon" && !s.world) || s.inside)) {
       last.last = i;
       last.end = s.time;
       last.farm += s.farm ?? 0;
-      if (!last.world && s.world) [last.world, anchor] = [s.world, s.world];
+      if (!last.world && s.world) last.world = s.world;
       return;
     }
-    anchor = s.world;
     cards.push({ n: cards.length, first: i, last: i, start: stepStart(steps, i), end: s.time, world: s.world, zone: s.zone, travel, ding: null, farm: s.farm ?? 0 });
   });
   // Levels reached in each card.
