@@ -151,16 +151,43 @@ impl Planner<'_> {
             self.random_move(&mut candidate, &search.run, &mut search.rng)
         };
         let Some(change) = change else { return };
-        let Some(cost) = self.evaluate_change(&search.run, &candidate, change) else {
+        // Replayed up to a window past the change, the rest estimated; to the end only when the
+        // estimate would keep it (and always when it changes the dungeons run).
+        let dungeons = |r: &[Stop]| r.iter().filter(|s| s.kind == Kind::Dungeon).count();
+        // The last stop changed: past it, both routes end alike (the moves that edit a route
+        // only say it changes up to its end).
+        let same_end = (candidate.iter().rev())
+            .zip(search.route.iter().rev())
+            .take_while(|(x, y)| x == y)
+            .count();
+        let last = change.last.min(candidate.len() - same_end);
+        let window = (self.params.eval_window > 0 && self.params.reputation_goals.is_empty())
+            .then(|| last + 1 + self.params.eval_window)
+            .filter(|_| dungeons(&candidate) == dungeons(&search.route));
+        let Some((estimate, exact)) = self.evaluate_change(&search.run, &candidate, change, window) else {
             return;
         };
         let current = search.run.total;
-        let improves = cost < current - 0.5;
-        if search
-            .acceptance
-            .accepts(cost, current, search.progress(), search.tries, &mut search.rng)
+        let (progress, tries) = (search.progress(), search.tries);
+        let mut draw = None;
+        let mut accepts = |cost: f64, rng: &mut SmallRng| {
+            search
+                .acceptance
+                .accepts(cost, current, progress, tries, &mut draw, rng)
+        };
+        let cost = if !accepts(estimate, &mut search.rng) {
+            None
+        } else if exact {
+            Some(estimate)
+        } else {
+            self.evaluate_change(&search.run, &candidate, change, None)
+                .map(|(cost, _)| cost)
+                .filter(|&cost| accepts(cost, &mut search.rng))
+        };
+        if let Some(cost) = cost
             && let Some(run) = self.replace_run(&mut search.run, &search.route, &candidate)
         {
+            let improves = cost < current - 0.5;
             search.run = run;
             search.route = candidate;
             search.wins += u64::from(improves);
@@ -181,18 +208,25 @@ impl Planner<'_> {
     }
 
     /// Cost of a changed route, incremental (checked against a full replay when verifying).
-    fn evaluate_change(&self, run: &Run, candidate: &[Stop], change: Change) -> Option<f64> {
-        let evaluated = self.evaluate(run, candidate, change.first, change.last, change.reordered);
-        if self.verify {
+    fn evaluate_change(
+        &self,
+        run: &Run,
+        candidate: &[Stop],
+        change: Change,
+        window: Option<usize>,
+    ) -> Option<(f64, bool)> {
+        let evaluated = self.evaluate_within(run, candidate, change.first, change.last, change.reordered, window);
+        if self.verify && evaluated.is_none_or(|(_, exact)| exact) {
+            let cost = evaluated.map(|(cost, _)| cost);
             let full = self.simulate(candidate, None);
-            let ok = match (evaluated, full) {
+            let ok = match (cost, full) {
                 (Some(x), Some(y)) => (x - y).abs() < 1e-6,
                 (None, None) => true,
                 _ => false,
             };
             assert!(
                 ok,
-                "incremental {evaluated:?} != full {full:?} ({}..{}, reordered {}): {:?}",
+                "incremental {cost:?} != full {full:?} ({}..{}, reordered {}): {:?}",
                 change.first,
                 change.last,
                 change.reordered,

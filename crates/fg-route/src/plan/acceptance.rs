@@ -20,13 +20,23 @@ impl Acceptance {
 
     /// Whether to move from the current route (`current`) to a candidate costing `cost`, at
     /// `progress` (0 to 1) of the search; `tries` picks the late acceptance slot.
-    pub(crate) fn accepts(&self, cost: f64, current: f64, progress: f64, tries: u64, rng: &mut SmallRng) -> bool {
+    /// The draw of the annealing (`draw`) is made once a try: the estimated cost and the exact
+    /// one (`Planner::try_a_move`) are judged on the same draw.
+    pub(crate) fn accepts(
+        &self,
+        cost: f64,
+        current: f64,
+        progress: f64,
+        tries: u64,
+        draw: &mut Option<f64>,
+        rng: &mut SmallRng,
+    ) -> bool {
         let temperature = self.temperature0 * (1.0 - progress).max(0.0);
         cost < current - 0.5
             || (!self.history.is_empty() && cost.is_finite() && cost <= self.history[self.slot(tries)])
             || (temperature > 0.0
                 && cost.is_finite()
-                && rng.random_bool((-(cost - current) / temperature).exp().min(1.0)))
+                && *draw.get_or_insert_with(|| rng.random::<f64>()) < (-(cost - current) / temperature).exp().min(1.0))
     }
 
     /// Remember the current route's cost in its late acceptance slot.

@@ -181,6 +181,10 @@ pub struct Params {
     pub alns: f64,
     /// Late acceptance history length (0 = only improvements).
     pub lahc: usize,
+    /// Stops replayed past a move's last changed stop before its cost is estimated from the
+    /// current route (its time at the same XP); only the moves the estimate keeps are replayed
+    /// to the end (0 = every move replayed to the end).
+    pub eval_window: usize,
     /// Quest sorts (negative zoneOrSort) never planned: holidays, professions, events...
     pub excluded_sorts: Vec<i64>,
     /// Quests never planned (manual exceptions).
@@ -357,11 +361,11 @@ impl Default for Params {
             continent_stay: 1.0,
             dungeon_quest_weight: 0.3,
             candidates: 32,
-            qualify_tries: 11.0,
-            qualify_min_tries: 20_000.0,
+            qualify_tries: 16.5,
+            qualify_min_tries: 30_000.0,
             round_tries: 0.0,
             final_routes: 1,
-            final_tries: 130.0,
+            final_tries: 195.0,
             effort: 1.0,
             max_object_loot: 20,
             common_item_sources: 100,
@@ -378,6 +382,7 @@ impl Default for Params {
             anneal: 0.0,
             alns: 0.25,
             lahc: 0,
+            eval_window: 150,
             excluded_sorts: vec![
                 22, 24, 101, 121, 181, 182, 201, 221, 264, 284, 304, 324, 344, 364, 365, 366, 367, 368, 369, 641, 644,
             ],

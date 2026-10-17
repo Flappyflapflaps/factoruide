@@ -199,13 +199,34 @@ impl Planner<'_> {
     /// replay starts earlier when quests taken at hand before `a` may change with the plan).
     /// When `same_set` (stops `a..=b` were only reordered) and the state after `b` matches the
     /// old one, the rest of the route is unchanged: only the time difference is added.
+    #[cfg(test)]
     pub(crate) fn evaluate(&self, run: &Run, candidate: &[Stop], a: usize, b: usize, same_set: bool) -> Option<f64> {
+        self.evaluate_within(run, candidate, a, b, same_set, None)
+            .map(|(cost, _)| cost)
+    }
+
+    /// `evaluate`, its replay ended before stop `window` (when given) with the rest estimated
+    /// (`estimate`); the cost, and whether it is exact. Exact anyway when the move changes a
+    /// quest whose absence the end of the route counts (mandatory ones).
+    pub(crate) fn evaluate_within(
+        &self,
+        run: &Run,
+        candidate: &[Stop],
+        a: usize,
+        b: usize,
+        same_set: bool,
+        window: Option<usize>,
+    ) -> Option<(f64, bool)> {
         // The stop before `a` too: where it does an objective depends on the next stop.
         let a = a.saturating_sub(1);
         // Positions of the accepts change even when the stops are only reordered.
         let planned = self.planned(candidate);
         // The quests of the character's log given up at the start changed: from the start.
         let old = &run.states[0].planned;
+        let window = window.filter(|_| {
+            (self.model.quests.iter().enumerate())
+                .all(|(i, q)| !q.mandatory || (old.flags[i] ^ planned.flags[i]) & 2 == 0)
+        });
         let restart =
             (self.model.initial.accepted.iter()).any(|&i| Planned::left(old, i) != Planned::left(&planned, i));
         let start = if restart {
@@ -214,7 +235,7 @@ impl Planner<'_> {
             self.replanned_from(run, &planned, a)
         };
         if run.reached && start >= run.states.len() - 1 {
-            return Some(run.total); // after the target level: no effect
+            return Some((run.total, true)); // after the target level: no effect
         }
         let (mut s, mut k) = if restart {
             (self.start_state(planned), 0)
@@ -226,6 +247,11 @@ impl Planner<'_> {
         while k < candidate.len() {
             if self.ended(&s) {
                 break;
+            }
+            if window == Some(k)
+                && let Some(cost) = self.estimate(run, &s)
+            {
+                return Some((cost, false));
             }
             if !self.availability().valid(&s, candidate[k]) {
                 return None;
@@ -271,11 +297,37 @@ impl Planner<'_> {
                     && s.together == old.together
                 {
                     let extra = self.weights(&s.spent) - self.weights(&old.spent);
-                    return Some(run.total + s.time - old.time + extra);
+                    return Some((run.total + s.time - old.time + extra, true));
                 }
             }
         }
-        Some(self.finish(&mut s, None))
+        Some((self.finish(&mut s, None), true))
+    }
+
+    /// The cost of a route whose replay reached state `s`, estimated from the evaluated route
+    /// `run`: its cost, plus how much later (or sooner) `s` comes than `run` had the same XP
+    /// (score at that XP, between the two states around it). None when `s` has more XP than
+    /// `run` ever had.
+    fn estimate(&self, run: &Run, s: &State) -> Option<f64> {
+        let rules = self.rules();
+        let total_xp = |st: &State| (1..st.level).map(|l| rules.to_next_level(l)).sum::<i64>() + st.xp;
+        let score = |st: &State| st.time + self.weights(&st.spent);
+        let xp = total_xp(s);
+        let j = run.states.partition_point(|st| total_xp(st) < xp);
+        let after = run.states.get(j)?;
+        let at = if j == 0 {
+            score(after)
+        } else {
+            let before = &run.states[j - 1];
+            let (x0, x1) = (total_xp(before), total_xp(after));
+            let f = if x1 > x0 {
+                (xp - x0) as f64 / (x1 - x0) as f64
+            } else {
+                1.0
+            };
+            score(before) + f * (score(after) - score(before))
+        };
+        Some(run.total + score(s) - at)
     }
 
     /// Where stop `k` of `route` is followed: the next stop's place (see `State::next`).
