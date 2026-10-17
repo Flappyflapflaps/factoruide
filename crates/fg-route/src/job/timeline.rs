@@ -57,6 +57,10 @@ pub struct TimelineStep {
     pub interact: f64,
     #[serde(skip_serializing_if = "is_zero")]
     pub wait: f64,
+    /// The replay does not find it (the data changed since the guide was computed): its split
+    /// and its moves are guessed.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub estimate: bool,
     /// The named place it is done at (a town, a valley), in the guide's language.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub place: Option<String>,
@@ -541,6 +545,7 @@ impl<'r> Replay<'r> {
                     combat: round1(split[COMBAT]),
                     interact: round1(split[INTERACT]),
                     wait: round1(split[WAIT]),
+                    estimate: of_saved[i].is_none(),
                     place: self.place(&saved[i]),
                     accepted: delta.accepted.clone(),
                     done: delta.done.clone(),
