@@ -81,6 +81,9 @@ zones to do, the level to reach before moving on from each, and where the XP is.
      Applications. The app is not notarized by Apple, so macOS refuses to open it the first time:
      go to System Settings > Privacy & Security and click "Open Anyway", or run
      `xattr -dr com.apple.quarantine /Applications/Factoruide.app`. Updates do not ask again.
+   - **Linux** (x86_64): make the `_amd64.AppImage` executable (`chmod +x`) and run it; it updates
+     itself. Or take the executable alone (`_amd64.tar.gz`), which needs WebKitGTK 4.1 installed
+     (`libwebkit2gtk-4.1-0` on Debian/Ubuntu, `webkit2gtk4.1` on Fedora, `webkit2gtk-4.1` on Arch).
 2. **Settings**: choose your WoW folder.
 3. **New guide**: pick your character, professions, zones, dungeons and play style, then start
    the generation (about 2 minutes, 6 for a thorough one, depending on the processor). The best
@@ -123,6 +126,22 @@ first installing the addon, restart WoW so it discovers the new files.
 Verified on Apple Silicon with WoW Forever: native app launch, character profile
 import, guide generation and user-reported in-game use. Intel Macs have not been
 verified.
+
+### Building on Linux
+
+Install WebKitGTK 4.1 and the build tools (on Debian/Ubuntu: `libwebkit2gtk-4.1-dev
+libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev patchelf file build-essential`),
+Node.js 22 and npm, and Rust via [rustup](https://rustup.rs/). Then, from a clone:
+
+```sh
+./scripts/build-linux.sh
+./target/release/factoruide-app
+```
+
+The script builds the executable and an AppImage in `target/release/bundle/appimage`. Local
+builds do not check for the publisher's automatic updates. Outside WSL, the app defaults to
+Battle.net in Lutris' Wine prefix (`~/Games/battlenet/drive_c/Program Files (x86)/World of
+Warcraft`); choose another folder in Settings if needed.
 
 ## In game: the addon
 

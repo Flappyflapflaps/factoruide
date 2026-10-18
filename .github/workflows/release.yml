@@ -1,16 +1,22 @@
 name: Release
 
-# Pushing a tag vX.Y.Z (scripts/release.sh) builds the Windows installer and the macOS apps, signs
-# the updates and publishes them as a GitHub release, with latest.json: installed apps offer it at
-# startup. Run by hand with a tag, it builds only the macOS apps and adds them to that tag's release.
+# Pushing a tag vX.Y.Z (scripts/release.sh) builds the Windows installer, the macOS apps and the
+# Linux app, signs the updates and publishes them as a GitHub release, with latest.json: installed
+# apps offer it at startup. Run by hand with a tag, it builds the macOS and/or Linux apps and adds
+# them to that tag's release.
 on:
   push:
     tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: Published release to add the macOS apps to (vX.Y.Z)
+        description: Published release to add the apps to (vX.Y.Z)
         required: true
+      platforms:
+        description: Apps to build
+        type: choice
+        options: [macos and linux, macos, linux]
+        default: macos and linux
 
 permissions:
   contents: write
@@ -78,7 +84,7 @@ jobs:
     name: macOS app (${{ matrix.arch }})
     needs: windows
     # Also when the Windows job is skipped (run by hand).
-    if: ${{ !cancelled() && needs.windows.result != 'failure' }}
+    if: ${{ !cancelled() && needs.windows.result != 'failure' && inputs.platforms != 'linux' }}
     runs-on: macos-latest
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
@@ -130,3 +136,62 @@ jobs:
           args: >-
             --target ${{ matrix.target }} --bundles app,dmg
             --config '{"bundle":{"createUpdaterArtifacts":true,"macOS":{"signingIdentity":"-"}}}'
+
+  # After the macOS apps, for latest.json. Built on the oldest supported Ubuntu: the executable runs
+  # on any distribution with this glibc or a newer one. The AppImage carries WebKitGTK and updates
+  # itself; the executable alone needs the system's WebKitGTK 4.1.
+  linux:
+    name: Linux app (x86_64)
+    needs: macos
+    # Also when the previous jobs are skipped (run by hand).
+    if: ${{ !cancelled() && needs.macos.result != 'failure' && inputs.platforms != 'macos' }}
+    runs-on: ubuntu-22.04
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+      - name: Release of the tag (published)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release view "$TAG" --json tagName
+      - name: Version from the tag
+        run: sed -i "0,/^version = .*/s//version = \"${TAG#v}\"/" app/src-tauri/Cargo.toml
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev libssl-dev patchelf file
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Frontend dependencies
+        working-directory: app
+        run: npm ci
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: app
+          tagName: ${{ env.TAG }}
+          uploadUpdaterJson: true
+          # The signature (left out of local builds) for the updates; single quotes as above.
+          args: >-
+            --bundles appimage
+            --config '{"bundle":{"targets":["appimage"],"createUpdaterArtifacts":true}}'
+      - name: Executable alone
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          out="Factoruide_${TAG#v}_amd64"
+          cp target/release/factoruide-app "$out"
+          tar czf "$out.tar.gz" "$out"
+          gh release upload "$TAG" "$out.tar.gz" --clobber

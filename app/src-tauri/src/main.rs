@@ -98,7 +98,14 @@ impl Default for Settings {
         } else if cfg!(target_os = "macos") {
             PathBuf::from("/Applications/World of Warcraft")
         } else {
-            PathBuf::from("/mnt/c/Program Files (x86)/World of Warcraft")
+            // Under WSL, the Windows game; otherwise Battle.net in Lutris' default Wine prefix.
+            let wsl = PathBuf::from("/mnt/c/Program Files (x86)/World of Warcraft");
+            match std::env::var_os("HOME") {
+                Some(home) if !wsl.is_dir() => {
+                    PathBuf::from(home).join("Games/battlenet/drive_c/Program Files (x86)/World of Warcraft")
+                }
+                _ => wsl,
+            }
         };
         Self {
             wow_dir,

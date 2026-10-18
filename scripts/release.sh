@@ -1,7 +1,7 @@
 #!/bin/sh
 # Publish a new version of the app: tag the pushed main commit vX.Y.Z with the release notes and
-# push the tag. The CI (.github/workflows/release.yml) builds the Windows installer and the macOS
-# apps and publishes them; installed apps offer the update at startup, showing the notes.
+# push the tag. The CI (.github/workflows/release.yml) builds the Windows installer, the macOS
+# apps and the Linux app and publishes them; installed apps offer the update at startup, showing the notes.
 #
 #   scripts/release.sh 0.2.0 "Short notes (shown in the app): a link to CHANGELOG.md"
 #   scripts/release.sh 0.2.0            # writes the notes in $EDITOR
