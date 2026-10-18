@@ -26,10 +26,15 @@ pub(super) fn character(conn: &Connection, overrides: &Overrides, req: &PlanRequ
     let mut params = req.params.clone().unwrap_or_else(|| overrides.params.clone());
     params.group_size = 1 + group.len() as i64;
     let class = class_name.to_lowercase();
-    if let Some(power) = overrides.class_power.get(&class) {
-        params.class_curve = power.by_level(req.to_level.max(100))?;
-        params.gear_dependence = power.gear.unwrap_or(1.0);
-    }
+    // The class's curve and gear dependence, or the player's own (advanced settings).
+    let power = overrides.class_power.get(&class).cloned().unwrap_or_default();
+    let points = if params.power_curve.is_empty() {
+        power.points()?
+    } else {
+        params.power_curve.clone()
+    };
+    params.class_curve = super::overrides::curve_by_level(&points, req.to_level.max(100));
+    params.gear_dependence = params.power_gear.or(power.gear).unwrap_or(1.0);
     let from_level = req.start.as_ref().map_or(req.from_level, |s| s.level);
     if from_level >= req.to_level {
         bail!(

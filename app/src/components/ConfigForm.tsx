@@ -6,6 +6,7 @@ import { CharacterPicker } from "./CharacterPicker";
 import { DungeonPanel } from "./DungeonPanel";
 import { Hint } from "./Hint";
 import { ParamField } from "./ParamField";
+import { PowerCurve } from "./PowerCurve";
 import { ProfessionPicker } from "./ProfessionPicker";
 import { ReputationPanel } from "./ReputationPanel";
 import { WorldMap, type ZoneState } from "./WorldMap";
@@ -176,6 +177,10 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
   if (!prevClassQuestsInputs || classQuestsInputs.some((v, i) => v !== prevClassQuestsInputs[i])) {
     setPrevClassQuestsInputs(classQuestsInputs);
     if (!initial?.required_class_quests || initial.class !== klass) setClassQuests(options.class_quests[className] ?? []);
+    // An adjusted power curve belongs to the class it was made for.
+    if (prevClassQuestsInputs && prevClassQuestsInputs[1] !== klass && (params.power_curve?.length || params.power_gear != null)) {
+      setParams((p) => ({ ...p, power_curve: [], power_gear: null }));
+    }
   }
   const set = (key: keyof Params, value: Params[keyof Params]) => setParams((p) => ({ ...p, [key]: value }));
   const factions = useMemo(() => [...new Set(options.races.map((r) => r.faction))], [options.races]);
@@ -204,7 +209,9 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
   // Settings of the advanced view, and those that differ from the defaults.
   const advancedKeys = sections.flatMap((s) => s.fields).map((f) => f.key).filter((k) => !SIMPLE_KEYS.includes(k));
   const isChanged = (k: keyof Params) => JSON.stringify(params[k]) !== JSON.stringify(defaults[k]);
-  const changed = advancedKeys.filter(isChanged).length;
+  // The class power curve (in "Puissance du personnage"), adjusted or not.
+  const powerChanged = Boolean(params.power_curve?.length) || params.power_gear != null;
+  const changed = advancedKeys.filter(isChanged).length + (powerChanged ? 1 : 0);
   // Advanced view: a search over the settings' names and explanations; the sections for experts
   // folded until opened (all open while searching).
   const [query, setQuery] = useState("");
@@ -235,9 +242,11 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
   /** A section of the advanced settings (null when the search leaves none of its fields). */
   const settingsSection = (s: Section) => {
     const fields = s.fields.filter((f) => !SIMPLE_KEYS.includes(f.key) && matches(f));
-    if (!fields.length) return null;
+    // The class power curve goes with the character's power.
+    const power = s.title === "Puissance du personnage" && (!query.trim() || plain(`${t("Courbe de puissance de la classe")} ${t("Dépendance à l'équipement")}`).includes(plain(query.trim())));
+    if (!fields.length && !power) return null;
     const open = openSections.has(s.title) || Boolean(query.trim());
-    const count = s.fields.filter((f) => !SIMPLE_KEYS.includes(f.key) && isChanged(f.key)).length;
+    const count = s.fields.filter((f) => !SIMPLE_KEYS.includes(f.key) && isChanged(f.key)).length + (power && powerChanged ? 1 : 0);
     return (
       <section className={`panel settings-section${open ? " open" : ""}`} key={s.title}>
         <button
@@ -267,6 +276,15 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
           </span>
         </button>
         {open && fields.map((f) => <ParamField key={f.key} field={f} params={params} defaults={defaults} onChange={set} />)}
+        {open && power && (
+          <PowerCurve
+            params={params}
+            options={options}
+            className={className}
+            maxLevel={options.max_level}
+            onChange={(curve, gear) => setParams((p) => ({ ...p, power_curve: curve, power_gear: gear }))}
+          />
+        )}
       </section>
     );
   };

@@ -70,6 +70,10 @@ export interface Params {
   train_min_gain: number;
   train_trip_gain: number;
   gear_floor: number;
+  /** The player's own class power curve, as (level, levels of power) points: empty for the class's. */
+  power_curve?: [number, number][];
+  /** The player's own gear dependence: null for the class's. */
+  power_gear?: number | null;
   power_scale: number;
   dungeon_loot_share: number;
   gear_value: number;
@@ -345,6 +349,8 @@ export interface Options {
   /** Factions quests give reputation with, most quests first. */
   factions: FactionOption[];
   class_quests: Record<string, string[]>;
+  /** Each class's power curve and gear dependence, by class name in lower case. */
+  class_power?: Record<string, { curve: [number, number][]; gear: number }>;
   params: Params;
   /** Level cap of the game version. */
   max_level: number;

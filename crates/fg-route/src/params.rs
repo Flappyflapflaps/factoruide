@@ -246,6 +246,10 @@ pub struct Params {
     pub class_curve: Vec<f64>,
     #[serde(skip)]
     pub gear_dependence: f64,
+    /// The player's own class curve and gear dependence (advanced settings), instead of the
+    /// class's of class_power.toml: (level, levels of power) points, empty for the class's.
+    pub power_curve: Vec<(i64, f64)>,
+    pub power_gear: Option<f64>,
     /// Run dungeons with a group when they are worth it (their quests included).
     pub dungeons: bool,
     /// Dungeons (instance area IDs) always run, dungeons on or off...
@@ -419,6 +423,8 @@ impl Default for Params {
             class_power_slack: 600.0,
             class_curve: Vec::new(),
             gear_dependence: 1.0,
+            power_curve: Vec::new(),
+            power_gear: None,
             mandatory_penalty: 7200.0,
             grind_weight: 1.5,
             grind_cap: 0.1,

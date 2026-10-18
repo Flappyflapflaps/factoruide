@@ -4287,3 +4287,37 @@ button.link.cmp-jump {
   white-space: nowrap;
   pointer-events: none;
 }
+
+/* The class power curve of the advanced settings: its explanation, a small drawing, a row per level. */
+.power-curve {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.power-curve-help {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+.power-curve-graph {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  height: 70px;
+  margin-bottom: 6px;
+}
+.power-curve-graph .axis {
+  stroke: var(--border);
+  stroke-dasharray: 3 3;
+}
+.power-curve-graph polyline {
+  fill: none;
+  stroke-width: 2;
+}
+.power-curve-graph .current {
+  stroke: var(--accent-text);
+}
+.power-curve-graph .default {
+  stroke: var(--text-muted);
+  stroke-dasharray: 4 3;
+}

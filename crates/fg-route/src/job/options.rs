@@ -17,9 +17,18 @@ pub struct Options {
     /// Factions quests give reputation with, for the guides' reputation goals.
     pub factions: Vec<FactionOption>,
     pub class_quests: HashMap<String, Vec<String>>,
+    /// Each class's power curve and gear dependence (class_power.toml), by class name in lower
+    /// case like `class_quests`: what the advanced settings start from.
+    pub class_power: HashMap<String, ClassPowerOption>,
     pub params: Params,
     /// Level cap of the game version.
     pub max_level: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ClassPowerOption {
+    pub curve: Vec<(i64, f64)>,
+    pub gear: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -239,6 +248,18 @@ pub fn options(conn: &Connection, overrides: &Overrides) -> Result<Options> {
         dungeons,
         factions,
         class_quests: class_quests(conn, overrides)?,
+        class_power: (overrides.class_power.iter())
+            .map(|(class, p)| {
+                let curve = p.points()?;
+                Ok((
+                    class.clone(),
+                    ClassPowerOption {
+                        curve,
+                        gear: p.gear.unwrap_or(1.0),
+                    },
+                ))
+            })
+            .collect::<Result<_>>()?,
         params: overrides.params.clone(),
         max_level: overrides.params.edition.rules().max_level,
     })

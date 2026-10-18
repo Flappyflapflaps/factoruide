@@ -46,38 +46,46 @@ pub struct ClassPower {
 }
 
 impl ClassPower {
-    /// The curve at every level from 0 to `top`: straight lines between the levels given, the
-    /// first and last values beyond them.
-    pub fn by_level(&self, top: i64) -> Result<Vec<f64>> {
-        let mut points: Vec<(f64, f64)> = self
-            .curve
-            .iter()
+    /// The (level, levels of power) points of the curve, by level.
+    pub fn points(&self) -> Result<Vec<(i64, f64)>> {
+        let mut points: Vec<(i64, f64)> = (self.curve.iter())
             .map(|(k, v)| {
                 Ok((
                     k.parse::<i64>()
-                        .with_context(|| format!("class_power.toml: level {k}"))? as f64,
+                        .with_context(|| format!("class_power.toml: level {k}"))?,
                     *v,
                 ))
             })
             .collect::<Result<_>>()?;
-        points.sort_by(|a, b| a.0.total_cmp(&b.0));
-        if points.is_empty() {
-            return Ok(Vec::new());
-        }
-        Ok((0..=top)
-            .map(|level| {
-                let l = level as f64;
-                match points.iter().position(|p| p.0 >= l) {
-                    Some(0) => points[0].1,
-                    None => points[points.len() - 1].1,
-                    Some(i) => {
-                        let ((x0, y0), (x1, y1)) = (points[i - 1], points[i]);
-                        y0 + (y1 - y0) * (l - x0) / (x1 - x0)
-                    }
-                }
-            })
-            .collect())
+        points.sort_by_key(|p| p.0);
+        Ok(points)
     }
+
+    /// The curve at every level from 0 to `top` (see `curve_by_level`).
+    pub fn by_level(&self, top: i64) -> Result<Vec<f64>> {
+        Ok(curve_by_level(&self.points()?, top))
+    }
+}
+
+/// A curve given by (level, value) points at every level from 0 to `top`: straight lines
+/// between the points, the first and last values beyond them (empty without points).
+pub fn curve_by_level(points: &[(i64, f64)], top: i64) -> Vec<f64> {
+    let mut points = points.to_vec();
+    points.sort_by_key(|p| p.0);
+    points.dedup_by_key(|p| p.0);
+    if points.is_empty() {
+        return Vec::new();
+    }
+    (0..=top)
+        .map(|level| match points.iter().position(|p| p.0 >= level) {
+            Some(0) => points[0].1,
+            None => points[points.len() - 1].1,
+            Some(i) => {
+                let ((x0, y0), (x1, y1)) = (points[i - 1], points[i]);
+                y0 + (y1 - y0) * (level - x0) as f64 / (x1 - x0) as f64
+            }
+        })
+        .collect()
 }
 
 pub(super) fn parse_toml<T: serde::de::DeserializeOwned + Default>(

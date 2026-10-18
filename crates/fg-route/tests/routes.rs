@@ -2278,3 +2278,14 @@ fn library_book_is_looted_before_the_librarian() {
         turnin.text
     );
 }
+
+/// The class power curve and gear dependence of the advanced settings replace the class's.
+#[test]
+fn own_power_curve_replaces_the_class_one() {
+    let class = prepare("human", "warrior", 10, &[]);
+    assert!(class.params.class_curve[15] < 0.0 && (class.params.gear_dependence - 1.5).abs() < 1e-9);
+    let own = prepare("human", "warrior", 10, &["power_curve=[[10, 1.0], [30, 2.0]]", "power_gear=0.5"]);
+    assert!((own.params.class_curve[5] - 1.0).abs() < 1e-9);
+    assert!((own.params.class_curve[20] - 1.5).abs() < 1e-9);
+    assert!((own.params.gear_dependence - 0.5).abs() < 1e-9);
+}
