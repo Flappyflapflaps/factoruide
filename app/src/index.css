@@ -73,9 +73,62 @@
   background: var(--surface-0);
   color: var(--text-primary);
 }
-/* The light theme, an old parchment: the same roles, a soft yellowed ground (never a pure white),
-   darker inks so that text stays at 4.5:1 and the controls' edges at 3:1 on every surface, and
-   burnt amber where the dark theme has blue (it would clash with the yellows). */
+/* The light themes: the same roles, a soft ground (never a pure white), darker inks so that text
+   stays at 4.5:1 and the controls' edges at 3:1 on every surface. A plain grey one first. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --surface-0: #cfd3d9;
+  --surface-1: #dde0e5;
+  --surface-2: #d3d7dd;
+  --surface-3: #c5cad2;
+  --field: #e7e9ed;
+  --border: #c2c7cf;
+  --border-strong: #a9b0bb;
+  --control-edge: #646d7c;
+  --card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0) 60%), var(--surface-1);
+  --card-shadow: 0 1px 0 rgba(255, 255, 255, 0.55) inset, 0 1px 2px color-mix(in srgb, #1a1f28 8%, transparent), 0 6px 18px color-mix(in srgb, #1a1f28 7%, transparent);
+  --accent-fill: #2a3de6;
+  --sky: linear-gradient(200deg, #d8dbe0 0%, #d0d4da 65%, #c8cdd4 100%);
+  --parchment: saturate(0.7) brightness(0.98) contrast(0.95) sepia(0.12);
+  --text-primary: #12151a;
+  --text-secondary: #323843;
+  --text-muted: #474f5c;
+  --accent: #2a3de6;
+  --accent-text: #2230b0;
+  --glow: #6f7cff;
+  --grid: #cbd0d7;
+  --good: #165c2b;
+  --bad: #992824;
+  --cat-1: #2563b3;
+  --cat-2: #b0461a;
+  --cat-3: #0f7653;
+  --cat-4: #8a5d00;
+  --cat-5: #ad3462;
+  --cat-6: #1a6b1a;
+  --cat-7: #5549c0;
+  --cat-8: #b93c3c;
+  --wash: #1a1f28;
+  --warn: #9a6400;
+  --warn-text: #6f4600;
+  --logo: #8c5c00;
+  --shadow-menu: 0 12px 32px color-mix(in srgb, #1a1f28 18%, transparent);
+  --shadow-tip: 0 8px 24px color-mix(in srgb, #1a1f28 16%, transparent);
+  --shadow-pop: 0 16px 48px color-mix(in srgb, #1a1f28 24%, transparent);
+  --sea: #b3c0cc;
+  --sea-glow: #c2cdd8;
+  --coast: #a99d82;
+  --land-edge: rgba(70, 52, 28, 0.35);
+  --land-hover: rgba(50, 36, 16, 0.85);
+  --land-hover-fill: rgba(50, 36, 16, 0.1);
+  --map-bg: #c5cad2;
+  --game-map: saturate(0.9) contrast(0.97);
+}
+/* Plain: the ground without the blue light of the dark theme's left edge. */
+:root[data-theme="light"] .app {
+  background: var(--sky);
+}
+/* The parchment: a yellowed ground, burnt amber where the other themes have blue (it would clash
+   with the yellows). */
 :root[data-theme="parchemin"] {
   color-scheme: light;
   --surface-0: #e7e0d2;

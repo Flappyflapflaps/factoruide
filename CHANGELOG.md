@@ -8,7 +8,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 
 ### App
 
-- A light theme, an old parchment (Settings > Theme): a yellowed page scorched at the edges, amber instead of blue, texts still easy to read.
+- Two light themes (Settings > Theme): a plain light grey one, and an old parchment, a yellowed page scorched at the edges with amber instead of blue.
 
 ### Addon
 
