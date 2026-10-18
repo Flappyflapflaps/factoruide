@@ -4,9 +4,9 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 Writing an entry: one short line per change, saying what the player sees or gets (not how it works inside), grouped under App, Guides, Addon and WoW data. Numbers and examples only when they tell the change better than words; details go to the commit.
 
-## Unreleased
+## 0.12.0 (2026-10-18)
 
-Guides watched and edited on a big map, quests that need others planned whole, camps counted with their real number of mobs, walks round places too strong, a "Need help" page to check things in game, and a compass that shows the way.
+Guides watched and edited on a big map, quests that need others planned whole, camps counted with their real number of mobs, walks round places too strong, a "Need help" page to check things in game, a compass that shows the way (and moves where you want), mobs on the way counted in XP, and guides for Polestar's latest version.
 
 ### App
 
