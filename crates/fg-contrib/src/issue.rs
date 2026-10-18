@@ -48,6 +48,77 @@ pub struct Issue {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub guide: Option<GuideReport>,
+    /// How the game and the addon are set up on the player's computer, when they joined it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setup: Option<Setup>,
+}
+
+/// The game and the addon on the player's computer, for problems of install: where the game is,
+/// its versions, what the game did with the addon. No account or character name.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Setup {
+    /// The World of Warcraft folder, the user's home folder written `~`.
+    pub wow_dir: String,
+    /// Game version folders in it (`_classic_era_`...).
+    pub clients: Vec<String>,
+    /// What keeps the addon from going into the game (`missing`, `no_game`, `no_edition`, `not_writable`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub problem: Option<String>,
+    /// What shows the guides in game: `factoruide` or `polestar`.
+    pub guide_addon: String,
+    /// The app version that installed the addon (none: not installed).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub addon_version: Option<String>,
+    /// Every file of the addon is there.
+    pub addon_complete: bool,
+    /// The addon version that last ran in game, and how many days ago.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seen_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seen_days_ago: Option<u32>,
+    /// The game ran since the install without loading the addon.
+    pub not_loaded: bool,
+    /// Characters the addon is turned off for (their number only).
+    pub disabled: u32,
+    /// Game accounts with the addon's saved data.
+    pub saved_variables: u32,
+    /// The last install added files the game reads only when it starts.
+    pub restart_needed: bool,
+}
+
+const PROBLEMS: &[&str] = &["missing", "no_game", "no_edition", "not_writable"];
+const GUIDE_ADDONS: &[&str] = &["factoruide", "polestar"];
+
+fn version_like(v: &str) -> bool {
+    !v.is_empty() && v.len() <= 32 && v.bytes().all(|b| b.is_ascii_alphanumeric() || b"+-.".contains(&b))
+}
+
+fn check_setup(s: &Setup) -> Result<()> {
+    ensure!(clean_text(&s.wow_dir, 300, false), "bad game folder");
+    ensure!(s.clients.len() <= 20, "too many game versions");
+    for c in &s.clients {
+        ensure!(
+            (3..=32).contains(&c.len())
+                && c.starts_with('_')
+                && c.ends_with('_')
+                && c.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_'),
+            "bad game version folder"
+        );
+    }
+    ensure!(
+        s.problem.as_deref().is_none_or(|p| PROBLEMS.contains(&p)),
+        "unknown install problem"
+    );
+    ensure!(GUIDE_ADDONS.contains(&s.guide_addon.as_str()), "unknown guide addon");
+    ensure!(s.addon_version.as_deref().is_none_or(version_like), "bad addon version");
+    ensure!(
+        s.seen_version.as_deref().is_none_or(version_like),
+        "bad addon version seen"
+    );
+    ensure!(s.seen_days_ago.is_none_or(|d| d <= 100_000), "bad day seen");
+    ensure!(s.disabled <= 10_000 && s.saved_variables <= 1_000, "bad addon counts");
+    Ok(())
 }
 
 /// The guide a report is about: what it was computed from and the steps pointed at.
@@ -196,6 +267,9 @@ pub fn validate(i: &Issue, now: u64) -> Result<()> {
         (None, "other") => {}
         _ => anyhow::bail!("guide missing or unexpected"),
     }
+    if let Some(setup) = &i.setup {
+        check_setup(setup)?;
+    }
     Ok(())
 }
 
@@ -259,6 +333,17 @@ mod tests {
                     map: Some((1426, 29.9, 71.2)),
                 }],
             }),
+            setup: Some(Setup {
+                wow_dir: "C:\\Program Files (x86)\\World of Warcraft".into(),
+                clients: vec!["_classic_era_".into(), "_retail_".into()],
+                problem: None,
+                guide_addon: "factoruide".into(),
+                addon_version: Some("0.13.0".into()),
+                addon_complete: true,
+                seen_version: Some("0.13.0".into()),
+                seen_days_ago: Some(0),
+                ..Setup::default()
+            }),
         }
     }
 
@@ -285,6 +370,9 @@ mod tests {
         assert!(check(&|i| i.kind = "other".into()));
         assert!(check(&|i| i.guide = None));
         assert!(check(&|i| i.os = "amiga".into()));
+        assert!(check(&|i| i.setup.as_mut().unwrap().problem = Some("burning".into())));
+        assert!(check(&|i| i.setup.as_mut().unwrap().clients.push("Interface".into())));
+        assert!(check(&|i| i.setup.as_mut().unwrap().wow_dir = "x".repeat(301)));
         assert!(check(&|i| i.name = Some(" ".into())));
         assert!(check(&|i| i.name = Some("x".repeat(MAX_NAME + 1))));
         assert!(check(&|i| {

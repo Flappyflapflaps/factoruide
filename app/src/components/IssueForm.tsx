@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { api, type Step } from "../api";
+import { useEffect, useState } from "react";
+import { api, type SetupReport, type Step } from "../api";
 import { gameLocale, useLang, useT } from "../i18n";
 
 const NAME_KEY = "factoruide.issueName";
@@ -27,6 +27,15 @@ export function IssueForm({ guide, selected = NONE, onUnselect, onClose, onSent 
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // How the game and the addon are set up, joined unless unchecked.
+  const [withSetup, setWithSetup] = useState(true);
+  const [setup, setSetup] = useState<SetupReport | null>(null);
+  useEffect(() => {
+    api
+      .setupReport()
+      .then(setSetup)
+      .catch(() => setSetup(null));
+  }, []);
 
   const send = async () => {
     setSending(true);
@@ -39,6 +48,7 @@ export function IssueForm({ guide, selected = NONE, onUnselect, onClose, onSent 
         name: name.trim() || undefined,
         language: lang,
         guide: guide && { guide: guide.guide, version: guide.version, steps: [...selected].sort((a, b) => a - b), locale: gameLocale(lang) },
+        setup: withSetup && setup !== null,
       });
       setDone(status === "already_received" ? t("Ce signalement a déjà été envoyé.") : t("Merci ! Votre signalement a été envoyé."));
       setMessage("");
@@ -101,6 +111,44 @@ export function IssueForm({ guide, selected = NONE, onUnselect, onClose, onSent 
         <span>{t("Pseudo (facultatif)")}</span>
         <input maxLength={MAX_NAME} value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Pour vous remercier dans les notes de version")} />
       </label>
+      {setup && (
+        <div className="issue-setup">
+          <label className="field-bool">
+            <input type="checkbox" checked={withSetup} onChange={(e) => setWithSetup(e.target.checked)} />
+            <span>{t("Joindre l'état du jeu et de l'addon")}</span>
+          </label>
+          <details>
+            <summary>{t("Ce qui est joint")}</summary>
+            <ul>
+              <li>
+                {t("Dossier du jeu")} : {setup.wow_dir}
+              </li>
+              <li>
+                {t("Versions du jeu trouvées")} : {setup.clients.join(", ") || "—"}
+              </li>
+              {setup.problem && (
+                <li>
+                  {t("Problème")} : {setup.problem}
+                </li>
+              )}
+              <li>
+                {t("Guide en jeu")} : {setup.guide_addon}
+              </li>
+              <li>
+                {t("Addon installé")} : {setup.addon_version ?? "—"}
+                {setup.addon_version && !setup.addon_complete ? ` (${t("incomplet")})` : ""}
+              </li>
+              <li>
+                {t("Vu en jeu")} : {setup.seen_version ? t("version {version}, il y a {days} jours", { version: setup.seen_version, days: setup.seen_days_ago ?? 0 }) : "—"}
+                {setup.not_loaded ? ` (${t("pas chargé par le jeu depuis l'installation")})` : ""}
+              </li>
+              <li>
+                {t("Personnages où il est désactivé")} : {setup.disabled}
+              </li>
+            </ul>
+          </details>
+        </div>
+      )}
       <p className="muted">
         {guide
           ? t("Sont joints : votre message, votre pseudo s'il est rempli, la configuration complète du guide et ses étapes (sans le nom du personnage), les versions de l'app et des données. N'écrivez rien de personnel dans le message.")

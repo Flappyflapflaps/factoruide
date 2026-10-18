@@ -496,6 +496,78 @@ input[type="checkbox"]:not(.toggle input, .switch input):checked {
   background: var(--surface-1);
 }
 
+/* The addon cannot go into the game: over every page until the folder is right. */
+.wow-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--bad);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bad) 16%, var(--surface-1));
+}
+/* The first launch, over the app while World of Warcraft was not found. */
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--surface-0) 80%, transparent);
+}
+.welcome {
+  width: min(760px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.welcome h2 {
+  margin: 0;
+}
+.welcome p {
+  margin: 0;
+}
+.welcome .row {
+  display: flex;
+  gap: 8px;
+}
+.welcome .row input {
+  flex: 1;
+}
+.welcome .setup-choice strong {
+  overflow-wrap: anywhere;
+}
+.issue-setup {
+  margin-bottom: 12px;
+}
+.issue-setup details {
+  margin-top: 4px;
+  color: var(--text-secondary);
+}
+.issue-setup ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+.likely-cause {
+  padding: 8px 12px;
+  border-left: 3px solid var(--warn);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.wow-banner.outdated {
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 14%, var(--surface-1));
+}
+.wow-banner-text {
+  flex: 1;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .update-text {
   flex: 1;
 }
@@ -1221,6 +1293,31 @@ button.disclosure:disabled {
 .addon-grid > .panel {
   break-inside: avoid;
   margin-bottom: 16px;
+}
+/* What the game did with the addon, over the settings. */
+.addon-in-game {
+  max-width: 780px;
+  margin-bottom: 16px;
+}
+.addon-in-game ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  line-height: 1.5;
+}
+.addon-in-game li + li {
+  margin-top: 4px;
+}
+.addon-in-game li > span {
+  display: inline-block;
+  width: 16px;
+  font-weight: 700;
+}
+.addon-in-game li.ok > span {
+  color: var(--good);
+}
+.addon-in-game li.warn > span {
+  color: var(--warn);
 }
 .addon-section + .addon-section {
   margin-top: 14px;

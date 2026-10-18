@@ -17,6 +17,8 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Game database, overrides and addon, embedded at build time (see build.rs).
+mod game;
+
 mod embedded {
     include!(concat!(env!("OUT_DIR"), "/embedded.rs"));
 }
@@ -61,6 +63,9 @@ struct Settings {
     /// Whether the addon's setup questions were answered (or skipped): asked once, then on demand.
     #[serde(default)]
     addon_setup_done: bool,
+    /// Whether the first launch's questions (where the game is) were answered or skipped.
+    #[serde(default)]
+    welcome_done: bool,
     /// Characters taken out of the Characters page ("<edition>/<Name-Realm>" -> the time of the
     /// profile then): deleted in game, but the game keeps their files and the addon their
     /// profile. One played again (a newer profile) is back.
@@ -89,10 +94,7 @@ enum GuideAddon {
     Polestar,
 }
 
-/// The addon's two parts (folders under Interface/AddOns): the profile and recordings, always
-/// installed, and the guide, which depends on it.
-const PROFILE_ADDON: &str = "Factoruide_Profile";
-const GUIDE_ADDON: &str = "Factoruide_Guide";
+use game::{GUIDE_ADDON, PROFILE_ADDON, WowProblem, game_root};
 
 impl Default for Settings {
     fn default() -> Self {
@@ -123,6 +125,7 @@ impl Default for Settings {
             all_guides: false,
             addon_installed: None,
             addon_setup_done: false,
+            welcome_done: false,
             forgotten_characters: BTreeMap::new(),
         }
     }
@@ -149,6 +152,8 @@ impl Settings {
 
 struct AppState {
     settings: Mutex<Settings>,
+    /// The last install added files the game reads only when it starts.
+    restart_needed: Mutex<bool>,
     config_file: PathBuf,
     /// Where the embedded databases are unpacked, and those unpacked so far.
     db_dir: PathBuf,
@@ -359,6 +364,7 @@ fn set_settings(state: State<'_, AppState>, mut settings: Settings) -> CmdResult
 }
 
 fn write_settings(state: &AppState, mut settings: Settings) -> CmdResult<()> {
+    settings.wow_dir = game_root(&settings.wow_dir);
     let mut current = state.settings.lock().unwrap();
     // Created meanwhile by a contribution (see `contributor_id`): never lost to an older copy.
     if settings.contributor.is_none() {
@@ -423,23 +429,82 @@ fn export_request(state: State<'_, AppState>, request: PlanRequest) -> CmdResult
     Ok(path.display().to_string())
 }
 
-/// Game version folders found in the WoW folder (_retail_, _classic_era_...).
+/// The game's folder (`wow_dir`, else the saved one) and what is wrong with it for the game
+/// version the app works on.
 #[tauri::command]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
 )]
-fn list_clients(wow_dir: PathBuf) -> Vec<String> {
-    let mut out: Vec<String> = std::fs::read_dir(&wow_dir)
-        .map(|d| {
-            d.flatten()
-                .filter(|e| e.path().is_dir())
-                .map(|e| e.file_name().to_string_lossy().into_owned())
-                .filter(|n| n.len() > 2 && n.starts_with('_') && n.ends_with('_'))
-                .collect()
+fn wow_status(state: State<'_, AppState>, wow_dir: Option<PathBuf>) -> game::WowStatus {
+    let settings = state.settings();
+    game::status(wow_dir.as_deref().unwrap_or(&settings.wow_dir), settings.edition)
+}
+
+/// A World of Warcraft folder found on this computer and its game versions' folders.
+#[derive(Debug, Serialize)]
+struct FoundGame {
+    root: PathBuf,
+    clients: Vec<String>,
+}
+
+/// World of Warcraft folders found on this computer (Battle.net's, the usual places).
+#[tauri::command(async)]
+fn detect_wow() -> Vec<FoundGame> {
+    game::detect()
+        .into_iter()
+        .map(|root| FoundGame {
+            clients: game::client_folders(&root),
+            root,
         })
-        .unwrap_or_default();
-    out.sort();
+        .collect()
+}
+
+/// What the game did with the addon of the game version the app works on: installed by which
+/// app version, when it last ran, turned off for some characters, not loaded at all...
+#[derive(Debug, Serialize)]
+struct AddonState {
+    #[serde(flatten)]
+    health: game::AddonHealth,
+    /// The last install added files the game reads only when it starts: a /reload is not enough.
+    restart_needed: bool,
+    /// The guides are shown by Polestar (only the profile part is installed then).
+    polestar: bool,
+}
+
+#[tauri::command(async)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn addon_health(state: State<'_, AppState>) -> AddonState {
+    let settings = state.settings();
+    let polestar = settings.guide_addon(settings.edition) == GuideAddon::Polestar;
+    let guide: &[(&str, &[u8])] = if polestar { &[] } else { embedded::GUIDE_ADDON };
+    let files: &game::AddonFiles<'_> = &[(PROFILE_ADDON, embedded::PROFILE_ADDON), (GUIDE_ADDON, guide)];
+    AddonState {
+        health: game::addon_health(&settings.wow_dir, settings.edition, files),
+        restart_needed: *state.restart_needed.lock().unwrap(),
+        polestar,
+    }
+}
+
+/// The .toc files of the addons the app installs and the files each loads ("<folder>" -> list).
+fn loaded_files(addons: &Path) -> BTreeMap<String, Vec<String>> {
+    let mut out = BTreeMap::new();
+    for folder in [PROFILE_ADDON, GUIDE_ADDON, fg_route::export::polestar::ADDON] {
+        for entry in std::fs::read_dir(addons.join(folder)).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "toc")
+                && let Ok(toc) = std::fs::read_to_string(&path)
+            {
+                out.insert(
+                    format!("{folder}/{}", entry.file_name().to_string_lossy()),
+                    game::toc_files(&toc),
+                );
+            }
+        }
+    }
     out
 }
 
@@ -1197,7 +1262,26 @@ fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
     static INSTALLING: Mutex<()> = Mutex::new(());
     let _one = INSTALLING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let settings = state.settings();
+    // Never a folder of its own making: the game would not read it.
+    match game::status(&settings.wow_dir, settings.edition).problem {
+        None => {}
+        Some(WowProblem::NotWritable) => {
+            return Err(format!(
+                "the app may not write in {}: give your Windows user the right to modify the World of \
+                 Warcraft folder (its Properties, Security tab), or start the app once as administrator",
+                settings.addons_dir(settings.edition).display()
+            ));
+        }
+        Some(_) => {
+            return Err(format!(
+                "{} not found in {}: choose the World of Warcraft folder in Settings",
+                settings.edition.rules().edition_name,
+                settings.wow_dir.display()
+            ));
+        }
+    }
     let addons = settings.addons_dir(settings.edition);
+    let before = loaded_files(&addons);
     migrate_legacy_addon(&addons);
     let profile = addons.join(PROFILE_ADDON);
     write_addon_files(&profile, embedded::PROFILE_ADDON)?;
@@ -1257,6 +1341,10 @@ fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
             guides.len()
         }
     };
+    // A folder or a file the game does not load yet: it reads the .toc files when it starts.
+    let after = loaded_files(&addons);
+    let restart = after.iter().any(|(toc, files)| before.get(toc) != Some(files));
+    *state.restart_needed.lock().unwrap() = restart;
     write_settings(
         &state,
         Settings {
@@ -1282,7 +1370,14 @@ fn write_addon_files(dest: &Path, files: &[(&str, &[u8])]) -> CmdResult<()> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(err)?;
         }
-        std::fs::write(path, bytes).map_err(err)?;
+        if Path::new(name)
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("toc"))
+        {
+            std::fs::write(path, game::with_app_version(bytes)).map_err(err)?;
+        } else {
+            std::fs::write(path, bytes).map_err(err)?;
+        }
     }
     Ok(())
 }
@@ -1828,11 +1923,20 @@ fn main() {
             if let Some(config) = &config {
                 migrate_workspace(config, &data_dir);
             }
-            let settings = config.and_then(|c| serde_json::from_value(c).ok()).unwrap_or_default();
+            let first_launch = config.is_none();
+            let mut settings: Settings = config.and_then(|c| serde_json::from_value(c).ok()).unwrap_or_default();
+            // A version's folder chosen by older versions of the app: the game's folder above.
+            settings.wow_dir = game_root(&settings.wow_dir);
+            if first_launch {
+                find_game(&mut settings);
+                // Found once: not looked for again at every launch.
+                let _ = save_settings_file(&config_file, &settings);
+            }
             let db_dir = app.path().app_local_data_dir()?;
             let (auto_wake, wake) = std::sync::mpsc::channel();
             app.manage(AppState {
                 settings: Mutex::new(settings),
+                restart_needed: Mutex::new(false),
                 config_file,
                 db_dir,
                 dbs: Mutex::new(HashMap::default()),
@@ -1866,7 +1970,10 @@ fn main() {
             polestar_installed,
             export_polestar,
             open_link,
-            list_clients,
+            wow_status,
+            detect_wow,
+            setup_report,
+            addon_health,
             list_editions,
             set_edition,
             contribution_preview,
@@ -1900,6 +2007,24 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Factoruide");
+}
+
+/// At the first launch: the game where it was found, and a game version installed there (WoW
+/// Forever first) when the default one is not.
+fn find_game(settings: &mut Settings) {
+    if matches!(
+        game::status(&settings.wow_dir, settings.edition).problem,
+        Some(WowProblem::Missing | WowProblem::NoGame)
+    ) && let Some(found) = game::detect().into_iter().next()
+    {
+        settings.wow_dir = found;
+    }
+    let installed = |e: Edition| settings.wow_dir.join(e.client_folder()).is_dir();
+    if !installed(settings.edition)
+        && let Some(e) = Edition::ALL.iter().copied().find(|e| installed(*e))
+    {
+        settings.edition = e;
+    }
 }
 
 /// Switch the edition the app works on (saved with the settings).
@@ -2417,6 +2542,9 @@ struct IssueDraft {
     language: String,
     #[serde(default)]
     guide: Option<IssueGuide>,
+    /// Join how the game and the addon are set up (`setup_report`).
+    #[serde(default)]
+    setup: bool,
 }
 
 #[derive(Deserialize)]
@@ -2526,13 +2654,25 @@ async fn send_issue(app: AppHandle, draft: IssueDraft) -> CmdResult<&'static str
             message: draft.message.trim().to_owned(),
             name: draft.name.map(|n| n.trim().to_owned()).filter(|n| !n.is_empty()),
             guide,
+            setup: draft.setup.then(|| setup_of(&state)),
         };
         fg_contrib::issue::validate(&issue, now).map_err(err)?;
-        let body = serde_json::to_vec(&issue).map_err(err)?;
-        if body.len() > fg_contrib::issue::MAX_BYTES {
-            return Err("report too large".to_owned());
+        let post = |issue: &fg_contrib::issue::Issue| {
+            let body = serde_json::to_vec(issue).map_err(err)?;
+            if body.len() > fg_contrib::issue::MAX_BYTES {
+                return Err("report too large".to_owned());
+            }
+            Ok(post_contribution(&url, &body))
+        };
+        let mut posted = post(&issue)?;
+        // A server older than the setup part refuses the document: sent again without it.
+        if let Posted::Failed(message) = &posted
+            && issue.setup.is_some()
+            && message.contains("invalid report document")
+        {
+            posted = post(&fg_contrib::issue::Issue { setup: None, ..issue })?;
         }
-        match post_contribution(&url, &body) {
+        match posted {
             Posted::RateLimited(_) => Err("rate_limited".to_owned()),
             Posted::Failed(message) => Err(message),
             posted => Ok(posted.status()),
@@ -2540,6 +2680,65 @@ async fn send_issue(app: AppHandle, draft: IssueDraft) -> CmdResult<&'static str
     })
     .await
     .map_err(err)?
+}
+
+/// A folder as a report shows it: the user's folder name (after Users or home) hidden.
+fn private_path(path: &Path) -> String {
+    let mut out = Vec::new();
+    let mut hide = false;
+    for part in path.components() {
+        let text = part.as_os_str().to_string_lossy().into_owned();
+        out.push(if hide { "~".to_owned() } else { text.clone() });
+        hide = text.eq_ignore_ascii_case("users") || text == "home";
+    }
+    let sep = if cfg!(windows) { "\\" } else { "/" };
+    out.join(sep).replace(&format!("{sep}{sep}"), sep)
+}
+
+/// A version as reports take it ("0.13.0"; "?" when the game did not tell).
+fn version_like(v: &str) -> bool {
+    !v.is_empty() && v.len() <= 32 && v.bytes().all(|b| b.is_ascii_alphanumeric() || b"+-.".contains(&b))
+}
+
+/// How the game and the addon are set up on this computer, for a report.
+fn setup_of(state: &AppState) -> fg_contrib::issue::Setup {
+    let settings = state.settings();
+    let status = game::status(&settings.wow_dir, settings.edition);
+    let polestar = settings.guide_addon(settings.edition) == GuideAddon::Polestar;
+    let guide: &[(&str, &[u8])] = if polestar { &[] } else { embedded::GUIDE_ADDON };
+    let health = game::addon_health(
+        &status.root,
+        settings.edition,
+        &[(PROFILE_ADDON, embedded::PROFILE_ADDON), (GUIDE_ADDON, guide)],
+    );
+    let today = now().unwrap_or_default().cast_signed();
+    fg_contrib::issue::Setup {
+        wow_dir: private_path(&status.root).chars().take(300).collect(),
+        clients: status.clients.into_iter().take(20).collect(),
+        problem: status.problem.map(|p| p.key().to_owned()),
+        guide_addon: if polestar { "polestar" } else { "factoruide" }.into(),
+        addon_version: health.installed_version.filter(|v| version_like(v)),
+        addon_complete: health.complete,
+        seen_days_ago: health
+            .seen
+            .as_ref()
+            .and_then(|s| u32::try_from((today - s.time).max(0) / 86_400).ok()),
+        seen_version: health.seen.map(|s| s.version).filter(|v| version_like(v)),
+        not_loaded: health.not_loaded,
+        disabled: u32::try_from(health.disabled_for.len()).unwrap_or(u32::MAX),
+        saved_variables: health.saved_variables,
+        restart_needed: *state.restart_needed.lock().unwrap(),
+    }
+}
+
+/// What a report would join about the game and the addon (shown before it is sent).
+#[tauri::command(async)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn setup_report(state: State<'_, AppState>) -> fg_contrib::issue::Setup {
+    setup_of(&state)
 }
 
 /// First automatic check after startup.

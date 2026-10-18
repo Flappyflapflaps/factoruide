@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type CharacterInfo, type GuideSummary, type Options } from "../api";
+import { useAddonHealth } from "../components/AddonInGame";
 import { ClassName, FactionIcon, raceFaction } from "../components/Character";
 import { Hint } from "../components/Hint";
 import { Icon } from "../components/Icons";
@@ -28,6 +29,7 @@ const followed = (g: GuideSummary) => g.versions.find((v) => v.version === g.ins
  * guide it follows (0 or 1, chosen here only: the addon shows it in game after /reload).
  */
 export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, onAddon }: Props) {
+  const health = useAddonHealth();
   const t = useT();
   const date = useDate();
   const gameName = useGameName();
@@ -105,6 +107,20 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, 
       ) : characters.length === 0 ? (
         <section className="panel characters-empty">
           <h3>{t("Aucun personnage pour {edition}", { edition: editionName })}</h3>
+          {health && (
+            <p className="likely-cause">
+              <strong>{t("Cause probable :")}</strong>{" "}
+              {!health.installed_version
+                ? t("l'addon n'est pas encore installé dans {edition}.", { edition: editionName })
+                : health.not_loaded
+                  ? t("le jeu a tourné sans lancer l'addon : à l'écran de sélection du personnage, bouton AddOns, cochez Factoruide.")
+                  : health.disabled_for.length
+                    ? t("l'addon est désactivé dans la liste des AddOns du jeu pour : {list}.", { list: health.disabled_for.join(", ") })
+                    : !health.seen
+                      ? t("l'addon n'a pas encore tourné en jeu : connectez un personnage, puis faites /reload ou déconnectez-vous.")
+                      : t("le personnage est sur une autre version du jeu, ou il n'a pas encore été enregistré (faites /reload en jeu).")}
+            </p>
+          )}
           <p>{t("Un personnage apparaît ici une fois enregistré par l'addon. S'il n'y en a pas :")}</p>
           <ul>
             <li>

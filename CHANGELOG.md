@@ -13,6 +13,12 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - Advanced settings, Character power: your class's power curve level by level and how much its gear counts, to adjust what the guide has it take on.
 - Addon setup assistant: a few questions (how to be guided, the screen, how much automation, advice) set the addon in one go; asked the first time, run again from the Addon page.
 - The Addon page in five groups (display, navigation, automation, advice, immersion); an option that depends on one switched off is greyed out.
+- First launch: the app looks for World of Warcraft on your computer; when it is not found, a few questions ask where it is and which game version you play.
+- A World of Warcraft folder chosen too precisely (a game version's folder, or AddOns inside it) is taken back to the right one: the addon no longer goes where the game does not read it.
+- A red bar over every page while the addon cannot go into the game (folder not found, game version not installed, no right to write there) or the game did not load it; an orange one when the addon in the game is out of date, with a button to install it.
+- The Addon page tells what the game did with the addon: installed by which version, last seen in game, turned off for some characters, WoW to restart after new files.
+- No characters yet: the Characters page names the likely cause.
+- Problem reports can join the state of the game and the addon (no account or character name), to help with install problems.
 
 ### Guides
 

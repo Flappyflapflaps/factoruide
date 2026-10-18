@@ -389,12 +389,73 @@ export interface Settings {
   addon_installed?: string | null;
   /** Whether the addon's setup questions were answered (or skipped): asked once, then on demand. */
   addon_setup_done?: boolean;
+  /** Whether the first launch's questions (where the game is) were answered or skipped. */
+  welcome_done?: boolean;
 }
+
+/** The game's folder as saved (the one above when a game version's folder was chosen), its
+ *  game versions' folders, and what keeps the addon from going into the game. */
+export interface WowStatus {
+  root: string;
+  clients: string[];
+  /** missing: no such folder; no_game: no game version in it; no_edition: not the one the app works on. */
+  problem: "missing" | "no_game" | "no_edition" | "not_writable" | null;
+}
+
+/** A World of Warcraft folder found on this computer. */
+export interface FoundGame {
+  root: string;
+  clients: string[];
+}
+
+/** What the game did with the addon of the game version the app works on. */
+export interface AddonHealth {
+  app_version: string;
+  /** The app version that installed the addon (null: not installed). */
+  installed_version: string | null;
+  /** When it was installed (Unix seconds). */
+  installed_at: number | null;
+  /** Every file of the addon is there. */
+  complete: boolean;
+  /** The last time the addon ran in game (Unix seconds) and its version. */
+  seen: { time: number; version: string } | null;
+  /** The game saved its addons' data since the install without running this one: not loaded. */
+  not_loaded: boolean;
+  /** Characters ("Name - Realm") the addon is turned off for in the game's AddOns list. */
+  disabled_for: string[];
+  saved_variables: number;
+  /** The last install added files the game reads only when it starts. */
+  restart_needed: boolean;
+  /** Polestar shows the guides (only the profile part is installed). */
+  polestar: boolean;
+}
+
+/** How the game and the addon are set up, as a report joins it (no account or character name). */
+export interface SetupReport {
+  wow_dir: string;
+  clients: string[];
+  problem?: string;
+  guide_addon: string;
+  addon_version?: string;
+  addon_complete: boolean;
+  seen_version?: string;
+  seen_days_ago?: number;
+  not_loaded: boolean;
+  disabled: number;
+  saved_variables: number;
+  restart_needed: boolean;
+}
+
+/** Fired once the settings or the game version are saved, or the addon installed. */
+export const SETTINGS_CHANGED = "fg-settings-changed";
+const settingsChanged = () => {
+  window.dispatchEvent(new Event(SETTINGS_CHANGED));
+};
 
 export const api = {
   updatesEnabled: () => invoke<boolean>("updates_enabled"),
   getSettings: () => invoke<Settings>("get_settings"),
-  setSettings: (settings: Settings) => invoke<void>("set_settings", { settings }),
+  setSettings: (settings: Settings) => invoke<void>("set_settings", { settings }).then(settingsChanged),
   getOptions: () => invoke<Options>("get_options"),
   /** Computes a guide and saves it as a new version of the guide of the request's name. */
   planRoute: (request: PlanRequest) => invoke<VersionMeta>("plan_route", { request }),
@@ -422,7 +483,7 @@ export const api = {
   /** Which guide each character follows ("Name-Realm" -> guide id). */
   listAssignments: () => invoke<Record<string, string>>("list_assignments"),
   /** Make a character follow a guide (null: none) and write the addon; returns its number of guides. */
-  assignGuide: (character: string, guide: string | null) => invoke<number>("assign_guide", { character, guide }),
+  assignGuide: (character: string, guide: string | null) => invoke<number>("assign_guide", { character, guide }).then((n) => (settingsChanged(), n)),
   /** Take a character out of the list (deleted in game; back if played again): it no longer follows a guide. */
   forgetCharacter: (character: string) => invoke<void>("forget_character", { character }),
   /** A map image (WebP), as an object URL. */
@@ -439,7 +500,7 @@ export const api = {
   exportRequest: (request: PlanRequest) => invoke<string>("export_request", { request }),
   /** Copies the addon into the game with the installed guides. */
   /** Returns the number of guides installed. */
-  installAddon: () => invoke<number>("install_addon"),
+  installAddon: () => invoke<number>("install_addon").then((n) => (settingsChanged(), n)),
   /** Whether Polestar is installed in WoW Forever. */
   polestarInstalled: () => invoke<boolean>("polestar_installed"),
   /** Export a guide version into a pack folder for Polestar's own tools in `dir` (WoW Forever only): the pack's folder. */
@@ -449,9 +510,16 @@ export const api = {
   /** Open a page of the project's repository in the browser. */
   openLink: (url: string) => invoke<void>("open_link", { url }),
   /** Game version folders (_classic_beta_...) found in a WoW folder. */
-  listClients: (wowDir: string) => invoke<string[]>("list_clients", { wowDir }),
+  /** The game's folder (`wowDir`, else the saved one) and what keeps the addon from going into the game. */
+  wowStatus: (wowDir?: string) => invoke<WowStatus>("wow_status", { wowDir: wowDir ?? null }),
+  /** World of Warcraft folders found on this computer. */
+  detectWow: () => invoke<FoundGame[]>("detect_wow"),
+  /** What the game did with the addon (installed version, last run, turned off...). */
+  addonHealth: () => invoke<AddonHealth>("addon_health"),
+  /** What a report joins about the game and the addon. */
+  setupReport: () => invoke<SetupReport>("setup_report"),
   listEditions: () => invoke<EditionInfo[]>("list_editions"),
-  setEdition: (edition: Edition) => invoke<void>("set_edition", { edition }),
+  setEdition: (edition: Edition) => invoke<void>("set_edition", { edition }).then(settingsChanged),
   contributionPreview: () => invoke<ContributionPreview>("contribution_preview"),
   /** Sends what is new, in up to 3 documents (rejects with "nothing_to_send", "rate_limited" or the server's message when none was accepted). */
   sendContribution: () => invoke<SendReport>("send_contribution"),
@@ -636,6 +704,8 @@ export interface IssueDraft {
   name?: string;
   language: string;
   guide?: { guide: string; version: number; steps: number[]; locale: string };
+  /** Join how the game and the addon are set up (`setupReport`). */
+  setup?: boolean;
 }
 
 /** A check players can make in game ("Need help" page): is `quest` offered before `before` are turned in? */

@@ -334,6 +334,9 @@ FG:On("ADDON_LOADED", function(name)
     FactoruideDB = FactoruideDB or {}
     FactoruideDB.version = FG.DB_VERSION
     FactoruideDB.characters = FactoruideDB.characters or {}
+    -- For the app: the game loaded the addon, when, and which app version installed it (its .toc).
+    local metadata = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
+    FactoruideDB.seen = { time = time(), version = metadata and metadata(addonName, "Version") or "?" }
 end)
 
 SLASH_FACTORUIDE1 = "/fg"

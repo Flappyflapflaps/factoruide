@@ -1,26 +1,11 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { api, type Settings } from "../api";
+import { api, type Settings, type WowStatus } from "../api";
+import { CLIENTS, SUPPORTED } from "../wow";
 import { LANGS, useLang, useT, type Lang } from "../i18n";
 import { AboutPanels } from "../components/AboutPanels";
 import { Hint } from "../components/Hint";
 import { THEMES, applyTheme, savedTheme, type Theme } from "../theme";
-
-/** Game version folders the app has guides for. */
-const SUPPORTED = ["_classic_beta_", "_classic_era_", "_anniversary_"];
-
-/** Known game version folders. */
-const CLIENTS: Record<string, string> = {
-  _classic_beta_: "WoW Forever (beta)",
-  _classic_era_: "Classic Era",
-  _anniversary_: "TBC Anniversary",
-  _classic_: "Mists of Pandaria Classic",
-  _retail_: "Retail",
-  _classic_era_ptr_: "Classic Era PTR",
-  _classic_ptr_: "Classic PTR",
-  _ptr_: "PTR",
-  _beta_: "Beta",
-};
 
 interface Props {
   /** Applied at once, saved with the other settings. */
@@ -35,8 +20,9 @@ export function SettingsPage({ onLanguage, version }: Props) {
   const lang = useLang();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [theme, setTheme] = useState<Theme>(savedTheme);
-  // Game version folders in the WoW folder (null: not looked yet).
-  const [found, setFound] = useState<string[] | null>(null);
+  // The game's folder from the one typed, and its game version folders (null: not looked yet).
+  const [status, setStatus] = useState<WowStatus | null>(null);
+  const found = status?.clients ?? null;
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +31,11 @@ export function SettingsPage({ onLanguage, version }: Props) {
   }, []);
   const wowDir = settings?.wow_dir;
   useEffect(() => {
-    if (wowDir != null) api.listClients(wowDir).then(setFound).catch(() => setFound([]));
+    if (wowDir != null)
+      api
+        .wowStatus(wowDir)
+        .then(setStatus)
+        .catch(() => setStatus(null));
   }, [wowDir]);
   if (!settings) return error ? <div className="error">{error}</div> : null;
 
@@ -112,6 +102,9 @@ export function SettingsPage({ onLanguage, version }: Props) {
             {t("Parcourir…")}
           </button>
         </div>
+        {status && status.root !== settings.wow_dir && status.clients.length > 0 && (
+          <small className="muted">{t("Le dossier du jeu est {dir} : c'est lui qui sera enregistré.", { dir: status.root })}</small>
+        )}
       </div>
       <div className="field">
         <span>
@@ -179,6 +172,8 @@ export function SettingsPage({ onLanguage, version }: Props) {
         onClick={async () => {
           try {
             await api.setSettings(settings);
+            // The game's folder as saved (the one above a game version's folder).
+            setSettings(await api.getSettings());
             setMessage(t("Réglages enregistrés"));
           } catch (e) {
             setError(String(e));

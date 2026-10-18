@@ -271,7 +271,10 @@ local function fire(event, ...)
     end
 end
 
+GetAddOnMetadata = function(name, field) return name == "Factoruide_Profile" and field == "Version" and "0.13.0" or nil end
 fire("ADDON_LOADED", "Factoruide_Profile")
+-- The app learns the game loaded the addon, and which version.
+assert(FactoruideDB.seen and FactoruideDB.seen.version == "0.13.0" and FactoruideDB.seen.time, "seen")
 if not profileOnly then fire("ADDON_LOADED", "Factoruide_Guide") end
 fire("PLAYER_LOGIN")
 local char = FactoruideDB.characters["Brouz-Realm"]

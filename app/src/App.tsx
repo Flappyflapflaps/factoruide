@@ -4,6 +4,8 @@ import { api, type Edition, type EditionInfo, type GuideVersion, type Options, t
 import { clearMapCache } from "./components/WorldMap";
 import { I18nProvider, LANGS, detectLang, useT, type Lang } from "./i18n";
 import { AddonPage } from "./pages/AddonPage";
+import { WowBanner } from "./components/WowBanner";
+import { Welcome } from "./components/Welcome";
 import { NewRoutePage, type WizardStart } from "./pages/NewRoutePage";
 import { GuidesPage, type OpenGuide } from "./pages/GuidesPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -95,9 +97,14 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
   // Game version: switching reloads the options (races, classes, settings) and the guides.
   const [editions, setEditions] = useState<EditionInfo[]>([]);
   const [edition, setEdition] = useState<Edition | null>(null);
+  // The first launch's questions, while World of Warcraft was not found.
+  const [welcome, setWelcome] = useState(false);
   useEffect(() => {
     api.listEditions().then(setEditions).catch(() => {});
     api.getSettings().then((s) => setEdition(s.edition)).catch(() => {});
+    Promise.all([api.getSettings(), api.wowStatus()])
+      .then(([s, w]) => setWelcome(!s.welcome_done && (w.problem === "missing" || w.problem === "no_game")))
+      .catch(() => {});
   }, []);
   // Each game version keeps its new guide's configuration: coming back to it finds it as left.
   const drafts = useRef<Partial<Record<Edition, WizardStart>>>({});
@@ -121,6 +128,19 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
 
   return (
     <div className="app">
+      {welcome && (
+        <Welcome
+          onEdition={async (e) => {
+            await switchEdition(e);
+            api.listEditions().then(setEditions).catch(() => {});
+          }}
+          onDone={(addon) => {
+            setWelcome(false);
+            api.listEditions().then(setEditions).catch(() => {});
+            if (addon) setPage("addon");
+          }}
+        />
+      )}
       <nav className="sidebar" aria-label={t("Menu")}>
         <div className="brand">
           <span className="logo">★</span> Factoruide
@@ -172,6 +192,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
       {/* Focused on each page change: the keyboard scrolls it and a screen reader starts there. */}
       <main className="content" ref={main} tabIndex={-1}>
         <UpdateBanner busy={busy} unsaved={unsaved} />
+        <WowBanner editionName={editions.find((e) => e.key === edition)?.name ?? ""} onSettings={() => away(() => setPage("settings"))} onAddon={() => away(() => setPage("addon"))} />
         {/* Always mounted (hidden on other pages) so that a running generation goes on showing. */}
         {options && (
           <div hidden={page !== "plan"}>

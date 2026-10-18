@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type Settings } from "../api";
 import { ADDON_GROUPS, ADDON_OPTIONS, addonValue, allAddonValues, requirementMet, type AddonOption } from "../addonSettings";
+import { AddonInGame } from "../components/AddonInGame";
 import { AddonSetup } from "../components/AddonSetup";
 import { SettingRow } from "../components/ParamField";
 import { Hint } from "../components/Hint";
@@ -74,7 +75,9 @@ export function AddonPage() {
   const install = async () => {
     setError(null);
     try {
-      setMessage(t("Guides dans l'addon : {n} — faites /reload en jeu", { n: await api.installAddon() }));
+      const n = await api.installAddon();
+      const restart = (await api.addonHealth().catch(() => null))?.restart_needed;
+      setMessage(restart ? t("Guides dans l'addon : {n} — de nouveaux fichiers : redémarrez WoW (un /reload ne suffit pas)", { n }) : t("Guides dans l'addon : {n} — faites /reload en jeu", { n }));
       await checkSynced();
     } catch (e) {
       setError(String(e));
@@ -156,6 +159,7 @@ export function AddonPage() {
         </button>
       </div>
       {error && <div className="error">{error}</div>}
+      <AddonInGame />
       {forever && (
         <section className="panel guide-addon">
           <div className="field">
