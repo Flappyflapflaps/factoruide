@@ -2253,10 +2253,16 @@ do
         compass.OnEnter(compass)
         return table.concat(lines, "\n")
     end
-    assert(hint():find("Glisser : la déplacer", 1, true) and hint():find("Ctrl + molette", 1, true), "the hint says how")
+    assert(
+        hint():find("Glisser : la déplacer", 1, true) and hint():find("Ctrl + molette", 1, true),
+        "the hint says how"
+    )
     SlashCmdList.FACTORUIDE("lock")
     assert(FG:Get("lockFrames") == true and FactoruideDB.ui.lockFrames == true, "/fg lock: kept")
-    assert(hint():find("Verrouillée", 1, true) and not hint():find("Glisser : la déplacer", 1, true), "locked: the hint says so")
+    assert(
+        hint():find("Verrouillée", 1, true) and not hint():find("Glisser : la déplacer", 1, true),
+        "locked: the hint says so"
+    )
     local moves = compassMoves.moves
     drag(compass)
     assert(compassMoves.moves == moves, "locked: it does not move")
