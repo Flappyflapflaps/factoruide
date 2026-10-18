@@ -9,6 +9,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 ### App
 
 - Two light themes (Settings > Theme): the dark theme's look by day, and an old parchment, a yellowed page scorched at the edges with amber instead of blue.
+- Theme "Automatic": dark or light as your system is set, switching with it.
 
 ### Guides
 
