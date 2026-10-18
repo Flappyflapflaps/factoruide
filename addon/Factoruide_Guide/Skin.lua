@@ -86,12 +86,27 @@ Skin.theme = PALETTES[FG:Get("uiTheme")] and FG:Get("uiTheme") or "dark"
 Skin.light = Skin.theme ~= "dark"
 Skin.colors = PALETTES[Skin.theme]
 
---- The same methods with the dark theme's colors and shadowed texts: for what is drawn over the
---- game world (the compass, the mark over an NPC), never on a card.
-function Skin:Dark()
-    local dark = setmetatable({ colors = PALETTES.dark }, { __index = Skin })
-    dark.FontObject = function(size, flags) return Skin.FontObject(size, flags, true) end
-    return dark
+-- Over the game world (the compass, the arrow, the mark over an NPC, the map's pins): the dark
+-- theme's colors, light inks that read on any ground, the parchment's amber in place of blue.
+local WORLD_AMBER = { blue = "c46a1c", cyan = "f2b445", accent = "f0a948", lightBlue = "f5c76a" }
+local world = {}
+for key, c in pairs(PALETTES.dark) do
+    world[key] = c
+end
+if Skin.theme == "parchemin" then
+    for key, hex in pairs(WORLD_AMBER) do
+        world[key] = rgb(hex)
+    end
+end
+Skin.worldColors = world
+
+--- The same methods with the world's colors and shadowed texts (outlined on the parchment,
+--- whose compass has a lighter veil).
+function Skin:World()
+    local w = setmetatable({ colors = world }, { __index = Skin })
+    local flags = Skin.light and "OUTLINE" or nil
+    w.FontObject = function(size, f) return Skin.FontObject(size, f or flags, true) end
+    return w
 end
 
 --- A game color ("rrggbb": a quest's difficulty, a step's kind) readable on the theme's ground:

@@ -16,13 +16,15 @@ local L = {
     yards = T("%d yd"),
 }
 
-local TEXTURE = "Interface\\AddOns\\Factoruide_Guide\\Media\\Chevron"
+-- Amber on the parchment theme, blue otherwise.
+local TEXTURE = "Interface\\AddOns\\Factoruide_Guide\\Media\\"
+    .. (FG.Skin.theme == "parchemin" and "ChevronParchment" or "Chevron")
 local FRAMES, COLS = 64, 8
 local SIZE = 64
 local ARRIVED = 8 -- yards
 local TWO_PI = 2 * math.pi
 
-local Skin = FG.Skin
+local Skin = FG.Skin:World()
 local frame, target
 
 --- The frame of the sprite sheet showing a turn of `angle` (radians counter-clockwise, 0 =

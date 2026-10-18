@@ -68,8 +68,8 @@ local LOOKS = {
     place = { icon = 9, back = 11, alpha = 0.6, farAlpha = 0.45 },
 }
 
--- Over the game world: the dark theme's colors whatever the theme (the cards' line under it apart).
-local Skin = FG.Skin:Dark()
+-- Over the game world: the world's colors (see Skin:World), the line under it the cards' accent.
+local Skin = FG.Skin:World()
 local frame
 local points = {}
 local attached
@@ -351,16 +351,17 @@ local function Create()
     FG:Zoomable(frame, function(delta) Compass:Zoom(delta) end)
 
     -- A light veil, fading out at both ends, and a thin line at the bottom.
-    local c = Skin.colors.bg
+    -- Lighter on the parchment, whose texts are outlined instead.
+    local c, veil = Skin.colors.bg, FG.Skin.light and 0.22 or 0.42
     local left = frame:CreateTexture(nil, "BACKGROUND")
     left:SetPoint("TOPLEFT")
     left:SetPoint("BOTTOMLEFT")
-    Skin:Gradient(left, c, 0, 0.42)
+    Skin:Gradient(left, c, 0, veil)
     local right = frame:CreateTexture(nil, "BACKGROUND")
     right:SetPoint("TOPRIGHT")
     right:SetPoint("BOTTOMRIGHT")
-    Skin:Gradient(right, c, 0.42, 0)
-    local middle = Skin:Fill(frame, "BACKGROUND", c, 0.42)
+    Skin:Gradient(right, c, veil, 0)
+    local middle = Skin:Fill(frame, "BACKGROUND", c, veil)
     middle:SetPoint("TOPLEFT", left, "TOPRIGHT")
     middle:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT")
     local a = FG.Skin.colors.accent
@@ -395,7 +396,7 @@ local function Create()
         e.arrow = e:CreateTexture(nil, "ARTWORK")
         e.arrow:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
         e.arrow:SetSize(10, 10)
-        e.arrow:SetVertexColor(0.5, 0.83, 0.94)
+        e.arrow:SetVertexColor(unpack(Skin.colors.lightBlue))
         e.target = e:CreateTexture(nil, "ARTWORK")
         e.target:SetSize(9, 9)
         Skin:AccentLine(e.target)

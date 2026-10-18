@@ -19,7 +19,7 @@ function FGStepPinMixin:OnAcquired(x, y, n, text, kind, shown)
     elseif kind == "spot" then
         self.Dot:SetVertexColor(shown and 1 or 0.75, shown and 0.82 or 0.75, shown and 0 or 0.75)
     else
-        self.Dot:SetVertexColor(0.22, 0.53, 0.9)
+        self.Dot:SetVertexColor(unpack(FG.Skin.worldColors.blue))
     end
 end
 
