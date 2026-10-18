@@ -1,4 +1,4 @@
-/** The app's look: the night-blue one, a plain light grey one, or an old parchment. */
+/** The app's look: the night-blue one, its light version (the same sky by day), or an old parchment. */
 export type Theme = "dark" | "light" | "parchemin";
 
 export const THEMES: { key: Theme; label: string }[] = [

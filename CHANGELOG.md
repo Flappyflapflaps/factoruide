@@ -8,11 +8,16 @@ Writing an entry: one short line per change, saying what the player sees or gets
 
 ### App
 
-- Two light themes (Settings > Theme): a plain light grey one, and an old parchment, a yellowed page scorched at the edges with amber instead of blue.
+- Two light themes (Settings > Theme): the dark theme's look by day, and an old parchment, a yellowed page scorched at the edges with amber instead of blue.
+
+### Guides
+
+- WoW Forever's library books (The Dalaran Digest and the others): the guide sends you to find the book first, then to the librarian, who only offers the quest once you have it (#29).
 
 ### Addon
 
 - The same parchment in game ("Addon colors" on the Addon page): the guide and the quest panel on a light page, the compass, the arrow and the marks in amber.
+- A library book's step is ticked as soon as the book is in your bags, and the librarian's quest is taken and turned in together.
 
 ## 0.12.0 (2026-10-18)
 
