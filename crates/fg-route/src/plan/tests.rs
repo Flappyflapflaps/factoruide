@@ -469,3 +469,42 @@ fn farming_on_the_way_kills_a_share_of_the_mobs_met() {
     let expected = 0.8 * all / (1.0 + crowd * 3.0);
     assert!((crowded - expected).abs() <= 1.0, "{crowded} vs {expected}");
 }
+
+/// A quest given at the start whose mobs are a few levels above the character: nothing else to
+/// do, the greedy construction grinds to the level they need and does it, rather than stopping.
+#[test]
+fn greedy_grinds_to_the_mobs_of_a_quest_in_reach() {
+    let mut p = quests_at_start(1);
+    p.profile.to_level = 10;
+    p.world.terrain = crate::terrain::Terrain::default();
+    let mut camp = p.model.start.clone();
+    camp.pos.x += 100.0;
+    p.model.quests[0].xp = 2000;
+    p.model.quests[0].objectives = vec![Objective {
+        loc: camp,
+        text: "Kill the chief".into(),
+        kills: 1.0,
+        mob_level: 7,
+        uses: 0.0,
+        extra: 0.0,
+        dungeon: None,
+        elite: false,
+        count: 1.0,
+        mobs: vec![],
+        pull: 1.0,
+        spawns: 1,
+        pack: 1.0,
+        spots: None,
+        guard: Guard::default(),
+        alts: vec![],
+        after: 0,
+        handed_by: vec![],
+        child: None,
+        child_name: None,
+        vendors: vec![],
+        auction: vec![],
+        stock: None,
+    }];
+    let route = planner(&p).greedy();
+    assert!(route.contains(&Stop::quest(0, Kind::TurnIn)), "{route:?}");
+}

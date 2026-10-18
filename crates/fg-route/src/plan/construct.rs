@@ -71,6 +71,13 @@ impl Planner<'_> {
                     } else if self.availability().can_accept(&s, i) {
                         let accept = Stop::quest(i, Kind::Accept);
                         let gate = self.gate_level(&s, accept);
+                        // Or the level its hardest objective needs (`worth_it` looks one level
+                        // ahead): its giver in reach, its mobs not yet.
+                        let hardest = (q.objectives.iter())
+                            .filter(|o| o.dungeon.is_none())
+                            .map(|o| self.combat().need(q, o))
+                            .fold(0.0, f64::max);
+                        let gate = gate.max(self.params.level_for(hardest, s.might()) - 1);
                         if gate > s.level && (q.mandatory || self.worth().worth_it(&s, i, gate, 0.0)) {
                             options.push((gate, accept));
                         }
