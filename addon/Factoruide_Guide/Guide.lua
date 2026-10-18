@@ -16,9 +16,11 @@ local L = {
     todo = T("To do"),
     next = T("Next"),
     pickup = T("To pick up"),
-    farmPlanned = T("~%d mobs on the way"),
-    farmProgress = T("mobs on the way %d/%d"),
-    farmTip = T("Mobs to kill on the way to this step (killed since it became current)"),
+    farmXP = T("%s/%s XP"),
+    farmXPPlanned = T("~%s XP"),
+    farmTip = T(
+        "XP to earn from the mobs killed on the way to this step (since it became current). The mobs of a quest objective not finished yet do not count."
+    ),
     pointHint = T("Left-click: the compass points at this step"),
     level = T("Lvl"),
     planned = T("planned"),
@@ -109,6 +111,7 @@ local route
 local acceptIndex = {} -- quest -> index of its accept step
 local turninIndex = {} -- quest -> index of its turn-in step
 local objectiveQuests = {} -- quests with an objective step
+local questMobs = {} -- creature -> indexes of the objective steps done on it (killed, or dropping an item)
 local childQuests = {} -- child quests handed in on the way to their parent's turn-in
 -- Whether the shown step was already done when we arrived on it (manual navigation): the
 -- guide only moves on when the shown step becomes done.
@@ -535,6 +538,21 @@ end
 
 local function Chip(v, text, color) table.insert(v.chips, { text = text, color = color }) end
 
+--- A number with its thousands apart, as the game writes them in the client's language.
+local function Thousands(n)
+    n = math.floor(n + 0.5)
+    if BreakUpLargeNumbers then return BreakUpLargeNumbers(n) end
+    local sign, digits = tostring(n):match("^(-?)(%d+)$")
+    if not digits then return tostring(n) end
+    local head = #digits % 3
+    local parts = {}
+    if head > 0 then table.insert(parts, digits:sub(1, head)) end
+    for i = head + 1, #digits, 3 do
+        table.insert(parts, digits:sub(i, i + 2))
+    end
+    return sign .. table.concat(parts, ",")
+end
+
 --- What the guide shows for a step: its name, the line under it (quest, NPC, why), warnings and
 --- the progress when known (`withProgress`).
 local function TaskView(step, index, withProgress)
@@ -677,7 +695,7 @@ function Guide:StepTooltip(owner, index)
     if not step then return end
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
     GameTooltip:AddLine(step.t, 1, 1, 1, true)
-    if step.fk then GameTooltip:AddLine(L.farmTip, 0.75, 0.5, 1, true) end
+    if step.fx or step.fk then GameTooltip:AddLine(L.farmTip, 0.75, 0.5, 1, true) end
     GameTooltip:AddLine(L.pointHint, 0.6, 0.6, 0.6, true)
     GameTooltip:AddLine(L.skipHint, 0.6, 0.6, 0.6, true)
     GameTooltip:Show()
@@ -719,17 +737,29 @@ function Guide:Refresh()
         local step = route.steps[index]
         -- The mobs to kill on the way to a step: a line of their own before it, counted while it
         -- is the current step.
-        if step.fk and not done then
-            local farm = state.farm
-            local kills = index == state.step and farm and farm.step == index and farm.kills or nil
+        if (step.fx or step.fk) and not done then
+            local farm = index == state.step and state.farm and state.farm.step == index and state.farm or nil
+            -- The XP of the kills (guides made before: their number).
+            local need = step.fx or step.fk
+            local have = farm and (step.fx and farm.xp or farm.kills) or nil
+            have = have and math.min(have, need)
+            local count
+            if not step.fx then
+                count = have and string.format("%d/%d", have, need) or ("~" .. need)
+            elseif have then
+                count = string.format(L.farmXP, Thousands(have), Thousands(need))
+            else
+                count = string.format(L.farmXPPlanned, Thousands(need))
+            end
             table.insert(view.tasks, {
                 kind = "farm",
                 index = index,
                 step = step,
                 icon = KINDS.grind.icon,
-                have = kills and math.min(kills, step.fk),
-                need = step.fk,
-                done = kills ~= nil and kills >= step.fk,
+                have = have,
+                need = need,
+                count = count,
+                done = have ~= nil and have >= need,
                 chips = {},
             })
         end
@@ -1007,27 +1037,29 @@ function Guide:AskReset()
     end
 end
 
---- Whether creature `npc` is one a step of the current page is done on (killed, or dropping
---- its item): killed there, it is not a mob on the way.
-local function PageMob(npc)
-    if not npc then return false end
-    for _, index in ipairs(CurrentGroup()) do
+--- Whether killing creature `npc` still counts for a quest the guide does: an objective step
+--- is done on it (killed, or dropping its item), its quest is in the log and that objective is
+--- not finished. Such a kill is not a mob on the way; once the objective is done, it is.
+local function QuestMob(npc)
+    for _, index in ipairs(npc and questMobs[npc] or {}) do
         local s = route.steps[index]
-        if s.e == "npc" and s.id == npc then return true end
-        for _, id in ipairs(s.mi or {}) do
-            if id == npc then return true end
-        end
+        if QuestLog.IsOnQuest(s.q) and not IsDone(s, index) then return true end
     end
     return false
 end
 
---- A mob (creature `npc`) killed by the character (or its pet): counted for the current step
---- when it has mobs to kill on the way to it, unless the steps at hand are done on that mob.
-function Guide:CountKill(npc)
+--- XP earned from a kill (`xp`; `quest`: the mob was one of an objective in progress): counted
+--- for the current step when it has mobs to kill on the way to it, unless it was a quest mob.
+function Guide:CountKill(xp, quest)
     local step = route and state and route.steps[state.step]
-    if not step or not step.fk or PageMob(npc) then return end
-    if not state.farm or state.farm.step ~= state.step then state.farm = { step = state.step, kills = 0 } end
-    state.farm.kills = state.farm.kills + 1
+    if not step or not (step.fx or step.fk) or quest then return end
+    local farm = state.farm
+    if not farm or farm.step ~= state.step then
+        farm = { step = state.step, xp = 0, kills = 0 }
+        state.farm = farm
+    end
+    farm.xp = (farm.xp or 0) + math.max(0, xp or 0)
+    farm.kills = (farm.kills or 0) + 1
     self:Refresh()
 end
 
@@ -1100,8 +1132,17 @@ local function UseRoute(name)
     wipe(turninIndex)
     wipe(objectiveQuests)
     wipe(childQuests)
+    wipe(questMobs)
     wipe(wasDone)
     for i, s in ipairs(route and route.steps or {}) do
+        if s.k == "objective" then
+            local mobs = s.mi or {}
+            if s.e == "npc" and s.id then mobs = { s.id, unpack(mobs) } end
+            for _, npc in ipairs(mobs) do
+                questMobs[npc] = questMobs[npc] or {}
+                table.insert(questMobs[npc], i)
+            end
+        end
         if s.q then
             if s.k == "accept" and not acceptIndex[s.q] then acceptIndex[s.q] = i end
             if s.k == "turnin" and not turninIndex[s.q] then turninIndex[s.q] = i end
@@ -1186,12 +1227,128 @@ FG:On("PLAYER_REGEN_ENABLED", function() Guide:Refresh() end)
 FG:On("PLAYER_ENTERING_WORLD", TrackInstance)
 FG:On("ZONE_CHANGED_NEW_AREA", TrackInstance)
 
--- Kills by the character or its pet, for the mobs on the way. The PARTY_KILL event, not the combat
--- log: registering COMBAT_LOG_EVENT_UNFILTERED is forbidden to addons on recent clients.
+-- XP of the kills, for the mobs on the way. The XP is read on the character's XP bar (UnitXP:
+-- readable on every client, rested bonus included); a gain is a kill's when a kill is seen
+-- within PAIR_WINDOW of it, before or after: PARTY_KILL by the character or its pet (it gives
+-- the mob, unless its GUID is secret), or the game's kill XP message (kills shared in a group).
+-- Quest turn-ins, discoveries... come without one: not counted; a turn-in's XP is also taken
+-- off a gain it shares with a kill. Gains are settled once that window has passed, so that the
+-- signals of a kill (in any order) have all arrived.
+local PAIR_WINDOW = 1
+local SAME_KILL = 0.5 -- the PARTY_KILL and the XP message of one kill
+local kills = {} -- { at, party, chat, quest, used }
+local gains = {} -- { at, xp }
+local turnins = {} -- { at, xp }: XP of the quests turned in, left to take off the gains
+local lastXP -- { level, xp, max }
+local settling = false
+
+local Settle
+local function SettleLater()
+    if settling or not (C_Timer and C_Timer.After) then return end
+    settling = true
+    C_Timer.After(PAIR_WINDOW, function() FG:Try("farm XP", Settle) end)
+end
+
+--- Pair the gains old enough with the kills around them (the first one each), forget the old
+--- kills.
+function Settle()
+    settling = false
+    local now = GetTime()
+    while gains[1] and now - gains[1].at >= PAIR_WINDOW do
+        local gain = table.remove(gains, 1)
+        for _, t in ipairs(turnins) do
+            if math.abs(t.at - gain.at) <= PAIR_WINDOW then
+                local quest = math.min(t.xp, gain.xp)
+                t.xp, gain.xp = t.xp - quest, gain.xp - quest
+            end
+        end
+        for _, k in ipairs(kills) do
+            if gain.xp <= 0 then break end
+            if not k.used and math.abs(k.at - gain.at) <= PAIR_WINDOW then
+                k.used = true
+                Guide:CountKill(gain.xp, k.quest)
+                break
+            end
+        end
+    end
+    for _, list in ipairs({ kills, turnins }) do
+        for i = #list, 1, -1 do
+            if now - list[i].at > 2 * PAIR_WINDOW then table.remove(list, i) end
+        end
+    end
+    if gains[1] or kills[1] or turnins[1] then SettleLater() end
+end
+
+--- A kill seen (`party`: by PARTY_KILL, else by the XP message): one entry per kill, the two
+--- signals of the same kill merged.
+local function KillSeen(party, quest)
+    local now = GetTime()
+    for _, k in ipairs(kills) do
+        if
+            math.abs(now - k.at) <= SAME_KILL
+            and (party and k.chat and not k.party or not party and k.party and not k.chat)
+        then
+            if party then
+                k.party, k.quest = true, quest
+            else
+                k.chat = true
+            end
+            return
+        end
+    end
+    table.insert(kills, { at = now, party = party, chat = not party, quest = quest })
+    SettleLater()
+end
+
 FG:On("PARTY_KILL", function(attackerGUID, targetGUID)
     local source, dest = FG.Readable(attackerGUID), FG.Readable(targetGUID)
-    if not dest or not dest:find("^Creature") then return end
-    if source == UnitGUID("player") or source == UnitGUID("pet") then Guide:CountKill(select(2, FG.ParseGUID(dest))) end
+    if not source or (source ~= FG.Readable(UnitGUID("player")) and source ~= FG.Readable(UnitGUID("pet"))) then
+        return
+    end
+    if dest and not dest:find("^Creature") then return end
+    -- Judged now: the quest log may count this very kill a moment later.
+    local _, npc = FG.ParseGUID(dest)
+    KillSeen(true, route and QuestMob(npc) or false)
+end)
+
+FG:On("CHAT_MSG_COMBAT_XP_GAIN", function(msg)
+    if FG.IsKillXP and FG.IsKillXP(msg) then KillSeen(false, false) end
+end)
+
+FG:On("QUEST_TURNED_IN", function(_, xpReward)
+    local xp = FG.Readable(xpReward)
+    if type(xp) ~= "number" or xp <= 0 then return end
+    table.insert(turnins, { at = GetTime(), xp = xp })
+    SettleLater()
+end)
+
+--- XP gained since the last reading, across a level up.
+local function ReadXP()
+    local level = FG.Readable(UnitLevel("player"))
+    local xp, max = FG.Readable(UnitXP("player")), FG.Readable(UnitXPMax("player"))
+    if not level or not xp or not max then return 0 end
+    local last = lastXP
+    lastXP = { level = level, xp = xp, max = max }
+    if not last then return 0 end
+    if level > last.level or (level == last.level and xp < last.xp) then
+        -- The level may still read the old one right after a level up.
+        lastXP.level = math.max(level, last.level + 1)
+        return level <= last.level + 1 and last.max - last.xp + xp or 0
+    end
+    return level == last.level and xp - last.xp or 0
+end
+
+FG:On("PLAYER_ENTERING_WORLD", function()
+    lastXP = nil
+    ReadXP()
+end)
+
+FG:On("PLAYER_XP_UPDATE", function(unit)
+    if unit and unit ~= "player" then return end
+    local gained = ReadXP()
+    if gained <= 0 then return end
+    table.insert(gains, { at = GetTime(), xp = gained })
+    SettleLater()
 end)
 
 -- The quest log updates in bursts (several a second while looting): one advance after them.

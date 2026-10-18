@@ -200,7 +200,7 @@ local function DrawTask(row, v, view)
         TextColor(row.count, "purple")
         row.count:ClearAllPoints()
         row.count:SetPoint("RIGHT", -PAD, 0)
-        row.count:SetText(v.have and string.format("%d/%d", v.have, v.need) or ("~" .. v.need))
+        row.count:SetText(v.count)
         Segments(row, v.have, v.need)
         return 18
     end

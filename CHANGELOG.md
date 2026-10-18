@@ -38,6 +38,7 @@ Guides watched and edited on a big map, quests that need others planned whole, c
 - An optional 3D arrow next to the compass.
 - The compass can be moved (drag it), resized (Ctrl + mouse wheel) and widened (drag its ends); /fg compass hides or shows it, /fg lock locks the windows.
 - WoW Forever: with Shortest Path Forever installed, it takes you to the step, and a click on the compass changes where.
+- Mobs on the way are counted in XP ("1,240/3,000 XP"), and the mobs of a quest objective count again once that objective is done.
 - The guide and the quest panel take less of the game's time while you loot or sell.
 - Polestar: guides made for its latest version (0.2.5): none refused any more, flight paths in every language, the planned camp first, elites marked "group advised", profession quests only for those who have it.
 

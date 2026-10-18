@@ -532,7 +532,7 @@ fn farmed(events: &[Timed], xp: i64) -> Option<Farmed> {
     let (kills, seconds) = events
         .iter()
         .filter_map(|t| match t.event {
-            Event::Farm { kills, seconds } => Some((kills, seconds)),
+            Event::Farm { kills, seconds, .. } => Some((kills, seconds)),
             _ => None,
         })
         .fold((0, 0.0), |(k, s), (kills, seconds)| (k + kills, s + seconds));

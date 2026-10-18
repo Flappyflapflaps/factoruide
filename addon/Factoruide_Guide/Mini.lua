@@ -414,7 +414,7 @@ local function DrawTags(view, main)
             TextColor(tag.text, "purple")
             tag.text:ClearAllPoints()
             tag.text:SetPoint("LEFT", tag.icon, "RIGHT", 5, 0)
-            tag.text:SetText(L.farm .. "  " .. (v.have and string.format("%d/%d", v.have, v.need) or ("~" .. v.need)))
+            tag.text:SetText(L.farm .. "  " .. v.count)
         else
             tag.index = v.index
             tag.icon:Show()

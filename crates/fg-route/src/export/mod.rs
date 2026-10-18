@@ -83,17 +83,21 @@ pub fn build_traced(
             xps.push(planner.model.initial.xp);
         }
     }
-    let mut farmed = 0;
+    // Mobs farmed on the way to the next step, and their XP.
+    let (mut farmed, mut farmed_xp) = (0, 0);
     for (n, t) in trace.iter().enumerate() {
         match &t.event {
             Event::Reward { quest, item } => writer.add_reward(&mut steps, *quest, *item),
-            Event::Farm { kills, .. } => farmed += kills,
+            Event::Farm { kills, xp, .. } => {
+                farmed += kills;
+                farmed_xp += xp;
+            }
             _ => {
                 let mut step = writer.step(t);
                 step.event = Some(n);
                 if farmed > 0 {
-                    StepWriter::add_farm(&mut step, farmed);
-                    farmed = 0;
+                    StepWriter::add_farm(&mut step, farmed, farmed_xp);
+                    (farmed, farmed_xp) = (0, 0);
                 }
                 let run = match &t.event {
                     Event::Stop { stop, .. } if stop.kind == Kind::Dungeon => Some(stop.index as usize),

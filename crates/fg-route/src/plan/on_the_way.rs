@@ -201,12 +201,14 @@ impl Planner<'_> {
         s.time += time;
         s.spent.farming += time;
         s.farm_used += gained;
-        s.spent.farm_xp += self.growth().gain_kills(s, gained);
+        let xp = self.growth().gain_kills(s, gained);
+        s.spent.farm_xp += xp;
         self.growth().gather(s, a.zone, killed);
         record(
             s,
             Event::Farm {
                 kills: killed.round() as u32,
+                xp,
                 seconds: time,
             },
         );

@@ -1238,78 +1238,170 @@ assert(not calls.ConfirmAcceptQuest, "a shared escort is not confirmed")
 GetQuestID = questID
 print("guide quests only ok")
 
--- Mobs on the way: the kills of the character (or its pet) counted for the current step.
-FG.Routes["farm-test"] = {
-    race = 7,
-    class = 8,
-    faction = "Alliance",
-    fromLevel = 1,
-    toLevel = 60,
-    time = 1,
-    steps = { { k = "grind", t = "Grind", lvl = 60, fk = 3 } },
-}
-useRoute("farm-test")
-local function kill(source, dest) fire("PARTY_KILL", source, dest) end
-kill("Player-1-2", "Creature-0-1-2-3-299-0000")
-kill("Player-1-2", "Creature-0-1-2-3-299-0001")
-kill("Player-9-9", "Creature-0-1-2-3-299-0002") -- someone else's
-kill("Player-1-2", "Player-3-4") -- not a mob
-assert(char.guide.farm and char.guide.farm.step == 1 and char.guide.farm.kills == 2, "two mobs on the way counted")
-local rows = FG.Guide:Box().rows
-local farmLine, stepLine = rows[1].count:GetText(), rows[2].name:GetText()
-assert(farmLine:find("2/3", 1, true), "a line of its own with the count: " .. farmLine)
-assert(not stepLine:find("2/3", 1, true) and stepLine:find("Grind", 1, true), "the step's line apart: " .. stepLine)
--- The step's own mobs (killed for it, or dropping its item) are not mobs on the way.
-FG.Routes["farm-quest-test"] = {
-    race = 7,
-    class = 8,
-    faction = "Alliance",
-    fromLevel = 1,
-    toLevel = 60,
-    time = 1,
-    steps = {
-        {
-            k = "objective",
-            t = "Kill Night Web Spider x8",
-            n = "Night Web Spider",
-            q = 9401,
-            o = 1,
-            e = "npc",
-            id = 1505,
-            mi = { 1505 },
-            fk = 3,
-            m = 1431,
-            x = 24.8,
-            y = 59.7,
-            lvl = 1,
+-- Mobs on the way: the XP of the kills of the character (or its pet) counted for the current
+-- step. The XP is read on the XP bar, a gain counts when a kill is seen within a second of it.
+do
+    local savedGetTime, savedXP, savedXPMax, savedLevel = GetTime, UnitXP, UnitXPMax, playerLevel
+    local savedGUID = UnitGUID
+    UnitGUID = function(u) return u == "pet" and "Pet-0-1-2-3-416-0000000001" or savedGUID(u) end
+    -- The game's kill XP messages (the client's own strings).
+    COMBATLOG_XPGAIN_FIRSTPERSON = "%s dies, you gain %d experience."
+    COMBATLOG_XPGAIN_EXHAUSTION1 = "%s dies, you gain %d experience. (%s exp %s bonus)"
+    local clock, barXP, barMax = 5000, 0, 400
+    GetTime = function() return clock end
+    UnitXP = function() return barXP end
+    UnitXPMax = function() return barMax end
+    playerLevel = 1
+    local function gain(n)
+        barXP = barXP + n
+        if barXP >= barMax then
+            barXP, playerLevel = barXP - barMax, playerLevel + 1
+        end
+        fire("PLAYER_XP_UPDATE", "player")
+    end
+    --- The time for the gains to be settled (a kill's signals may come after its XP).
+    local function settle()
+        clock = clock + 1.5
+        runTimers()
+        clock = clock + 1.5
+        runTimers()
+    end
+    local function kill(source, dest) fire("PARTY_KILL", source, dest) end
+    FG.Routes["farm-test"] = {
+        race = 7,
+        class = 8,
+        faction = "Alliance",
+        fromLevel = 1,
+        toLevel = 60,
+        time = 1,
+        steps = { { k = "grind", t = "Grind", lvl = 60, fk = 3, fx = 1300 } },
+    }
+    useRoute("farm-test")
+    fire("PLAYER_ENTERING_WORLD")
+    char.guide.farm = nil
+    -- A kill then its XP; the XP then the kill and the game's message of the same kill (one gain).
+    kill("Player-1-2", "Creature-0-1-2-3-299-0000")
+    gain(50)
+    settle()
+    assert(char.guide.farm and char.guide.farm.step == 1 and char.guide.farm.xp == 50, "a kill's XP counted")
+    gain(40)
+    kill("Pet-0-1-2-3-416-0000000001", "Creature-0-1-2-3-299-0001")
+    fire("CHAT_MSG_COMBAT_XP_GAIN", "Mangy Wolf dies, you gain 40 experience.")
+    settle()
+    assert(char.guide.farm.xp == 90, "the pet's kill counted once: " .. char.guide.farm.xp)
+    -- XP without a kill (a quest turned in, an area discovered): not counted. Nor someone else's
+    -- kill, nor a player killed.
+    clock = clock + 5
+    gain(200)
+    kill("Player-9-9", "Creature-0-1-2-3-299-0002")
+    settle()
+    kill("Player-1-2", "Player-3-4")
+    gain(10)
+    settle()
+    assert(char.guide.farm.xp == 90, "quest XP not counted: " .. char.guide.farm.xp)
+    -- A quest turned in right after a kill, its XP read in the same gain: the kill's part only.
+    kill("Player-1-2", "Creature-0-1-2-3-299-0003")
+    fire("QUEST_TURNED_IN", 1234, 35, 0)
+    gain(35 + 35) -- one reading for both
+    settle()
+    assert(char.guide.farm.xp == 125, "turn-in XP taken off a kill's gain: " .. char.guide.farm.xp)
+    -- A kill told by the game's message only (shared in a group, the GUID secret), across a level up.
+    assert(barXP == 370, barXP)
+    fire("CHAT_MSG_COMBAT_XP_GAIN", "Mangy Wolf dies, you gain 150 experience. (75 exp Rested bonus)")
+    gain(150)
+    settle()
+    assert(playerLevel == 2 and char.guide.farm.xp == 275, "kill XP across a level up: " .. char.guide.farm.xp)
+    local rows = FG.Guide:Box().rows
+    local farmLine, stepLine = rows[1].count:GetText(), rows[2].name:GetText()
+    assert(farmLine == "275/1,300 XP", "a line of its own with the XP: " .. farmLine)
+    assert(not stepLine:find("275", 1, true) and stepLine:find("Grind", 1, true), "the step's line apart: " .. stepLine)
+    -- Guides made before the XP was exported: the kills are counted.
+    FG.Routes["farm-test"].steps[1].fx = nil
+    FG.Guide:Refresh()
+    farmLine = FG.Guide:Box().rows[1].count:GetText()
+    assert(farmLine == "3/3", "guides without the XP count the kills: " .. farmLine)
+    -- The mobs of an objective of the guide (killed for it, or dropping its item) are not mobs on
+    -- the way while that objective is not finished; then they are.
+    FG.Routes["farm-quest-test"] = {
+        race = 7,
+        class = 8,
+        faction = "Alliance",
+        fromLevel = 1,
+        toLevel = 60,
+        time = 1,
+        steps = {
+            {
+                k = "objective",
+                t = "Kill Night Web Spider x8",
+                n = "Night Web Spider",
+                q = 9401,
+                o = 1,
+                e = "npc",
+                id = 1505,
+                mi = { 1505 },
+                fk = 3,
+                fx = 300,
+                m = 1431,
+                x = 24.8,
+                y = 59.7,
+                lvl = 1,
+            },
+            {
+                k = "objective",
+                t = "Spider Silk x4",
+                n = "Spider Silk",
+                q = 9402,
+                o = 1,
+                e = "item",
+                id = 9999,
+                mi = { 1504 },
+                m = 1431,
+                x = 24.9,
+                y = 59.8,
+                lvl = 1,
+            },
+            { k = "grind", t = "Grind", lvl = 60 },
         },
-        {
-            k = "objective",
-            t = "Spider Silk x4",
-            n = "Spider Silk",
-            q = 9402,
-            o = 1,
-            e = "item",
-            id = 9999,
-            mi = { 1504 },
-            m = 1431,
-            x = 24.9,
-            y = 59.8,
-            lvl = 1,
-        },
-        { k = "grind", t = "Grind", lvl = 60 },
-    },
-}
-onQuest[9401], onQuest[9402] = true, true
-useRoute("farm-quest-test")
-FG.Guide:Resync()
-char.guide.farm = nil
-kill("Player-1-2", "Creature-0-1-2-3-1505-0000") -- the step's target
-kill("Player-1-2", "Creature-0-1-2-3-1504-0001") -- drops the item of a step of the page
-assert(char.guide.farm == nil, "the page's quest mobs not counted on the way")
-kill("Player-1-2", "Creature-0-1-2-3-299-0002")
-assert(char.guide.farm and char.guide.farm.kills == 1, "another mob counted")
-onQuest[9401], onQuest[9402] = nil, nil
+    }
+    playerLevel = 2
+    onQuest[9401], onQuest[9402] = true, true
+    useRoute("farm-quest-test")
+    FG.Guide:Resync()
+    char.guide.farm = nil
+    kill("Player-1-2", "Creature-0-1-2-3-1505-0000") -- the objective's mob
+    gain(30)
+    settle()
+    kill("Player-1-2", "Creature-0-1-2-3-1504-0001") -- drops the item of an objective
+    gain(30)
+    settle()
+    assert(char.guide.farm == nil, "the mobs of objectives in progress not counted on the way")
+    kill("Player-1-2", "Creature-0-1-2-3-299-0002")
+    gain(25)
+    settle()
+    assert(char.guide.farm and char.guide.farm.xp == 25, "another mob counted")
+    -- The spiders' objective finished (killing more is farming), then the silk's quest out of the log.
+    local objectives = C_QuestLog.GetQuestObjectives
+    C_QuestLog.GetQuestObjectives = function(q)
+        if q == 9401 then return { { text = "Night Web Spider slain: 8/8", finished = true } } end
+        return objectives(q)
+    end
+    kill("Player-1-2", "Creature-0-1-2-3-1505-0003")
+    gain(30)
+    settle()
+    assert(char.guide.farm.xp == 55, "objective done: its mobs count: " .. char.guide.farm.xp)
+    kill("Player-1-2", "Creature-0-1-2-3-1504-0004")
+    gain(30)
+    settle()
+    assert(char.guide.farm.xp == 55, "the silk's objective still in progress")
+    onQuest[9402] = nil
+    kill("Player-1-2", "Creature-0-1-2-3-1504-0005")
+    gain(30)
+    settle()
+    assert(char.guide.farm.xp == 85, "quest out of the log: its mobs count: " .. char.guide.farm.xp)
+    C_QuestLog.GetQuestObjectives = objectives
+    onQuest[9401], onQuest[9402] = nil, nil
+    GetTime, UnitXP, UnitXPMax, playerLevel, UnitGUID = savedGetTime, savedXP, savedXPMax, savedLevel, savedGUID
+end
 print("farm on the way ok")
 
 -- Start over: asks when steps or quests were marked by hand, then undoes them.

@@ -127,9 +127,11 @@ pub enum Event {
     Abandon {
         quest: usize,
     },
-    /// Normal mobs killed on the way to the next stop (`Params::farm_on_way`).
+    /// Normal mobs killed on the way to the next stop (`Params::farm_on_way`), and the XP they
+    /// gave (rested bonus included).
     Farm {
         kills: u32,
+        xp: i64,
         seconds: f64,
     },
 }

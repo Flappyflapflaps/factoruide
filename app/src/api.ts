@@ -242,6 +242,8 @@ export interface Step {
   inside?: boolean;
   /** Mobs to kill on the way to the step (farming on the way). */
   farm?: number;
+  /** The XP they give (rested bonus included): what the addon counts. */
+  farm_xp?: number;
   text: string;
   target?: { kind: string; id: number; name: string };
   zone?: string;

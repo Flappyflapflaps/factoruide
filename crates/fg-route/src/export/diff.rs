@@ -838,6 +838,7 @@ mod tests {
             spells: Vec::new(),
             xp: None,
             farm: None,
+            farm_xp: None,
             level: 10,
             time: 0.0,
             power: None,

@@ -409,6 +409,7 @@ local function KillPatterns()
     return killPatterns
 end
 
+--- Whether a CHAT_MSG_COMBAT_XP_GAIN message is a kill's XP (false when unreadable).
 local function IsKillXP(msg)
     msg = FG.Readable(msg)
     if type(msg) ~= "string" then return false end
@@ -417,6 +418,7 @@ local function IsKillXP(msg)
     end
     return false
 end
+FG.IsKillXP = IsKillXP
 
 FG:On("PARTY_KILL", function(attackerGUID, targetGUID)
     local attacker = FG.Readable(attackerGUID)

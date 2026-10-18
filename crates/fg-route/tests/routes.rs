@@ -1169,7 +1169,7 @@ fn addon_gets_item_counts_and_reputation_goals() {
     assert!(lua.contains("reputations = { { id = 72, name = "), "{}", &lua[..300]);
 }
 
-/// The mobs farmed on the way to a step are a count of their own (the addon counts the kills),
+/// The mobs farmed on the way to a step are a count of their own (the addon counts them),
 /// not words of its text.
 #[test]
 fn mobs_on_the_way_are_counted_apart() {
@@ -1185,6 +1185,29 @@ fn mobs_on_the_way_are_counted_apart() {
         farmed[0].text
     );
     assert!(fg_route::export::to_lua(std::slice::from_ref(&guide)).contains(", fk = "));
+}
+
+/// The addon counts the XP of the mobs on the way: each step farmed to has the XP the planner
+/// expects from them (rested bonus included), all together the XP farmed on the way.
+#[test]
+fn mobs_on_the_way_carry_their_xp() {
+    let p = orc_warlock();
+    let planner = planner(p);
+    let route = planner.construct(|_| {});
+    let (_, spent) = planner.simulate_full(&route, None).unwrap();
+    let guide = fg_route::export::build(&planner, &p.profile, &route);
+    let farmed: Vec<_> = guide.steps.iter().filter(|s| s.farm.is_some()).collect();
+    assert!(!farmed.is_empty(), "no mobs farmed on the way");
+    assert!(farmed.iter().all(|s| s.farm_xp.is_some_and(|xp| xp > 0)));
+    let total: i64 = farmed.iter().filter_map(|s| s.farm_xp).sum();
+    assert_eq!(total, spent.farm_xp);
+    let lua = fg_route::export::to_lua(std::slice::from_ref(&guide));
+    let step = farmed[0];
+    let line = lua
+        .lines()
+        .find(|l| l.contains(&format!("t = {:?}", step.text)) && l.contains(", fk = "))
+        .unwrap();
+    assert!(line.contains(&format!(", fx = {}", step.farm_xp.unwrap())), "{line}");
 }
 
 /// The addon gets the IDs of the mobs a step is done on, to leave their kills out of the mobs on

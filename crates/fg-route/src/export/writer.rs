@@ -101,9 +101,11 @@ impl StepWriter<'_> {
         step
     }
 
-    /// The mobs farmed on the way to a step: counted by the addon, shown apart from its text.
-    pub(super) fn add_farm(step: &mut Step, kills: u32) {
+    /// The mobs farmed on the way to a step and their XP: the addon counts the XP of the kills,
+    /// shown apart from its text.
+    pub(super) fn add_farm(step: &mut Step, kills: u32, xp: i64) {
         step.farm = Some(kills);
+        step.farm_xp = (xp > 0).then_some(xp);
     }
 
     /// A checkpoint: the guide goes on from the level (and XP) the route has there, grinding
@@ -147,6 +149,7 @@ impl StepWriter<'_> {
             spells: Vec::new(),
             xp: (xp > 0).then_some(xp),
             farm: None,
+            farm_xp: None,
             level,
             keep: true,
             event: None,
@@ -186,6 +189,7 @@ impl StepWriter<'_> {
             say: vec![say],
             xp: (xp > 0).then_some(xp),
             farm: None,
+            farm_xp: None,
             level,
             zone: at.zone.clone(),
             zone_id: at.zone_id,
@@ -254,6 +258,7 @@ impl StepWriter<'_> {
             spells: Vec::new(),
             xp: None,
             farm: None,
+            farm_xp: None,
             level: t.level,
             time: t.time.round(),
             power: power.map(|_| (t.power * 10.0).round() / 10.0),
@@ -614,6 +619,8 @@ impl StepWriter<'_> {
                 step.target = None;
                 step.say.clear();
                 step.inside = true;
+                // The mobs on the way are the run's, before it.
+                (step.farm, step.farm_xp) = (None, None);
                 for &k in &ks {
                     Self::objective(&mut step, &q.objectives[k as usize], k);
                 }
