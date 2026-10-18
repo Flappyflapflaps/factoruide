@@ -790,8 +790,10 @@ function Guide:Refresh()
     local function AlongTheWay(first)
         for index = 1, group[1] - 1 do
             local step = route.steps[index]
+            -- An item offered at a vendor passed by (`tr`) is not followed once behind.
             if
                 step.bg
+                and not step.tr
                 and not listed[index]
                 and (turnedIn[step.q] or false) == first
                 and QuestLog.IsOnQuest(step.q)
@@ -1458,7 +1460,7 @@ function Guide:NextStepByQuest()
     -- Background objectives left behind and not done yet: in progress along the way.
     for i = 1, math.min(state.step - 1, #route.steps) do
         local s = route.steps[i]
-        if s.bg and not out[s.q] and QuestLog.IsOnQuest(s.q) and not IsDone(s, i) then
+        if s.bg and not s.tr and not out[s.q] and QuestLog.IsOnQuest(s.q) and not IsDone(s, i) then
             out[s.q] = { index = i, k = s.k, n = s.n, bg = true }
         end
     end

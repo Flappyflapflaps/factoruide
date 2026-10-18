@@ -88,8 +88,14 @@ impl StepWriter<'_> {
             Event::Stop { stop, loc } if !stop.is_quest() => self.visit(&mut step, *stop, loc),
             Event::Stop { stop, loc } => self.quest_stop(&mut step, *stop, loc),
         };
+        Self::set_place(&mut step, place, self.planner.world);
+        step
+    }
+
+    /// The step's zone, map point and world position.
+    fn set_place(step: &mut Step, place: Place, world: &crate::world::World) {
         if let Some((m, p)) = place {
-            step.zone = Some(self.planner.world.zone_name(m.zone).to_owned());
+            step.zone = Some(world.zone_name(m.zone).to_owned());
             step.zone_id = Some(m.zone);
             step.map = Some(m.into());
             step.world = Some([
@@ -98,7 +104,11 @@ impl StepWriter<'_> {
                 (p.y * 10.0).round() / 10.0,
             ]);
         }
-        step
+    }
+
+    /// The step placed at `pos` in `zone`.
+    pub(super) fn put_at(&self, step: &mut Step, pos: &Pos, zone: i64) {
+        Self::set_place(step, self.place(pos, Some(zone)), self.planner.world);
     }
 
     /// The mobs farmed on the way to a step and their XP: the addon counts the XP of the kills,
@@ -130,6 +140,7 @@ impl StepWriter<'_> {
             pre_any: Vec::new(),
             min_level: None,
             bg: false,
+            try_buy: false,
             inside: false,
             held: false,
             objective: None,
@@ -233,6 +244,7 @@ impl StepWriter<'_> {
             pre_any: Vec::new(),
             min_level: None,
             bg: false,
+            try_buy: false,
             inside: false,
             held: false,
             objective: None,

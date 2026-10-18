@@ -810,6 +810,7 @@ mod tests {
             pre_any: Vec::new(),
             min_level: None,
             bg: false,
+            try_buy: false,
             inside: false,
             held: false,
             objective: (kind == StepKind::Objective).then_some(0),

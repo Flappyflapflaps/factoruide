@@ -212,6 +212,20 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "objective.buy.try",
+        [
+            "On the way: buy {who} from {vendor} if you still need it",
+            "En passant : acheter {who} à {vendor} s'il vous en faut encore",
+            "Unterwegs: {who} bei {vendor} kaufen, falls noch nötig",
+            "De paso: comprar {who} a {vendor} si aún lo necesitas",
+            "De passagem: comprar {who} de {vendor} se ainda precisar",
+            "По пути: купить {who} у {vendor}, если ещё нужно",
+            "가는 길에: 아직 필요하면 {vendor}에게서 {who} 구입",
+            "顺路：如果还需要，从{vendor}处购买{who}",
+            "順路：如果還需要，從{vendor}處購買{who}",
+        ],
+    ),
+    (
         "suffix.stock",
         [
             "(limited supply: {n} every {hours} h, the vendor may be out)",

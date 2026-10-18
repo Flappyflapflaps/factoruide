@@ -92,6 +92,9 @@ pub fn to_lua(routes: &[Route]) -> String {
             if s.bg {
                 fields.push("bg = true".into());
             }
+            if s.try_buy {
+                fields.push("tr = true".into());
+            }
             if s.inside {
                 fields.push("di = true".into());
             }
