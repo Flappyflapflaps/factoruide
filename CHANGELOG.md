@@ -4,7 +4,9 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 Writing an entry: one short line per change, saying what the player sees or gets (not how it works inside), grouped under App, Guides, Addon and WoW data. Numbers and examples only when they tell the change better than words; details go to the commit.
 
-## Unreleased
+## 0.13.0 (2026-10-18)
+
+An assistant to set up the addon, help finding the game and fixing install problems, light themes, guides that follow your class and gear, and items in limited supply bought where they can be found.
 
 ### App
 
@@ -20,6 +22,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - No characters yet: the Characters page names the likely cause.
 - Problem reports can join the state of the game and the addon (no account or character name), to help with install problems.
 - Guide map: a step chosen in the list, with the arrow keys or the playback bar is shown on the map, even when the map no longer follows the character.
+- Linux: an AppImage that updates itself, and the executable alone (#30).
 
 ### Guides
 
@@ -28,6 +31,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - The Blackwood Corrupted: the bowl and the three samples first, then the bowl by the bonfire to bring out Xabraxxis and his Talisman.
 - What a guide asks of your character follows your class and your gear: plain gear holds you back more the higher you are, good rewards let you go further, warriors wait longer for the hard quests in their twenties, hunters and warlocks take them sooner.
 - A timed quest whose time is up is given up where you stand, with no trip to its giver.
+- With nothing left to do, the guide grinds to the level a quest's mobs need, not only to the level to take it (#31).
 - An item to buy names its vendor, says when it is sold in limited supply (the vendor may be out), and lists other vendors of your side with their zone; your target macro targets them.
 - An item in limited supply no longer holds the guide at its vendor: it stays listed along the way until you have it (the turn-in waits for it). The other vendors and auction houses you pass by offer it too, from the quest's level on, even before you have the quest.
 - The server's crowd decides where such an item is bought: from the vendor on a quiet server, at an auction house on a busy one (the vendor often sold out, many players selling it).
