@@ -23,11 +23,17 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - An item in limited supply no longer holds the guide at its vendor: it stays listed along the way until you have it (the turn-in waits for it). The other vendors and auction houses you pass by offer it too, from the quest's level on, even before you have the quest.
 - The server's crowd decides where such an item is bought: from the vendor on a quiet server, at an auction house on a busy one (the vendor often sold out, many players selling it).
 - At any merchant, the addon buys the items your guide still needs for its quests.
+- The map no longer shows far-off places for an objective: The Great Outdoors points to your starting area's campfire, not the other races'.
 
 ### Addon
 
 - The same parchment in game ("Addon colors" on the Addon page): the guide and the quest panel on a light page, the compass, the arrow and the marks in amber.
 - A library book's step is ticked as soon as the book is in your bags, and the librarian's quest is taken and turned in together.
+
+### WoW data
+
+- Latest quest data: the Forsaken priests' A Lesson in Divinity taken in order, more prerequisites of WoW Forever's new quests, quest NPCs in the right place.
+- Discipline (Executor Zygand) only once Vital Intelligence is handed in, as a player checked in game for the "Need help" page.
 
 ## 0.12.0 (2026-10-18)
 

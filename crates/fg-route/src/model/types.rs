@@ -244,8 +244,9 @@ impl Spots {
     }
 
     /// Other places to look for them than around `first` (world x, y): the centres of up to
-    /// `max` groups of spawns away from it and from each other, densest first, then ordered
-    /// from the closest to `first`. For the guide, when nothing is found where it points.
+    /// `max` groups of spawns away from it and from each other, but not in another part of the
+    /// world, densest first, then ordered from the closest to `first`. For the guide, when
+    /// nothing is found where it points.
     #[must_use]
     pub fn groups(&self, first: (f64, f64), max: usize) -> Vec<(f64, f64)> {
         /// Spawns this close to a group's centre belong to it (yards).
@@ -253,12 +254,15 @@ impl Spots {
         /// Places this close to another are the same place (yards): beyond, the mob may be
         /// there and not here.
         const APART: f64 = 150.0;
+        /// Places farther are not where to look instead (yards): another zone's copy of the
+        /// object (each starting area's Basic Campfire), the mob's spawns elsewhere.
+        const FAR: f64 = 2000.0;
         let dist = |a: (f64, f64), b: (f64, f64)| (a.0 - b.0).hypot(a.1 - b.1);
         let mut left: Vec<(f64, f64)> = self
             .points
             .iter()
             .copied()
-            .filter(|p| dist(*p, first) > APART)
+            .filter(|p| dist(*p, first) > APART && dist(*p, first) <= FAR)
             .collect();
         let mut out = Vec::new();
         while out.len() < max && !left.is_empty() {
@@ -298,7 +302,7 @@ mod spots_tests {
     use super::Spots;
 
     #[test]
-    fn other_groups_away_from_the_first_closest_first() {
+    fn other_groups_away_from_the_first_not_too_far_closest_first() {
         let points = vec![
             (0.0, 0.0),
             (10.0, 0.0),
@@ -314,13 +318,12 @@ mod spots_tests {
             points,
         };
         let groups = spots.groups((0.0, 0.0), 5);
-        assert_eq!(groups.len(), 3, "{groups:?}");
+        assert_eq!(groups.len(), 2, "not the spawn far away: {groups:?}");
         assert_eq!(groups[0], (400.0, 0.0));
         assert!(
             (groups[1].0 - 1005.0).abs() < 1e-9,
             "the two spawns together: {groups:?}"
         );
-        assert_eq!(groups[2], (5000.0, 0.0));
         assert_eq!(spots.groups((0.0, 0.0), 1).len(), 1, "at most max");
     }
 }
