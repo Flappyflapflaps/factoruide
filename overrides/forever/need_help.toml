@@ -4,14 +4,6 @@
 # Answers come back as problem reports: "[need-help forever/offered-before/<quest>] yes|no".
 
 [[check]]
-quest = 99134 # Discipline (Executor Zygand, Tirisfal)
-before = [383]
-
-[[check]]
-quest = 99142 # Tomb Weed (Junior Apothecary Holland, Tirisfal)
-before = [5481, 5482]
-
-[[check]]
 quest = 99048 # A Missing Hand (Orgnil Soulscar, Durotar)
 before = [806, 823]
 
