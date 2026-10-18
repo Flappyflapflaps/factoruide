@@ -7,6 +7,7 @@ interface Props {
   min?: number;
   max?: number;
   step?: number;
+  disabled?: boolean;
   "aria-label"?: string;
 }
 

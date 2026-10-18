@@ -58,6 +58,9 @@ struct Settings {
     /// saves at once, the game gets them when asked.
     #[serde(default)]
     addon_installed: Option<String>,
+    /// Whether the addon's setup questions were answered (or skipped): asked once, then on demand.
+    #[serde(default)]
+    addon_setup_done: bool,
     /// Characters taken out of the Characters page ("<edition>/<Name-Realm>" -> the time of the
     /// profile then): deleted in game, but the game keeps their files and the addon their
     /// profile. One played again (a newer profile) is back.
@@ -119,6 +122,7 @@ impl Default for Settings {
             guide_locale: None,
             all_guides: false,
             addon_installed: None,
+            addon_setup_done: false,
             forgotten_characters: BTreeMap::new(),
         }
     }
@@ -1233,11 +1237,7 @@ fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
             lua.push_str("}\n");
             std::fs::write(dest.join("Routes.lua"), lua).map_err(err)?;
             // The addon's texts in the guides' language.
-            let mut config = settings.addon.clone();
-            if let Some(locale) = &settings.guide_locale {
-                config.insert("locale".into(), locale.clone().into());
-            }
-            job::write_addon_config(&dest, &config).map_err(err)?;
+            job::write_addon_config(&dest, &settings.addon, settings.guide_locale.as_deref()).map_err(err)?;
             routes.len()
         }
         // Polestar picks each character's guide by its race, class and level.

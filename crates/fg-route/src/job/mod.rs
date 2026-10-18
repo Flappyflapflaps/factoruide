@@ -1,6 +1,7 @@
 //! Running a planning job, from the request to the route: shared by the `fg` CLI and the desktop
 //! app.
 
+mod addon_settings;
 mod character;
 mod draft;
 mod edit;
@@ -16,6 +17,7 @@ mod services;
 mod start;
 mod timeline;
 
+pub use addon_settings::write_addon_config;
 pub use draft::{EditView, ObjectiveAt, PlaceAt, QuestAt, Request, Requests, Suggestions};
 pub use edit::{
     CatalogDungeon, CatalogLink, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef,
@@ -29,7 +31,7 @@ pub use reputation::race_base;
 pub use request::{PlanOutcome, PlanRequest, Prepared};
 pub use routes::{
     add_polestar_source, addon_walks, load_routes, polestar_source_dir, render_routes, save_route, slug,
-    write_addon_config, write_addon_routes, write_polestar_pack, write_polestar_source,
+    write_addon_routes, write_polestar_pack, write_polestar_source,
 };
 pub use services::{Place, Service, places, services_lua};
 pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};

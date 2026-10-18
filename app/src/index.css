@@ -1222,6 +1222,68 @@ button.disclosure:disabled {
   break-inside: avoid;
   margin-bottom: 16px;
 }
+.addon-section + .addon-section {
+  margin-top: 14px;
+}
+.addon-section h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+/* Depends on a setting that is off. */
+.setting.disabled {
+  opacity: 0.45;
+}
+/* The addon's setup: a few questions answered by picking a card. */
+.addon-setup {
+  max-width: 860px;
+}
+.setup-question + .setup-question {
+  margin-top: 22px;
+}
+.setup-question h3 {
+  margin: 0 0 10px;
+}
+.setup-question p {
+  margin: 0 0 10px;
+}
+.setup-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+.setup-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  text-align: left;
+  white-space: normal;
+}
+.setup-choice small {
+  color: var(--text-secondary);
+  font-weight: 400;
+  line-height: 1.4;
+}
+.setup-choice.active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.setup-changes td {
+  padding: 3px 10px 3px 0;
+}
+.setup-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.setup-actions > span {
+  flex: 1;
+}
 .field-short input {
   max-width: 120px;
 }

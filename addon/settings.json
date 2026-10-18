@@ -1,0 +1,331 @@
+{
+  "groups": [
+    {
+      "title": "Affichage",
+      "sections": [
+        {
+          "options": [
+            { "key": "guideShown", "kind": "bool", "default": true, "label": "Afficher le guide", "help": "La fenêtre de l'étape en cours et des suivantes." },
+            {
+              "key": "guideMode",
+              "kind": "select",
+              "default": "full",
+              "label": "Mode du guide",
+              "help": "Complet : une carte avec les tâches en cours, la suite et le talent à placer. Minimal : un bandeau en haut de l'écran, la suite au survol. En jeu, le bouton du guide ou une touche (Factoruide) passe de l'un à l'autre, retenu jusqu'au prochain changement ici.",
+              "requires": "guideShown",
+              "options": [
+                { "value": "full", "label": "Complet" },
+                { "value": "minimal", "label": "Minimal" }
+              ]
+            },
+            { "key": "scale", "kind": "number", "default": 1, "min": 0.6, "max": 2, "step": 0.05, "percent": true, "label": "Taille des fenêtres", "help": "Taille de toutes les fenêtres de l'addon (guide, suivi, boussole)." },
+            { "key": "lockFrames", "kind": "bool", "default": false, "label": "Verrouiller les fenêtres", "help": "Empêche de déplacer les fenêtres de l'addon par erreur." },
+            {
+              "key": "uiTheme",
+              "kind": "select",
+              "default": "dark",
+              "label": "Couleurs de l'addon",
+              "help": "Celles de l'application : sombres, ou parchemin (un fond clair jauni, des textes foncés). Pris en compte après /reload.",
+              "options": [
+                { "value": "dark", "label": "Sombre" },
+                { "value": "parchemin", "label": "Parchemin" }
+              ]
+            },
+            { "key": "suiteSkin", "kind": "bool", "default": false, "label": "Style de la suite d'interface", "help": "Avec ElvUI, EllesmereUI ou SpartanUI : leur style à la place de celui de Factoruide. Pris en compte après /reload." },
+            { "key": "questItemButton", "kind": "bool", "default": true, "label": "Bouton de l'objet de quête", "help": "À côté du guide (près des barres d'action en mode minimal) ; raccourci dans les touches du jeu (Factoruide)." }
+          ]
+        },
+        {
+          "title": "Suivi des quêtes",
+          "options": [
+            { "key": "trackerShown", "kind": "bool", "default": true, "label": "Afficher le suivi des quêtes Factoruide", "help": "Une ligne par quête dans l'ordre du guide (objectifs au survol), et des onglets pour les métiers, la réputation et les objets à garder pour les quêtes (sacs et banque)." },
+            { "key": "replaceTracker", "kind": "bool", "default": true, "requires": "trackerShown", "label": "Masquer le suivi de quêtes de Blizzard", "help": "Le suivi de Blizzard est caché tant que celui de Factoruide est affiché." },
+            { "key": "trackerQuests", "kind": "number", "default": 8, "min": 1, "max": 35, "step": 1, "requires": "trackerShown", "label": "Quêtes affichées", "help": "Les prochaines quêtes du journal à faire, dans l'ordre du guide." },
+            { "key": "trackerAll", "kind": "bool", "default": false, "requires": "trackerShown", "label": "Afficher tout le journal", "help": "Sinon, seulement les quêtes du journal que le guide fait encore." },
+            { "key": "professionsShown", "kind": "bool", "default": true, "requires": "trackerShown", "label": "Afficher la progression des métiers", "help": "Compétence actuelle face au palier prévu pour votre niveau." }
+          ]
+        },
+        {
+          "title": "Carte du monde et groupe",
+          "options": [
+            { "key": "mapPins", "kind": "bool", "default": true, "label": "Prochaines étapes sur la carte du monde", "help": "Marque les prochaines étapes du guide sur la carte du monde." },
+            { "key": "mapPinsCount", "kind": "number", "default": 15, "min": 3, "max": 40, "step": 1, "requires": "mapPins", "label": "Étapes affichées sur la carte", "help": "Nombre d'étapes à venir marquées sur la carte du monde." },
+            { "key": "partySync", "kind": "bool", "default": true, "label": "Partager la progression avec le groupe", "help": "Les membres avec Factoruide voient vos objectifs à côté des leurs." }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Navigation",
+      "sections": [
+        {
+          "options": [
+            { "key": "compassShown", "kind": "bool", "default": true, "label": "Afficher la boussole", "help": "La bande en haut de l'écran : l'étape en cours, bien visible avec sa distance, les autres tâches, les quêtes proches à prendre et les lieux choisis plus bas. Un clic sur un point : le guide pointe dessus. En jeu, faites-la glisser pour la déplacer, Ctrl + molette pour sa taille, tirez ses bords pour sa largeur ; /fg compass la masque ou l'affiche, retenu jusqu'au prochain changement ici." },
+            { "key": "arrowShown", "kind": "bool", "default": false, "label": "Flèche en plus de la boussole", "help": "Une flèche 3D qui tourne avec le personnage : vers le chemin prévu tant qu'il y en a un, sinon vers l'étape, avec la distance. Elle se déplace en la faisant glisser." },
+            { "key": "waypoints", "kind": "bool", "default": true, "label": "Repère de navigation du jeu", "help": "Le point de navigation du jeu vers l'étape en cours, sur la carte et à l'écran (pas sur Classic ; laissé à Shortest Path Forever quand il vous guide)." },
+            { "key": "spfLink", "kind": "bool", "default": true, "only": "forever", "label": "Lier Shortest Path Forever", "help": "Si l'addon Shortest Path Forever est installé, il reçoit l'étape en cours et vous y guide : vols, bateaux, chemin à pied et repère du jeu. Un clic sur un point de la boussole change sa destination." },
+            {
+              "key": "pathMode",
+              "kind": "select",
+              "default": "auto",
+              "label": "Chemin calculé sur la boussole",
+              "help": "Le chemin à pied prévu par le guide, autour des falaises et de l'eau : une marque verte sur la boussole montre par où passer, orange quand vous vous en écartez. Automatique : sauf quand Shortest Path Forever vous guide.",
+              "options": [
+                { "value": "auto", "label": "Automatique" },
+                { "value": "on", "label": "Toujours" },
+                { "value": "off", "label": "Jamais" }
+              ]
+            },
+            { "key": "pathMap", "kind": "bool", "default": true, "requires": "pathMode", "label": "Chemin sur la carte et la minicarte", "help": "Le chemin vers l'étape en pointillés verts sur la carte du monde et la minicarte, quand la boussole le montre." }
+          ]
+        },
+        {
+          "title": "Macro de ciblage",
+          "options": [
+            { "key": "targetMacro", "kind": "bool", "default": true, "label": "Mettre à jour la macro « FG Cible »", "help": "Elle cible les mobs ou le PNJ de l'étape en cours. Tapez /fg macro en jeu, posez-la sur une barre et associez-lui un raccourci." },
+            { "key": "targetMark", "kind": "bool", "default": true, "requires": "targetMacro", "label": "Marquer la cible d'un crâne", "help": "Pose un crâne sur la cible de la macro pour la repérer (WoW Classic et TBC ; WoW Forever l'interdit aux macros)." }
+          ]
+        },
+        {
+          "title": "Lieux sur la boussole",
+          "options": [
+            { "key": "compassClass", "kind": "bool", "default": true, "requires": "compassShown", "label": "Maître de votre classe" },
+            { "key": "compassProfession", "kind": "bool", "default": true, "requires": "compassShown", "label": "Maîtres de vos métiers", "help": "Ceux des métiers appris ou prévus par le guide." },
+            { "key": "compassFlight", "kind": "bool", "default": true, "requires": "compassShown", "label": "Maîtres de vol" },
+            { "key": "compassInn", "kind": "bool", "default": false, "requires": "compassShown", "label": "Aubergistes" },
+            { "key": "compassRepair", "kind": "bool", "default": false, "requires": "compassShown", "label": "Réparation" },
+            { "key": "compassFood", "kind": "bool", "default": false, "requires": "compassShown", "label": "Nourriture et boissons" },
+            { "key": "compassBank", "kind": "bool", "default": false, "requires": "compassShown", "label": "Banquiers" },
+            { "key": "compassAuction", "kind": "bool", "default": false, "requires": "compassShown", "label": "Hôtels des ventes" },
+            { "key": "compassStable", "kind": "bool", "default": false, "requires": "compassShown", "label": "Maîtres des écuries", "help": "Chasseurs seulement." },
+            { "key": "compassMail", "kind": "bool", "default": false, "requires": "compassShown", "label": "Boîtes aux lettres" },
+            { "key": "compassRange", "kind": "number", "default": 300, "min": 100, "max": 1000, "step": 50, "requires": "compassShown", "label": "Distance des lieux (mètres)", "help": "Les plus proches de chaque sorte à moins de cette distance du personnage." }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Automatisation",
+      "sections": [
+        {
+          "title": "Quêtes",
+          "options": [
+            { "key": "autoAccept", "kind": "bool", "default": true, "label": "Accepter les quêtes automatiquement", "help": "Maintenir Maj en parlant au PNJ pour désactiver." },
+            { "key": "routeQuestsOnly", "kind": "bool", "default": true, "requires": "autoAccept", "label": "Seulement les quêtes du guide", "help": "Celles que le guide prend encore : ni celles qu'il abandonne, ni celles marquées faites ou laissées derrière, ni les escortes partagées par le groupe. Vous pouvez toujours les prendre à la main." },
+            { "key": "autoTurnIn", "kind": "bool", "default": true, "label": "Rendre les quêtes automatiquement", "help": "Rend les quêtes terminées dès qu'on parle au PNJ." },
+            { "key": "autoReward", "kind": "bool", "default": false, "label": "Choisir la récompense (meilleur prix de vente)", "help": "Celle prévue par le guide d'abord, sinon la meilleure amélioration d'équipement." }
+          ]
+        },
+        {
+          "title": "Marchands",
+          "options": [
+            { "key": "autoSellJunk", "kind": "bool", "default": true, "label": "Vendre les objets gris", "help": "Maintenir Maj en ouvrant le marchand pour désactiver." },
+            { "key": "autoRepair", "kind": "bool", "default": true, "label": "Réparer automatiquement", "help": "Répare l'équipement chez les marchands qui le proposent." },
+            { "key": "autoSupplies", "kind": "bool", "default": false, "label": "Acheter nourriture, eau et munitions", "help": "Les meilleures de votre niveau chez le marchand, dans la limite de 30 % de votre or." },
+            { "key": "suppliesFood", "kind": "number", "default": 20, "min": 0, "max": 100, "step": 5, "requires": "autoSupplies", "label": "Nourriture à garder", "help": "Quantité de nourriture que l'achat automatique garde dans les sacs." },
+            { "key": "suppliesWater", "kind": "number", "default": 20, "min": 0, "max": 100, "step": 5, "requires": "autoSupplies", "label": "Eau à garder", "help": "Classes à mana seulement." },
+            { "key": "suppliesAmmo", "kind": "number", "default": 1000, "min": 0, "max": 3000, "step": 200, "requires": "autoSupplies", "label": "Munitions à garder", "help": "Chasseurs : flèches ou balles selon l'arme." }
+          ]
+        },
+        {
+          "title": "Entraîneurs, talents, vols et butin",
+          "options": [
+            { "key": "autoTrain", "kind": "bool", "default": true, "label": "Apprendre les sorts chez l'entraîneur de classe", "help": "Achète les sorts à l'ouverture de la fenêtre de l'entraîneur." },
+            { "key": "trainUseful", "kind": "bool", "default": true, "requires": "autoTrain", "label": "Seulement les sorts utiles au leveling", "help": "Ceux que le guide compte pour la puissance du personnage ; les autres restent à acheter soi-même." },
+            { "key": "autoLearnTalents", "kind": "bool", "default": false, "label": "Apprendre les talents automatiquement", "help": "Dépense les points de talent selon le plan de leveling de la classe." },
+            { "key": "autoFly", "kind": "bool", "default": true, "label": "Prendre le vol de l'étape automatiquement", "help": "À l'ouverture de la carte des vols (Maj pour choisir soi-même)." },
+            { "key": "fastLoot", "kind": "bool", "default": true, "label": "Loot rapide", "help": "Quand le loot automatique du jeu est actif." }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Conseils",
+      "sections": [
+        {
+          "options": [
+            { "key": "gearAdvisor", "kind": "bool", "default": true, "label": "Conseiller d'équipement", "help": "Amélioration indiquée dans les infobulles et sur les récompenses ; le choix automatique de récompense la prend en premier." },
+            { "key": "talentAdvisor", "kind": "bool", "default": true, "label": "Talent conseillé", "help": "Plan de leveling de la classe, affiché dans le guide quand il reste des points." },
+            { "key": "safetyAlerts", "kind": "bool", "default": true, "label": "Alertes de danger", "help": "Cible élite ou bien plus haute que vous, vie basse ; objectifs élites signalés dans le guide." },
+            { "key": "xpMarker", "kind": "bool", "default": true, "label": "Repère du guide sur la barre d'XP", "help": "Un trait jaune sur la barre d'expérience montre l'XP que le guide prévoit à l'étape en cours ; au survol, votre avance ou votre retard." },
+            { "key": "levelTiming", "kind": "bool", "default": true, "label": "Temps de jeu comparé au guide", "help": "Avance ou retard sur le temps prévu, dans l'en-tête du guide ; /fg time pour le détail." }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Immersion",
+      "sections": [
+        {
+          "options": [
+            {
+              "key": "windGuide",
+              "kind": "select",
+              "default": "auto",
+              "label": "Le vent à la place de la boussole",
+              "help": "Pas de boussole : de temps en temps une rafale passe près du personnage et file vers l'étape en cours, plus souvent quand vous partez ailleurs, et tourbillonne à l'arrivée. Pas en combat ni en instance. Automatique : avec Poulpix UI Immersive.",
+              "options": [
+                { "value": "auto", "label": "Automatique" },
+                { "value": "on", "label": "Toujours" },
+                { "value": "off", "label": "Jamais" }
+              ]
+            },
+            {
+              "key": "windStyle",
+              "kind": "select",
+              "default": "wind",
+              "requires": "windGuide",
+              "label": "Aspect du vent",
+              "options": [
+                { "value": "wind", "label": "Traînées de vent" },
+                { "value": "mist", "label": "Brume basse" },
+                { "value": "leaves", "label": "Feuilles" },
+                { "value": "wisps", "label": "Feux follets" }
+              ]
+            },
+            { "key": "windInterval", "kind": "number", "default": 8, "min": 3, "max": 25, "step": 1, "requires": "windGuide", "label": "Secondes entre deux rafales", "help": "Plus souvent quand vous tournez le dos à l'étape, moins quand vous y allez tout droit. Une rafale à la demande : raccourci dans les touches du jeu (Factoruide)." },
+            { "key": "windIntensity", "kind": "number", "default": 1, "min": 0.3, "max": 2, "step": 0.1, "percent": true, "requires": "windGuide", "label": "Force du vent" },
+            { "key": "poulpixFade", "kind": "bool", "default": true, "label": "Fondu avec Poulpix UI Immersive", "help": "Les fenêtres de Factoruide s'effacent avec l'interface de Poulpix pendant l'exploration, et reviennent avec elle ou sous la souris." }
+          ]
+        }
+      ]
+    }
+  ],
+  "wizard": [
+    {
+      "title": "Guidage",
+      "questions": [
+        {
+          "label": "Comment voulez-vous être guidé vers l'étape ?",
+          "choices": [
+            {
+              "label": "Boussole",
+              "help": "Une bande en haut de l'écran : l'étape, sa distance et le chemin à suivre.",
+              "default": true,
+              "values": { "compassShown": true, "arrowShown": false, "windGuide": "auto" }
+            },
+            {
+              "label": "Boussole et flèche",
+              "help": "La boussole, et une flèche 3D près du personnage qui montre où aller.",
+              "values": { "compassShown": true, "arrowShown": true, "windGuide": "auto" }
+            },
+            {
+              "label": "Le vent",
+              "help": "Rien à l'écran : de temps en temps une rafale file vers l'étape.",
+              "values": { "compassShown": false, "arrowShown": false, "windGuide": "on" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Écran",
+      "questions": [
+        {
+          "label": "Le guide",
+          "choices": [
+            { "label": "Complet", "help": "Une carte avec les tâches en cours, la suite et le talent à placer.", "default": true, "values": { "guideShown": true, "guideMode": "full" } },
+            { "label": "Minimal", "help": "Un bandeau en haut de l'écran, la suite au survol.", "values": { "guideShown": true, "guideMode": "minimal" } }
+          ]
+        },
+        {
+          "label": "Le suivi des quêtes",
+          "choices": [
+            { "label": "Celui de Factoruide", "help": "Les quêtes dans l'ordre du guide, à la place du suivi de Blizzard.", "default": true, "values": { "trackerShown": true, "replaceTracker": true } },
+            { "label": "Celui de Blizzard", "help": "Le suivi du jeu, sans celui de Factoruide.", "values": { "trackerShown": false, "replaceTracker": false } }
+          ]
+        },
+        {
+          "label": "Les couleurs",
+          "choices": [
+            { "label": "Sombre", "help": "Celles de l'application.", "default": true, "values": { "uiTheme": "dark" } },
+            { "label": "Parchemin", "help": "Un fond clair jauni, des textes foncés.", "values": { "uiTheme": "parchemin" } }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Automatisation",
+      "questions": [
+        {
+          "label": "Que fait l'addon à votre place ?",
+          "choices": [
+            {
+              "label": "Rien",
+              "help": "Vous prenez et rendez les quêtes, achetez les sorts et choisissez les vols vous-même.",
+              "values": {
+                "autoAccept": false,
+                "routeQuestsOnly": true,
+                "autoTurnIn": false,
+                "autoReward": false,
+                "autoSellJunk": false,
+                "autoRepair": false,
+                "autoSupplies": false,
+                "autoTrain": false,
+                "trainUseful": true,
+                "autoLearnTalents": false,
+                "autoFly": false
+              }
+            },
+            {
+              "label": "L'essentiel",
+              "help": "Les quêtes du guide prises et rendues, les objets gris vendus, les réparations, les sorts utiles et les vols de l'étape. Les récompenses, provisions et talents restent à vous.",
+              "default": true,
+              "values": {
+                "autoAccept": true,
+                "routeQuestsOnly": true,
+                "autoTurnIn": true,
+                "autoReward": false,
+                "autoSellJunk": true,
+                "autoRepair": true,
+                "autoSupplies": false,
+                "autoTrain": true,
+                "trainUseful": true,
+                "autoLearnTalents": false,
+                "autoFly": true
+              }
+            },
+            {
+              "label": "Tout",
+              "help": "L'essentiel, et aussi les récompenses choisies, la nourriture, l'eau et les munitions achetées, les talents appris.",
+              "values": {
+                "autoAccept": true,
+                "routeQuestsOnly": true,
+                "autoTurnIn": true,
+                "autoReward": true,
+                "autoSellJunk": true,
+                "autoRepair": true,
+                "autoSupplies": true,
+                "autoTrain": true,
+                "trainUseful": true,
+                "autoLearnTalents": true,
+                "autoFly": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Conseils",
+      "questions": [
+        {
+          "label": "Des conseils en jouant ?",
+          "choices": [
+            {
+              "label": "Oui",
+              "help": "Les améliorations d'équipement, le talent à placer, les dangers, et votre avance ou retard sur le guide.",
+              "default": true,
+              "values": { "gearAdvisor": true, "talentAdvisor": true, "safetyAlerts": true, "xpMarker": true, "levelTiming": true }
+            },
+            {
+              "label": "Non",
+              "help": "Seulement le guide.",
+              "values": { "gearAdvisor": false, "talentAdvisor": false, "safetyAlerts": false, "xpMarker": false, "levelTiming": false }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

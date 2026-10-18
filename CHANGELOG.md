@@ -11,6 +11,8 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - Two light themes (Settings > Theme): the dark theme's look by day, and an old parchment, a yellowed page scorched at the edges with amber instead of blue.
 - Theme "Automatic": dark or light as your system is set, switching with it.
 - Advanced settings, Character power: your class's power curve level by level and how much its gear counts, to adjust what the guide has it take on.
+- Addon setup assistant: a few questions (how to be guided, the screen, how much automation, advice) set the addon in one go; asked the first time, run again from the Addon page.
+- The Addon page in five groups (display, navigation, automation, advice, immersion); an option that depends on one switched off is greyed out.
 
 ### Guides
 

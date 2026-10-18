@@ -10,71 +10,35 @@ local FG = Factoruide
 FG.UIRoot = CreateFrame("Frame", "FactoruideUI", UIParent)
 FG.UIRoot:SetAllPoints(UIParent)
 
+-- The settings chosen in the app and their defaults, written from addon/settings.json (see
+-- addon_settings.rs in fg-route): edit that file, not this block.
+-- BEGIN addon/settings.json
 FG.defaults = {
-    -- The whole addon's UI (`/fg hide`, `/fg show`), for the session only.
-    uiShown = true,
+    -- Affichage
     guideShown = true,
-    -- "full": the guide's card; "minimal": a strip at the top of the screen.
     guideMode = "full",
-    -- The look of a loaded UI suite (ElvUI...) instead of Factoruide's.
-    suiteSkin = false,
-    -- The colors of Factoruide's look: "dark" (the app's night blue) or "parchemin" (light), read
-    -- when the frames are made.
-    uiTheme = "dark",
-    -- The next steps: their tab ("next" steps or quests to "pickup").
-    nextTab = "next",
-    -- The quest panel: its tab ("quests", "professions", "reputation", "items") and whether it is
-    -- shown (a button of the guide).
-    trackerTab = "quests",
-    questPanel = true,
+    scale = 1,
     lockFrames = false,
-    scale = 1.0,
-    waypoints = true,
-    autoAccept = true,
-    autoTurnIn = true,
-    routeQuestsOnly = true,
-    autoReward = false,
-    fastLoot = true,
-    autoTrain = true,
-    trainUseful = true,
+    uiTheme = "dark",
+    suiteSkin = false,
+    questItemButton = true,
     trackerShown = true,
     replaceTracker = true,
     trackerQuests = 8,
     trackerAll = false,
     professionsShown = true,
-    targetMacro = true,
-    targetMark = true,
-    questItemButton = true,
-    autoSellJunk = true,
-    autoRepair = true,
-    autoSupplies = false,
-    suppliesFood = 20,
-    suppliesWater = 20,
-    suppliesAmmo = 1000,
-    gearAdvisor = true,
-    talentAdvisor = true,
-    autoLearnTalents = false,
-    safetyAlerts = true,
-    partySync = true,
-    levelTiming = true,
-    xpMarker = true,
     mapPins = true,
     mapPinsCount = 15,
-    autoFly = true,
-    -- The compass bar at the top of the screen, and a 3D arrow too.
+    partySync = true,
+    -- Navigation
     compassShown = true,
     arrowShown = false,
-    -- WoW Forever: the place pointed at goes to Shortest Path Forever when it is loaded, which
-    -- guides there (and the game's waypoint is left to it).
+    waypoints = true,
     spfLink = true,
-    -- The guide's walk on the compass, the way around the steep ground: "on", "off", or "auto"
-    -- (unless Shortest Path Forever guides).
     pathMode = "auto",
-    -- That walk dotted on the world map and the minimap too.
     pathMap = true,
-    -- Places shown on the compass closer than `compassRange` yards: the class trainer, the
-    -- trainers of the character's professions, flight masters, innkeepers, repairers, food and
-    -- drink, bankers, auctioneers, stable masters (hunters), mailboxes.
+    targetMacro = true,
+    targetMark = true,
     compassClass = true,
     compassProfession = true,
     compassFlight = true,
@@ -86,15 +50,58 @@ FG.defaults = {
     compassStable = false,
     compassMail = false,
     compassRange = 300,
-    -- The wind instead of the compass: "off", "on", or "auto" (with Poulpix UI Immersive).
+    -- Automatisation
+    autoAccept = true,
+    routeQuestsOnly = true,
+    autoTurnIn = true,
+    autoReward = false,
+    autoSellJunk = true,
+    autoRepair = true,
+    autoSupplies = false,
+    suppliesFood = 20,
+    suppliesWater = 20,
+    suppliesAmmo = 1000,
+    autoTrain = true,
+    trainUseful = true,
+    autoLearnTalents = false,
+    autoFly = true,
+    fastLoot = true,
+    -- Conseils
+    gearAdvisor = true,
+    talentAdvisor = true,
+    safetyAlerts = true,
+    xpMarker = true,
+    levelTiming = true,
+    -- Immersion
     windGuide = "auto",
-    -- "wind" (trails), "mist", "leaves" or "wisps".
     windStyle = "wind",
     windInterval = 8,
     windIntensity = 1,
-    -- With Poulpix UI Immersive, the windows fade with its HUD.
     poulpixFade = true,
 }
+-- The bounds of the numbers.
+FG.bounds = {
+    scale = { 0.6, 2 },
+    trackerQuests = { 1, 35 },
+    mapPinsCount = { 3, 40 },
+    compassRange = { 100, 1000 },
+    suppliesFood = { 0, 100 },
+    suppliesWater = { 0, 100 },
+    suppliesAmmo = { 0, 3000 },
+    windInterval = { 3, 25 },
+    windIntensity = { 0.3, 2 },
+}
+-- END addon/settings.json
+
+-- Settings only changed in game.
+-- The whole addon's UI (`/fg hide`, `/fg show`), for the session only.
+FG.defaults.uiShown = true
+-- The next steps: their tab ("next" steps or quests to "pickup").
+FG.defaults.nextTab = "next"
+-- The quest panel: its tab ("quests", "professions", "reputation", "items") and whether it is
+-- shown (a button of the guide).
+FG.defaults.trackerTab = "quests"
+FG.defaults.questPanel = true
 
 local session = {}
 local listeners = {}
@@ -158,7 +165,7 @@ function FG:Save(key, value)
     Changed(key)
 end
 
-local SCALE_MIN, SCALE_MAX = 0.6, 2
+local SCALE_MIN, SCALE_MAX = FG.bounds.scale[1], FG.bounds.scale[2]
 
 --- `/fg scale [size]`: window size (0.6 to 2; nothing: the app's).
 function FG:ScaleCommand(arg)

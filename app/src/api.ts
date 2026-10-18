@@ -387,6 +387,8 @@ export interface Settings {
   all_guides?: boolean;
   /** What the addon in the game was installed with (kept as is). */
   addon_installed?: string | null;
+  /** Whether the addon's setup questions were answered (or skipped): asked once, then on demand. */
+  addon_setup_done?: boolean;
 }
 
 export const api = {

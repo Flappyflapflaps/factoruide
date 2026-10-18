@@ -14,6 +14,8 @@ export type SettingRowProps = {
   /** The default: marked on the slider, offered to go back to. */
   initial: Value;
   onChange: (value: Value) => void;
+  /** Greyed out: it depends on a setting that is off. */
+  disabled?: boolean;
 } & (
   | { kind: "bool" }
   | { kind: "select"; options: { value: string; label: string }[] }
@@ -27,7 +29,7 @@ export type SettingRowProps = {
  * to.
  */
 export function SettingRow(props: SettingRowProps) {
-  const { label, help, value, initial, onChange } = props;
+  const { label, help, value, initial, onChange, disabled } = props;
   const t = useT();
   const lang = useLang();
   const changed = JSON.stringify(value) !== JSON.stringify(initial);
@@ -47,13 +49,13 @@ export function SettingRow(props: SettingRowProps) {
   if (props.kind === "bool") {
     control = (
       <label className="switch">
-        <input type="checkbox" checked={Boolean(value)} aria-label={t(label)} onChange={(e) => onChange(e.target.checked)} />
+        <input type="checkbox" checked={Boolean(value)} disabled={disabled} aria-label={t(label)} onChange={(e) => onChange(e.target.checked)} />
         <span />
       </label>
     );
   } else if (props.kind === "select") {
     control = (
-      <select value={String(value)} aria-label={t(label)} onChange={(e) => onChange(e.target.value)}>
+      <select value={String(value)} disabled={disabled} aria-label={t(label)} onChange={(e) => onChange(e.target.value)}>
         {props.options.map((o) => (
           <option key={o.value} value={o.value}>
             {t(o.label)}
@@ -70,27 +72,27 @@ export function SettingRow(props: SettingRowProps) {
       <>
         {bounded ? (
           <span className="setting-range">
-            <input type="range" min={min} max={max} step={step} value={shown(value as number)} aria-label={t(label)} onChange={(e) => onChange(Number(e.target.value) * scale)} />
+            <input type="range" disabled={disabled} min={min} max={max} step={step} value={shown(value as number)} aria-label={t(label)} onChange={(e) => onChange(Number(e.target.value) * scale)} />
             <i className="setting-default" style={{ left: `calc(7px + (100% - 14px) * ${at})` }} />
           </span>
         ) : (
           <span />
         )}
-        <NumberInput value={shown(value as number)} min={min} max={max} step={step} aria-label={t(label)} onChange={(v) => onChange(v * scale)} />
+        <NumberInput value={shown(value as number)} disabled={disabled} min={min} max={max} step={step} aria-label={t(label)} onChange={(v) => onChange(v * scale)} />
         <em className="setting-unit">{unit}</em>
       </>
     );
   }
 
   return (
-    <div className={`setting setting-${props.kind}${changed ? " changed" : ""}`}>
+    <div className={`setting setting-${props.kind}${changed ? " changed" : ""}${disabled ? " disabled" : ""}`}>
       <span className="setting-label">
         {t(label)}
         {help && <Hint text={t(help)} />}
       </span>
       {control}
       {changed ? (
-        <button className="setting-reset" title={t("Valeur par défaut")} onClick={() => onChange(initial)}>
+        <button className="setting-reset" title={t("Valeur par défaut")} disabled={disabled} onClick={() => onChange(initial)}>
           ↺ {text(initial)}
         </button>
       ) : (
