@@ -19,6 +19,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - The Addon page tells what the game did with the addon: installed by which version, last seen in game, turned off for some characters, WoW to restart after new files.
 - No characters yet: the Characters page names the likely cause.
 - Problem reports can join the state of the game and the addon (no account or character name), to help with install problems.
+- Guide map: a step chosen in the list, with the arrow keys or the playback bar is shown on the map, even when the map no longer follows the character.
 
 ### Guides
 

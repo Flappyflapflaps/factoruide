@@ -33,6 +33,9 @@ interface Props {
   layers: MapLayers;
   onLayers: (layers: MapLayers) => void;
   onSelect: (card: number) => void;
+  /** A card chosen in the list (or with the keys): shown on the map when it does not follow the
+   * character (`seq` changes at each choice, the same card chosen again included). */
+  focus?: { card: number; seq: number };
   /** The line over the map (what the character is doing). */
   status?: ReactNode;
   /** Editing: what could be added where the guide is watched (quests not taken, objectives and
@@ -173,7 +176,7 @@ function markerKind(steps: Step[], card: Card): { kind: string; glyph: string } 
 }
 
 /** The guide on the game's maps of the continents side by side, big: the route (boats across), the steps, the character moving along it. */
-export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zone, clock, follow, onFollow, layers, onLayers, onSelect, status, suggestions, onPick }: Props) {
+export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zone, clock, follow, onFollow, layers, onLayers, onSelect, focus, status, suggestions, onPick }: Props) {
   const t = useT();
   const areaName = useAreaName();
   const [index, setIndex] = useState<MapInfo[] | null>(null);
@@ -306,6 +309,16 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     center(positionAt(moves, clock.time).at, Math.min(unitK * MAX_ZOOM, k));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, project, size, zones, covers]);
+
+  // A card chosen: its place in the middle (where it starts when it has none), zoomed in to the
+  // zones' maps at least. Following, the view goes with the character already.
+  useEffect(() => {
+    if (!focus || follow) return;
+    const c = cards[focus.card];
+    if (!c) return;
+    center(c.world ?? positionAt(moves, c.start).at, Math.max(view.current.k, Math.min(unitK * MAX_ZOOM, unitK * ZONE_DETAIL * 1.5)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.seq]);
 
   // At each moment: the character's dot, and the view following it.
   const cache = useRef(new Map());

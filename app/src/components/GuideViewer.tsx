@@ -157,6 +157,15 @@ export function GuideViewer({ route, played, timeline, failed, request, keys, on
   useEffect(() => suggestAt?.(shownStep > 0 ? shownStep - 1 : null), [suggestAt, shownStep]);
 
   const [follow, setFollow] = useState(true);
+  // A card chosen in the list, with the keys or the playback bar's steps: shown on the map.
+  const [focus, setFocus] = useState<{ card: number; seq: number } | undefined>(undefined);
+  const show = useCallback(
+    (n: number) => {
+      select(n);
+      setFocus((f) => ({ card: Math.min(cards.length - 1, Math.max(0, n)), seq: (f?.seq ?? 0) + 1 }));
+    },
+    [select, cards.length],
+  );
   const [layers, setLayers] = useState<MapLayers>(() => {
     try {
       return { ...DEFAULT_LAYERS, ...JSON.parse(localStorage.getItem(LAYERS_KEY) ?? "{}") };
@@ -197,8 +206,8 @@ export function GuideViewer({ route, played, timeline, failed, request, keys, on
     const target = e.target as HTMLElement;
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName) || target.getAttribute("role") === "slider") return;
     if (e.key === " ") clock.toggle();
-    else if (e.key === "ArrowDown" || e.key === "ArrowRight") select(card + 1);
-    else if (e.key === "ArrowUp" || e.key === "ArrowLeft") select(card - 1);
+    else if (e.key === "ArrowDown" || e.key === "ArrowRight") show(card + 1);
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft") show(card - 1);
     else return;
     e.preventDefault();
   };
@@ -241,7 +250,7 @@ export function GuideViewer({ route, played, timeline, failed, request, keys, on
         spans={spans}
         quests={quests}
         current={card}
-        onSelect={select}
+        onSelect={show}
         checked={checkedCards}
         onCheck={onCheck && ((n) => onCheck(Array.from({ length: cards[n].last - cards[n].first + 1 }, (_, k) => cards[n].first + k)))}
         edit={listEdit}
@@ -260,6 +269,7 @@ export function GuideViewer({ route, played, timeline, failed, request, keys, on
         layers={layers}
         onLayers={changeLayers}
         onSelect={select}
+        focus={focus}
         status={status}
         suggestions={edit?.suggestions ?? null}
         onPick={edit && ((s) => edit.onInsert(shownStep - 1, s))}
@@ -276,7 +286,7 @@ export function GuideViewer({ route, played, timeline, failed, request, keys, on
         cards={cards.length}
         moving={moving}
       />
-      <PlaybackBar clock={clock} segments={segs} current={seg} onStep={(d) => select(card + d)} />
+      <PlaybackBar clock={clock} segments={segs} current={seg} onStep={(d) => show(card + d)} />
       {edit && adding && (
         <AddMenu
           at={adding.at}
