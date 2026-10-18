@@ -28,7 +28,7 @@ pub use loot::CommonLoot;
 pub use names::Names;
 pub use types::{
     Dungeon, DungeonDef, EntityKind, ExploreArea, Guard, Initial, Loc, Model, Objective, ProfessionPlan, Profile,
-    Quest, Spots, Teleport, TeleportDef, race_bit,
+    Quest, Spots, Teleport, TeleportDef, Vendor, race_bit,
 };
 
 use crate::params::Params;

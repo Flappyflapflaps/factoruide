@@ -24,6 +24,9 @@ pub(super) struct Entities {
     pub(super) respawn: HashMap<(EntityKind, i64), f64>,
     /// The paths patrolling NPCs walk: zone and percent coordinates of each point, in order.
     pub(super) paths: HashMap<i64, Vec<(i64, f64, f64)>>,
+    /// Items vendors sell in limited supply, by (vendor, item): how many at most, and the
+    /// seconds to get one more back.
+    pub(super) vendor_stock: HashMap<(i64, i64), (u32, f64)>,
 }
 
 impl Entities {
@@ -113,6 +116,19 @@ impl Entities {
                 paths.entry(id).or_default().push(point);
             }
         }
+        let mut vendor_stock = HashMap::new();
+        if has("m_vendor_stock")? {
+            let mut stmt = conn.prepare("SELECT npc_id, item_id, max_count, restock FROM m_vendor_stock")?;
+            for row in stmt.query_map([], |r| {
+                Ok((
+                    (r.get::<_, i64>(0)?, r.get::<_, i64>(1)?),
+                    (r.get::<_, u32>(2)?, r.get::<_, f64>(3)?),
+                ))
+            })? {
+                let (key, stock) = row?;
+                vendor_stock.insert(key, stock);
+            }
+        }
         Ok(Self {
             npc,
             object,
@@ -123,6 +139,7 @@ impl Entities {
             own_side,
             respawn,
             paths,
+            vendor_stock,
         })
     }
 

@@ -53,6 +53,7 @@ impl Objective {
             stock: None,
             child: None,
             child_name: None,
+            vendors: vec![],
         }
     }
 }

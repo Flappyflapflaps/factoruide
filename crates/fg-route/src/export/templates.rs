@@ -198,6 +198,48 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "objective.buy.from",
+        [
+            "Buy {who} from {vendor}",
+            "Acheter {who} à {vendor}",
+            "{who} bei {vendor} kaufen",
+            "Comprar {who} a {vendor}",
+            "Comprar {who} de {vendor}",
+            "Купить: {who} у {vendor}",
+            "{vendor}에게서 {who} 구입",
+            "从{vendor}处购买{who}",
+            "從{vendor}處購買{who}",
+        ],
+    ),
+    (
+        "suffix.stock",
+        [
+            "(limited supply: {n} every {hours} h, the vendor may be out)",
+            "(stock limité : {n} toutes les {hours} h, le vendeur peut ne plus en avoir)",
+            "(begrenzter Vorrat: {n} alle {hours} Std., der Händler kann ausverkauft sein)",
+            "(existencias limitadas: {n} cada {hours} h, el vendedor puede no tener)",
+            "(estoque limitado: {n} a cada {hours} h, o vendedor pode estar sem)",
+            "(ограниченный запас: {n} раз в {hours} ч, у торговца может не быть)",
+            "(한정 수량: {hours}시간마다 {n}개, 품절일 수 있음)",
+            "（限量：每{hours}小时{n}个，商人可能已售罄）",
+            "（限量：每{hours}小時{n}個，商人可能已售罄）",
+        ],
+    ),
+    (
+        "suffix.vendors",
+        [
+            "(also sold by {vendors})",
+            "(aussi vendu par {vendors})",
+            "(auch bei {vendors})",
+            "(también lo vende {vendors})",
+            "(também vendido por {vendors})",
+            "(также продаёт {vendors})",
+            "(다른 판매자: {vendors})",
+            "（其他商人：{vendors}）",
+            "（其他商人：{vendors}）",
+        ],
+    ),
+    (
         "suffix.timed",
         [
             "(timed: turn it in within {minutes} min)",

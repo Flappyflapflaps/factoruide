@@ -78,6 +78,7 @@ impl QuestBuilder<'_> {
         } else if let Some((pos, zone, _)) = best_cluster(&places.vendors, Some(&quest.anchor)) {
             Objective {
                 count,
+                vendors: self.vendors(target, &places.sources, &pos),
                 ..Objective::plain(at(pos, zone), format!("Buy {text}"), 10.0)
             }
         } else if let Some((pos, zone, _)) = best_cluster(&places.mobs, Some(&quest.anchor)) {
@@ -151,6 +152,31 @@ impl QuestBuilder<'_> {
         })
     }
 
+    /// The vendors of the character's side selling `item` (among its `sources`), each at its
+    /// spawn nearest `at`: the one at `at` first, then the others from the nearest.
+    fn vendors(&self, item: i64, sources: &[(SourceKind, i64)], at: &Pos) -> Vec<super::Vendor> {
+        let entities = &self.sources.entities;
+        let mut vendors: Vec<(f64, super::Vendor)> = (sources.iter())
+            .filter(|&&(t, id)| t == SourceKind::Vendor && !entities.hostile.contains(&id))
+            .filter_map(|&(_, id)| {
+                let (pos, zone) = (entities.points(self.world, EntityKind::Npc, id).into_iter())
+                    .min_by(|a, b| a.0.dist(at).total_cmp(&b.0.dist(at)))?;
+                let vendor = super::Vendor {
+                    id,
+                    name: entities.name(EntityKind::Npc, id),
+                    zone,
+                    zone_name: self.world.zone_name(zone).to_owned(),
+                    pos,
+                    stock: entities.vendor_stock.get(&(id, item)).copied(),
+                };
+                Some((pos.dist(at), vendor))
+            })
+            .collect();
+        vendors.sort_by(|a, b| a.0.total_cmp(&b.0));
+        vendors.dedup_by_key(|v| v.1.id);
+        vendors.into_iter().map(|(_, v)| v).collect()
+    }
+
     fn item_places(&self, quest: &QuestContext<'_>, target: i64, count: f64) -> ItemPlaces {
         let (entities, world) = (&self.sources.entities, self.world);
         let sources = self.item_sources(target, &quest.parts);
@@ -163,7 +189,11 @@ impl QuestBuilder<'_> {
                 .collect()
         };
         let objects = points_of(SourceKind::Object);
-        let vendors = points_of(SourceKind::Vendor);
+        // Vendors of the other side do not sell to the character.
+        let vendors = (sources.iter())
+            .filter(|&&(t, id)| t == SourceKind::Vendor && !entities.hostile.contains(&id))
+            .flat_map(|&(_, id)| entities.points(world, EntityKind::Npc, id))
+            .collect();
         let mob_ids = self.item_mobs(quest, target, count, &sources, objects.is_empty());
         let mobs = mob_ids
             .iter()

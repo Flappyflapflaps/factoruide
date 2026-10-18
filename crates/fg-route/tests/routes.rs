@@ -817,6 +817,7 @@ fn gathering_next_to_kills_overlaps_them() {
             handed_by: vec![],
             child: None,
             child_name: None,
+            vendors: vec![],
             stock: None,
         }];
     }
@@ -1822,6 +1823,7 @@ fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Obj
         handed_by: vec![],
         child: None,
         child_name: None,
+        vendors: vec![],
         stock: None,
     }
 }
@@ -2284,8 +2286,33 @@ fn library_book_is_looted_before_the_librarian() {
 fn own_power_curve_replaces_the_class_one() {
     let class = prepare("human", "warrior", 10, &[]);
     assert!(class.params.class_curve[15] < 0.0 && (class.params.gear_dependence - 1.5).abs() < 1e-9);
-    let own = prepare("human", "warrior", 10, &["power_curve=[[10, 1.0], [30, 2.0]]", "power_gear=0.5"]);
+    let own = prepare(
+        "human",
+        "warrior",
+        10,
+        &["power_curve=[[10, 1.0], [30, 2.0]]", "power_gear=0.5"],
+    );
     assert!((own.params.class_curve[5] - 1.0).abs() < 1e-9);
     assert!((own.params.class_curve[20] - 1.5).abs() < 1e-9);
     assert!((own.params.gear_dependence - 0.5).abs() < 1e-9);
+}
+
+/// An item bought (Look to the Stars' Bronze Tube) names its vendor in Darkshire, with its limited
+/// supply, then others of the character's side; never a vendor of the other side (Sovik in
+/// Orgrimmar).
+#[test]
+fn bought_item_names_its_vendors() {
+    let p = human_warrior();
+    let stars = quest(p, 174).unwrap();
+    let o = p.model.quests[stars as usize]
+        .objectives
+        .iter()
+        .find(|o| !o.vendors.is_empty())
+        .expect("a buy objective");
+    let first = &o.vendors[0];
+    assert_eq!(first.name, "Herble Baubbletump");
+    assert_eq!(first.stock, Some((2, 10800.0)));
+    assert!(o.vendors.len() > 3);
+    assert!(o.vendors.iter().all(|v| v.id != 3413), "Sovik sells to the Horde only");
+    assert!(o.loc.pos.dist(&first.pos) < 50.0, "the place is at the first vendor");
 }

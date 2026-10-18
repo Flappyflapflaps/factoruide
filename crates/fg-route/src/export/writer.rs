@@ -365,6 +365,40 @@ impl StepWriter<'_> {
             }
         }
         step.say.push(objective_phrase(o));
+        Self::vendors(step, o);
+    }
+
+    /// An item bought: the vendor at the place named, its supply when limited (it may be sold
+    /// out), and a few others selling it, nearest first; all of them to target.
+    fn vendors(step: &mut Step, o: &Objective) {
+        let Some(first) = o.vendors.first() else { return };
+        let npc = |v: &crate::model::Vendor| Arg::Npc(v.id, v.name.clone());
+        if let Some(say) = step.say.last_mut() {
+            *say = Phrase::new("objective.buy.from")
+                .arg("who", entity(&o.loc))
+                .arg("vendor", npc(first))
+                .arg("n", num(o.count.round().max(1.0) as i64));
+        }
+        if let Some((n, restock)) = first.stock {
+            step.say.push(
+                Phrase::new("suffix.stock")
+                    .arg("n", Arg::Text(n.to_string()))
+                    .arg("hours", num((restock / 3600.0).round().max(1.0) as i64)),
+            );
+        }
+        let others: Vec<Arg> = (o.vendors.iter().skip(1).take(3))
+            .map(|v| Arg::At(Box::new(npc(v)), Box::new(Arg::Zone(v.zone, v.zone_name.clone()))))
+            .collect();
+        if !others.is_empty() {
+            step.say
+                .push(Phrase::new("suffix.vendors").arg("vendors", Arg::List(others)));
+        }
+        for v in o.vendors.iter().take(4) {
+            if !step.mob_ids.contains(&v.id) {
+                step.mobs.push(v.name.clone());
+                step.mob_ids.push(v.id);
+            }
+        }
     }
 
     /// A quest of the character's log the guide does not take: abandoned at its start (it would

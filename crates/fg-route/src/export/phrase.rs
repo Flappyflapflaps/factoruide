@@ -17,7 +17,8 @@ pub struct Phrase {
 }
 
 /// An argument of a sentence: a name translated by ID (its English name when no translation
-/// exists), a profession, a text kept as it is, a number or a list.
+/// exists), a profession, a text kept as it is, a number, a list, or a name with where it is
+/// ("Gnaz Blunderflame (Stranglethorn Vale)").
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Arg {
@@ -30,6 +31,7 @@ pub enum Arg {
     Text(String),
     Num(i64),
     List(Vec<Arg>),
+    At(Box<Arg>, Box<Arg>),
 }
 
 impl Phrase {
@@ -95,6 +97,7 @@ impl Arg {
                 .map(|a| a.render(names, lang))
                 .collect::<Vec<_>>()
                 .join(", "),
+            Arg::At(what, place) => format!("{} ({})", what.render(names, lang), place.render(names, lang)),
         }
     }
 }

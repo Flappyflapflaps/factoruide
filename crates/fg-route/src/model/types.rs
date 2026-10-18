@@ -149,6 +149,22 @@ pub struct Objective {
     pub child: Option<i64>,
     /// That child quest's name.
     pub child_name: Option<String>,
+    /// An item bought: the vendors selling it, the one the place is at first, then the others
+    /// from the nearest.
+    pub vendors: Vec<Vendor>,
+}
+
+/// A vendor selling an objective's item: where it stands, and its supply when limited (how many
+/// it holds at most, seconds to get one more back).
+#[derive(Debug, Clone)]
+pub struct Vendor {
+    pub id: i64,
+    pub name: String,
+    pub zone: i64,
+    /// The zone's English name.
+    pub zone_name: String,
+    pub pos: Pos,
+    pub stock: Option<(u32, f64)>,
 }
 
 impl Objective {
