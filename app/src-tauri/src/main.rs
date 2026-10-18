@@ -1302,19 +1302,23 @@ fn polestar_installed(state: State<'_, AppState>) -> bool {
         .exists()
 }
 
-/// A guide version as a guide's source for Polestar's own tools (a `.guide` file, in English):
-/// the text to copy. Polestar exists on WoW Forever only.
+/// Export a guide version for Polestar's own tools (route planner, playground): its `.guide`
+/// file (in English) added to the pack folder in `dir` (the folder chosen, or a pack folder made
+/// in it), the pack's other guides kept. Returns the pack's folder. Polestar exists on WoW
+/// Forever only.
 #[tauri::command(async)]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
 )]
-fn polestar_source(state: State<'_, AppState>, guide: String, version: u32) -> CmdResult<String> {
+fn export_polestar(state: State<'_, AppState>, guide: String, version: u32, dir: String) -> CmdResult<String> {
     if state.edition() != Edition::Forever {
         return Err("Polestar is for WoW Forever only".into());
     }
     let route = state.render(&state.version(&guide, version)?.outcome.route, Some("enUS"))?;
-    Ok(fg_route::export::polestar::source(&guide, &route))
+    let pack = job::polestar_source_dir(Path::new(&dir));
+    job::add_polestar_source(&pack, &guide, &route, env!("CARGO_PKG_VERSION")).map_err(err)?;
+    Ok(pack.display().to_string())
 }
 
 /// Whether the addon in the game has the current settings (else it is to be installed again).
@@ -1853,7 +1857,7 @@ fn main() {
             install_addon,
             addon_synced,
             polestar_installed,
-            polestar_source,
+            export_polestar,
             open_link,
             list_clients,
             list_editions,

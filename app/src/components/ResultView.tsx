@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import { api, fmtTime, type GuideSummary, type GuideVersion, type Options, type Timeline, type VersionMeta } from "../api";
 import { Character } from "./Character";
 import { EditBar, useEditedView, useUndoKeys } from "./EditMode";
@@ -10,7 +11,6 @@ import { StepTable } from "./StepTable";
 import { gameLocale, useDate, useLang, useT } from "../i18n";
 import { Icon } from "./Icons";
 import { IssueForm } from "./IssueForm";
-import { copyText } from "./clipboard";
 
 interface Props {
   version: GuideVersion;
@@ -213,12 +213,15 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
               className="icon-only"
               onClick={() =>
                 act(async () => {
-                  await copyText(await api.polestarSource(meta.guide, meta.version));
-                  return t("Guide copié pour Polestar : collez-le dans un fichier .guide d'un pack Polestar dont l'id est « factoruide ».");
+                  const dir = await open({ directory: true, title: t("Dossier où exporter le pack Polestar") });
+                  if (typeof dir !== "string") return;
+                  return t("Guide exporté pour Polestar dans {path} : ouvrez ce dossier dans Planner ou Play de Polestar.", {
+                    path: await api.exportPolestar(meta.guide, meta.version, dir),
+                  });
                 })
               }
-              title={`${t("Copier pour Polestar")} : ${t("Copie le guide au format .guide de Polestar (en anglais), pour ses outils : planificateur d'itinéraire, terrain de jeu, compilateur")}`}
-              aria-label={t("Copier pour Polestar")}
+              title={`${t("Exporter pour Polestar…")} : ${t("Écrit le guide au format .guide de Polestar (en anglais) dans un dossier de pack, à ouvrir dans ses outils Planner et Play")}`}
+              aria-label={t("Exporter pour Polestar…")}
             >
               <Icon name="polestar" />
             </button>

@@ -28,8 +28,8 @@ pub use race::{optimize, optimize_interruptible};
 pub use reputation::race_base;
 pub use request::{PlanOutcome, PlanRequest, Prepared};
 pub use routes::{
-    addon_walks, load_routes, render_routes, save_route, slug, write_addon_config, write_addon_routes,
-    write_polestar_pack, write_polestar_source,
+    add_polestar_source, addon_walks, load_routes, polestar_source_dir, render_routes, save_route, slug,
+    write_addon_config, write_addon_routes, write_polestar_pack, write_polestar_source,
 };
 pub use services::{Place, Service, places, services_lua};
 pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};

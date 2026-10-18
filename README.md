@@ -133,10 +133,12 @@ your guides instead: the app then installs them as a Polestar guide pack (Factor
 leaves the guide part out, and the profile part keeps recording (also when the app does not find
 Polestar: the pack shows once Polestar 0.2.5 or newer is installed). In Polestar, choose Factoruide
 under "Suggest guides from" on the "Community guides" page: it offers each character the guide of
-its race and class. **Copy for Polestar** on a guide copies it as Polestar's guide source (a
-`.guide` file, in English) for Polestar's own tools: paste it into a `.guide` file of a Polestar
-pack whose `pack.json` id is `factoruide` (`fg polestar --source --out <dir>` writes such a pack
-from the planned routes).
+its race and class. **Export for Polestar…** on a guide writes it as Polestar's guide source (a
+`.guide` file, in English) into a pack folder for Polestar's own tools, which its Planner and Play
+open: `Factoruide_Polestar_Pack` in the folder you choose (or the folder itself when it is that
+pack). Exporting another guide adds its `.guide` file to the pack and keeps the others; exporting
+a guide again replaces its file. `fg polestar --source --out <dir>` writes such a pack from the
+planned routes.
 
 - Guide: follows the guide chosen for the character in the app and advances by itself; `/fg guide`,
   `/fg next`, `/fg prev`, `/fg step <n>`, `/fg route` (shows it), `/fg waypoint`. Two modes: full

@@ -4,7 +4,6 @@ import { gameLocale, useDate, useLang, useT } from "../i18n";
 import { sections } from "../paramSchema";
 import { Delta } from "./ResultView";
 import { KIND_LABELS } from "./segments";
-import { copyText } from "./clipboard";
 
 interface Props {
   guide: string;
@@ -382,10 +381,24 @@ export function CompareView({ guide, a, b, versions, onChange }: Props) {
     );
   }
 
-  const copy = () =>
-    copyText(cmp.text)
-      .then(() => setCopied({ ok: true, text: t("Différences copiées en texte : collez-les à un agent ou dans un signalement.") }))
-      .catch((e) => setCopied({ ok: false, text: String(e) }));
+  // A selected text copied at once (the clipboard API waits for the window's focus in WebView2).
+  const copy = () => {
+    const done = () => setCopied({ ok: true, text: t("Différences copiées en texte : collez-les à un agent ou dans un signalement.") });
+    const area = document.createElement("textarea");
+    area.value = cmp.text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    if (ok) done();
+    else
+      navigator.clipboard
+        .writeText(cmp.text)
+        .then(done)
+        .catch((e) => setCopied({ ok: false, text: String(e) }));
+  };
 
   return (
     <div className="compare-view">
