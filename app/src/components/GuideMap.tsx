@@ -58,12 +58,12 @@ interface Offer {
 
 /** Continents (game maps), west to east. */
 const CONTINENTS = [1, 0, 530];
-/** Zoom range, in screen pixels per pixel of the continent's map, relative to the whole continent in view. */
+/** Zoom range: the closest, times a whole continent in view; the furthest, times all the continents in view. */
 const MAX_ZOOM = 24;
 const MIN_ZOOM = 0.6;
-/** From this zoom (times the whole continent's) the zones' own maps, sharper, are drawn over the continent's. */
+/** From this zoom (times a whole continent in view) the zones' own maps, sharper, are drawn over the continent's. */
 const ZONE_DETAIL = 2;
-/** From this zoom (times the whole continent's) the game's minimap, far more detailed, is drawn instead of the zones' maps. */
+/** From this zoom (times a whole continent in view) the game's minimap, far more detailed, is drawn instead of the zones' maps. */
 const MINIMAP_DETAIL = 3;
 /** Pixels a side of a minimap image, the levels it has (level l: 2^l game tiles a side), and a game tile's size in yards. */
 const MINIMAP_SIZE = 256;
@@ -87,22 +87,67 @@ interface View {
   y: number;
 }
 
-/** Projects world coordinates (x north, y west) on a map image of `info`. */
-function projector(info: MapInfo) {
-  const b = info.bounds!;
-  return (x: number, y: number): [number, number] => [((b.max_y - y) / (b.max_y - b.min_y)) * info.width, ((b.max_x - x) / (b.max_x - b.min_x)) * info.height];
+/**
+ * A continent on the map: its game map's image, placed at (dx, dy) and drawn `k` times its size
+ * (every continent at the same yards per pixel), and world coordinates (x north, y west) on it.
+ */
+interface Panel {
+  map: number;
+  info: MapInfo;
+  dx: number;
+  dy: number;
+  k: number;
+  w: number;
+  h: number;
+  project: (x: number, y: number) => [number, number];
+}
+
+/** The game version's continents side by side, west to east, the same scale, centred on a line. */
+function layout(index: MapInfo[]): { panels: Map<number, Panel>; width: number; height: number; unit: number } {
+  const infos = CONTINENTS.map((c) => index.filter((m) => m.kind === 2 && m.bounds?.map === c).sort((a, b) => b.width - a.width)[0]).filter(Boolean);
+  // Yards per pixel of the first one, for all.
+  const ypp = (m: MapInfo) => (m.bounds!.max_y - m.bounds!.min_y) / m.width;
+  const ref = infos.length ? ypp(infos[0]) : 1;
+  const sized = infos.map((info) => {
+    const k = ypp(info) / ref;
+    return { info, k, w: info.width * k, h: info.height * k };
+  });
+  const height = Math.max(1, ...sized.map((p) => p.h));
+  const panels = new Map<number, Panel>();
+  let at = 0;
+  for (const { info, k, w, h } of sized) {
+    const b = info.bounds!;
+    const [dx, dy] = [at, (height - h) / 2];
+    panels.set(b.map, {
+      map: b.map,
+      info,
+      dx,
+      dy,
+      k,
+      w,
+      h,
+      project: (x, y) => [dx + ((b.max_y - y) / (b.max_y - b.min_y)) * w, dy + ((b.max_x - x) / (b.max_x - b.min_x)) * h],
+    });
+    at += w;
+  }
+  return { panels, width: Math.max(1, at), height, unit: Math.max(1, ...sized.map((p) => p.w)) };
 }
 
 const f1 = (v: number) => Math.round(v * 10) / 10;
 
-/** The moves of `legs` on a continent as path data by kind, in its map's pixels. */
-function trace(legs: Leg[], continent: number, project: (x: number, y: number) => [number, number]) {
+/** A world point on the map (null: on a map not drawn, a dungeon's). */
+type Project = (p: WorldPoint) => [number, number] | null;
+
+/** The moves of `legs` as path data by kind, in the map's pixels: a boat or a portal from one continent to another goes straight across. */
+function trace(legs: Leg[], project: Project) {
   const out = { walk: "", flight: "", link: "", jump: "" };
   for (const l of legs) {
-    if (l.from[0] !== continent) continue;
-    const [x0, y0] = project(l.from[1], l.from[2]);
-    if (l.to[0] !== continent) continue;
-    const pts = [...(l.via ?? []).map(([x, y]) => project(x, y)), project(l.to[1], l.to[2])];
+    const from = project(l.from);
+    const to = project(l.to);
+    if (!from || !to) continue;
+    const [x0, y0] = from;
+    const via = l.from[0] === l.to[0] ? (l.via ?? []).map(([x, y]) => project([l.from[0], x, y])!) : [];
+    const pts = [...via, to];
     const d = `M${f1(x0)},${f1(y0)}${pts.map(([x, y]) => `L${f1(x)},${f1(y)}`).join("")}`;
     if (l.mode === "walk" || l.mode === "mount") out.walk += d;
     else if (l.mode === "flight") out.flight += d;
@@ -127,7 +172,7 @@ function markerKind(steps: Step[], card: Card): { kind: string; glyph: string } 
   return { kind: "other", glyph: "•" };
 }
 
-/** The guide on the game's map of a continent, big: the route, the steps, the character moving along it. */
+/** The guide on the game's maps of the continents side by side, big: the route (boats across), the steps, the character moving along it. */
 export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zone, clock, follow, onFollow, layers, onLayers, onSelect, status, suggestions, onPick }: Props) {
   const t = useT();
   const areaName = useAreaName();
@@ -139,30 +184,29 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
       .catch((e) => setError(String(e)));
   }, []);
 
-  // The game version's continents, and the one shown.
-  const continents = useMemo(() => CONTINENTS.filter((c) => index?.some((m) => m.kind === 2 && m.bounds?.map === c)), [index]);
-  const [continent, setContinent] = useState<number>(() => moves.start[0]);
-  const base = useMemo(
-    () => index?.filter((m) => m.kind === 2 && m.bounds?.map === continent).sort((a, b) => b.width - a.width)[0] ?? null,
-    [index, continent],
-  );
-  const project = useMemo(() => (base ? projector(base) : null), [base]);
+  // The game version's continents side by side (the boats between them drawn too).
+  const world = useMemo(() => (index ? layout(index) : null), [index]);
+  const panels = world?.panels;
+  const project = useMemo<Project | null>(() => (panels ? (p) => panels.get(p[0])?.project(p[1], p[2]) ?? null : null), [panels]);
   // The zones' maps, and where a city is (a map mostly over a bigger zone's: Stormwind,
   // Undercity), covered with the map of the zone around it instead: the zone's map draws the
   // city too, without the seams of two maps drawn differently.
   const [zones, covers] = useMemo(() => {
-    if (!base || !project) return [[], []];
-    const all = (index ?? [])
-      .filter((m) => m.kind === 3 && m.parent === base.id && m.bounds)
+    if (!panels) return [[], []];
+    const all = [...panels.values()].flatMap((panel) =>
+      (index ?? [])
+      .filter((m) => m.kind === 3 && m.parent === panel.info.id && m.bounds)
       .map((z) => {
         const b = z.bounds!;
-        const [x1, y1] = project(b.max_x, b.max_y);
-        const [x2, y2] = project(b.min_x, b.min_y);
+        const [x1, y1] = panel.project(b.max_x, b.max_y);
+        const [x2, y2] = panel.project(b.min_x, b.min_y);
         const rect = { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
-        const rings = z.shape?.length ? z.shape : null;
+        // Outlines are in the continent image's pixels.
+        const rings = z.shape?.length ? z.shape.map((r) => r.map(([x, y]) => [f1(panel.dx + x * panel.k), f1(panel.dy + y * panel.k)] as [number, number])) : null;
         const d = rings ? rings.map((r) => `M${r.map(([x, y]) => `${x},${y}`).join("L")}Z`).join("") : null;
         return { z, rect, d, label: rings ? labelPoint(rings) : ([rect.x + rect.w / 2, rect.y + rect.h / 2] as [number, number]) };
-      });
+      }),
+    );
     type Zone = (typeof all)[number];
     const within = (a: Zone, b: Zone) => {
       const w = Math.min(a.rect.x + a.rect.w, b.rect.x + b.rect.w) - Math.max(a.rect.x, b.rect.x);
@@ -174,7 +218,7 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
       return around && a.d ? [{ id: a.z.id, area: a.z.area, rect: a.rect, d: a.d, around }] : [];
     });
     return [all.filter((a) => !all.some((b) => within(a, b))), cities];
-  }, [index, base, project]);
+  }, [index, panels]);
 
   // The frame's size, and the view: screen = map * k + (x, y). Kept out of React (it changes at
   // every frame while following); `scale` follows its zoom by steps, for what is drawn at a
@@ -188,12 +232,16 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
   const [shownZones, setShownZones] = useState<number[]>([]);
   const [minimap, setMinimap] = useState<Set<string> | null>(null);
   const [shownTiles, setShownTiles] = useState<MinimapTile[]>([]);
+  // Zoomed in to the minimap: its dark sea everywhere, between the continents too.
+  const [closeUp, setCloseUp] = useState(false);
   useEffect(() => {
     loadMinimapIndex()
       .then(setMinimap)
       .catch(() => setMinimap(new Set()));
   }, []);
-  const fitK = base && size.w ? Math.min(size.w / base.width, size.h / base.height) : 1;
+  // Zooms: all the continents in view, and one (what the zooms of the details are relative to).
+  const fitK = world && size.w ? Math.min(size.w / world.width, size.h / world.height) : 1;
+  const unitK = world && size.w ? Math.min(size.w / world.unit, size.h / world.height) : 1;
 
   useEffect(() => {
     const el = frame.current;
@@ -212,9 +260,11 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     const v = view.current;
     setScale(2 ** (Math.round(Math.log2(v.k) * 4) / 4));
     const [x0, y0, x1, y1] = [-v.x / v.k, -v.y / v.k, (size.w - v.x) / v.k, (size.h - v.y) / v.k];
-    const tiles = size.w && base && minimap?.size && v.k >= fitK * MINIMAP_DETAIL ? minimapTiles(base, minimap, v.k, [x0, y0, x1, y1]) : [];
+    const close = !!(size.w && panels && minimap?.size && v.k >= unitK * MINIMAP_DETAIL);
+    const tiles = close ? [...panels!.values()].flatMap((p) => minimapTiles(p, minimap!, v.k, [x0, y0, x1, y1])) : [];
+    setCloseUp(close);
     setShownTiles((old) => (old.map((o) => o.key).join() === tiles.map((o) => o.key).join() ? old : tiles));
-    if (!size.w || v.k < fitK * ZONE_DETAIL || tiles.length) return setShownZones((z) => (z.length ? [] : z));
+    if (!size.w || v.k < unitK * ZONE_DETAIL || close) return setShownZones((z) => (z.length ? [] : z));
     const ids = zones.filter(({ rect: r }) => r.x < x1 && r.x + r.w > x0 && r.y < y1 && r.y + r.h > y0).map((z) => z.z.id);
     setShownZones((z) => (z.join() === ids.join() ? z : ids));
   };
@@ -229,32 +279,33 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
 
   const center = useCallback(
     (p: WorldPoint, k = view.current.k) => {
-      if (!project || !size.w) return;
-      const [px, py] = project(p[1], p[2]);
+      const at = project?.(p);
+      if (!at || !size.w) return;
+      const [px, py] = at;
       apply({ k, x: size.w / 2 - px * k, y: size.h / 2 - py * k });
     },
     [project, size, apply],
   );
   const fit = useCallback(() => {
-    if (!base || !size.w) return;
-    apply({ k: fitK, x: (size.w - base.width * fitK) / 2, y: (size.h - base.height * fitK) / 2 });
-  }, [base, size, fitK, apply]);
+    if (!world || !size.w) return;
+    apply({ k: fitK, x: (size.w - world.width * fitK) / 2, y: (size.h - world.height * fitK) / 2 });
+  }, [world, size, fitK, apply]);
 
-  // A new continent: the zone under way in view around the character (the whole continent when
-  // not following).
+  // At first: the zone under way in view around the character (all the continents when not
+  // following).
   const placed = useRef<string>("");
   useEffect(() => {
-    if (!base || !project || !size.w) return;
-    const key = `${base.id}`;
+    if (!world || !project || !size.w) return;
+    const key = [...world.panels.keys()].join("+");
     if (placed.current === key) return void refresh.current();
     placed.current = key;
     if (!follow) return fit();
     const area = steps[cards[current]?.first]?.zone_id;
     const rect = zones.find((z) => z.z.area === area)?.rect ?? covers.find((c) => c.area === area)?.rect;
-    const k = rect ? Math.min(size.w / rect.w, size.h / rect.h) * 0.95 : fitK * 6;
-    center(positionAt(moves, clock.time).at, Math.min(fitK * MAX_ZOOM, k));
+    const k = rect ? Math.min(size.w / rect.w, size.h / rect.h) * 0.95 : unitK * 6;
+    center(positionAt(moves, clock.time).at, Math.min(unitK * MAX_ZOOM, k));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, project, size, zones, covers]);
+  }, [world, project, size, zones, covers]);
 
   // At each moment: the character's dot, and the view following it.
   const cache = useRef(new Map());
@@ -264,19 +315,19 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
   const draw = useCallback(() => {
     if (!project) return;
     const { at } = positionAt(moves, clock.time, cache.current);
-    if (at[0] !== continent) {
-      if (follow) setContinent(at[0]);
+    const here = project(at);
+    if (!here) {
       dot.current?.setAttribute("visibility", "hidden");
       return;
     }
-    const [px, py] = project(at[1], at[2]);
+    const [px, py] = here;
     if (follow && size.w) {
       const v = view.current;
       apply({ k: v.k, x: size.w / 2 - px * v.k, y: size.h / 2 - py * v.k });
     }
     dot.current?.setAttribute("visibility", "visible");
     dot.current?.setAttribute("transform", `translate(${px} ${py}) scale(${1 / view.current.k})`);
-  }, [project, moves, clock, continent, follow, size, apply]);
+  }, [project, moves, clock, follow, size, apply]);
   useEffect(() => {
     draw();
     return clock.subscribe(draw);
@@ -290,7 +341,7 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
       e.preventDefault();
       const rect = el.getBoundingClientRect();
       const v = view.current;
-      const k = Math.min(fitK * MAX_ZOOM, Math.max(fitK * MIN_ZOOM, v.k * Math.exp(-e.deltaY * 0.0015)));
+      const k = Math.min(unitK * MAX_ZOOM, Math.max(fitK * MIN_ZOOM, v.k * Math.exp(-e.deltaY * 0.0015)));
       // Following: the zoom keeps the character in the middle.
       const [cx, cy] = follow ? [size.w / 2, size.h / 2] : [e.clientX - rect.left, e.clientY - rect.top];
       apply({ k, x: cx - ((cx - v.x) * k) / v.k, y: cy - ((cy - v.y) * k) / v.k });
@@ -298,10 +349,10 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [fitK, follow, size, apply, draw]);
+  }, [fitK, unitK, follow, size, apply, draw]);
   const zoomBy = (f: number) => {
     const v = view.current;
-    const k = Math.min(fitK * MAX_ZOOM, Math.max(fitK * MIN_ZOOM, v.k * f));
+    const k = Math.min(unitK * MAX_ZOOM, Math.max(fitK * MIN_ZOOM, v.k * f));
     const [cx, cy] = [size.w / 2, size.h / 2];
     apply({ k, x: cx - ((cx - v.x) * k) / v.k, y: cy - ((cy - v.y) * k) / v.k });
     draw();
@@ -333,17 +384,17 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
   };
 
   // The route: the whole guide faint, the zone under way, the card under way bright.
-  const all = useMemo(() => (project ? trace(moves.legs, continent, project) : null), [moves, continent, project]);
+  const all = useMemo(() => (project ? trace(moves.legs, project) : null), [moves, project]);
   const span = (from: number, to: number) => moves.legs.filter((l) => l.end > from && l.start < to);
   const zoneTrace = useMemo(
-    () => (project && cards[zone[0]] ? trace(span(cards[zone[0]].start, cards[zone[1]].end), continent, project) : null),
+    () => (project && cards[zone[0]] ? trace(span(cards[zone[0]].start, cards[zone[1]].end), project) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [moves, continent, project, cards, zone[0], zone[1]],
+    [moves, project, cards, zone[0], zone[1]],
   );
   const lit = useMemo(
-    () => (project && cards[current] ? trace(span(cards[current].start, currentEnd), continent, project) : null),
+    () => (project && cards[current] ? trace(span(cards[current].start, currentEnd), project) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [moves, continent, project, cards, current, currentEnd],
+    [moves, project, cards, current, currentEnd],
   );
 
   // Markers: the cards of the zone under way, those around the current one in full (the next
@@ -354,8 +405,9 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     const out: { n: number; x: number; y: number; dx: number; kind: string; glyph: string; near: boolean }[] = [];
     for (let n = zone[0]; n <= zone[1] && n < cards.length; n++) {
       const c = cards[n];
-      if (!c.world || c.world[0] !== continent) continue;
-      const [x, y] = project(c.world[1], c.world[2]);
+      const at = c.world && project(c.world);
+      if (!at) continue;
+      const [x, y] = at;
       out.push({ n, x, y, dx: 0, ...markerKind(steps, c), near: n >= current - NEAR_BEFORE && n <= current + NEAR_AFTER });
     }
     // Steps at the same place (quests of one NPC): side by side in the guide's order, not hidden under each other.
@@ -367,24 +419,24 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     for (const same of places.values()) same.forEach((m, i) => (m.dx = (i - (same.length - 1) / 2) * SAME_PLACE_GAP));
     // The current card on top, the near ones over the dots.
     return out.sort((a, b) => Number(a.near) - Number(b.near) || Number(a.n === current) - Number(b.n === current));
-  }, [project, layers.markers, zone, cards, continent, steps, current]);
+  }, [project, layers.markers, zone, cards, steps, current]);
 
   // Editing: the quests not taken ("!"), the objectives forgotten (red) and the turn-ins
-  // forgotten ("?" in red) on this continent.
+  // forgotten ("?" in red), on the continents.
   const offers = useMemo(() => {
     if (!project || !suggestions || !onPick) return [];
     const out: Offer[] = [];
-    const on = (p: WorldPoint) => p[0] === continent;
+    const on = (p: WorldPoint) => !!project(p);
     for (const q of suggestions.untaken)
       q.places.filter((p) => on(p.at)).forEach((p, k) => {
-        const [x, y] = project(p.at[1], p.at[2]);
+        const [x, y] = project(p.at)!;
         const label = [`[${q.level}] ${q.name}`, p.name, q.dungeon].filter(Boolean).join(" · ");
         out.push({ key: `u${q.quest}/${k}`, x, y, kind: "untaken", glyph: "!", label, step: { kind: "accept", quest: q.quest }, difficulty: q.difficulty, dungeon: !!q.dungeon });
       });
     for (const o of suggestions.objectives)
       o.places.forEach((p, spot) => {
         if (!on(p.at)) return;
-        const [x, y] = project(p.at[1], p.at[2]);
+        const [x, y] = project(p.at)!;
         // A dungeon's objective is done in its run: picking it adds the run.
         const step: RouteStep = o.dungeon ? { kind: "dungeon", dungeon: o.dungeon[0] } : { kind: "objective", quest: o.quest, objective: o.objective, spot };
         // One mark per dungeon (its entrance), naming all its objectives left.
@@ -395,11 +447,11 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
       });
     for (const q of suggestions.turn_ins)
       q.places.filter((p) => on(p.at)).forEach((p, k) => {
-        const [x, y] = project(p.at[1], p.at[2]);
+        const [x, y] = project(p.at)!;
         out.push({ key: `t${q.quest}/${k}`, x, y, kind: "turn-in", glyph: "?", label: `${q.name} · ${p.name}`, step: { kind: "turn_in", quest: q.quest } });
       });
     return out;
-  }, [project, suggestions, onPick, continent]);
+  }, [project, suggestions, onPick]);
   const [offered, setOffered] = useState<string | null>(null);
 
   const routeLayer = (d: { walk: string; flight: string; link: string; jump: string } | null, cls: string) =>
@@ -419,26 +471,6 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     <div className="guide-map">
       <div className="gm-bar">
         <strong>{t("Carte")}</strong>
-        {continents.length > 1 && (
-          <select
-            value={continent}
-            onChange={(e) => {
-              placed.current = "";
-              onFollow(false);
-              setContinent(Number(e.target.value));
-            }}
-            aria-label={t("Continent")}
-          >
-            {continents.map((c) => {
-              const info = index?.filter((m) => m.kind === 2 && m.bounds?.map === c).sort((a, b) => b.width - a.width)[0];
-              return (
-                <option key={c} value={c}>
-                  {info ? areaName(info) : c}
-                </option>
-              );
-            })}
-          </select>
-        )}
         <button className={`gm-toggle${follow ? " on" : ""}`} aria-pressed={follow} onClick={() => onFollow(!follow)} title={t("La carte suit le personnage")}>
           <span aria-hidden>◎</span> {t("Suivre le personnage")}
         </button>
@@ -478,7 +510,7 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
             ))}
           </defs>
           <g ref={layer}>
-            {base && <MapImage id={base.id} x={0} y={0} w={base.width} h={base.height} />}
+            {panels && [...panels.values()].map((p) => <MapImage key={p.map} id={p.info.id} x={p.dx} y={p.dy} w={p.w} h={p.h} />)}
             {/* The zones' maps a little past their outlines first (biggest under), filling the
                 gaps the simplified outlines leave, then each within its outline. */}
             {[...shown]
@@ -498,12 +530,12 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
                 <MapImage id={z.id} x={rect.x} y={rect.y} w={rect.w} h={rect.h} />
               </g>
             ))}
-            {/* The open sea, where the game has no minimap: its color there, not the continent's parchment. */}
-            {shownTiles.length > 0 && base && <rect x={-base.width} y={-base.height} width={3 * base.width} height={3 * base.height} fill={MINIMAP_SEA} />}
+            {/* The open sea, where the game has no minimap: its color there, not the continents' parchment. */}
+            {closeUp && world && <rect x={-world.width} y={-world.height} width={3 * world.width} height={3 * world.height} fill={MINIMAP_SEA} />}
             {shownTiles.map((tile) => (
               <MinimapImage key={tile.key} tile={tile} />
             ))}
-            {scale >= 1.2 * fitK &&
+            {scale >= 1.2 * unitK &&
               zones
                 .filter((z) => z.z.area)
                 .map(({ z, label }) => (
@@ -587,8 +619,8 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
               onFollow(false);
               fit();
             }}
-            aria-label={t("Tout le continent")}
-            title={t("Tout le continent")}
+            aria-label={t("Toute la carte")}
+            title={t("Toute la carte")}
           >
             ⤢
           </button>
@@ -609,16 +641,15 @@ interface MinimapTile {
   rect: { x: number; y: number; w: number; h: number };
 }
 
-/** The minimap images over `box` (x0, y0, x1, y1 on `base`'s map) at zoom `k`: of the level
- * whose images are drawn closest to their own size. */
-function minimapTiles(base: MapInfo, have: Set<string>, k: number, [x0, y0, x1, y1]: number[]): MinimapTile[] {
-  const b = base.bounds!;
-  const map = b.map;
+/** The minimap images of a continent over `box` (x0, y0, x1, y1 on the map) at zoom `k`: of the
+ * level whose images are drawn closest to their own size. */
+function minimapTiles(panel: Panel, have: Set<string>, k: number, [x0, y0, x1, y1]: number[]): MinimapTile[] {
+  const b = panel.info.bounds!;
+  const map = panel.map;
   // A game tile (x eastwards from world y = 32 tiles, y southwards from world x = 32 tiles) on the map.
-  const sx = (base.width / (b.max_y - b.min_y)) * TILE;
-  const sy = (base.height / (b.max_x - b.min_x)) * TILE;
-  const ox = ((b.max_y - 32 * TILE) / (b.max_y - b.min_y)) * base.width;
-  const oy = ((b.max_x - 32 * TILE) / (b.max_x - b.min_x)) * base.height;
+  const sx = (panel.w / (b.max_y - b.min_y)) * TILE;
+  const sy = (panel.h / (b.max_x - b.min_x)) * TILE;
+  const [ox, oy] = panel.project(32 * TILE, 32 * TILE);
   const level = Math.max(0, Math.min(MINIMAP_LEVELS - 1, Math.round(Math.log2(MINIMAP_SIZE / (sx * k)))));
   const span = 2 ** level;
   const [w, h] = [sx * span, sy * span];
