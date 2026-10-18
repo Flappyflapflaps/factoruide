@@ -19,25 +19,88 @@ local done = setmetatable({}, { __mode = "k" })
 --- A field the addon set on a frame (not one of its methods).
 local function field(frame, key) return rawget(frame, key) end
 
--- Colors (r, g, b), the app's.
-Skin.colors = {
-    bg = { 0.035, 0.067, 0.122 },
-    edge = { 0.137, 0.204, 0.31 },
-    line = { 0.082, 0.137, 0.227 },
-    blue = { 0.227, 0.302, 1 },
-    cyan = { 0.122, 0.659, 0.847 },
-    accent = { 0.49, 0.553, 1 },
-    text = { 1, 1, 1 },
-    text2 = { 0.729, 0.769, 0.839 },
-    muted = { 0.494, 0.545, 0.639 },
-    dim = { 0.365, 0.416, 0.51 },
-    gold = { 1, 0.82, 0 },
-    green = { 0.29, 0.871, 0.502 },
-    orange = { 1, 0.565, 0.251 },
-    red = { 1, 0.4, 0.3 },
-    purple = { 0.69, 0.486, 1 },
-    lightBlue = { 0.5, 0.827, 0.941 },
+--- r, g, b of "rrggbb".
+local function rgb(hex)
+    return { tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255 }
+end
+
+-- Colors (r, g, b), the app's: its night-blue theme, or its light one, the parchment (a soft
+-- yellowed ground, darker inks so that the texts stay readable on it).
+local PALETTES = {
+    dark = {
+        bg = { 0.035, 0.067, 0.122 },
+        edge = { 0.137, 0.204, 0.31 },
+        line = { 0.082, 0.137, 0.227 },
+        blue = { 0.227, 0.302, 1 },
+        cyan = { 0.122, 0.659, 0.847 },
+        accent = { 0.49, 0.553, 1 },
+        text = { 1, 1, 1 },
+        text2 = { 0.729, 0.769, 0.839 },
+        muted = { 0.494, 0.545, 0.639 },
+        dim = { 0.365, 0.416, 0.51 },
+        gold = { 1, 0.82, 0 },
+        green = { 0.29, 0.871, 0.502 },
+        orange = { 1, 0.565, 0.251 },
+        red = { 1, 0.4, 0.3 },
+        purple = { 0.69, 0.486, 1 },
+        lightBlue = { 0.5, 0.827, 0.941 },
+        -- The XP bar: its empty part and the XP.
+        xpTrack = { 0.016, 0.035, 0.071 },
+        xp = { 0.616, 0.361, 1 },
+    },
 }
+local LIGHT = {
+    -- An old paper, a little yellow; amber where the other themes have blue (the step under
+    -- way, the top line, the links, the XP).
+    parchemin = {
+        bg = "efe2c4",
+        edge = "b9a47c",
+        line = "e2d1ac",
+        blue = "b8691e",
+        cyan = "d9a441",
+        accent = "8a4512",
+        text = "2a2219",
+        text2 = "4d4334",
+        muted = "5f5341",
+        dim = "7a6c58",
+        gold = "7f4f00",
+        green = "26672e",
+        orange = "a0430a",
+        red = "a63128",
+        purple = "7d3f86",
+        lightBlue = "2f6358",
+        xpTrack = "dcc9a2",
+        xp = "b5621b",
+    },
+}
+for name, hexes in pairs(LIGHT) do
+    local palette = { blue = PALETTES.dark.blue, cyan = PALETTES.dark.cyan }
+    for key, hex in pairs(hexes) do
+        palette[key] = rgb(hex)
+    end
+    PALETTES[name] = palette
+end
+
+-- The setting `uiTheme` (from the app's Config.lua), read once: changing it needs a /reload.
+Skin.theme = PALETTES[FG:Get("uiTheme")] and FG:Get("uiTheme") or "dark"
+Skin.light = Skin.theme ~= "dark"
+Skin.colors = PALETTES[Skin.theme]
+
+--- The same methods with the dark theme's colors and shadowed texts: for what is drawn over the
+--- game world (the compass, the mark over an NPC), never on a card.
+function Skin:Dark()
+    local dark = setmetatable({ colors = PALETTES.dark }, { __index = Skin })
+    dark.FontObject = function(size, flags) return Skin.FontObject(size, flags, true) end
+    return dark
+end
+
+--- A game color ("rrggbb": a quest's difficulty, a step's kind) readable on the theme's ground:
+--- as is on the dark one, half mixed with the text's ink on a light one.
+function Skin.Ink(hex)
+    if not Skin.light then return hex end
+    local c, t = rgb(hex), Skin.colors.text
+    return string.format("%02x%02x%02x", (c[1] + t[1]) / 2 * 255, (c[2] + t[2]) / 2 * 255, (c[3] + t[3]) / 2 * 255)
+end
 
 --- "|cffrrggbb" of a color of `Skin.colors`.
 function Skin.Hex(name)
@@ -93,14 +156,16 @@ end
 local fonts = {}
 
 --- Font object of `size` (and `flags`), cached.
-function Skin.FontObject(size, flags)
-    local key = size .. (flags or "")
+function Skin.FontObject(size, flags, shadowed)
+    shadowed = shadowed or not Skin.light
+    local key = size .. (flags or "") .. (shadowed and "" or "flat")
     if fonts[key] then return fonts[key] end
     if not CreateFont or not GameFontNormal then return "GameFontHighlightSmall" end
     local font = CreateFont("FactoruideFont" .. key:gsub("%W", ""))
     local path = GameFontNormal:GetFont()
     font:SetFont(path, size, flags or "")
-    font:SetShadowColor(0, 0, 0, 1)
+    -- A dark shadow under the light texts; none under the dark inks of a light theme.
+    font:SetShadowColor(0, 0, 0, shadowed and 1 or 0)
     font:SetShadowOffset(1, -1)
     font:SetTextColor(1, 1, 1)
     fonts[key] = font
@@ -131,7 +196,9 @@ local function Base(frame, kind)
     local c = Skin.colors
     if kind == "window" or kind == "panel" then
         frame:SetBackdrop(FLAT_BACKDROP)
-        frame:SetBackdropColor(c.bg[1], c.bg[2], c.bg[3], kind == "window" and 0.9 or 0.85)
+        local alpha = kind == "window" and 0.9 or 0.85
+        if Skin.light then alpha = alpha + 0.05 end
+        frame:SetBackdropColor(c.bg[1], c.bg[2], c.bg[3], alpha)
         frame:SetBackdropBorderColor(c.edge[1], c.edge[2], c.edge[3], 1)
         if kind == "window" and not field(frame, "accent") then
             frame.accent = frame:CreateTexture(nil, "BORDER")

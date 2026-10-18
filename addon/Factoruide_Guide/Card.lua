@@ -113,7 +113,7 @@ local function TaskRow(i)
     end)
     row:SetScript("OnEnter", function(self) FG.Guide:StepTooltip(self, self.index) end)
     row:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    row.light = Skin:Fill(row, "BACKGROUND", "blue", 0.16)
+    row.light = Skin:Fill(row, "BACKGROUND", "blue", Skin.light and 0.22 or 0.16)
     row.light:SetAllPoints()
     row.edge = Skin:Fill(row, "BORDER", "accent", 1)
     row.edge:SetPoint("TOPLEFT")
@@ -271,8 +271,6 @@ local function NextRow(i)
     return row
 end
 
-local function Hex(color) return "|cff" .. color end
-
 local function DrawNext(row, v, isPickup)
     row:Show()
     if v.marker then
@@ -292,7 +290,8 @@ local function DrawNext(row, v, isPickup)
     row.index = v.index
     row.line:Hide()
     row.dot:Show()
-    local r, g, b = tonumber(v.color:sub(1, 2), 16), tonumber(v.color:sub(3, 4), 16), tonumber(v.color:sub(5, 6), 16)
+    local color = Skin.Ink(v.color)
+    local r, g, b = tonumber(color:sub(1, 2), 16), tonumber(color:sub(3, 4), 16), tonumber(color:sub(5, 6), 16)
     row.dot:SetColorTexture(r / 255, g / 255, b / 255, 1)
     row.text:SetFontObject(Skin.FontObject(10))
     TextColor(row.text, "text2")
@@ -308,7 +307,7 @@ local function DrawNext(row, v, isPickup)
     if isPickup and v.distance then
         text = text
             .. "  "
-            .. Hex(v.distance < 100 and "ffffff" or "7e8ba3")
+            .. Skin.Hex(v.distance < 100 and "text" or "muted")
             .. string.format(L.yards, v.distance)
             .. "|r"
     end
@@ -364,9 +363,9 @@ local function Header()
     frame.tools = tools
 
     -- XP of the character (purple) and the guide's at the step shown (gold mark).
-    frame.xp = Skin:Fill(frame, "ARTWORK", { 0.016, 0.035, 0.071 }, 1)
+    frame.xp = Skin:Fill(frame, "ARTWORK", "xpTrack", 1)
     frame.xp:SetHeight(4)
-    frame.xpFill = Skin:Fill(frame, "ARTWORK", { 0.616, 0.361, 1 }, 1)
+    frame.xpFill = Skin:Fill(frame, "ARTWORK", "xp", 1)
     frame.xpFill:SetPoint("TOPLEFT", frame.xp)
     frame.xpFill:SetPoint("BOTTOMLEFT", frame.xp)
     frame.xpMark = Skin:Fill(frame, "OVERLAY", "gold", 1)
@@ -413,8 +412,9 @@ local function Sections()
     local talent = CreateFrame("Frame", nil, frame, "BackdropTemplate")
     talent:SetHeight(32)
     talent:SetBackdrop({ bgFile = Skin.WHITE, edgeFile = Skin.WHITE, edgeSize = 1 })
-    talent:SetBackdropColor(0.227, 0.302, 1, 0.14)
-    talent:SetBackdropBorderColor(0.49, 0.553, 1, 0.3)
+    local blue, accent = Skin.colors.blue, Skin.colors.accent
+    talent:SetBackdropColor(blue[1], blue[2], blue[3], 0.14)
+    talent:SetBackdropBorderColor(accent[1], accent[2], accent[3], 0.3)
     talent.icon = talent:CreateTexture(nil, "ARTWORK")
     talent.icon:SetSize(22, 22)
     talent.icon:SetPoint("LEFT", 6, 0)
@@ -616,7 +616,7 @@ function Card:Render(view)
     for key, b in pairs(frame.tabs) do
         b:Show()
         b.bg:SetShown(key == tab)
-        b.bg:SetColorTexture(0.082, 0.137, 0.227, 1)
+        b.bg:SetColorTexture(Skin.colors.line[1], Skin.colors.line[2], Skin.colors.line[3], 1)
         TextColor(b.label, key == tab and "text" or "muted")
     end
     y = y - 20

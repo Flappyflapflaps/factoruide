@@ -18,6 +18,9 @@ FG.defaults = {
     guideMode = "full",
     -- The look of a loaded UI suite (ElvUI...) instead of Factoruide's.
     suiteSkin = false,
+    -- The colors of Factoruide's look: "dark" (the app's night blue) or "parchemin" (light), read
+    -- when the frames are made.
+    uiTheme = "dark",
     -- The next steps: their tab ("next" steps or quests to "pickup").
     nextTab = "next",
     -- The quest panel: its tab ("quests", "professions", "reputation", "items") and whether it is

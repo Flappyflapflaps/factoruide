@@ -147,9 +147,9 @@ local function CreateTags()
     tags.list = {}
     xpBar = CreateFrame("Frame", nil, strip)
     xpBar:SetSize(300, 3)
-    xpBar.bg = Skin:Fill(xpBar, "BACKGROUND", { 0.016, 0.035, 0.071 }, 0.7)
+    xpBar.bg = Skin:Fill(xpBar, "BACKGROUND", "xpTrack", 0.7)
     xpBar.bg:SetAllPoints()
-    xpBar.fill = Skin:Fill(xpBar, "ARTWORK", { 0.616, 0.361, 1 }, 1)
+    xpBar.fill = Skin:Fill(xpBar, "ARTWORK", "xp", 1)
     xpBar.fill:SetPoint("TOPLEFT")
     xpBar.fill:SetPoint("BOTTOMLEFT")
     xpBar.mark = Skin:Fill(xpBar, "OVERLAY", "gold", 1)
@@ -270,7 +270,7 @@ local function CreateAhead()
     aheadBar = FG:DragHandle(CreateFrame("Button", nil, strip, "BackdropTemplate"))
     aheadBar:SetHeight(20)
     aheadBar:SetBackdrop({ bgFile = Skin.WHITE, edgeFile = Skin.WHITE, edgeSize = 1 })
-    aheadBar:SetBackdropColor(0.035, 0.067, 0.122, 0.9)
+    aheadBar:SetBackdropColor(Skin.colors.bg[1], Skin.colors.bg[2], Skin.colors.bg[3], 0.9)
     aheadBar:SetBackdropBorderColor(1, 0.82, 0, 0.35)
     aheadBar.text = Skin:Text(aheadBar, 10, "gold")
     aheadBar.text:SetPoint("CENTER")
@@ -383,8 +383,6 @@ end
 --- Where the quest item button goes: near the action bars, with its name.
 function Mini:ItemAnchor(button) button:SetPoint("CENTER", buttons.slot) end
 
-local function Hex(color) return "|cff" .. color end
-
 local function Count(v) return v.have and v.need and string.format("%d/%d", v.have, v.need) or "" end
 
 --- The tags under the strip: mobs on the way, then the other tasks (the first ones, then "+n").
@@ -489,8 +487,8 @@ local function DrawDrop(view, y)
             shown = shown + 1
             row.index = v.index
             row.dot:Show()
-            local r, g, b =
-                tonumber(v.color:sub(1, 2), 16), tonumber(v.color:sub(3, 4), 16), tonumber(v.color:sub(5, 6), 16)
+            local color = Skin.Ink(v.color)
+            local r, g, b = tonumber(color:sub(1, 2), 16), tonumber(color:sub(3, 4), 16), tonumber(color:sub(5, 6), 16)
             row.dot:SetColorTexture(r / 255, g / 255, b / 255, 1)
             TextColor(row.text, "text2")
             local text = v.text .. (v.who and ("  " .. Skin.Hex("dim") .. v.who .. "|r") or "")
@@ -499,7 +497,7 @@ local function DrawDrop(view, y)
             if tab == "pickup" and v.distance then
                 text = text
                     .. "  "
-                    .. Hex(v.distance < 100 and "ffffff" or "7e8ba3")
+                    .. Skin.Hex(v.distance < 100 and "text" or "muted")
                     .. string.format(L.yards, v.distance)
                     .. "|r"
             end
@@ -609,10 +607,11 @@ function Mini:Render(view)
     local kind = FG.Guide.KINDS[main.kind] or {}
     local r, g, b = 1, 1, 1
     if main.color then
+        local color = Skin.Ink(main.color)
         r, g, b =
-            tonumber(main.color:sub(1, 2), 16) / 255,
-            tonumber(main.color:sub(3, 4), 16) / 255,
-            tonumber(main.color:sub(5, 6), 16) / 255
+            tonumber(color:sub(1, 2), 16) / 255,
+            tonumber(color:sub(3, 4), 16) / 255,
+            tonumber(color:sub(5, 6), 16) / 255
     end
     strip.dot:Show()
     strip.dot:SetColorTexture(r, g, b, 1)

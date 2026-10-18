@@ -32,6 +32,17 @@ const OPTIONS: { title: string; options: Option[] }[] = [
       { key: "lockFrames", kind: "bool", label: "Verrouiller les fenêtres", help: "Empêche de déplacer les fenêtres de l'addon par erreur.", default: false },
       { key: "waypoints", kind: "bool", label: "Repère de navigation du jeu", help: "Le point de navigation du jeu vers l'étape en cours, sur la carte et à l'écran (pas sur Classic ; laissé à Shortest Path Forever quand il vous guide).", default: true },
       { key: "xpMarker", kind: "bool", label: "Repère du guide sur la barre d'XP", help: "Un trait jaune sur la barre d'expérience montre l'XP que le guide prévoit à l'étape en cours ; au survol, votre avance ou votre retard.", default: true },
+      {
+        key: "uiTheme",
+        kind: "select",
+        label: "Couleurs de l'addon",
+        help: "Celles de l'application : sombres, ou parchemin (un fond clair jauni, des textes foncés). Pris en compte après /reload.",
+        default: "dark",
+        options: [
+          { value: "dark", label: "Sombre" },
+          { value: "parchemin", label: "Parchemin" },
+        ],
+      },
       { key: "suiteSkin", kind: "bool", label: "Style de la suite d'interface", help: "Avec ElvUI, EllesmereUI ou SpartanUI : leur style à la place de celui de Factoruide. Pris en compte après /reload.", default: false },
     ],
   },

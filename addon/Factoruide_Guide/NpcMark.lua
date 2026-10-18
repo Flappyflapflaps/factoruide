@@ -8,7 +8,8 @@ local FG = Factoruide
 local NpcMark = {}
 FG.NpcMark = NpcMark
 
-local Skin = FG.Skin
+-- Over the game world: the dark theme's colors whatever the theme.
+local Skin = FG.Skin:Dark()
 -- Nameplate units looked at when the NPC changes.
 local PLATES = 40
 

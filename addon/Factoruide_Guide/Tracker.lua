@@ -486,7 +486,7 @@ function Tracker:Refresh()
         if tab == "quests" then
             local line = add(16)
             line.questID = q.id
-            local color = q.step and DifficultyColor(q.id) or "7e8ba3"
+            local color = q.step and Skin.Ink(DifficultyColor(q.id)) or Skin.Hex("muted"):sub(5)
             local suffix = q.level and ("  " .. Skin.Hex("muted") .. q.level .. "|r") or ""
             if not q.step then suffix = suffix .. "  " .. Skin.Hex("dim") .. L.offRoute .. "|r" end
             if q.step and q.step.bg then suffix = suffix .. "  " .. Skin.Hex("lightBlue") .. L.alongTheWay .. "|r" end

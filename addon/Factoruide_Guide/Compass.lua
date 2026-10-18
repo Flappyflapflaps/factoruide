@@ -68,7 +68,8 @@ local LOOKS = {
     place = { icon = 9, back = 11, alpha = 0.6, farAlpha = 0.45 },
 }
 
-local Skin = FG.Skin
+-- Over the game world: the dark theme's colors whatever the theme (the cards' line under it apart).
+local Skin = FG.Skin:Dark()
 local frame
 local points = {}
 local attached
@@ -362,7 +363,7 @@ local function Create()
     local middle = Skin:Fill(frame, "BACKGROUND", c, 0.42)
     middle:SetPoint("TOPLEFT", left, "TOPRIGHT")
     middle:SetPoint("BOTTOMRIGHT", right, "BOTTOMLEFT")
-    local a = Skin.colors.accent
+    local a = FG.Skin.colors.accent
     local lineLeft = frame:CreateTexture(nil, "BORDER")
     lineLeft:SetPoint("BOTTOMLEFT")
     lineLeft:SetHeight(1)

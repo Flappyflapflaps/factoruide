@@ -4,6 +4,7 @@ import { api, type Settings } from "../api";
 import { LANGS, useLang, useT, type Lang } from "../i18n";
 import { AboutPanels } from "../components/AboutPanels";
 import { Hint } from "../components/Hint";
+import { THEMES, applyTheme, savedTheme, type Theme } from "../theme";
 
 /** Game version folders the app has guides for. */
 const SUPPORTED = ["_classic_beta_", "_classic_era_", "_anniversary_"];
@@ -33,6 +34,7 @@ export function SettingsPage({ onLanguage, version }: Props) {
   const t = useT();
   const lang = useLang();
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [theme, setTheme] = useState<Theme>(savedTheme);
   // Game version folders in the WoW folder (null: not looked yet).
   const [found, setFound] = useState<string[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -73,6 +75,23 @@ export function SettingsPage({ onLanguage, version }: Props) {
           {LANGS.map((l) => (
             <option key={l.key} value={l.key}>
               {l.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="field">
+        <span>{t("Thème")}</span>
+        <select
+          value={theme}
+          onChange={(e) => {
+            const next = e.target.value as Theme;
+            setTheme(next);
+            applyTheme(next);
+          }}
+        >
+          {THEMES.map((th) => (
+            <option key={th.key} value={th.key}>
+              {t(th.label)}
             </option>
           ))}
         </select>
