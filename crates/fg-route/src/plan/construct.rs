@@ -63,7 +63,7 @@ impl Planner<'_> {
                         for (k, o) in q.objectives.iter().enumerate() {
                             if self.availability().objective_open(&s, i, k) && o.kills > 0.0 && o.dungeon.is_none() {
                                 options.push((
-                                    self.params.level_for(self.combat().need(q, o), s.bonus),
+                                    self.params.level_for(self.combat().need(q, o), s.might()),
                                     Stop::quest(i, Kind::Objective(k as u8)),
                                 ));
                             }
@@ -171,7 +171,7 @@ impl Planner<'_> {
             }
             let class = if self.quest(i).mandatory { 0.6 } else { 1.0 };
             // Givers and turn-ins among mobs too strong for the character wait.
-            let reach = self.params.reach(s.level, s.bonus);
+            let reach = self.params.reach(s.level, s.might());
             let guarded = |g| self.combat().guard_need(g) > reach;
             if s.accepted[iu] {
                 if self.availability().objectives_done(s, i) {
@@ -183,7 +183,7 @@ impl Planner<'_> {
                     let q = self.quest(i);
                     for k in 0..q.objectives.len() {
                         let o = &q.objectives[k];
-                        let level_ok = self.combat().need(q, o) <= self.params.reach(s.level, s.bonus);
+                        let level_ok = self.combat().need(q, o) <= self.params.reach(s.level, s.might());
                         if self.availability().objective_open(s, i, k) && level_ok && o.dungeon.is_none() {
                             let stop = Stop::quest(i, Kind::Objective(k as u8));
                             add(stop, class, None, bound.at(&self.places().pos(s, stop)));

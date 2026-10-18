@@ -166,7 +166,7 @@ impl Planner<'_> {
         }
         let mobs = self.farm_walk(a, b, self.trips().danger_level(s.level));
         let content = xp::content_at(a.continent, a.zone);
-        let reach = p.reach(s.level, s.bonus);
+        let reach = p.reach(s.level, s.might());
         let share = p.farm_share_at(s.level);
         let in_log = |q: u32| s.accepted[q as usize] && !s.turned[q as usize];
         let (mut time, mut gained, mut killed) = (0.0, 0.0, 0.0);

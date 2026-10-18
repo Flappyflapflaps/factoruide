@@ -95,7 +95,7 @@ impl QuestBuilder<'_> {
             return min_level;
         }
         let need = mob_level as f64 + if kills <= 2.0 { -1.0 } else { self.params.pack_extra() };
-        min_level.max(self.params.level_for(need, 0.0))
+        min_level.max(self.params.level_for(need, crate::params::Might::PLAIN))
     }
 
     /// Quests of the other classes give their XP to the other player.

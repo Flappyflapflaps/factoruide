@@ -43,6 +43,7 @@ impl<'g> Growth<'g> {
                 0.0
             };
             s.gear_bonus = self.params.power_scale * p.gear_bonus(&s.gear, s.level);
+            s.gear_quality = p.gear_quality(&s.gear, s.level);
             bonus += s.gear_bonus + self.params.power_scale * spells;
         }
         s.bonus = bonus;

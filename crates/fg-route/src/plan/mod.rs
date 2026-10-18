@@ -291,6 +291,7 @@ impl<'a> Planner<'a> {
             gear: crate::power::Gear::default(),
             bonus: 0.0,
             gear_bonus: 0.0,
+            gear_quality: 0.0,
             explored: Flags::new(self.model.explore.len()),
             abandon_check: (0, 0),
             log: 0,

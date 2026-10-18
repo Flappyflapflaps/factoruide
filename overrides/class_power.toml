@@ -1,0 +1,48 @@
+# How each class fares while leveling, against the average class: what it takes on (quest and
+# mob levels), not how fast it kills (see `Params::reach`).
+#
+# `curve`: levels of power over the average class, by character level (straight lines between
+# the levels given, the first and last values beyond them): -1.5 takes on what a character 1.5
+# levels lower would. Read from leveling tier lists and class guides (solo questing, Classic):
+# hunters and warlocks strong from their pet on, mages steady, warriors weak from 10 to 30 and
+# strong late with gear, paladins and druids slow until their tools come (Seal of Command, cat
+# form), priests better from Shadowform. The values in between are a reading, not a measure.
+#
+# `gear`: how much gear counts for the class (1 = average): warriors depend most on their
+# weapon and armor, warlocks and mages least.
+
+[warrior]
+curve = { 5 = 0.5, 15 = -1.5, 25 = -1.5, 35 = -0.5, 45 = 0.5, 55 = 1.0 }
+gear = 1.5
+
+[paladin]
+curve = { 5 = -0.5, 15 = -1.0, 25 = -0.5, 35 = -0.5, 45 = -0.5, 55 = -0.5 }
+gear = 1.2
+
+[hunter]
+curve = { 5 = -0.5, 15 = 2.0, 25 = 1.5, 35 = 1.0, 45 = 1.0, 55 = 0.5 }
+gear = 0.7
+
+[rogue]
+curve = { 5 = 0.5, 15 = 0.5, 25 = 0.0, 35 = -0.5, 45 = -0.5, 55 = -0.5 }
+gear = 1.3
+
+[priest]
+curve = { 5 = -0.5, 15 = -0.5, 25 = -0.5, 35 = -0.5, 45 = 0.0, 55 = 0.0 }
+gear = 0.8
+
+[shaman]
+curve = { 5 = 0.5, 15 = 0.5, 25 = 0.0, 35 = 0.0, 45 = -0.5, 55 = -0.5 }
+gear = 1.2
+
+[mage]
+curve = { 5 = 0.5, 15 = 0.0, 25 = 0.5, 35 = 0.5, 45 = 0.0, 55 = 0.0 }
+gear = 0.7
+
+[warlock]
+curve = { 5 = -0.5, 15 = 1.0, 25 = 1.0, 35 = 1.0, 45 = 0.5, 55 = 0.5 }
+gear = 0.6
+
+[druid]
+curve = { 5 = -0.5, 15 = -1.0, 25 = -0.5, 35 = 0.0, 45 = -0.5, 55 = -0.5 }
+gear = 1.0

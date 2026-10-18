@@ -64,7 +64,7 @@ impl Planner<'_> {
 
     /// Time of the work at a place, with the grinding to the level it requires.
     fn spot_work(&self, s: &State, q: &Quest, o: &Objective) -> f64 {
-        let gate = self.combat().level_at(q, o, s.bonus);
+        let gate = self.combat().level_at(q, o, s.might());
         let grind = if gate > s.level {
             self.growth().grind_time(s, gate)
         } else {

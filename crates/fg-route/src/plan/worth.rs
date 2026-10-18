@@ -69,7 +69,7 @@ impl Worth<'_> {
     /// Whether a quest beats grinding, counting the trip from where we are.
     pub(crate) fn worth_it(&self, s: &State, i: u32, level: i64, trip: f64) -> bool {
         let q = self.quest(i);
-        let bonus = s.bonus;
+        let might = s.might();
         // Content far beyond our reach would block a quest log slot until we level up.
         let hardest = q
             .objectives
@@ -77,7 +77,7 @@ impl Worth<'_> {
             .filter(|o| o.dungeon.is_none())
             .map(|o| self.combat.need(q, o))
             .fold(0.0, f64::max);
-        if hardest > self.params.reach(level + 1, bonus) {
+        if hardest > self.params.reach(level + 1, might) {
             return false;
         }
         if q.mandatory {
@@ -101,7 +101,7 @@ impl Worth<'_> {
         if past && worth <= 0.0 {
             return false;
         }
-        self.beats_grinding(s, worth, trip + self.quest_cost(i, level, bonus), level)
+        self.beats_grinding(s, worth, trip + self.quest_cost(i, level, s.bonus), level)
     }
 
     /// Whether `worth` XP for `cost` seconds beats grinding.
@@ -127,7 +127,7 @@ impl Worth<'_> {
             .filter(|o| o.dungeon.is_none())
             .map(|o| self.combat.need(q, o))
             .fold(0.0, f64::max);
-        if hardest > self.params.reach(level + 1, s.bonus) {
+        if hardest > self.params.reach(level + 1, s.might()) {
             return false;
         }
         if q.mandatory {

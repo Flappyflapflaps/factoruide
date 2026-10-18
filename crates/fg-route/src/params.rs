@@ -239,6 +239,13 @@ pub struct Params {
     /// Class quests giving a pet or a form are done as soon as taken when that costs at most
     /// this many seconds: the route only counts their power in faster fights, not the safety.
     pub class_power_slack: f64,
+    /// How the character's class fares at each level, in levels of power over the average class
+    /// (`overrides/class_power.toml`, by level, empty: 0), and how much its gear counts for what it
+    /// takes on (1 = average). Set from the class of the request, not read from routing.toml.
+    #[serde(skip)]
+    pub class_curve: Vec<f64>,
+    #[serde(skip)]
+    pub gear_dependence: f64,
     /// Run dungeons with a group when they are worth it (their quests included).
     pub dungeons: bool,
     /// Dungeons (instance area IDs) always run, dungeons on or off...
@@ -410,6 +417,8 @@ impl Default for Params {
             dungeon_loot_share: 0.35,
             gear_value: 0.5,
             class_power_slack: 600.0,
+            class_curve: Vec::new(),
+            gear_dependence: 1.0,
             mandatory_penalty: 7200.0,
             grind_weight: 1.5,
             grind_cap: 0.1,
@@ -516,18 +525,51 @@ impl Params {
         })
     }
 
-    /// Highest required power the character takes on at `level` with `bonus` levels of power
-    /// from gear and spells (gear counts up to `GEAR_REACH`: it makes fights faster, it does not
-    /// remove the danger of higher mobs; missing spells count fully).
-    pub fn reach(&self, level: i64, bonus: f64) -> f64 {
+    /// Highest required power the character takes on at `level` with `might`: its class at that
+    /// level (`class_curve`), its gear (`gear_reach`) and what class quests and spells add (up to
+    /// `GEAR_REACH`: they make fights faster, they do not remove the danger of higher mobs;
+    /// missing spells count fully).
+    pub fn reach(&self, level: i64, might: Might) -> f64 {
         let (factor, margin) = self.progression_profile();
-        (level as f64 + bonus.min(GEAR_REACH)) * factor + margin
+        let power =
+            level as f64 + self.class_offset(level) + self.gear_reach(level, might.gear) + might.other.min(GEAR_REACH);
+        power * factor + margin
     }
 
-    /// Lowest level at which the character reaches `need` with `bonus` levels of power.
-    pub fn level_for(&self, need: f64, bonus: f64) -> i64 {
+    /// Levels of power the class is worth at `level` over the average class (`class_curve`).
+    pub fn class_offset(&self, level: i64) -> f64 {
+        let n = self.class_curve.len();
+        if n == 0 {
+            return 0.0;
+        }
+        self.class_curve[(level.max(0) as usize).min(n - 1)]
+    }
+
+    /// Levels of power gear of quality `gear` (`Might::gear`: -2 for none or plain items, 0 for
+    /// the usual uncommon items of the level, +1 for very good ones) is worth for what the
+    /// character takes on at `level`: little at first, fully at the level cap of Classic, times
+    /// the class's dependence on its gear (never beyond `GEAR_WORST` and `GEAR_BEST`).
+    pub fn gear_reach(&self, level: i64, gear: f64) -> f64 {
+        let weight = (level as f64 / GEAR_FULL_LEVEL).clamp(GEAR_MIN_WEIGHT, 1.0);
+        (self.gear_dependence * weight * gear).clamp(GEAR_WORST, GEAR_BEST)
+    }
+
+    /// Lowest level at which the character reaches `need` with `might`.
+    pub fn level_for(&self, need: f64, might: Might) -> i64 {
         let (factor, margin) = self.progression_profile();
-        ((need - margin) / factor - bonus.min(GEAR_REACH) - 1e-9).ceil() as i64
+        // The level without class and gear, then a few steps to where `reach` crosses `need`
+        // (its class and gear parts change slowly with the level).
+        let mut level = ((need - margin) / factor - might.other.min(GEAR_REACH) - 1e-9).ceil() as i64;
+        for _ in 0..200 {
+            if self.reach(level, might) + 1e-9 < need {
+                level += 1;
+            } else if self.reach(level - 1, might) + 1e-9 >= need {
+                level -= 1;
+            } else {
+                break;
+            }
+        }
+        level
     }
 
     /// Kill time against a mob of `mob` level for a character of `level` with `bonus` levels of
@@ -620,8 +662,34 @@ pub enum Construction {
 /// Weight of a minute of grinding when the player does not want to grind.
 pub const NO_GRIND_WEIGHT: f64 = 10.0;
 
-/// Levels of gear power that extend which mobs and quests the character takes on.
+/// Levels of power from class quests and spells that extend which mobs and quests the
+/// character takes on.
 pub const GEAR_REACH: f64 = 0.5;
+
+/// Gear quality (`Might::gear`) of a character in plain items, and with very good ones.
+pub const GEAR_WORST: f64 = -2.0;
+pub const GEAR_BEST: f64 = 1.0;
+/// Gear counts fully for what the character takes on from this level, `GEAR_MIN_WEIGHT` of it
+/// at the start.
+const GEAR_FULL_LEVEL: f64 = 60.0;
+const GEAR_MIN_WEIGHT: f64 = 0.1;
+
+/// What the character takes on depends on, besides its level and class (see `Params::reach`):
+/// the quality of its gear (`GEAR_WORST` to `GEAR_BEST`), and the levels of power class quests
+/// and spells add (`other`, the part of the power that is not gear).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Might {
+    pub other: f64,
+    pub gear: f64,
+}
+
+impl Might {
+    /// A character that has nothing more than its level: plain gear, no class quest.
+    pub const PLAIN: Might = Might {
+        other: 0.0,
+        gear: GEAR_WORST,
+    };
+}
 
 /// Fight time of a character `bonus` levels of power above its level, relative to its level alone.
 pub fn power_speed(bonus: f64) -> f64 {
@@ -647,5 +715,40 @@ mod tests {
         let p = Params::default();
         assert!(!p.hearth_worth(185.0, 169.0));
         assert!(p.hearth_worth(1200.0, 300.0));
+    }
+
+    /// Plain gear holds the character back little at first and two levels at the level cap;
+    /// good gear takes it a level further; a class strong at a level goes further there.
+    #[test]
+    fn gear_counts_more_with_the_level() {
+        let mut p = Params::default();
+        let plain = Might::PLAIN;
+        let usual = Might { other: 0.0, gear: 0.0 };
+        let good = Might {
+            other: 0.0,
+            gear: GEAR_BEST,
+        };
+        assert!(p.reach(5, usual) - p.reach(5, plain) < 0.5);
+        assert!((p.reach(60, usual) - p.reach(60, plain) - 2.0).abs() < 1e-9);
+        assert!((p.reach(60, good) - p.reach(60, usual) - 1.0).abs() < 1e-9);
+        p.class_curve = vec![1.0; 61];
+        assert!((p.reach(30, usual) - (30.0 + 1.0 + 2.0)).abs() < 1e-9);
+    }
+
+    /// `level_for` is the lowest level whose reach covers the need, whatever the class and gear.
+    #[test]
+    fn level_for_inverts_reach() {
+        let p = Params {
+            class_curve: (0..=60).map(|l| if l < 20 { -1.5 } else { 1.0 }).collect(),
+            gear_dependence: 1.5,
+            ..Params::default()
+        };
+        for might in [Might::PLAIN, Might { other: 0.3, gear: 0.5 }] {
+            for need in [3.0, 12.5, 21.0, 40.0, 58.0] {
+                let level = p.level_for(need, might);
+                assert!(p.reach(level, might) >= need - 1e-9, "{need} at {level}");
+                assert!(p.reach(level - 1, might) < need, "{need} before {level}");
+            }
+        }
     }
 }

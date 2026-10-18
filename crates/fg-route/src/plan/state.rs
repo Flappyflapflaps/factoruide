@@ -262,6 +262,8 @@ pub(crate) struct State {
     pub(crate) bonus: f64,
     /// The part of `bonus` the gear brings.
     pub(crate) gear_bonus: f64,
+    /// Quality of the gear for what the character takes on (`Power::gear_quality`).
+    pub(crate) gear_quality: f64,
     /// Level and dungeons done at the last check for quests to give up.
     pub(crate) abandon_check: (i64, u128),
     /// Explorable areas already discovered.
@@ -281,6 +283,14 @@ pub(crate) struct State {
 }
 
 impl State {
+    /// What the character takes on depends on besides its level (`Params::reach`).
+    pub(crate) fn might(&self) -> crate::params::Might {
+        crate::params::Might {
+            other: self.bonus - self.gear_bonus,
+            gear: self.gear_quality,
+        }
+    }
+
     /// Quest `i` was turned in (not given up): it counts as a prerequisite.
     pub(crate) fn rewarded(&self, i: usize) -> bool {
         self.turned[i] && !self.dropped.contains(&(i as u32))

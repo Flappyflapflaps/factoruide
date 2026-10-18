@@ -172,7 +172,12 @@ fn elite_camp_needs_a_few_levels_more() {
         need <= f64::from(o.mob_level as i32) + 2.0 + 2.5,
         "Tharil'zun needs {need}"
     );
-    assert!(planner.combat().level(q, k as u8, 0.0) <= 28);
+    assert!(
+        planner
+            .combat()
+            .level(q, k as u8, fg_route::params::Might { other: 0.0, gear: 0.0 })
+            <= 28
+    );
 }
 
 /// An item only another quest's turn-in hands (the bound chapters of The Green Hills of
@@ -219,12 +224,13 @@ fn item_handed_by_another_quest_waits_for_its_turn_in() {
     );
 }
 
-/// The item starting a quest drops from a mob the character must be able to take on.
+/// The item starting a quest drops from a mob the character must be able to take on (a
+/// warlock, stronger than most classes in its twenties, a level earlier).
 #[test]
 fn item_start_waits_for_its_mob() {
     let p = orc_warlock();
     let owatanka = quest(p, 884).unwrap();
-    assert!(p.model.quests[owatanka as usize].min_level >= 22);
+    assert!(p.model.quests[owatanka as usize].min_level >= 21);
 }
 
 /// The accept step of a quest started by an item a mob drops names that mob, and gives it to the
@@ -1265,11 +1271,13 @@ fn dungeon_quests_are_steps_of_their_own() {
         );
         // Objectives, and quests started by a boss's drop (Glowing Shard).
         assert!(matches!(s.kind, StepKind::Objective | StepKind::Accept), "{}", s.text);
+        // The first routes may leave one in the log (its turn-in guarded beyond the character's
+        // reach): the optimizer gives those up. One turned in is turned in after the run.
         let q = s.quest.unwrap();
         let turnin = steps
             .iter()
             .position(|t| t.kind == StepKind::TurnIn && t.quest == Some(q));
-        assert!(turnin.is_some_and(|t| t > i), "{} not turned in after the run", s.text);
+        assert!(turnin.is_none_or(|t| t > i), "{} turned in before the run", s.text);
     }
     assert!(
         steps.windows(2).all(|w| w[0].time <= w[1].time + 1e-6),

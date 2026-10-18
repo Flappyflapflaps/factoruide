@@ -21,6 +21,10 @@ use std::collections::HashMap;
 /// Fight speed a level of power is worth: ln(1 / 0.9).
 pub const LEVEL_LN: f64 = 0.105_360_5;
 
+/// Gear this many times as good as the usual uncommon items of the level is the best quality
+/// (`Power::gear_quality`): blue items, the best quest rewards.
+const GOOD_GEAR: f64 = 1.3;
+
 // Stats of an item (`item_stats` columns), in this order.
 const STR: usize = 0;
 const AGI: usize = 1;
@@ -558,6 +562,35 @@ impl PowerModel {
     /// Power the gear brings over the floor gear, in levels.
     pub fn gear_bonus(&self, gear: &Gear, level: i64) -> f64 {
         self.bonus_of(&self.slot_values(gear, level), level)
+    }
+
+    /// Quality of the gear for what the character takes on (`params::Might::gear`): `GEAR_WORST`
+    /// in the floor gear (plain items, what the bags and vendors give), 0 in the usual uncommon
+    /// items of the level, `GEAR_BEST` in items `GOOD_GEAR` times as good (blue items and the
+    /// best rewards), straight lines in between.
+    pub fn gear_quality(&self, gear: &Gear, level: i64) -> f64 {
+        use crate::params::{GEAR_BEST, GEAR_WORST};
+        let values = self.slot_values(gear, level);
+        let floor = &self.floor[(level.max(0) as usize).min(self.floor.len() - 1)];
+        let (mut have, mut usual) = (0.0, 0.0);
+        for (v, f) in values.iter().zip(floor).take(MAIN_HAND) {
+            have += v.max(*f);
+            usual += f;
+        }
+        let weapons = values[TWO_HAND].max(values[MAIN_HAND] + values[OFF_HAND]);
+        let floor_weapons = floor[TWO_HAND].max(floor[MAIN_HAND] + floor[OFF_HAND]);
+        have += weapons.max(floor_weapons) + values[RANGED].max(floor[RANGED]);
+        usual += floor_weapons + floor[RANGED];
+        if usual <= 0.0 || self.gear_floor >= 1.0 {
+            return 0.0;
+        }
+        // The floor is `gear_floor` times the usual items.
+        let ratio = have / usual * self.gear_floor;
+        if ratio < 1.0 {
+            GEAR_WORST * (1.0 - ratio) / (1.0 - self.gear_floor)
+        } else {
+            GEAR_BEST * ((ratio - 1.0) / (GOOD_GEAR - 1.0)).min(1.0)
+        }
     }
 
     /// Expected value of each slot.

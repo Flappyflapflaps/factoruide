@@ -20,7 +20,11 @@ pub(super) fn checkpoints(planner: &Planner<'_>, profile: &Profile, steps: &mut 
     let mut opening = [0usize; 64];
     for (i, q) in model.quests.iter().enumerate() {
         let open = (0..q.objectives.len())
-            .map(|k| planner.combat().level(planner.quest(i as u32), k as u8, 0.0))
+            .map(|k| {
+                planner
+                    .combat()
+                    .level(planner.quest(i as u32), k as u8, crate::params::Might::PLAIN)
+            })
             .fold(q.min_level, i64::max);
         if let Some(n) = opening.get_mut(open.max(0) as usize) {
             *n += 1;

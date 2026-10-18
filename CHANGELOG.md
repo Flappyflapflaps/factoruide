@@ -16,6 +16,8 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - WoW Forever's library books (The Dalaran Digest and the others): the guide sends you to find the book first, then to the librarian, who only offers the quest once you have it (#29).
 - Forsaken: A Light in the Darkness for every class, once The Damned is handed in; Hilda's and Ephram's quests after A Righteous Cause.
 - The Blackwood Corrupted: the bowl and the three samples first, then the bowl by the bonfire to bring out Xabraxxis and his Talisman.
+- What a guide asks of your character follows your class and your gear: plain gear holds you back more the higher you are, good rewards let you go further, warriors wait longer for the hard quests in their twenties, hunters and warlocks take them sooner.
+- A timed quest whose time is up is given up where you stand, with no trip to its giver.
 
 ### Addon
 

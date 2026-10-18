@@ -1,0 +1,13 @@
+# WoW Forever's changes to the classes (see ../class_power.toml): paladins get Holy Strike from
+# the start, druids Omen of Clarity at 20 and their cat and bear forms hit as hard as their
+# weapon (more gear dependent), hunter pets scale with the hunter's gear.
+
+[paladin]
+curve = { 15 = -0.5, 25 = 0.0 }
+
+[druid]
+curve = { 15 = -0.5, 25 = 0.0 }
+gear = 1.2
+
+[hunter]
+gear = 0.9

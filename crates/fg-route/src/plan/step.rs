@@ -51,7 +51,8 @@ impl Planner<'_> {
     /// `train_min_gain` faster, late at `train_trip_gain`; else every `train_every` levels
     /// (and for the other classes of a group).
     pub(crate) fn train(&self, s: &mut State, record: &mut impl FnMut(&State, Event)) {
-        if self.model.trainers.is_empty() || self.explicit {
+        // Nothing left to fight for once at the target level (the guide ends there).
+        if self.model.trainers.is_empty() || self.explicit || s.level >= self.profile.to_level {
             return;
         }
         let every = s.level >= s.trained + self.params.train_every;
@@ -268,6 +269,10 @@ impl Planner<'_> {
             }
             return;
         }
+        // Failed already: given up where the character stands, no trip to the turn-in.
+        if stop.kind == Kind::TurnIn && Self::failed_in_time(s, stop.index, record) {
+            return;
+        }
         // Chosen once, before grinding to it: the place the stop is gated by is the one gone to.
         let spot = self.spot_of(s, stop);
         self.grind_to_gate(s, stop, spot, record);
@@ -348,13 +353,13 @@ impl Planner<'_> {
         match stop.kind {
             Kind::Accept => {
                 let q = self.quest(stop.index);
-                q.min_level.max(self.combat().guard_level(&q.start_guard, s.bonus))
+                q.min_level.max(self.combat().guard_level(&q.start_guard, s.might()))
             }
-            Kind::TurnIn => self.combat().guard_level(&self.quest(stop.index).end_guard, s.bonus),
+            Kind::TurnIn => self.combat().guard_level(&self.quest(stop.index).end_guard, s.might()),
             Kind::Objective(k) => self.combat().level_at(
                 self.quest(stop.index),
                 spot.unwrap_or(&self.quest(stop.index).objectives[k as usize]),
-                s.bonus,
+                s.might(),
             ),
             Kind::Dungeon => self.model.dungeons[i].min_level,
             _ => 0,

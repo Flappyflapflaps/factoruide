@@ -22,6 +22,8 @@ pub struct Overrides {
     pub class_quests: HashMap<String, Vec<String>>,
     /// Class quests that make the character stronger: quest name -> power gained, by class.
     pub class_powers: HashMap<String, Vec<(String, f64)>>,
+    /// How each class fares while leveling (class_power.toml), by class.
+    pub class_power: HashMap<String, ClassPower>,
     /// Class trainer spells that count for power, by class (spells.toml).
     pub spells: HashMap<String, BTreeMap<String, crate::power::SpellWeight>>,
     pub dungeons: Vec<DungeonDef>,
@@ -32,6 +34,50 @@ pub struct Overrides {
     /// Areas left only by boat, portal or lift (`[[enclosed]]` of passes.toml).
     pub enclosed: Vec<crate::world::EnclosedDef>,
     pub params: Params,
+}
+
+/// A class's `[class]` of class_power.toml: levels of power over the average class by character
+/// level, and how much gear counts for it.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct ClassPower {
+    #[serde(default)]
+    pub curve: BTreeMap<String, f64>,
+    pub gear: Option<f64>,
+}
+
+impl ClassPower {
+    /// The curve at every level from 0 to `top`: straight lines between the levels given, the
+    /// first and last values beyond them.
+    pub fn by_level(&self, top: i64) -> Result<Vec<f64>> {
+        let mut points: Vec<(f64, f64)> = self
+            .curve
+            .iter()
+            .map(|(k, v)| {
+                Ok((
+                    k.parse::<i64>()
+                        .with_context(|| format!("class_power.toml: level {k}"))? as f64,
+                    *v,
+                ))
+            })
+            .collect::<Result<_>>()?;
+        points.sort_by(|a, b| a.0.total_cmp(&b.0));
+        if points.is_empty() {
+            return Ok(Vec::new());
+        }
+        Ok((0..=top)
+            .map(|level| {
+                let l = level as f64;
+                match points.iter().position(|p| p.0 >= l) {
+                    Some(0) => points[0].1,
+                    None => points[points.len() - 1].1,
+                    Some(i) => {
+                        let ((x0, y0), (x1, y1)) = (points[i - 1], points[i]);
+                        y0 + (y1 - y0) * (l - x0) / (x1 - x0)
+                    }
+                }
+            })
+            .collect())
+    }
 }
 
 pub(super) fn parse_toml<T: serde::de::DeserializeOwned + Default>(
@@ -135,6 +181,7 @@ impl Overrides {
                 .collect(),
             class_quests: class_quests.into_iter().map(|(k, v)| (k, v.required)).collect(),
             spells: parse_toml(&file, "spells.toml")?,
+            class_power: parse_toml(&file, "class_power.toml")?,
             dungeons: parse_toml::<Dungeons>(&file, "dungeons.toml")?.dungeon,
             links: travel.link,
             teleports: travel.teleport,
@@ -147,7 +194,31 @@ impl Overrides {
 
 #[cfg(test)]
 mod tests {
-    use super::Overrides;
+    use super::{ClassPower, Overrides};
+
+    /// The class curve between the levels given is a straight line, flat beyond them; Forever's
+    /// file changes some of the levels of a class and keeps the others.
+    #[test]
+    fn class_curve_by_level() {
+        let power = ClassPower {
+            curve: [("10".to_owned(), -1.0), ("20".to_owned(), 1.0)].into(),
+            gear: None,
+        };
+        let curve = power.by_level(30).unwrap();
+        assert_eq!(
+            (curve[1], curve[10], curve[15], curve[20], curve[30]),
+            (-1.0, -1.0, 0.0, 1.0, 1.0)
+        );
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../overrides");
+        let paladin = |e| {
+            Overrides::load_edition(&dir, e).unwrap().class_power["paladin"]
+                .by_level(60)
+                .unwrap()
+        };
+        let (forever, classic) = (paladin(Edition::Forever), paladin(Edition::Classic));
+        assert!(forever[15] > classic[15]);
+        assert!((forever[55] - classic[55]).abs() < 1e-9);
+    }
     use crate::xp::Edition;
     use std::path::Path;
 

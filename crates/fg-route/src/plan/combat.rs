@@ -2,7 +2,7 @@
 //! objective requires, the level it is done at, the XP of its mobs, grinding.
 
 use crate::model::{Dungeon, EntityKind, Guard, Objective, Quest};
-use crate::params::Params;
+use crate::params::{Might, Params};
 use crate::world::Pos;
 use crate::xp;
 
@@ -66,30 +66,30 @@ impl Combat<'_> {
         g.level as f64 + pack + if g.elite { 2.0 } else { 0.0 }
     }
 
-    /// Lowest level at which the character, with `bonus` levels of power, goes to a place
-    /// guarded by `g` (0 when nobody guards it).
-    pub fn guard_level(self, g: &Guard, bonus: f64) -> i64 {
+    /// Lowest level at which the character, with `might`, goes to a place guarded by `g` (0 when
+    /// nobody guards it).
+    pub fn guard_level(self, g: &Guard, might: Might) -> i64 {
         let need = self.guard_need(g);
         if need <= 0.0 {
             0
         } else {
-            self.params.level_for(need, bonus)
+            self.params.level_for(need, might)
         }
     }
 
-    /// Lowest level at which the character, with `bonus` levels of power, takes on objective `k`
+    /// Lowest level at which the character, with `might`, takes on objective `k`
     /// of quest `q` (0 when it requires nothing).
-    pub fn level(self, q: &Quest, k: u8, bonus: f64) -> i64 {
-        self.level_at(q, &q.objectives[k as usize], bonus)
+    pub fn level(self, q: &Quest, k: u8, might: Might) -> i64 {
+        self.level_at(q, &q.objectives[k as usize], might)
     }
 
     /// The same for objective `o` of `q` at one of its places (`Objective::alts`).
-    pub fn level_at(self, q: &Quest, o: &Objective, bonus: f64) -> i64 {
+    pub fn level_at(self, q: &Quest, o: &Objective, might: Might) -> i64 {
         let need = self.need(q, o);
         if need <= 0.0 {
             0
         } else {
-            self.params.level_for(need, bonus)
+            self.params.level_for(need, might)
         }
     }
 
