@@ -5,7 +5,7 @@ use super::combat::Combat;
 use super::growth::Growth;
 use super::state::State;
 use super::travel::Trips;
-use crate::model::{Model, Quest};
+use crate::model::{Model, Objective, Quest};
 use crate::params::Params;
 use crate::xp;
 
@@ -30,19 +30,28 @@ impl Worth<'_> {
     /// Rough standalone cost of a quest, to skip quests not worth the trip.
     pub(crate) fn quest_cost(&self, i: u32, level: i64, bonus: f64) -> f64 {
         let q = self.quest(i);
-        let mut path = vec![q.starts[0].pos];
-        path.extend(q.objectives.iter().map(|o| o.loc.pos));
-        path.push(q.ends[0].pos);
+        let leg = |a: &crate::world::Pos, b: &crate::world::Pos| self.trips.leg(a, b, level, 0, u8::MAX).0;
+        let work_at = |o: &Objective| {
+            o.kills * self.combat.kill_time(level, bonus, o) + o.uses * self.params.object_time + o.extra
+        };
+        // Each objective at its cheapest place, its work and the way from the giver to the
+        // turn-in through it (an item bought at an auction house rather than waited for).
+        let (start, end) = (q.starts[0].pos, q.ends[0].pos);
+        let places: Vec<&Objective> = (q.objectives.iter())
+            .map(|o| {
+                if o.alts.is_empty() {
+                    return o;
+                }
+                let cost = |p: &Objective| work_at(p) + leg(&start, &p.loc.pos) + leg(&p.loc.pos, &end);
+                (o.places()).min_by(|a, b| cost(a).total_cmp(&cost(b))).unwrap_or(o)
+            })
+            .collect();
+        let mut path = vec![start];
+        path.extend(places.iter().map(|o| o.loc.pos));
+        path.push(end);
         // Walking or transport links (boats, zeppelins): quests may cross continents.
-        let travel: f64 = path
-            .windows(2)
-            .map(|w| self.trips.leg(&w[0], &w[1], level, 0, u8::MAX).0)
-            .sum();
-        let work: f64 = q
-            .objectives
-            .iter()
-            .map(|o| o.kills * self.combat.kill_time(level, bonus, o) + o.uses * self.params.object_time + o.extra)
-            .sum();
+        let travel: f64 = path.windows(2).map(|w| leg(&w[0], &w[1])).sum();
+        let work: f64 = places.iter().map(|o| work_at(o)).sum();
         let start = q.start_kills * self.params.kill_time(level, bonus, q.start_mob_level)
             + q.start_uses * self.params.object_time;
         travel + work + start + self.params.stop_overhead * (2 + q.objectives.len()) as f64

@@ -12,6 +12,17 @@ use crate::world::Pos;
 const AROUND: f64 = 1500.0;
 
 /// Where an item can be got.
+/// Time to buy an item at an auction house, and the more it takes on an empty server (few
+/// players selling: waiting for one to put it up, or going without).
+const AUCTION_TIME: f64 = 60.0;
+const AUCTION_SCARCE: f64 = 1800.0;
+/// Auctioneers this close (yards) are one auction house (a city's: Stormwind has two groups of
+/// them).
+const AUCTION_HOUSE: f64 = 300.0;
+
+/// An auction house: where it is (middle of its auctioneers, zone), its auctioneers (ID, name).
+type AuctionHouse = (Pos, i64, Vec<(i64, String)>);
+
 struct ItemPlaces {
     sources: Vec<(SourceKind, i64)>,
     objects: Vec<(Pos, i64)>,
@@ -76,10 +87,31 @@ impl QuestBuilder<'_> {
                 ..loot(pos, zone)
             }
         } else if let Some((pos, zone, _)) = best_cluster(&places.vendors, Some(&quest.anchor)) {
-            Objective {
+            let vendors = self.vendors(target, &places.sources, &pos);
+            // Sold in limited supply: on a crowded server the vendor is often out (half its
+            // restock to wait), while the auction house has it from the other players; on an
+            // empty one the auction house seldom has it.
+            let limited = vendors.first().and_then(|v| v.stock);
+            let crowd = self.params.crowd_at(quest.level);
+            let wait = limited.map_or(0.0, |(_, restock)| crowd * restock / 2.0);
+            let buy = |pos: Pos, zone: i64, extra: f64, auction: Vec<(i64, String)>| Objective {
                 count,
-                vendors: self.vendors(target, &places.sources, &pos),
-                ..Objective::plain(at(pos, zone), format!("Buy {text}"), 10.0)
+                vendors: vendors.clone(),
+                auction,
+                ..Objective::plain(at(pos, zone), format!("Buy {text}"), extra)
+            };
+            let alts = if limited.is_some() {
+                (self.auction_houses().into_iter())
+                    .map(|(pos, zone, auctioneers)| {
+                        buy(pos, zone, AUCTION_TIME + (1.0 - crowd) * AUCTION_SCARCE, auctioneers)
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            Objective {
+                alts,
+                ..buy(pos, zone, 10.0 + wait, Vec::new())
             }
         } else if let Some((pos, zone, _)) = best_cluster(&places.mobs, Some(&quest.anchor)) {
             let farm =
@@ -150,6 +182,24 @@ impl QuestBuilder<'_> {
                 0.0,
             )
         })
+    }
+
+    /// The auction houses the character can buy from: the middle of each group of auctioneers
+    /// (a city's), and their IDs and names.
+    fn auction_houses(&self) -> Vec<AuctionHouse> {
+        let entities = &self.sources.entities;
+        let mut houses: Vec<AuctionHouse> = Vec::new();
+        for &id in &entities.auctioneers {
+            for (pos, zone) in entities.points(self.world, EntityKind::Npc, id) {
+                let name = entities.name(EntityKind::Npc, id);
+                match houses.iter_mut().find(|h| h.0.dist(&pos) <= AUCTION_HOUSE) {
+                    Some(h) if !h.2.iter().any(|a| a.0 == id) => h.2.push((id, name)),
+                    Some(_) => {}
+                    None => houses.push((pos, zone, vec![(id, name)])),
+                }
+            }
+        }
+        houses
     }
 
     /// The vendors of the character's side selling `item` (among its `sources`), each at its

@@ -138,6 +138,7 @@ fn quests_at_hand_are_looked_for_where_the_stop_went() {
         child: None,
         child_name: None,
         vendors: vec![],
+        auction: vec![],
         stock: None,
     };
     let mut other = objective.clone();
@@ -196,6 +197,7 @@ fn objective_started_counts_its_share_at_another_place() {
         child: None,
         child_name: None,
         vendors: vec![],
+        auction: vec![],
         stock: None,
     };
     let mut other = objective.clone();
@@ -264,6 +266,7 @@ fn camp_of_two_objectives() -> Prepared {
         child: None,
         child_name: None,
         vendors: vec![],
+        auction: vec![],
         stock: None,
     };
     let mut gather = Objective {
@@ -393,6 +396,7 @@ fn road_of_mobs() -> (Prepared, crate::world::Pos, crate::world::Pos) {
         child: None,
         child_name: None,
         vendors: vec![],
+        auction: vec![],
         stock: None,
     }];
     p.model.farm = crate::model::FarmMobs::from_spawns(&spawns, &p.model.quests);

@@ -1,32 +1,50 @@
-//! Items sold in limited supply (the vendor may be out of them): the step at the vendor the route
-//! goes to does not hold the guide (it stays listed along the way until the item is got: the
-//! turn-in waits for it), and the other vendors of the item the route passes by between the
-//! quest's accept and its turn-in offer it too, along the way.
+//! Items sold in limited supply (the vendor may be out of them): the step at the place the
+//! route buys it does not hold the guide (it stays listed along the way until the item is got:
+//! the turn-in waits for it), and the other vendors and auction houses of the item the route
+//! passes by offer it too, along the way, from the quest's level on (before the quest is taken:
+//! the addon then counts the bags) to its turn-in. On a crowded server the auction houses come
+//! first (many players selling it), else the vendors.
 
 use super::phrase::{Arg, Phrase};
 use super::types::{Step, StepKind};
 use super::writer::StepWriter;
 use crate::world::Pos;
 
-/// A vendor is passed by when a step of the route is this close (yards).
+/// A vendor or auction house is passed by when a step of the route is this close (yards).
 const NEAR: f64 = 150.0;
-/// Vendors offered on the way for one item, at most.
+/// Places offered on the way for one item, at most.
 const MAX_TRIES: usize = 2;
+/// Auction houses are offered from this crowd on (`Params::crowd_at`), before the vendors from
+/// `AUCTION_FIRST`.
+const AUCTION_CROWD: f64 = 0.25;
+const AUCTION_FIRST: f64 = 0.5;
 
-/// Add the steps offering the item at the vendors passed by, with the XP the route has after
+/// A place selling the item: a vendor, or an auction house (its auctioneers).
+struct Shop {
+    pos: Pos,
+    zone: i64,
+    who: Vec<(i64, String)>,
+    auction: bool,
+    stock: Option<(u32, f64)>,
+}
+
+/// Add the steps offering the item at the places passed by, with the XP the route has after
 /// the step they follow.
 pub(super) fn add_tries(writer: &StepWriter<'_>, steps: &mut Vec<Step>, xps: &mut Vec<i64>) {
-    let model = writer.planner.model;
+    let (model, params) = (writer.planner.model, writer.planner.params);
     let mut tries: Vec<(usize, Step)> = Vec::new();
     let mut limited = Vec::new();
     for (i, step) in steps.iter().enumerate() {
-        if step.kind != StepKind::Objective || step.bg {
+        if step.kind != StepKind::Objective || step.bg || !step.buy {
             continue;
         }
         let (Some(q), Some(k)) = (step.quest, step.objective) else {
             continue;
         };
-        let Some(o) = (model.index.get(&q)).and_then(|&i| model.quests[i].objectives.get(usize::from(k))) else {
+        let Some(quest) = model.index.get(&q).map(|&i| &model.quests[i]) else {
+            continue;
+        };
+        let Some(o) = quest.objectives.get(usize::from(k)) else {
             continue;
         };
         if o.vendors.first().is_none_or(|v| v.stock.is_none()) {
@@ -36,38 +54,73 @@ pub(super) fn add_tries(writer: &StepWriter<'_>, steps: &mut Vec<Step>, xps: &mu
             continue;
         };
         limited.push(i);
-        // From the accept on (a quest of the character's log: from the start), to the turn-in.
-        let start = (steps[..i].iter())
+        let crowd = params.crowd_at(quest.level);
+        let vendors = (o.vendors.iter()).map(|v| Shop {
+            pos: v.pos,
+            zone: v.zone,
+            who: vec![(v.id, v.name.clone())],
+            auction: false,
+            stock: v.stock,
+        });
+        let auctions = (o.alts.iter())
+            .filter(|a| !a.auction.is_empty() && crowd >= AUCTION_CROWD)
+            .map(|a| Shop {
+                pos: a.loc.pos,
+                zone: a.loc.zone,
+                who: a.auction.clone(),
+                auction: true,
+                stock: None,
+            });
+        let mut shops: Vec<Shop> = if crowd >= AUCTION_FIRST {
+            auctions.chain(vendors).collect()
+        } else {
+            vendors.chain(auctions).collect()
+        };
+        // Not where the route buys it already.
+        shops.retain(|shop| !steps[i].world.is_some_and(|w| near(w, &shop.pos)));
+        // From the quest's level (or its accept) to its turn-in.
+        let accepted = (steps[..i].iter())
             .rposition(|s| s.kind == StepKind::Accept && s.quest == Some(q))
             .map_or(0, |a| a + 1);
+        let start = steps[..i]
+            .iter()
+            .position(|s| s.level >= quest.min_level)
+            .unwrap_or(i)
+            .min(accepted);
         let end = (steps[i..].iter())
             .position(|s| s.kind == StepKind::TurnIn && s.quest == Some(q))
             .map_or(steps.len(), |t| i + t);
-        for (j, v) in passed_by(steps, start..end, i, &o.vendors[1..]) {
+        let n = Arg::Num(o.count.round().max(1.0) as i64);
+        for (j, shop) in passed_by(steps, start..end, i, &shops) {
             let at = &steps[j];
             let mut offer = Step::bare(StepKind::Objective, at.level, at.time);
             offer.quest = Some(q);
             offer.quest_name.clone_from(&step.quest_name);
             offer.objective = Some(k);
             offer.target.clone_from(&step.target);
-            offer.bg = true;
-            offer.try_buy = true;
-            offer.mobs = vec![v.name.clone()];
-            offer.mob_ids = vec![v.id];
-            offer.say.push(
+            (offer.bg, offer.try_buy, offer.buy) = (true, true, true);
+            for (id, name) in shop.who.iter().take(4) {
+                offer.mobs.push(name.clone());
+                offer.mob_ids.push(*id);
+            }
+            offer.say.push(if shop.auction {
+                Phrase::new("objective.buy.try.auction")
+                    .arg("who", item.clone())
+                    .arg("n", n.clone())
+            } else {
                 Phrase::new("objective.buy.try")
                     .arg("who", item.clone())
-                    .arg("vendor", Arg::Npc(v.id, v.name.clone()))
-                    .arg("n", Arg::Num(o.count.round().max(1.0) as i64)),
-            );
-            if let Some((n, restock)) = v.stock {
+                    .arg("vendor", Arg::Npc(shop.who[0].0, shop.who[0].1.clone()))
+                    .arg("n", n.clone())
+            });
+            if let Some((count, restock)) = shop.stock {
                 offer.say.push(
                     Phrase::new("suffix.stock")
-                        .arg("n", Arg::Text(n.to_string()))
+                        .arg("n", Arg::Text(count.to_string()))
                         .arg("hours", Arg::Num((restock / 3600.0).round().max(1.0) as i64)),
                 );
             }
-            writer.put_at(&mut offer, &v.pos, v.zone);
+            writer.put_at(&mut offer, &shop.pos, shop.zone);
             tries.push((j + 1, offer));
         }
     }
@@ -83,20 +136,20 @@ pub(super) fn add_tries(writer: &StepWriter<'_>, steps: &mut Vec<Step>, xps: &mu
     }
 }
 
-/// The vendors the steps of `window` (but the buy step `own`) pass by, each with the first step
-/// passing by it, `MAX_TRIES` at most, in the order of `vendors`.
-fn passed_by<'v>(
+/// The places the steps of `window` (but the buy step `own`) pass by, each with the first step
+/// passing by it, `MAX_TRIES` at most, in the order of `shops`.
+fn passed_by<'s>(
     steps: &[Step],
     window: std::ops::Range<usize>,
     own: usize,
-    vendors: &'v [crate::model::Vendor],
-) -> Vec<(usize, &'v crate::model::Vendor)> {
-    (vendors.iter())
-        .filter_map(|v| {
+    shops: &'s [Shop],
+) -> Vec<(usize, &'s Shop)> {
+    (shops.iter())
+        .filter_map(|shop| {
             let j = window
                 .clone()
-                .find(|&j| j != own && steps[j].world.is_some_and(|w| near(w, &v.pos)))?;
-            Some((j, v))
+                .find(|&j| j != own && steps[j].world.is_some_and(|w| near(w, &shop.pos)))?;
+            Some((j, shop))
         })
         .take(MAX_TRIES)
         .collect()
@@ -110,7 +163,6 @@ fn near(world: [f64; 3], pos: &Pos) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::Vendor;
 
     fn at(x: f64, y: f64) -> Step {
         let mut s = Step::bare(StepKind::Objective, 20, 0.0);
@@ -118,24 +170,22 @@ mod tests {
         s
     }
 
-    fn vendor(id: i64, x: f64, y: f64) -> Vendor {
-        let pos = Pos {
-            continent: 0,
-            x,
-            y,
+    fn vendor(id: i64, x: f64, y: f64) -> Shop {
+        Shop {
+            pos: Pos {
+                continent: 0,
+                x,
+                y,
+                zone: 0,
+            },
             zone: 0,
-        };
-        Vendor {
-            id,
-            name: String::new(),
-            zone: 0,
-            zone_name: String::new(),
-            pos,
+            who: vec![(id, String::new())],
+            auction: false,
             stock: Some((2, 10800.0)),
         }
     }
 
-    /// The vendors passed by between the accept and the turn-in, the first step near each, two
+    /// The places passed by between the accept and the turn-in, the first step near each, two
     /// at most; not the buy step itself, nor the other continent, nor far away.
     #[test]
     fn vendors_passed_by_on_the_way() {
@@ -154,7 +204,7 @@ mod tests {
         ];
         let found: Vec<(usize, i64)> = passed_by(&steps, 1..5, 4, &vendors)
             .iter()
-            .map(|(j, v)| (*j, v.id))
+            .map(|(j, v)| (*j, v.who[0].0))
             .collect();
         assert_eq!(found, vec![(2, 1), (1, 3)]);
     }

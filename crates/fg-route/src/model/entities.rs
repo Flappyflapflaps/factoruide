@@ -27,6 +27,8 @@ pub(super) struct Entities {
     /// Items vendors sell in limited supply, by (vendor, item): how many at most, and the
     /// seconds to get one more back.
     pub(super) vendor_stock: HashMap<(i64, i64), (u32, f64)>,
+    /// Auctioneers the character can buy from (its side's, the neutral ones).
+    pub(super) auctioneers: Vec<i64>,
 }
 
 impl Entities {
@@ -47,6 +49,14 @@ impl Entities {
         )?;
         for row in stmt.query_map([letter], |r| r.get::<_, i64>(0))? {
             friendly.insert(row?);
+        }
+        // Auctioneers (flag 0x1000) the character can deal with: its side's and the neutral ones.
+        let mut auctioneers = Vec::new();
+        let mut stmt = conn.prepare(
+            "SELECT id FROM m_npc WHERE coalesce(npc_flags, 0) & 4096 != 0 AND instr(coalesce(friendly_to, ''), ?1) > 0 ORDER BY id",
+        )?;
+        for row in stmt.query_map([letter], |r| r.get::<_, i64>(0))? {
+            auctioneers.push(row?);
         }
         let mut own_side = HashSet::new();
         let mut stmt = conn.prepare("SELECT id FROM m_npc WHERE friendly_to = ?1 AND coalesce(npc_flags, 0) = 0")?;
@@ -140,6 +150,7 @@ impl Entities {
             respawn,
             paths,
             vendor_stock,
+            auctioneers,
         })
     }
 

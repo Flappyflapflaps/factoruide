@@ -152,6 +152,8 @@ pub struct Objective {
     /// An item bought: the vendors selling it, the one the place is at first, then the others
     /// from the nearest.
     pub vendors: Vec<Vendor>,
+    /// A place to buy it at an auction house: its auctioneers (ID, English name). Empty elsewhere.
+    pub auction: Vec<(i64, String)>,
 }
 
 /// A vendor selling an objective's item: where it stands, and its supply when limited (how many

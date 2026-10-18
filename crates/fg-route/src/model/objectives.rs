@@ -54,6 +54,7 @@ impl Objective {
             child: None,
             child_name: None,
             vendors: vec![],
+            auction: vec![],
         }
     }
 }

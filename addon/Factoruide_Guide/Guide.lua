@@ -251,6 +251,8 @@ function IsDone(step, index)
         -- A child quest handed in on the way (Distracting Jarven for Bitter Rivals): done once
         -- turned in. Often repeatable, so the game does not keep it flagged.
         if step.cq then return state.handedIn[step.cq] or QuestLog.IsQuestFlaggedCompleted(step.cq) end
+        -- An item to buy: done once in the bags, the quest taken or not yet.
+        if step.by and step.id and (FG.ItemCount(step.id) or 0) >= (step.c or 1) then return true end
         if not QuestLog.IsOnQuest(q) or ObjectivesLoading(q) then return false end
         local o = FindObjective(step)
         if o then return o.finished end
@@ -1517,6 +1519,28 @@ function Guide:ToggleSkip(index)
     end
     -- Back to the first step not done (an undone quest may be behind us).
     self:Resync()
+end
+
+--- Items the guide still has to buy (`by` steps of quests not turned in nor skipped, up to a few
+--- levels ahead): item ID -> how many the bags should hold.
+function Guide:Purchases()
+    local out = {}
+    if not route or not state then return out end
+    local level = UnitLevel("player")
+    for i, s in ipairs(route.steps) do
+        if
+            s.by
+            and s.id
+            and s.q
+            and (s.lvl or 0) <= level + 3
+            and not state.skippedQuests[s.q]
+            and not QuestLog.IsQuestFlaggedCompleted(s.q)
+            and not IsDone(s, i)
+        then
+            out[s.id] = math.max(out[s.id] or 0, s.c or 1)
+        end
+    end
+    return out
 end
 
 --- `/fg skip [questID]`: mark a quest (or the current step) as done, or undo it.

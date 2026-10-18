@@ -141,6 +141,7 @@ impl StepWriter<'_> {
             min_level: None,
             bg: false,
             try_buy: false,
+            buy: false,
             inside: false,
             held: false,
             objective: None,
@@ -245,6 +246,7 @@ impl StepWriter<'_> {
             min_level: None,
             bg: false,
             try_buy: false,
+            buy: false,
             inside: false,
             held: false,
             objective: None,
@@ -384,12 +386,32 @@ impl StepWriter<'_> {
     /// out), and a few others selling it, nearest first; all of them to target.
     fn vendors(step: &mut Step, o: &Objective) {
         let Some(first) = o.vendors.first() else { return };
+        step.buy = true;
         let npc = |v: &crate::model::Vendor| Arg::Npc(v.id, v.name.clone());
+        let n = num(o.count.round().max(1.0) as i64);
+        // At an auction house: its auctioneers to target, the vendors as the other way.
+        if !o.auction.is_empty() {
+            if let Some(say) = step.say.last_mut() {
+                *say = Phrase::new("objective.buy.auction")
+                    .arg("who", entity(&o.loc))
+                    .arg("n", n);
+            }
+            let vendors: Vec<Arg> = (o.vendors.iter().take(3))
+                .map(|v| Arg::At(Box::new(npc(v)), Box::new(Arg::Zone(v.zone, v.zone_name.clone()))))
+                .collect();
+            step.say
+                .push(Phrase::new("suffix.vendors").arg("vendors", Arg::List(vendors)));
+            for (id, name) in o.auction.iter().take(4) {
+                step.mobs.push(name.clone());
+                step.mob_ids.push(*id);
+            }
+            return;
+        }
         if let Some(say) = step.say.last_mut() {
             *say = Phrase::new("objective.buy.from")
                 .arg("who", entity(&o.loc))
                 .arg("vendor", npc(first))
-                .arg("n", num(o.count.round().max(1.0) as i64));
+                .arg("n", n);
         }
         if let Some((n, restock)) = first.stock {
             step.say.push(

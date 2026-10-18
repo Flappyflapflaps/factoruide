@@ -20,7 +20,9 @@ Writing an entry: one short line per change, saying what the player sees or gets
 - What a guide asks of your character follows your class and your gear: plain gear holds you back more the higher you are, good rewards let you go further, warriors wait longer for the hard quests in their twenties, hunters and warlocks take them sooner.
 - A timed quest whose time is up is given up where you stand, with no trip to its giver.
 - An item to buy names its vendor, says when it is sold in limited supply (the vendor may be out), and lists other vendors of your side with their zone; your target macro targets them.
-- An item in limited supply no longer holds the guide at its vendor: it stays listed along the way until you have it (the turn-in waits for it), and the other vendors you pass by before the turn-in offer it too.
+- An item in limited supply no longer holds the guide at its vendor: it stays listed along the way until you have it (the turn-in waits for it). The other vendors and auction houses you pass by offer it too, from the quest's level on, even before you have the quest.
+- The server's crowd decides where such an item is bought: from the vendor on a quiet server, at an auction house on a busy one (the vendor often sold out, many players selling it).
+- At any merchant, the addon buys the items your guide still needs for its quests.
 
 ### Addon
 

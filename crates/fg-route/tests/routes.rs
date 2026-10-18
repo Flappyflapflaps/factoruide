@@ -818,6 +818,7 @@ fn gathering_next_to_kills_overlaps_them() {
             child: None,
             child_name: None,
             vendors: vec![],
+            auction: vec![],
             stock: None,
         }];
     }
@@ -1824,6 +1825,7 @@ fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Obj
         child: None,
         child_name: None,
         vendors: vec![],
+        auction: vec![],
         stock: None,
     }
 }
@@ -2315,4 +2317,37 @@ fn bought_item_names_its_vendors() {
     assert!(o.vendors.len() > 3);
     assert!(o.vendors.iter().all(|v| v.id != 3413), "Sovik sells to the Horde only");
     assert!(o.loc.pos.dist(&first.pos) < 50.0, "the place is at the first vendor");
+}
+
+/// An item in limited supply is bought at the vendor on an empty server and at an auction house
+/// on a crowded one (the vendor often out, many players selling it): the places cost so.
+#[test]
+fn limited_supply_follows_the_crowd() {
+    let cost = |crowded: &str| {
+        let p = prepare("human", "warrior", 25, &[crowded]);
+        let stars = quest(&p, 174).unwrap();
+        let o = p.model.quests[stars as usize]
+            .objectives
+            .iter()
+            .find(|o| !o.vendors.is_empty())
+            .expect("a buy objective")
+            .clone();
+        let auction = o
+            .alts
+            .iter()
+            .find(|a| !a.auction.is_empty())
+            .expect("an auction house")
+            .extra;
+        (o.extra, auction)
+    };
+    let (vendor, auction) = cost("crowded=0");
+    assert!(
+        vendor < auction,
+        "empty server: {vendor} at the vendor, {auction} at the auction house"
+    );
+    let (vendor, auction) = cost("crowded=1");
+    assert!(
+        vendor > auction,
+        "crowded server: {vendor} at the vendor, {auction} at the auction house"
+    );
 }

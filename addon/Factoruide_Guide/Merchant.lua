@@ -109,8 +109,37 @@ local function Supplies()
     end
 end
 
+--- The items the guide still has to buy for its quests, when this merchant sells them (as many
+--- as it has of a limited supply), whatever vendor the guide planned: a vendor out of stock is
+--- made up for at the next one met.
+local function QuestItems()
+    local wanted = FG.Guide and FG.Guide:Purchases() or {}
+    if not next(wanted) then return end
+    for i = 1, GetMerchantNumItems() do
+        local id = GetMerchantItemID and GetMerchantItemID(i)
+        local want = id and wanted[id]
+        if want then
+            local _, _, price, quantity, available = GetMerchantItemInfo(i)
+            local missing = want - (FG.ItemCount(id) or 0)
+            local each = math.max(1, quantity or 1)
+            local buys = math.ceil(missing / each)
+            if available and available >= 0 then buys = math.min(buys, available) end
+            buys = math.min(buys, math.floor(GetMoney() / math.max(1, price or 0)))
+            for _ = 1, buys do
+                BuyMerchantItem(i)
+            end
+            if buys > 0 then
+                FG:Print(T("bought for a quest: %d × %s"), buys * each, FG.ItemInfo(id) or ("item " .. id))
+            elseif missing > 0 and available == 0 then
+                FG:Print(T("out of stock here: %s"), FG.ItemInfo(id) or ("item " .. id))
+            end
+        end
+    end
+end
+
 FG:On("MERCHANT_SHOW", function()
     if IsShiftKeyDown() then return end
+    QuestItems()
     if FG:Get("autoSellJunk") then SellJunk() end
     if FG:Get("autoRepair") then Repair() end
     if FG:Get("autoSupplies") then Supplies() end

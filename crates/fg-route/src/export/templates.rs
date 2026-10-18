@@ -212,6 +212,34 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "objective.buy.auction",
+        [
+            "Buy {who} at the auction house",
+            "Acheter {who} à l'hôtel des ventes",
+            "{who} im Auktionshaus kaufen",
+            "Comprar {who} en la casa de subastas",
+            "Comprar {who} na casa de leilões",
+            "Купить: {who} на аукционе",
+            "경매장에서 {who} 구입",
+            "在拍卖行购买{who}",
+            "在拍賣場購買{who}",
+        ],
+    ),
+    (
+        "objective.buy.try.auction",
+        [
+            "On the way: buy {who} at the auction house if you still need it",
+            "En passant : acheter {who} à l'hôtel des ventes s'il vous en faut encore",
+            "Unterwegs: {who} im Auktionshaus kaufen, falls noch nötig",
+            "De paso: comprar {who} en la casa de subastas si aún lo necesitas",
+            "De passagem: comprar {who} na casa de leilões se ainda precisar",
+            "По пути: купить {who} на аукционе, если ещё нужно",
+            "가는 길에: 아직 필요하면 경매장에서 {who} 구입",
+            "顺路：如果还需要，在拍卖行购买{who}",
+            "順路：如果還需要，在拍賣場購買{who}",
+        ],
+    ),
+    (
         "objective.buy.try",
         [
             "On the way: buy {who} from {vendor} if you still need it",

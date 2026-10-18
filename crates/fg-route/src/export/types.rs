@@ -143,6 +143,10 @@ pub struct Step {
     /// way, `bg`): gone once the item is got, or once left behind.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub try_buy: bool,
+    /// An item to buy (from a vendor, at an auction house): the addon buys it at any merchant
+    /// selling it while the guide still needs it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub buy: bool,
     /// A quest done inside the dungeon of the run step before it: the run is done on entering
     /// the dungeon, its quests as they progress.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -268,6 +272,7 @@ impl Step {
             min_level: None,
             bg: false,
             try_buy: false,
+            buy: false,
             inside: false,
             held: false,
             objective: None,
