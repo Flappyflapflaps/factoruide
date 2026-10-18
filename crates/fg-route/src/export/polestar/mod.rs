@@ -296,6 +296,15 @@ fn goals(step: &Step) -> Vec<Goal> {
         None => goal,
     };
     let goal = match step.kind {
+        // A book for the library: got here, the quest is taken with its turn-in.
+        StepKind::Accept
+            if step.held
+                && let Some(t) = target =>
+        {
+            Goal::new("collect", Join::Alone)
+                .num("item", t.id)
+                .str("itemName", name_or(&t.name, step))
+        }
         StepKind::Accept if step.quest.is_some() => {
             let mut goal = source(quest(Goal::new("accept", at)))
                 .ids("pre", &step.pre_any)
@@ -309,6 +318,15 @@ fn goals(step: &Step) -> Vec<Goal> {
                 goal = goal.num("optional", true);
             }
             goal
+        }
+        StepKind::TurnIn if step.say.first().is_some_and(|p| p.key == "turnin.held") => {
+            return ["accept", "turnin"]
+                .map(|kind| {
+                    let mut goal = source(quest(Goal::new(kind, at))).text(step).place(step);
+                    goal.title = target.map(|t| t.name.clone());
+                    goal
+                })
+                .into();
         }
         StepKind::TurnIn if step.quest.is_some() => source(quest(Goal::new("turnin", at))),
         // A child quest handed in on the way to its parent's turn-in (Distracting Jarven): a

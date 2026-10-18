@@ -49,6 +49,7 @@ impl QuestBuilder<'_> {
             start_mob: givers.start_mob,
             start_spots: givers.start_spots,
             start_dungeon: givers.start_dungeon,
+            held: givers.held,
             mandatory: zone_forced
                 || group_class_quest && self.profile.required_class_quests.iter().any(|n| n == &r.name),
             zone_forced,

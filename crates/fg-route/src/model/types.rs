@@ -335,6 +335,9 @@ pub struct Quest {
     pub start_spots: Option<Spots>,
     /// The dungeon whose boss drops the item that starts the quest: accepted during the run.
     pub start_dungeon: Option<usize>,
+    /// The item its giver offers it for (a book for the library): its accept is looting the
+    /// item, taken and turned in together at the giver.
+    pub held: Option<i64>,
     /// Class quests: always planned, the optimizer cannot drop them.
     pub mandatory: bool,
     /// Required because its zone is forced (`Params::forced_zones`), or as a prerequisite of

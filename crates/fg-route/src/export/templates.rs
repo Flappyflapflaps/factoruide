@@ -82,6 +82,20 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
         ],
     ),
     (
+        "accept.held",
+        [
+            "Loot {who}: {giver} offers {quest} for it",
+            "Looter {who} : {giver} propose {quest} en échange",
+            "{who} looten: {giver} bietet dafür {quest} an",
+            "Despojar {who}: {giver} ofrece {quest} a cambio",
+            "Saquear {who}: {giver} oferece {quest} em troca",
+            "Добыть {who}: за это {giver} даст задание «{quest}»",
+            "{who} 획득: {giver}에게서 {quest} 수락 가능",
+            "拾取{who}：{giver}会因此提供{quest}",
+            "拾取{who}：{giver}會因此提供{quest}",
+        ],
+    ),
+    (
         "turnin",
         [
             "Turn in {quest} to {who}",
@@ -93,6 +107,20 @@ pub(super) const TEMPLATES: &[(&str, [&str; 9])] = &[
             "{who}에게 {quest} 완료",
             "向{who}交付{quest}",
             "向{who}交付{quest}",
+        ],
+    ),
+    (
+        "turnin.held",
+        [
+            "Accept {quest} from {who} and turn it in",
+            "Prendre {quest} auprès de {who} et le rendre",
+            "{quest} bei {who} annehmen und abgeben",
+            "Aceptar {quest} de {who} y entregarla",
+            "Aceitar {quest} de {who} e entregá-la",
+            "Взять и сдать задание «{quest}» ({who})",
+            "{who}에게서 {quest} 수락 후 완료",
+            "从{who}处接受并交付{quest}",
+            "從{who}接受並交付{quest}",
         ],
     ),
     (

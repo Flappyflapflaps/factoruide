@@ -811,6 +811,7 @@ mod tests {
             min_level: None,
             bg: false,
             inside: false,
+            held: false,
             objective: (kind == StepKind::Objective).then_some(0),
             child: None,
             child_name: None,

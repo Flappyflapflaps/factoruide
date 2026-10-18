@@ -3,7 +3,7 @@
 
 use super::builder::{QuestBuilder, Skip};
 use super::entities::best_cluster;
-use super::sources::{QuestRow, Role, SourceKind};
+use super::sources::{ObjectiveKind, QuestRow, Role, SourceKind};
 use super::types::{EntityKind, Loc, Spots};
 
 pub(super) struct Givers {
@@ -18,6 +18,8 @@ pub(super) struct Givers {
     pub(super) start_dungeon: Option<usize>,
     /// Quests that must be done first to hold the item that starts this one.
     pub(super) item_pre: Vec<i64>,
+    /// The item the giver offers the quest for (`held_item`): looting it is the accept.
+    pub(super) held: Option<i64>,
 }
 
 /// How the item starting a quest is got.
@@ -48,9 +50,21 @@ impl QuestBuilder<'_> {
             start_spots: None,
             start_dungeon: None,
             item_pre: Vec::new(),
+            held: None,
         };
         let mut rare_start = false;
-        for (role, kind, id) in self.sources.relations.get(&r.id).into_iter().flatten() {
+        let relations = self.sources.relations.get(&r.id).map(Vec::as_slice).unwrap_or_default();
+        if let Some(item) = self.held_item(r.id, relations)
+            && let ItemStart::Looted { at, work, .. } = self.item_start(r.id, item)
+        {
+            givers.starts.push(at);
+            givers.start_work = work;
+            givers.held = Some(item);
+        }
+        for (role, kind, id) in relations {
+            if givers.held.is_some() && *role == Role::Start {
+                continue;
+            }
             if *kind != EntityKind::Item {
                 if let Some(loc) = self.locate(*kind, *id, Some(&start.pos)) {
                     if *role == Role::Start {
@@ -94,6 +108,32 @@ impl QuestBuilder<'_> {
             return Err("no reachable turn-in");
         }
         Ok(givers)
+    }
+
+    /// The item quest `quest`'s NPC offers it for: one of its objectives, got from an object the
+    /// sources also give as a starter (the library's books, "The Dalaran Digest": the librarian
+    /// offers it only while the book is in the bags, GitHub #29).
+    fn held_item(&self, quest: i64, relations: &[(Role, EntityKind, i64)]) -> Option<i64> {
+        let starts = |k: EntityKind| {
+            relations
+                .iter()
+                .filter(move |(r, kind, _)| *r == Role::Start && *kind == k)
+        };
+        starts(EntityKind::Npc).next()?;
+        let objects: Vec<i64> = starts(EntityKind::Object).map(|(_, _, id)| *id).collect();
+        self.sources
+            .objectives
+            .get(&quest)?
+            .iter()
+            .filter(|o| o.0 == ObjectiveKind::Item)
+            .find_map(|o| {
+                let item = o.1?;
+                let origins = self.sources.item_origins.get(&item)?;
+                origins
+                    .iter()
+                    .any(|(t, id)| *t == SourceKind::Object && objects.contains(id))
+                    .then_some(item)
+            })
     }
 
     /// Where the item starting quest `quest` is got: objects first, then the mob dropping it

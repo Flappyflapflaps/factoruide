@@ -131,6 +131,7 @@ impl StepWriter<'_> {
             min_level: None,
             bg: false,
             inside: false,
+            held: false,
             objective: None,
             child: None,
             child_name: None,
@@ -233,6 +234,7 @@ impl StepWriter<'_> {
             min_level: None,
             bg: false,
             inside: false,
+            held: false,
             objective: None,
             child: None,
             child_name: None,
@@ -677,6 +679,11 @@ impl StepWriter<'_> {
                         step.spots = self.spots(q.start_spots.as_ref(), &loc.pos, loc.zone);
                         Phrase::new("accept.item.mob").arg("mob", Arg::Npc(*id, name.clone()))
                     }
+                    _ if q.held.is_some() => {
+                        step.held = true;
+                        let giver = q.ends.first().map_or_else(|| who.clone(), entity);
+                        Phrase::new("accept.held").arg("giver", giver)
+                    }
                     _ if loc.kind == EntityKind::Item => Phrase::new("accept.item"),
                     _ => Phrase::new("accept"),
                 };
@@ -718,7 +725,8 @@ impl StepWriter<'_> {
             Kind::TurnIn => {
                 step.kind = StepKind::TurnIn;
                 step.reward_xp = Some(self.planner.growth().quest_reward(q, step.level));
-                step.say.push(Phrase::new("turnin").arg("quest", quest).arg("who", who));
+                let key = if q.held.is_some() { "turnin.held" } else { "turnin" };
+                step.say.push(Phrase::new(key).arg("quest", quest).arg("who", who));
                 self.patrol(step, loc);
             }
             Kind::LearnFlight | Kind::Bind | Kind::Dungeon | Kind::Hearth => unreachable!(),

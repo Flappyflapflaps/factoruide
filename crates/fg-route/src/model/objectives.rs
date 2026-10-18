@@ -86,6 +86,10 @@ impl QuestBuilder<'_> {
         let first = (1u8 << objs.len().min(8)) - 1;
         for row in rows {
             let kind = row.0;
+            // The item the quest is offered for: in the bags from the accept on.
+            if kind == ObjectiveKind::Item && row.1.is_some() && row.1 == givers.held {
+                continue;
+            }
             if let Some(mut o) = self.objective(&quest, row)? {
                 // Mobs are killed and items got without the item; the rest uses it.
                 if !(kind == ObjectiveKind::Item || kind == ObjectiveKind::Creature && o.kills > 0.0) {

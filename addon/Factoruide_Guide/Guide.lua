@@ -171,10 +171,16 @@ end
 
 local IsDone
 
+--- An accept step's item is in the bags: its giver offers the quest for it (`hd`, the library's
+--- books), taken and turned in together.
+local function Held(step) return step.id ~= nil and (FG.ItemCount(step.id) or 0) > 0 end
+
 --- The quest's accept step was passed without accepting it (skipped by hand, left behind,
 --- alternative done): its objectives and turn-in cannot be done.
 local function AcceptSkipped(step, index)
     local at = acceptIndex[step.q]
+    -- A book for the library in the bags: the quest is taken with its turn-in.
+    if at and route.steps[at].hd and Held(route.steps[at]) then return false end
     return at ~= nil
         and at < index
         and not QuestLog.IsOnQuest(step.q)
@@ -232,6 +238,7 @@ function IsDone(step, index)
     end
     if step.k == "accept" then
         if QuestLog.IsOnQuest(q) or QuestLog.IsQuestFlaggedCompleted(q) then return true end
+        if step.hd and Held(step) then return true end
         -- Profession quest (optional): skipped without the skill it needs.
         if step.line and step.sk then
             local rank = FG.ProfessionSkill(step.line)
@@ -335,7 +342,8 @@ function Guide:ItemsToKeep()
     local out, byItem = {}, {}
     if not route or not state then return out end
     for i, s in ipairs(route.steps) do
-        if s.k == "objective" and s.e == "item" and s.id and s.q then
+        -- A book for the library counts too: it is the quest's accept.
+        if (s.k == "objective" and s.e == "item" or s.k == "accept" and s.hd) and s.id and s.q then
             local at = turninIndex[s.q]
             local turned = not at or IsDone(route.steps[at], at)
             local classID = itemClass[s.id]
@@ -1085,7 +1093,13 @@ end
 --- and the others, are not.
 function Guide:WantsQuest(questID)
     local at = route and questID and acceptIndex[questID]
-    return at ~= nil and not IsDone(route.steps[at], at)
+    if not at then return false end
+    -- Offered for a book in the bags: taken at its turn-in.
+    local step = route.steps[at]
+    if step.hd and Held(step) then
+        return not QuestLog.IsOnQuest(questID) and not QuestLog.IsQuestFlaggedCompleted(questID)
+    end
+    return not IsDone(step, at)
 end
 
 --- Fields of the guide state that belong to the route in use: the step shown, the steps
@@ -1373,6 +1387,8 @@ for _, event in ipairs({
     "TRAINER_SHOW",
     "HEARTHSTONE_BOUND",
     "SKILL_LINES_CHANGED",
+    -- An item looted: a book for the library is its quest's accept.
+    "BAG_UPDATE_DELAYED",
 }) do
     FG:On(event, function() Guide:Advance() end)
 end

@@ -95,6 +95,9 @@ pub fn to_lua(routes: &[Route]) -> String {
             if s.inside {
                 fields.push("di = true".into());
             }
+            if s.held {
+                fields.push("hd = true".into());
+            }
             // Mobs on the way: their number (addons before the XP count) and their XP.
             if let Some(n) = s.farm {
                 fields.push(format!("fk = {n}"));

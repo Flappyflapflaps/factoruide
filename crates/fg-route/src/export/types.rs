@@ -143,6 +143,10 @@ pub struct Step {
     /// the dungeon, its quests as they progress.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub inside: bool,
+    /// Accept step of a quest its giver offers for an item in the bags (a book for the
+    /// library): done once the item is looted; the quest is taken with its turn-in.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub held: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub objective: Option<u8>,
     /// Objective steps handing in a child quest on the way to its parent's turn-in (Distracting
@@ -260,6 +264,7 @@ impl Step {
             min_level: None,
             bg: false,
             inside: false,
+            held: false,
             objective: None,
             child: None,
             child_name: None,

@@ -469,6 +469,43 @@ useRoute("skip-test")
 assert(not char.guide.marks[1] and char.guide.skippedQuests[5004], "new version")
 print("progress per guide ok")
 
+-- A book for the library (GitHub #29): looting it is the accept, the librarian offers the
+-- quest only then, taken and turned in together.
+FG.Routes["held-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        {
+            k = "accept",
+            t = "Loot The Dalaran Digest, Vol. 23",
+            q = 78127,
+            hd = true,
+            e = "item",
+            id = 209844,
+            lvl = 21,
+        },
+        { k = "turnin", t = "Accept The Dalaran Digest and turn it in", q = 78127, e = "npc", id = 211033, lvl = 21 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+useRoute("held-test")
+assert(char.guide.step == 1, "the book is not in the bags yet")
+bags[209844] = 1
+fire("BAG_UPDATE_DELAYED")
+assert(char.guide.step == 2, "the book looted: on to the librarian, step " .. char.guide.step)
+assert(FG.Guide:WantsQuest(78127), "taken at the librarian")
+onQuest[78127] = true
+assert(not FG.Guide:WantsQuest(78127), "taken")
+onQuest[78127], bags[209844], completed[78127] = nil, nil, true
+fire("QUEST_TURNED_IN", 78127, 155, 0)
+assert(char.guide.step == 3, "turned in, step " .. char.guide.step)
+completed[78127] = nil
+print("held item ok")
+
 -- A quest of the log the guide does not take is abandoned first: the step is done once it has
 -- left the log.
 FG.Routes["abandon-test"] = {

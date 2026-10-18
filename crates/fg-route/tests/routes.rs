@@ -15,11 +15,16 @@ fn repo() -> PathBuf {
 
 /// The Classic database, unpacked next to the packed one when missing or older.
 fn database() -> Connection {
+    database_of("classic")
+}
+
+/// An edition's database (classic, tbc, forever), unpacked the same way.
+fn database_of(edition: &str) -> Connection {
     static UNPACK: Mutex<()> = Mutex::new(());
     let _guard = UNPACK.lock().unwrap();
     let (path, packed) = (
-        repo().join("data/classic.sqlite"),
-        repo().join("data/classic.sqlite.zst"),
+        repo().join(format!("data/{edition}.sqlite")),
+        repo().join(format!("data/{edition}.sqlite.zst")),
     );
     let modified = |p: &PathBuf| std::fs::metadata(p).and_then(|m| m.modified()).ok();
     if !path.exists() || modified(&packed) > modified(&path) {
@@ -2212,4 +2217,56 @@ fn dungeons_filed_under_the_continent() {
     for name in ["Blackrock Depths", "Blackrock Spire", "The Temple of Atal'Hakkar"] {
         assert!(options.dungeons.iter().any(|d| d.name == name), "{name} missing");
     }
+}
+
+/// A book for the library (Forever, GitHub #29): the librarian offers "The Dalaran Digest" only
+/// while the book is in the bags. Looting it is the accept, the quest is taken and turned in
+/// together at the librarian, never sent there before the book.
+#[test]
+fn library_book_is_looted_before_the_librarian() {
+    let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Forever).unwrap();
+    let request = PlanRequest {
+        params: Some(overrides.params.with_overrides(&[]).unwrap()),
+        ..request("human", "mage", 30, &[])
+    };
+    let p = job::prepare(&database_of("forever"), &overrides, &request, &|_| {}).unwrap();
+    let digest = quest(&p, 78127).expect("The Dalaran Digest planned");
+    let q = &p.model.quests[digest as usize];
+    assert_eq!(q.held, Some(209844), "offered for The Dalaran Digest, Vol. 23");
+    assert!(
+        q.starts.iter().all(|l| l.kind == EntityKind::Item && l.id == 209844),
+        "accepted where the book lies, not at the librarian"
+    );
+    assert!(
+        q.objectives.iter().all(|o| o.loc.id != 209844),
+        "the book is not got again"
+    );
+    assert!(
+        q.ends.iter().any(|l| l.kind == EntityKind::Npc && l.id == 211033),
+        "Garion Wendell"
+    );
+    let planner = planner(&p);
+    let route = [Stop::quest(digest, Kind::Accept), Stop::quest(digest, Kind::TurnIn)];
+    assert!(
+        planner.simulate_full(&route, None).is_some(),
+        "{:?}",
+        planner.diagnose(&route)
+    );
+    let guide = fg_route::export::build(&planner, &p.profile, &route);
+    let steps: Vec<_> = guide.steps.iter().filter(|s| s.quest == Some(78127)).collect();
+    let accept = steps
+        .iter()
+        .find(|s| s.kind == fg_route::export::StepKind::Accept)
+        .unwrap();
+    assert!(accept.held && accept.text.starts_with("Loot "), "{}", accept.text);
+    assert_eq!(accept.zone.as_deref(), Some("Silverpine Forest"));
+    let turnin = steps
+        .iter()
+        .find(|s| s.kind == fg_route::export::StepKind::TurnIn)
+        .unwrap();
+    assert!(
+        turnin.text.starts_with("Accept The Dalaran Digest from "),
+        "{}",
+        turnin.text
+    );
 }
