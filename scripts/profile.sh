@@ -20,13 +20,16 @@ build)
     build
     ;;
 record)
-    [ $# -ge 3 ] && [ "$3" = "--" ] || { sed -n '4,5p' "$0" | cut -c3- >&2; exit 2; }
+    if [ $# -lt 3 ] || [ "$3" != "--" ]; then
+        sed -n '4,5p' "$0" | cut -c3- >&2
+        exit 2
+    fi
     out=$2
     shift 3
     build
     # perf data next to the flamegraph, for `perf report -i`.
     data=${out%.svg}.perf
-    export FG_ROUTES=${FG_ROUTES:-/tmp/fg-profile/routes} FG_ADDON_DIR=${FG_ADDON_DIR:-/tmp/fg-profile/addon}
+    export FG_ROUTES="${FG_ROUTES:-/tmp/fg-profile/routes}" FG_ADDON_DIR="${FG_ADDON_DIR:-/tmp/fg-profile/addon}"
     mkdir -p "$FG_ROUTES" "$FG_ADDON_DIR"
     perf record -F 499 --call-graph fp -o "$data" target/profiling/fg "$@"
     flamegraph --perfdata "$data" -o "$out"
