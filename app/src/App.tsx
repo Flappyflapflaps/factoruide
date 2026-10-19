@@ -16,7 +16,6 @@ import { NeedHelpPage } from "./pages/NeedHelpPage";
 import { IssueForm } from "./components/IssueForm";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { IS_WEB } from "./web/mode";
-import { WebWelcome } from "./web/components/WebWelcome";
 import { WebSidebarTools } from "./web/components/Sidebar";
 import { ADDON_URL } from "./web/components/AddonInstall";
 
@@ -120,8 +119,8 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
     api.listEditions().then(setEditions).catch(() => {});
     api.getSettings().then((s) => setEdition(s.edition)).catch(() => {});
     Promise.all([api.getSettings(), api.wowStatus()])
-      // In a browser, no game folder to look for: the first visit's questions are asked once.
-      .then(([s, w]) => setWelcome(!s.welcome_done && (IS_WEB || w.problem === "missing" || w.problem === "no_game")))
+      // In a browser, no game folder to look for: the home page says how to start.
+      .then(([s, w]) => setWelcome(!IS_WEB && !s.welcome_done && (w.problem === "missing" || w.problem === "no_game")))
       .catch(() => {});
   }, []);
   // Each game version keeps its new guide's configuration: coming back to it finds it as left.
@@ -146,17 +145,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
 
   return (
     <div className="app">
-      {welcome && IS_WEB && (
-        <WebWelcome
-          editions={editions}
-          onEdition={switchEdition}
-          onDone={(characters) => {
-            setWelcome(false);
-            if (characters) setPage("characters");
-          }}
-        />
-      )}
-      {welcome && !IS_WEB && (
+      {welcome && (
         <Welcome
           onEdition={async (e) => {
             await switchEdition(e);
