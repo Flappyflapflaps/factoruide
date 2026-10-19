@@ -812,6 +812,7 @@ fn gathering_next_to_kills_overlaps_them() {
                 points: vec![point],
             }),
             guard: Guard::default(),
+            beside_giver: false,
             alts: vec![],
             after: 0,
             handed_by: vec![],
@@ -1819,6 +1820,7 @@ fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Obj
         pack: 1.0,
         spots: None,
         guard: Guard::default(),
+        beside_giver: false,
         alts: vec![],
         after: 0,
         handed_by: vec![],
@@ -2350,4 +2352,81 @@ fn limited_supply_follows_the_crowd() {
         vendor > auction,
         "crowded server: {vendor} at the vendor, {auction} at the auction house"
     );
+}
+
+/// The Great Outdoors (Forever, GitHub #35): sitting at the campfire beside the quest's giver, in
+/// every starting camp, is done in the camp at the level the quest is taken, as soon as The
+/// Adventurer is handed in, not a level later for the quest's level.
+#[test]
+fn campfire_beside_the_giver_needs_no_power() {
+    let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Forever).unwrap();
+    for (race, class, id) in [
+        ("tauren", "druid", 96605),
+        ("orc", "warrior", 96604),
+        ("undead", "priest", 96607),
+        ("dwarf", "warrior", 96608),
+        ("human", "warrior", 95998),
+        ("nightelf", "warrior", 96606),
+        ("skyborne", "mage", 96101),
+    ] {
+        let request = PlanRequest {
+            params: Some(overrides.params.with_overrides(&["progression=cautious".into()]).unwrap()),
+            ..request(race, class, 20, &[])
+        };
+        let p = job::prepare(&database_of("forever"), &overrides, &request, &|_| {}).unwrap();
+        let i = quest(&p, id).unwrap_or_else(|| panic!("The Great Outdoors {id} planned for {race}"));
+        let q = &p.model.quests[i as usize];
+        assert!(q.skill.is_none(), "{id}: an ordinary quest, not a profession's");
+        let o = &q.objectives[0];
+        assert!(o.text.starts_with("Sit by the Basic Campfire"), "{id}: {}", o.text);
+        assert!(o.beside_giver, "{id}: the campfire is beside {}", q.starts[0].name);
+        assert!(
+            q.starts.iter().any(|l| l.pos.dist(&o.loc.pos) < 30.0),
+            "{id}: the giver's own campfire, not another camp's"
+        );
+        let planner = planner(&p);
+        let might = fg_route::params::Might::PLAIN;
+        assert!(
+            planner.combat().level(q, 0, might) <= q.min_level,
+            "{id}: done at level {}, taken at {}",
+            planner.combat().level(q, 0, might),
+            q.min_level
+        );
+    }
+    // Only objects in a quiet camp count as beside the giver: never kills, never among mobs.
+    let p = prepare("human", "warrior", 30, &["progression=cautious"]);
+    for q in &p.model.quests {
+        for o in q.objectives.iter().filter(|o| o.beside_giver) {
+            assert!(o.kills <= 0.0 && o.loc.kind == EntityKind::Object, "{}: {}", q.name, o.text);
+            assert_eq!(o.guard.count, 0, "{}: no hostile mob around", q.name);
+        }
+    }
+}
+
+/// Camping 101 (Forever, GitHub #35): each profession's asks not to know the camp item it
+/// teaches yet, which a character leveling never does. They are the profession's quests,
+/// optional, after The Great Outdoors; left out without the profession.
+#[test]
+fn camping_101_is_a_profession_quest_after_the_great_outdoors() {
+    let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Forever).unwrap();
+    let goal = |key: &str| fg_route::profession::ProfessionGoal {
+        key: key.into(),
+        target: 300,
+        start_level: None,
+        milestones: vec![],
+    };
+    let request = PlanRequest {
+        params: Some(overrides.params.with_overrides(&[]).unwrap()),
+        professions: vec![goal("skinning"), goal("leatherworking")],
+        ..request("tauren", "druid", 20, &[])
+    };
+    let p = job::prepare(&database_of("forever"), &overrides, &request, &|_| {}).unwrap();
+    // Camping 101: Skinning and Leatherworking at Kaga Wildhoof.
+    for id in [97936, 97934] {
+        let i = quest(&p, id).unwrap_or_else(|| panic!("Camping 101 {id} planned"));
+        let q = &p.model.quests[i as usize];
+        assert!(q.skill.is_some() && !q.mandatory, "{id}: optional, for the profession");
+        assert!(q.pre_any.contains(&96605), "{id}: after The Great Outdoors");
+    }
+    assert!(quest(&p, 97935).is_none(), "Camping 101: Mining without Mining");
 }
