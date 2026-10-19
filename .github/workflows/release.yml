@@ -27,9 +27,9 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  # Built into the app: where the "Contribute" page sends the players' data (straight to the
-  # server; the older apps' address is the web app's now, which relays: web/functions).
-  FG_CONTRIBUTION_SERVER: https://api.factoruide.brouznouf.com
+  # Built into the app: where the "Contribute" page sends the players' data (the web app's host
+  # relays /v1/* to the contribution server: web/functions).
+  FG_CONTRIBUTION_SERVER: https://factoruide.brouznouf.com
   # A published build: it checks for updates (local and development builds do not).
   FG_RELEASE: "1"
   # The addon's page the apps link to (repository variable, once its CurseForge project exists).
@@ -267,9 +267,9 @@ jobs:
         run: gh release upload "$TAG" "$RUNNER_TEMP"/release/*.zip --clobber
 
   # The web app: built from the tag and deployed to Cloudflare Pages with its relay of /v1/* to the
-  # contribution server (web/functions). Secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID and
-  # FG_PROXY_KEY (the key the server is started with), variable CLOUDFLARE_PAGES_PROJECT
-  # (default factoruide); skipped without the token.
+  # contribution server (web/functions). Secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
+  # FG_PROXY_KEY (the key the server is started with) and FG_ORIGIN_HOST (the server's hidden
+  # name), variable CLOUDFLARE_PAGES_PROJECT (default factoruide); skipped without the token.
   web:
     name: Web app
     if: github.event_name == 'push'
@@ -306,9 +306,11 @@ jobs:
         working-directory: web
         env:
           FG_PROXY_KEY: ${{ secrets.FG_PROXY_KEY }}
+          FG_ORIGIN_HOST: ${{ secrets.FG_ORIGIN_HOST }}
         run: |
           npx --yes wrangler@4 pages project create "$PROJECT" --production-branch=main || true
-          if [ -n "$FG_PROXY_KEY" ]; then
+          if [ -n "$FG_PROXY_KEY" ] && [ -n "$FG_ORIGIN_HOST" ]; then
             printf '%s' "$FG_PROXY_KEY" | npx --yes wrangler@4 pages secret put PROXY_KEY --project-name="$PROJECT"
+            printf '%s' "$FG_ORIGIN_HOST" | npx --yes wrangler@4 pages secret put ORIGIN_HOST --project-name="$PROJECT"
           fi
           npx --yes wrangler@4 pages deploy dist --project-name="$PROJECT" --branch=main
