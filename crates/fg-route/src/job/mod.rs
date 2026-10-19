@@ -235,6 +235,7 @@ fn load_world(
     for warning in world.enclose(&overrides.enclosed) {
         progress(&warning);
     }
+    world.raise(&overrides.raised);
     for warning in world.add_passes(conn, &passes)? {
         progress(&warning);
     }
