@@ -44,6 +44,14 @@ addon's `Export.lua` / `Import.lua`).
   `coi.js` installs a service worker that adds them and loads the page again once. The page
   must be served over HTTPS (or from localhost).
 
+## Memory and speed
+
+A 1-60 guide (Classic, "Normal" computing time) takes about 190 s in Chrome (Linux or Windows),
+about 1.3 times the desktop app, and gives the same guide. The backend reserves its memory
+when it starts (up to 3.75 GiB, before any thread runs: a thread copying memory that another one
+just grew traps in the browser). Only what is used takes RAM (about 2 GB for that guide), but
+Windows counts the whole reservation in the memory committed by the browser.
+
 ## Build
 
 Needs Rust with the `wasm32-wasip1-threads` target, the [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases)
