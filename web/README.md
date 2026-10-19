@@ -88,8 +88,9 @@ leave room: about 8,200 files, the largest 14 MB.
 
 That name is the contribution server's too: the apps post their contributions and reports to
 `/v1/*` there. `functions/v1/[[path]].js` (a Pages Function, the only path that runs code: the
-rest is served as files) relays them to the server with the same URL and `Host`, reaching it
-through another name of the zone proxied by Cloudflare (`FG_ORIGIN_HOST`, set as the project's
-`ORIGIN_HOST`: the server's address is never published). It tells the server each sender's
-address with the key both share (`FG_PROXY_KEY`, set as `PROXY_KEY`; see the contribution
-server's README).
+rest is served as files) relays them to the server through another name of the zone proxied by
+Cloudflare (`FG_ORIGIN_HOST`, set as the project's `ORIGIN_HOST`: the server's address is never
+published). On that name, an Origin Rule rewrites the Host header to `factoruide.brouznouf.com`
+(the server's site) and a Configuration Rule sets SSL to Flexible (plain HTTP to the server). It
+tells the server each sender's address with the key both share (`FG_PROXY_KEY`, set as
+`PROXY_KEY`; see the contribution server's README).
