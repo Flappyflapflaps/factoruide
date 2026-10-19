@@ -2,36 +2,37 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 /// `(name, include_bytes!(path))` entries for the files of `dir` with one of `extensions`; with
-/// `subdirs`, also those one folder down, named `folder/file`.
+/// `subdirs`, also those of its folders, at any depth, named `folder/file` (the addon's libraries
+/// are two folders down).
 fn files(dir: &Path, extensions: &[&str], skip: &[&str], subdirs: bool) -> String {
-    println!("cargo:rerun-if-changed={}", dir.display());
-    let mut entries: Vec<(String, std::path::PathBuf)> = Vec::new();
-    for entry in std::fs::read_dir(dir)
-        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
-        .flatten()
-    {
-        let p = entry.path();
-        if p.is_dir() && subdirs {
-            println!("cargo:rerun-if-changed={}", p.display());
-            for sub in std::fs::read_dir(&p).unwrap().flatten() {
-                let s = sub.path();
-                if s.extension().is_some_and(|e| extensions.iter().any(|x| e == *x)) {
-                    entries.push((
-                        format!(
-                            "{}/{}",
-                            entry.file_name().to_string_lossy(),
-                            sub.file_name().to_string_lossy()
-                        ),
-                        s,
-                    ));
-                }
-            }
-        } else if p.extension().is_some_and(|e| extensions.iter().any(|x| e == *x))
-            && !skip.iter().any(|s| p.file_name().is_some_and(|n| n == *s))
+    fn walk(
+        dir: &Path,
+        prefix: &str,
+        extensions: &[&str],
+        skip: &[&str],
+        subdirs: bool,
+        out: &mut Vec<(String, std::path::PathBuf)>,
+    ) {
+        println!("cargo:rerun-if-changed={}", dir.display());
+        for entry in std::fs::read_dir(dir)
+            .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
+            .flatten()
         {
-            entries.push((entry.file_name().to_string_lossy().into_owned(), p));
+            let p = entry.path();
+            let name = format!("{prefix}{}", entry.file_name().to_string_lossy());
+            if p.is_dir() {
+                if subdirs {
+                    walk(&p, &format!("{name}/"), extensions, skip, subdirs, out);
+                }
+            } else if p.extension().is_some_and(|e| extensions.iter().any(|x| e == *x))
+                && !(prefix.is_empty() && skip.contains(&name.as_str()))
+            {
+                out.push((name, p));
+            }
         }
     }
+    let mut entries = Vec::new();
+    walk(dir, "", extensions, skip, subdirs, &mut entries);
     entries.sort();
     entries.iter().fold(String::new(), |mut out, (name, p)| {
         let path = p.canonicalize().unwrap();
