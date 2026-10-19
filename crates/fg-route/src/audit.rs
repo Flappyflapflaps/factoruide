@@ -82,6 +82,14 @@ pub const CHECKS: &[Check] = &[
                quest data",
         error: true,
     },
+    Check {
+        name: "contradictory-prerequisites",
+        what: "quests needing themselves first, or a quest that is also exclusive with them \
+               (doing it closes the quest): the planner never offers them. Drop the wrong link \
+               in the quest data (a list of a quest's alternatives copied in place of its \
+               prerequisites, a sequence marked exclusive)",
+        error: true,
+    },
 ];
 
 /// Why a quest is left out when its objectives or their places are unknown to the data (the
@@ -214,6 +222,11 @@ pub fn audit(
         }
         if on("broken-chains") {
             broken_chains(&prepared.model).into_iter().for_each(&mut add);
+        }
+        if on("contradictory-prerequisites") {
+            contradictory_prerequisites(&prepared.model)
+                .into_iter()
+                .for_each(&mut add);
         }
         if on("child-quests") {
             children_left_out(&prepared.model, &children)
@@ -739,6 +752,47 @@ fn broken_chains(model: &Model) -> Vec<Finding> {
         .collect()
 }
 
+/// Quests whose prerequisites can never be met: themselves (Call of Earth listing its group,
+/// itself included, as what it needs first), or a quest exclusive with them (taking it closes
+/// the quest).
+fn contradictory_prerequisites(model: &Model) -> Vec<Finding> {
+    let exclusive = |a: &crate::model::Quest, b: i64| {
+        a.exclusive.contains(&b)
+            || model
+                .index
+                .get(&b)
+                .is_some_and(|&j| model.quests[j].exclusive.contains(&a.id))
+    };
+    let mut out = Vec::new();
+    for q in &model.quests {
+        let mut wrong: Vec<i64> = Vec::new();
+        for &p in q.pre_all.iter().chain(&q.pre_any) {
+            if (p == q.id || exclusive(q, p)) && !wrong.contains(&p) {
+                wrong.push(p);
+            }
+        }
+        if wrong.is_empty() {
+            continue;
+        }
+        let what: Vec<String> = (wrong.iter())
+            .map(|&p| {
+                if p == q.id {
+                    "itself".to_owned()
+                } else {
+                    format!("{p} (exclusive with it)")
+                }
+            })
+            .collect();
+        out.push(Finding {
+            check: "contradictory-prerequisites",
+            key: format!("quest {}", q.id),
+            detail: format!("{} ({}) needs first {}", q.name, q.id, what.join(", ")),
+            races: Vec::new(),
+        });
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -800,5 +854,22 @@ mod tests {
         p.model.quests[1].pre_all.clear();
         p.model.quests[0].min_level = 10;
         assert_eq!(found(&p.model, &HashSet::new()), [format!("quest {hermit}")]);
+    }
+
+    /// Call of Earth's case: a quest needing itself, or a quest exclusive with it, first. Not
+    /// found for a prerequisite that is only exclusive with another quest.
+    #[test]
+    fn a_quest_needing_itself_or_an_exclusive_quest_first_is_found() {
+        let mut p = quests_at_start(3);
+        let (a, b, c) = (p.model.quests[0].id, p.model.quests[1].id, p.model.quests[2].id);
+        let keys = |m: &Model| -> Vec<String> { contradictory_prerequisites(m).into_iter().map(|f| f.key).collect() };
+        p.model.quests[1].pre_any = vec![a];
+        p.model.quests[0].exclusive = vec![c];
+        assert!(keys(&p.model).is_empty(), "a sequence");
+        p.model.quests[0].pre_any = vec![a, b];
+        assert_eq!(keys(&p.model), [format!("quest {a}")], "itself");
+        p.model.quests[0].pre_any.clear();
+        p.model.quests[2].pre_all = vec![a];
+        assert_eq!(keys(&p.model), [format!("quest {c}")], "exclusive the other way");
     }
 }
