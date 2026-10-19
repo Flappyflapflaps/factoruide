@@ -82,6 +82,14 @@ pub const CHECKS: &[Check] = &[
                quest data",
         error: true,
     },
+    Check {
+        name: "starter-drops",
+        what: "quests started by an item dropped by creatures with no drop chance known: the \
+               planner assumes 10% when one creature (or only unique ones) drops it, and a rare \
+               find, left out of the guide, when several kinds of common mobs do. Give the chance \
+               in the quest data ([[drop]]) when it is known, or accept the assumption",
+        error: false,
+    },
 ];
 
 /// Why a quest is left out when its objectives or their places are unknown to the data (the
@@ -160,6 +168,11 @@ pub fn audit(
     } else {
         Vec::new()
     };
+    let starter_drops = if on("starter-drops") {
+        starter_drops(conn)?
+    } else {
+        Vec::new()
+    };
     let trainer_quests = if on("other-class-quests") {
         trainer_quests(conn)?
     } else {
@@ -217,6 +230,11 @@ pub fn audit(
         }
         if on("child-quests") {
             children_left_out(&prepared.model, &children)
+                .into_iter()
+                .for_each(&mut add);
+        }
+        if on("starter-drops") {
+            unknown_starter_drops(&prepared.model, &starter_drops)
                 .into_iter()
                 .for_each(&mut add);
         }
@@ -602,6 +620,110 @@ fn uncovered_source_items(model: &Model, source_items: &HashMap<i64, SourceItems
                 races: Vec::new(),
             });
         }
+    }
+    out
+}
+
+/// A quest started by an item creatures drop without any known chance (nor an object giving it).
+struct StarterDrop {
+    quest: i64,
+    quest_name: String,
+    item: i64,
+    item_name: String,
+    /// Each creature dropping it: ID, name, and what tells a unique one (rank, places known).
+    droppers: Vec<(i64, String, crate::model::Dropper)>,
+}
+
+fn starter_drops(conn: &Connection) -> Result<Vec<StarterDrop>> {
+    let mut stmt = conn.prepare(
+        "SELECT r.quest_id, coalesce(q.name, ''), s.item_id, coalesce(i.name, ''), s.from_id,
+                coalesce(n.name, ''), coalesce(n.rank, 0),
+                (SELECT count(*) FROM m_spawn p WHERE p.entity_type = 'npc' AND p.entity_id = s.from_id AND p.x >= 0)
+         FROM m_quest_relation r
+         JOIN m_quest q ON q.id = r.quest_id
+         JOIN m_item_source s ON s.item_id = r.entity_id AND s.from_type = 'npc'
+         LEFT JOIN m_item i ON i.id = s.item_id
+         LEFT JOIN m_npc n ON n.id = s.from_id
+         WHERE r.role = 'start' AND r.entity_type = 'item'
+           AND NOT EXISTS (SELECT 1 FROM m_item_source k WHERE k.item_id = s.item_id
+                             AND (k.chance IS NOT NULL OR k.from_type = 'object'))
+         GROUP BY r.quest_id, s.item_id, s.from_id
+         ORDER BY r.quest_id, s.item_id, s.from_id",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok((
+            r.get::<_, i64>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, i64>(2)?,
+            r.get::<_, String>(3)?,
+            r.get::<_, i64>(4)?,
+            r.get::<_, String>(5)?,
+            r.get::<_, i64>(6)?,
+            r.get::<_, i64>(7)?,
+        ))
+    })?;
+    let mut out: Vec<StarterDrop> = Vec::new();
+    for row in rows {
+        let (quest, quest_name, item, item_name, npc, npc_name, rank, spawns) = row?;
+        let dropper = (
+            npc,
+            npc_name,
+            crate::model::Dropper {
+                rank,
+                spawns: usize::try_from(spawns).unwrap_or(0),
+            },
+        );
+        match out.last_mut() {
+            Some(last) if last.quest == quest && last.item == item => last.droppers.push(dropper),
+            _ => out.push(StarterDrop {
+                quest,
+                quest_name,
+                item,
+                item_name,
+                droppers: vec![dropper],
+            }),
+        }
+    }
+    Ok(out)
+}
+
+/// Quests of the guide (planned or left out) started by an item of unknown drop chance, with
+/// what the planner assumes for it. Not the bosses' drops, looted during the dungeon run.
+fn unknown_starter_drops(model: &Model, starters: &[StarterDrop]) -> Vec<Finding> {
+    let left_out: HashSet<i64> = model.skipped.iter().map(|(id, _, _)| *id).collect();
+    let mut out = Vec::new();
+    for s in starters {
+        let planned = model.index.get(&s.quest).map(|&i| &model.quests[i]);
+        if (planned.is_none() && !left_out.contains(&s.quest)) || planned.is_some_and(|q| q.start_dungeon.is_some()) {
+            continue;
+        }
+        let droppers: Vec<crate::model::Dropper> = s.droppers.iter().map(|d| d.2).collect();
+        let assumed = if crate::model::assumed_start_chance(&droppers) > 0.0 {
+            format!(
+                "assumed {:.0}% (its own creature's)",
+                crate::model::UNKNOWN_START_CHANCE * 100.0
+            )
+        } else {
+            "assumed rare (common mobs): left out".to_owned()
+        };
+        let names: Vec<String> = s
+            .droppers
+            .iter()
+            .map(|(id, name, _)| format!("{name} ({id})"))
+            .collect();
+        out.push(Finding {
+            check: "starter-drops",
+            key: format!("quest {} item {}", s.quest, s.item),
+            detail: format!(
+                "{} ({}) starts with {} ({}), dropped by {}: no drop chance known, {assumed}",
+                s.quest_name,
+                s.quest,
+                s.item_name,
+                s.item,
+                names.join(", ")
+            ),
+            races: Vec::new(),
+        });
     }
     out
 }
