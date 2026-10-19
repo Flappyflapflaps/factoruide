@@ -1,0 +1,4 @@
+# The compiler's own stack: compiling the desktop app overflows the default one on Windows
+# (rustc exits with 0xc0000409, STATUS_STACK_BUFFER_OVERRUN).
+[env]
+RUST_MIN_STACK = "134217728"
