@@ -4,6 +4,30 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 Writing an entry: one short line per change, saying what the player sees or gets (not how it works inside), grouped under App, Guides, Addon and WoW data. Numbers and examples only when they tell the change better than words; details go to the commit.
 
+## 0.14.0 (2026-10-19)
+
+Factoruide in your browser, the addon from CurseForge and set up in the game's options, and a home page.
+
+### App
+
+- The web app: the whole app in a browser, nothing to install; guides are computed on your computer and stay in the browser.
+- A home page: what Factoruide does, how it works, and your latest guides.
+- Guides shown as boxes, each with its Export: a text to import in game, a file to share, a Polestar guide.
+- Export all: every guide in the game at once (the web app downloads them as a folder to unzip in your addons).
+- New guide starts from a character saved by the addon; in the web app, paste the character exported in game.
+- The Characters and Addon pages are gone: the addon is installed from CurseForge and set up in game.
+- A bar says when the addon is missing or out of date, with a link to its page.
+
+### Addon
+
+- Two addons on CurseForge and Wago: Factoruide Profile (your character, for the app) and Factoruide Guide (which needs it).
+- Everything is set in the game's options (AddOns → Factoruide), opened with `/fg`: your character, the guides, every setting.
+- Imported guides are listed there: choose the one each character follows, start over, delete; one is picked by itself when it is the only one for your race and class.
+- Importing a guide again replaces it, and asks first when the new one is older.
+- Pasting a guide no longer freezes the game.
+- New key bindings: next and previous step, mark a step done, undo, next spot, show or hide the guide or every window, time per level, the options.
+- A guide made by a newer app asks you to update the addon instead of going wrong.
+
 ## 0.13.0 (2026-10-18)
 
 An assistant to set up the addon, help finding the game and fixing install problems, light themes, guides that follow your class and gear, and items in limited supply bought where they can be found.
