@@ -35,9 +35,17 @@ const isolationWorker = (): Plugin => ({
   },
 })
 
+/** The desktop build has no backend in WebAssembly: the web modules it bundles (never run there)
+ *  get an empty URL for it. */
+const noWasm = (): Plugin => ({
+  name: 'fg-no-wasm',
+  resolveId: (id) => (id.endsWith('fg_web.wasm?url') ? '\0fg-no-wasm' : null),
+  load: (id) => (id === '\0fg-no-wasm' ? 'export default ""' : null),
+})
+
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
-  plugins: mode === 'web' ? [react(), isolationWorker()] : [react()],
+  plugins: mode === 'web' ? [react(), isolationWorker()] : [react(), noWasm()],
   // Relative paths: the site works from any folder of a server.
   base: mode === 'web' ? './' : '/',
   resolve: { alias: mode === 'web' ? web : {} },

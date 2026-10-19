@@ -10,6 +10,6 @@ rsync -a --delete \
     --exclude '.git/' --exclude '/data/*.sqlite' --exclude '/routes/' --exclude '/debug/' \
     --exclude 'addon/Factoruide_Guide/Config.lua' --exclude 'addon/Factoruide_Guide/Routes.lua' \
     --exclude 'addon/Factoruide_Guide/Services.lua' \
-    --exclude 'addon/Factoruide_Profile/Sent.lua' \
+    --exclude 'addon/Factoruide_Profile/Sent.lua' --exclude '/web/dist/' --exclude 'app/src/web/fg_web.wasm' \
     "$src/" "$dest/"
 echo "synced to $dest"
