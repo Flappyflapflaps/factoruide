@@ -2351,3 +2351,23 @@ fn limited_supply_follows_the_crowd() {
         "crowded server: {vendor} at the vendor, {auction} at the auction house"
     );
 }
+
+/// The Warsong Reports (Horde, Ashenvale): Kadrak gives the Bundle of Reports with the quest,
+/// and the Warsong Report each scout's update asks for comes out of it. The updates are taken
+/// while The Warsong Reports is in the log, not before.
+#[test]
+fn item_in_the_bag_a_quest_gives_needs_that_quest_held() {
+    let p = orc_warlock();
+    let reports = quest(p, 6543).expect("The Warsong Reports planned");
+    let update = quest(p, 6545).expect("Warsong Runner Update planned");
+    let q = &p.model.quests[update as usize];
+    assert_eq!(q.pre_held, vec![6543]);
+    assert!(
+        q.objectives.iter().all(|o| o.loc.id != 16746),
+        "the Warsong Report is in the bundle, not looked for"
+    );
+    let planner = planner(p);
+    let take = Stop::quest(update, Kind::Accept);
+    assert!(planner.diagnose(&[take]).is_some(), "not before The Warsong Reports");
+    assert_eq!(planner.diagnose(&[Stop::quest(reports, Kind::Accept), take]), None);
+}
