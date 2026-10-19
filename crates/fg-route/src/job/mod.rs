@@ -17,7 +17,7 @@ mod services;
 mod start;
 mod timeline;
 
-pub use addon_settings::write_addon_config;
+pub use addon_settings::{addon_config_lua, write_addon_config};
 pub use draft::{EditView, ObjectiveAt, PlaceAt, QuestAt, Request, Requests, Suggestions};
 pub use edit::{
     CatalogDungeon, CatalogLink, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef,
@@ -30,7 +30,8 @@ pub use race::{optimize, optimize_interruptible};
 pub use reputation::race_base;
 pub use request::{PlanOutcome, PlanRequest, Prepared};
 pub use routes::{
-    add_polestar_source, addon_walks, load_routes, polestar_source_dir, render_routes, save_route, slug,
+    POLESTAR_SOURCE_FOLDER, add_polestar_source, addon_walks, load_routes, polestar_source_dir, render_routes,
+    save_route, slug,
     write_addon_routes, write_polestar_pack, write_polestar_source,
 };
 pub use services::{Place, Service, places, services_lua};

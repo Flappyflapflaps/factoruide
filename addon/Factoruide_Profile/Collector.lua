@@ -6,8 +6,9 @@
 -- empty for none; data = key=value pairs joined by `;` (booleans 1, pairs as a:b,a:b, text with
 -- %, |, ; = and control characters percent-encoded). Rows saved before are tables:
 --   { seq, time, event, questID, entityType, entityID, uiMapID, x, y, level, data }
--- The app writes Sent.lua (`FactoruideSent[character] = last seq sent`): rows it has are dropped
--- at login. Everything here is event driven (no OnUpdate), throttled and bounded.
+-- The app writes Sent.lua (`FactoruideSent[character] = last seq sent`), or a guide imported with
+-- `/fg import` brings the same (`FactoruideDB.sent`): rows it has are dropped at login.
+-- Everything here is event driven (no OnUpdate), throttled and bounded.
 
 local _, FG = ...
 local QuestLog = FG.QuestLog
@@ -141,10 +142,13 @@ local function SnapshotCharacter()
     char.questLog = log
 end
 
---- Last seq the app has received for this character (Sent.lua), 0 when none.
+--- Last seq the app has received for this character, 0 when none: from Sent.lua or from the last
+--- guide imported, the highest (the seq only grows, so it is the most recent).
 local function SentSeq()
-    local sent = type(FactoruideSent) == "table" and tonumber(FactoruideSent[FG:CharacterKey()])
-    return sent or 0
+    local key = FG:CharacterKey()
+    local file = type(FactoruideSent) == "table" and tonumber(FactoruideSent[key]) or 0
+    local imported = type(FactoruideDB.sent) == "table" and tonumber(FactoruideDB.sent[key]) or 0
+    return math.max(file, imported)
 end
 
 --- Drop the rows the app already has, and the oldest beyond the cap. The seq keeps growing,
@@ -749,6 +753,17 @@ function Collector:PrintStatus()
         if RowSeq(e) > sent then pending = pending + 1 end
     end
     FG:Print("%d events recorded, %d not sent yet (%s)", #char.events, pending, table.concat(parts, ", "))
+end
+
+--- For the profile export: this character's race and class, and its rows the app does not have
+--- yet (the rows saved as tables by older versions are left out).
+function Collector:Pending()
+    if not char then return nil end
+    local sent, rows = SentSeq(), {}
+    for _, e in ipairs(char.events) do
+        if type(e) == "string" and RowSeq(e) > sent then rows[#rows + 1] = e end
+    end
+    return { race = char.race, class = char.class, events = rows }
 end
 
 function Collector:Reset()

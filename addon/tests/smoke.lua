@@ -142,6 +142,8 @@ strsplit = function(sep, s, n)
     end
     return unpack(out)
 end
+strmatch = string.match
+ChatFontNormal = {}
 strtrim = function(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
 wipe = function(t)
     for k in pairs(t) do
@@ -293,6 +295,11 @@ if profileOnly then
     FG.Profile:Snapshot()
     local profile = FactoruideDB.profiles["Brouz-Realm"]
     assert(profile and profile.level == 1 and profile.class == "MAGE", "profile saved")
+    -- The export needs nothing of the guide part.
+    SlashCmdList.FACTORUIDE("export")
+    local _, edit = FG.TextWindow:Parts()
+    local json = LibStub("LibDeflate"):DecompressDeflate(LibStub("LibDeflate"):DecodeForPrint(edit:GetText():sub(6)))
+    assert(json and json:find('"character":"Brouz-Realm"', 1, true), "export without the guide")
     assert(next(FactoruideDB.errors or {}) == nil, "no error: " .. tostring(next(FactoruideDB.errors or {})))
     print("profile only ok: " .. #char.events .. " events")
     os.exit(0)
@@ -3024,3 +3031,131 @@ for msg in pairs(FactoruideDB.errors) do
 end
 assert(capLogged, "the cap is logged")
 print("collector purge ok")
+
+-- In a function of their own: the main chunk is out of locals.
+local function ExportImport()
+    -- JSON for the profile export: exact text for the usual values, numbers read back the same.
+    assert(
+        FG.JSON({ b = { 1, 2, 3 }, a = 1, c = {}, d = 'q"\\\n\1', e = 0.1, g = true, h = -3, i = { [2] = "x" } })
+            == [[{"a":1,"b":[1,2,3],"c":[],"d":"q\"\\\u000a\u0001","e":0.1,"g":true,"h":-3,"i":{"2":"x"}}]],
+        "json: "
+            .. FG.JSON({ b = { 1, 2, 3 }, a = 1, c = {}, d = 'q"\\\n\1', e = 0.1, g = true, h = -3, i = { [2] = "x" } })
+    )
+    for _, v in ipairs({ 1 / 3, 29.93, -1e-7, 1e300, 2 ^ 53 + 2, 1712345678 }) do
+        assert(tonumber(FG.JSON(v)) == v, "json number " .. FG.JSON(v))
+    end
+    assert(FG.JSON(1712345678) == "1712345678" and FG.JSON(0 / 0) == "null", "json integers, NaN")
+
+    --- Whether `text` parses as JSON, and passes the Python `check` (assertions on `d`); nil when
+    --- python3 is not there.
+    local function PythonJson(text, check)
+        if os.execute("python3 -c '' 2>/dev/null") ~= 0 and os.execute("python3 -c '' 2>/dev/null") ~= true then
+            return nil
+        end
+        local path = os.tmpname()
+        local f = assert(io.open(path, "wb"))
+        f:write(text)
+        f:close()
+        local script = "import json,sys; d = json.load(open(sys.argv[1], encoding='utf-8')); " .. (check or "")
+        local status = os.execute("python3 -I -c " .. string.format("%q", script):gsub("%$", "\\$") .. " " .. path)
+        os.remove(path)
+        return status == 0 or status == true
+    end
+
+    local deflate = LibStub("LibDeflate")
+
+    -- `/fg export`: a fresh profile and the rows not sent yet, compressed, in a window to copy.
+    local profile = FactoruideDB.profiles["Brouz-Realm"]
+    char.events = { "101|5|kill||npc|6|1426|30|70|1|", "102|6|kill||npc|6|1426|30|70|1|", { 103, 0, "kill" } }
+    char.events[4] = '104|7|loot||npc|6|1426|30|70|1|name=Wolf "Meat"%0A'
+    FactoruideDB.sent = { ["Brouz-Realm"] = 101 }
+    profile.flights = { [12] = true, [2] = true, [7] = false }
+    playerLevel = 4
+    SlashCmdList.FACTORUIDE("export")
+    local window, edit, action, status = FG.TextWindow:Parts()
+    assert(window:IsShown() and not action:IsShown(), "export window shown, no second button")
+    local exported = edit:GetText()
+    assert(exported:sub(1, 5) == "FGP1:" and exported:match("^FGP1:[%w%(%)]+$"), "export prefix and alphabet")
+    local json = deflate:DecompressDeflate(deflate:DecodeForPrint(exported:sub(6)))
+    assert(json == FG.Export:Json(), "export round trip")
+    assert(json:find('"flights":[2,12]', 1, true), "flights as a sorted list")
+    assert(json:find('"events":["102|6|', 1, true) and not json:find('"101|', 1, true), "rows after the last sent")
+    assert(not json:find('"103', 1, true), "table rows left out")
+    assert(json:find('"level":4', 1, true), "a fresh snapshot")
+    local parsed = PythonJson(
+        json,
+        "assert d['format'] == 'factoruide-profile' and d['version'] == 1 and d['edition'] == 'forever'; "
+            .. "assert d['addon'] == '0.13.0' and d['character'] == 'Brouz-Realm'; "
+            .. "assert d['profile']['flights'] == [2, 12] and d['profile']['class'] == 'MAGE'; "
+            .. "assert d['collector']['class'] == 'MAGE' and len(d['collector']['events']) == 2; "
+            .. "assert d['collector']['events'][1].endswith('name=Wolf \"Meat\"%0A')"
+    )
+    assert(parsed ~= false, "export JSON read by Python")
+    print("profile export ok" .. (parsed == nil and " (python3 missing: JSON not parsed)" or ""))
+
+    -- `/fg import`: a guide pasted from the web app replaces what the files set.
+    local fixture = assert(io.open("addon/tests/fixtures/Routes.lua")):read("*a")
+    local guideLua = fixture:gsub("gnome%-mage", "web-mage")
+        .. '\nlocal FG = Factoruide\nFG.Config = { locale = "enUS", compassShown = false }\n'
+        .. 'FactoruideSent = { ["Brouz-Realm"] = 150, ["Other-Realm"] = 3 }\n'
+    local guideString = "FGG1:" .. deflate:EncodeForPrint(deflate:CompressDeflate(guideLua))
+    SlashCmdList.FACTORUIDE("import")
+    assert(window:IsShown() and action:IsShown() and (edit:GetText() or "") == "", "import window, empty box")
+    local function Click(text)
+        edit:SetText(text)
+        action.OnClick()
+        return status:GetText()
+    end
+    reloaded = false
+    assert(Click("hello"):find("FGG1:", 1, true), "bad prefix refused")
+    assert(Click("FGG1:abc!!$"):find("abîmé", 1, true), "corrupt text refused: " .. status:GetText())
+    assert(Click(guideString:sub(1, 200)):find("abîmé", 1, true), "cut text refused")
+    local notLua = "FGG1:" .. deflate:EncodeForPrint(deflate:CompressDeflate("FG.Routes = {"))
+    assert(Click(notLua):find("pas pu être lu", 1, true), "Lua errors refused")
+    assert(not reloaded and FactoruideDB.guideImport == nil, "nothing kept from bad strings")
+    -- Spaces and line breaks picked up with the copy do not matter.
+    Click(guideString:sub(1, 100) .. "\n  " .. guideString:sub(101))
+    assert(reloaded and FactoruideDB.guideImport.text == guideLua, "import kept, interface reloaded")
+    assert(FactoruideDB.sent["Brouz-Realm"] == 150 and FactoruideDB.sent["Other-Realm"] == 3, "sent seq imported")
+    assert(#FG.Collector:Pending().events == 0, "rows up to the imported seq are sent")
+    FG.Import:ApplySaved()
+    assert(FG.Routes["web-mage"] and not FG.Routes["gnome-mage"], "imported routes replace the files'")
+    assert(FG.Assignments["Brouz-Realm"] == "web-mage" and FG.Config.locale == "enUS", "assignments and config")
+    assert(FG:Get("compassShown") == false and FG.Lang() == "enUS", "imported settings read")
+    FG.Guide:FollowAssignment()
+    assert(FG.Guide:Route() == FG.Routes["web-mage"] and char.guide.route == "web-mage", "imported guide followed")
+
+    -- The sandbox: no globals, no game API, data only.
+    local sandbox =
+        assert(FG.Import.Run("Factoruide.ok = _G == nil and print == nil and loadstring == nil and string == nil"))
+    assert(sandbox.ok == true, "nothing but Factoruide in the sandbox")
+    assert(FG.Import.Run("Factoruide.Guide = function() end") == nil, "functions refused")
+    assert(FG.Import.Run("Factoruide.x = { [function() end] = 1 }") == nil, "functions as keys refused")
+    assert(
+        FG.Import.Run("os.exit(1)") == nil and FG.Import.Run(string.dump(function() end)) == nil,
+        "no os, no bytecode"
+    )
+
+    -- Empty generated files (the addon as published) and no import: a message, no guide.
+    SlashCmdList.FACTORUIDE("import clear")
+    assert(FactoruideDB.guideImport == nil, "import cleared")
+    FG.Routes, FG.Assignments, FG.Services, FG.Config = nil, nil, nil, nil
+    local rendered
+    local ui = FG.Guide:UI()
+    local render = ui.Render
+    ui.Render = function(self, view)
+        rendered = view
+        return render(self, view)
+    end
+    FG.Guide:FollowAssignment()
+    FG.Guide:Refresh()
+    ui.Render = render
+    assert(
+        FG.Guide:Route() == nil and rendered and rendered.message == FG.Guide.L.noGuides,
+        "no guide: use the web app"
+    )
+    FG.Guide:Advance()
+    SlashCmdList.FACTORUIDE("next")
+    print("guide import ok")
+end
+ExportImport()

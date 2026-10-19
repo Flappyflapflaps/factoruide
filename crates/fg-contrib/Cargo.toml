@@ -16,7 +16,10 @@ serde_json = "1"
 default = ["local"]
 # Reading a game client folder (SavedVariables need Lua). Without it, only the contribution
 # format and its validation (what the contribution server needs).
-local = ["dep:mlua", "dep:getrandom"]
+local = ["dep:mlua", "anonymize"]
+# Turning recorded characters into anonymous ones (random ids): what the web app needs, which
+# gets the recordings from the addon's export instead of the game folder.
+anonymize = ["dep:getrandom"]
 
 [lints]
 workspace = true

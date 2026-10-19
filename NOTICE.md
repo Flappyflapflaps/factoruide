@@ -59,3 +59,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Addon libraries
+
+The addon bundles, in `addon/Factoruide_Profile/Libs/` and `addon/Factoruide_Guide/Libs/`:
+
+- [LibDeflate](https://github.com/SafeteeWoW/LibDeflate) 1.0.2, (C) 2018-2021 Haoqian He, under
+  the zlib license (kept in `LibDeflate.lua` and `LICENSE.txt`): compresses the texts copied
+  between the game and the web app.
+- [LibStub](https://www.wowace.com/projects/libstub), in the public domain: lets the addons share
+  one copy of LibDeflate.

@@ -361,11 +361,15 @@ SlashCmdList.FACTORUIDE = function(msg)
         FG:LockCommand()
     elseif FG.Profile and (cmd == "profile" or cmd == "profil") then
         FG.Profile:Save()
+    elseif FG.Profile and cmd == "export" then
+        FG.Profile:Export()
+    elseif FG.Import and cmd == "import" then
+        FG.Import:Command(arg)
     elseif FG.Guide then
         FG:Print(
-            "/fg config | guide | hide | show | compass [reset] | lock | next | prev | step <n> | skip [id] | restart | mode | route | macro | spot | waypoint | scale [size] | status | reset | profile | debug"
+            "/fg config | guide | hide | show | compass [reset] | lock | next | prev | step <n> | skip [id] | restart | mode | route | macro | spot | waypoint | scale [size] | status | reset | profile | export | import [clear] | debug"
         )
     else
-        FG:Print("/fg status | reset | profile | debug")
+        FG:Print("/fg status | reset | profile | export | debug")
     end
 end

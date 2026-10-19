@@ -25,6 +25,7 @@ local L = {
     level = T("Lvl"),
     planned = T("planned"),
     noRoute = T("No guide for this character.\nAssign one in the Factoruide app (Characters)."),
+    noGuides = T("No guide yet.\nMake one in the Factoruide web app, then type /fg import."),
     done = T("Route finished!"),
     yards = T("yd"),
     prevStep = T("Previous step"),
@@ -726,7 +727,10 @@ function Guide:Refresh()
         if FG.Pathing then FG.Pathing:SetTarget(nil) end
         if FG.Arrow then FG.Arrow:SetTarget(nil) end
         if FG.Wind then FG.Wind:SetTarget(nil) end
-        ui:Render({ hidden = not shown, message = route and L.done or L.noRoute })
+        ui:Render({
+            hidden = not shown,
+            message = route and L.done or (next(FG.Routes or {}) and L.noRoute or L.noGuides),
+        })
         if FG.XpMarker then FG.XpMarker:Refresh() end
         return
     end

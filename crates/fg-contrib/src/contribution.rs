@@ -107,7 +107,7 @@ pub fn fingerprint(bytes: &[u8]) -> u64 {
 }
 
 /// Random lowercase hex id of `bytes` bytes.
-#[cfg(feature = "local")]
+#[cfg(feature = "anonymize")]
 pub fn random_hex(bytes: usize) -> Result<String> {
     use std::fmt::Write;
     let mut buf = vec![0u8; bytes];
@@ -160,7 +160,7 @@ impl SendState {
 /// oldest first), times relative to the first event kept, events failing validation dropped
 /// (one odd row never blocks a contribution). Returns the characters, the state to keep once
 /// they are accepted, and whether events were left for a next document.
-#[cfg(feature = "local")]
+#[cfg(feature = "anonymize")]
 pub fn anonymize(
     characters: Vec<Character>,
     state: &SendState,

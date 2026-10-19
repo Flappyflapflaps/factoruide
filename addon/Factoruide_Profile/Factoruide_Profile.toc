@@ -6,6 +6,8 @@
 ## Version: 0.5.0
 ## SavedVariables: FactoruideDB
 
+Libs\LibStub\LibStub.lua
+Libs\LibDeflate\LibDeflate.lua
 Core.lua
 Locales\frFR.lua
 Locales\deDE.lua
@@ -18,3 +20,5 @@ Locales\zhTW.lua
 Sent.lua
 Collector.lua
 Profile.lua
+Window.lua
+Export.lua
