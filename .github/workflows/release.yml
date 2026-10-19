@@ -217,8 +217,11 @@ jobs:
           - addon: Factoruide_Guide
             curseforge: ${{ vars.CURSEFORGE_GUIDE_ID }}
             wago: ${{ vars.WAGO_GUIDE_ID }}
+            # The CurseForge project it needs (a relation of each file uploaded).
+            requires: ${{ vars.CURSEFORGE_PROFILE_SLUG }}
     env:
       ADDON: ${{ matrix.addon }}
+      REQUIRES: ${{ matrix.requires }}
       TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v5
@@ -240,6 +243,7 @@ jobs:
           cp -r "addon/$ADDON" "$pkg"
           git tag -l --format='%(contents)' "$TAG" > "$pkg/CHANGES.md"
           printf 'package-as: %s\nmanual-changelog:\n  filename: CHANGES.md\n  markup-type: markdown\n' "$ADDON" > "$pkg/.pkgmeta"
+          if [ -n "$REQUIRES" ]; then printf 'required-dependencies:\n  - %s\n' "$REQUIRES" >> "$pkg/.pkgmeta"; fi
           cd "$pkg"
           git init -q
           git add -A
