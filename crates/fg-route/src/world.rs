@@ -65,10 +65,11 @@ pub struct World {
     /// The way each direct flight goes (world x, y, its ends included), by node indexes.
     taxi_paths: HashMap<(usize, usize), Vec<(f64, f64)>>,
     pub links: Vec<Link>,
-    /// Quests whose taking opens links (`LinkDef::after_quest`).
-    pub link_quests: Vec<i64>,
+    /// Quests whose taking opens links (`LinkDef::after_quest`), with whether only while they
+    /// are in the log (`LinkDef::while_held`).
+    pub link_quests: Vec<(i64, bool)>,
     /// Time to chain links i..j (boarding i, leaving j), walking in between, by set of opened
-    /// `link_quests` (bit k: quest k taken).
+    /// `link_quests` (bit k: quest k taken, or in the log).
     link_chains: Vec<Vec<Vec<f64>>>,
     /// Walkable passages between zones and the shortest walk between any two of them.
     pub passes: Vec<Pass>,
@@ -578,6 +579,10 @@ pub struct LinkDef {
     /// Quest ID: usable only once that quest is taken (the teleport its giver offers).
     #[serde(default)]
     pub after_quest: Option<i64>,
+    /// With `after_quest`: usable only while that quest is in the log, not once turned in (the
+    /// free flight Vesprystus gives to Auberdine with Flight to Auberdine).
+    #[serde(default)]
+    pub while_held: bool,
 }
 
 /// At most this many quests open links: the set of opened ones is a byte of the trip cache key.
@@ -593,6 +598,15 @@ pub struct Link {
     pub to_zone: i64,
     pub seconds: f64,
     pub after_quest: Option<i64>,
+    /// Open only while `after_quest` is in the log (`LinkDef::while_held`).
+    pub while_held: bool,
+}
+
+impl Link {
+    /// The quest opening it (`after_quest`), and whether only while it is in the log.
+    fn opened_by(&self) -> Option<(i64, bool)> {
+        self.after_quest.map(|q| (q, self.while_held))
+    }
 }
 
 impl World {
@@ -618,6 +632,7 @@ impl World {
                 to_zone: tz,
                 seconds: d.seconds + if d.instant { 0.0 } else { wait },
                 after_quest: d.after_quest,
+                while_held: d.while_held && d.after_quest.is_some(),
             };
             self.links.push(make(a, d.from.zone, b, d.to.zone));
             if !d.one_way {
@@ -625,7 +640,7 @@ impl World {
             }
         }
         self.link_quests.clear();
-        for q in self.links.iter().filter_map(|l| l.after_quest) {
+        for q in self.links.iter().filter_map(Link::opened_by) {
             if !self.link_quests.contains(&q) {
                 self.link_quests.push(q);
             }
@@ -641,7 +656,7 @@ impl World {
     /// closed.
     fn chain_links(&self, open: usize, walk_speed: f64) -> Vec<Vec<f64>> {
         let closed = |l: &Link| {
-            l.after_quest
+            l.opened_by()
                 .and_then(|q| self.link_quests.iter().position(|&k| k == q))
                 .is_some_and(|k| open & (1 << k) == 0)
         };

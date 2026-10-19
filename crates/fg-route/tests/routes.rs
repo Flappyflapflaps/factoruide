@@ -1060,6 +1060,7 @@ fn link_opened_by_a_quest() {
         instant: true,
         races: vec![],
         after_quest: Some(p.model.quests[1].id),
+        while_held: false,
     };
     let (faction, speed, wait) = (
         p.profile.faction,
@@ -1082,6 +1083,50 @@ fn link_opened_by_a_quest() {
     };
     assert!(!takes_it(&mut p, vec![0]), "quest 1 not taken: closed");
     assert!(takes_it(&mut p, vec![0, 1]), "quest 1 taken: open");
+}
+
+/// A link open only while a quest is in the log (Vesprystus flies the character to Auberdine
+/// with Flight to Auberdine, the flight path known or not) is closed before it is taken and
+/// once it is turned in.
+#[test]
+fn link_open_while_a_quest_is_held() {
+    let mut p = quests_at_start(2);
+    let point = |zone, x, y| fg_route::world::ZonePoint { zone, x, y };
+    let link = fg_route::world::LinkDef {
+        name: "While quest 1 is held".into(),
+        faction: None,
+        from: point(12, 48.17, 42.94),
+        to: point(1537, 50.0, 50.0),
+        seconds: 5.0,
+        one_way: true,
+        instant: true,
+        races: vec![],
+        after_quest: Some(p.model.quests[1].id),
+        while_held: true,
+    };
+    let (faction, speed, wait) = (
+        p.profile.faction,
+        p.params.run_speed / p.params.detour,
+        p.params.link_wait,
+    );
+    p.world.add_links(&[link], faction, speed, wait);
+    let mut o = one_kill_east_of_start(&p, 0.0);
+    (o.loc.pos, o.loc.zone) = (p.world.to_world(1537, 50.0, 50.0).unwrap(), 1537);
+    p.model.quests[0].objectives = vec![o];
+    let takes_it = |p: &mut Prepared, accepted: Vec<usize>, turned: Vec<usize>| {
+        p.model.initial.accepted = accepted;
+        p.model.initial.turned = turned;
+        let mut trace = Vec::new();
+        planner(p)
+            .simulate_full(&[Stop::quest(0, Kind::Objective(0))], Some(&mut trace))
+            .unwrap();
+        trace
+            .iter()
+            .any(|t| matches!(t.event, Event::Link { first, .. } if p.world.links[first].name == "While quest 1 is held"))
+    };
+    assert!(!takes_it(&mut p, vec![0], vec![]), "quest 1 not taken: closed");
+    assert!(takes_it(&mut p, vec![0, 1], vec![]), "quest 1 in the log: open");
+    assert!(!takes_it(&mut p, vec![0], vec![1]), "quest 1 turned in: closed");
 }
 
 /// A quest given up is not turned in: it opens no follow-up. Fire Hardened Mail, left in the log
