@@ -28,6 +28,10 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - New key bindings: next and previous step, mark a step done, undo, next spot, show or hide the guide or every window, time per level, the options.
 - A guide made by a newer app asks you to update the addon instead of going wrong.
 
+### Guides
+
+- The Great Outdoors is done in the starting camp right after The Adventurer: sitting at the campfire waits for no level (GitHub #35).
+
 ## 0.13.0 (2026-10-18)
 
 An assistant to set up the addon, help finding the game and fixing install problems, light themes, guides that follow your class and gear, and items in limited supply bought where they can be found.

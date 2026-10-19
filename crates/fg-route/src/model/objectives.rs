@@ -12,6 +12,30 @@ use super::types::{EntityKind, Guard, Loc, Objective, Spots};
 use crate::world::Pos;
 use std::collections::HashMap;
 
+/// An object this close to the NPC giving or taking back the quest (yards) is used in their camp.
+const BESIDE_GIVER: f64 = 30.0;
+
+/// Objects used right beside the NPC giving or taking back the quest, no hostile mob around them (the
+/// campfire to sit at next to Kaga Wildhoof, The Great Outdoors): done in the camp, out of any
+/// fight, they require no power (`Objective::beside_giver`). The quest's level asked of them
+/// otherwise made the character come back a level later, which the route never did.
+fn mark_beside_givers(givers: &Givers, objs: &mut [Objective]) {
+    let beside = |o: &Objective| {
+        o.dungeon.is_none()
+            && o.kills <= 0.0
+            && o.loc.kind == EntityKind::Object
+            && o.guard.count == 0
+            && (givers.starts.iter().chain(&givers.ends))
+                .any(|l| l.kind == EntityKind::Npc && l.pos.dist(&o.loc.pos) <= BESIDE_GIVER)
+    };
+    for o in objs {
+        o.beside_giver = beside(o);
+        for alt in &mut o.alts {
+            alt.beside_giver = beside(alt);
+        }
+    }
+}
+
 /// One objective row: kind, target, text, extra data, exact amount.
 pub(super) type ObjectiveRow = (ObjectiveKind, Option<i64>, Option<String>, Option<String>, Option<i64>);
 
@@ -47,6 +71,7 @@ impl Objective {
             pack: 1.0,
             spots: None,
             guard: Guard::default(),
+            beside_giver: false,
             alts: vec![],
             after: 0,
             handed_by: vec![],
@@ -108,6 +133,7 @@ impl QuestBuilder<'_> {
             o.alts.retain(|a| elite || !a.elite);
             self.measure(r, &mut o.alts);
         }
+        mark_beside_givers(givers, &mut objs);
         self.add_dungeon_givers(r, &mut objs);
         Ok(objs)
     }
