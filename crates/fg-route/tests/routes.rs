@@ -2402,3 +2402,31 @@ fn campfire_beside_the_giver_needs_no_power() {
         }
     }
 }
+
+/// Camping 101 (Forever, GitHub #35): each profession's asks not to know the camp item it
+/// teaches yet, which a character leveling never does. They are the profession's quests,
+/// optional, after The Great Outdoors; left out without the profession.
+#[test]
+fn camping_101_is_a_profession_quest_after_the_great_outdoors() {
+    let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Forever).unwrap();
+    let goal = |key: &str| fg_route::profession::ProfessionGoal {
+        key: key.into(),
+        target: 300,
+        start_level: None,
+        milestones: vec![],
+    };
+    let request = PlanRequest {
+        params: Some(overrides.params.with_overrides(&[]).unwrap()),
+        professions: vec![goal("skinning"), goal("leatherworking")],
+        ..request("tauren", "druid", 20, &[])
+    };
+    let p = job::prepare(&database_of("forever"), &overrides, &request, &|_| {}).unwrap();
+    // Camping 101: Skinning and Leatherworking at Kaga Wildhoof.
+    for id in [97936, 97934] {
+        let i = quest(&p, id).unwrap_or_else(|| panic!("Camping 101 {id} planned"));
+        let q = &p.model.quests[i as usize];
+        assert!(q.skill.is_some() && !q.mandatory, "{id}: optional, for the profession");
+        assert!(q.pre_any.contains(&96605), "{id}: after The Great Outdoors");
+    }
+    assert!(quest(&p, 97935).is_none(), "Camping 101: Mining without Mining");
+}

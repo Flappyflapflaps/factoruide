@@ -31,6 +31,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 ### Guides
 
 - The Great Outdoors is done in the starting camp right after The Adventurer: sitting at the campfire waits for no level (GitHub #35).
+- Camping 101 quests offered, optional, for the professions you level.
 
 ## 0.13.0 (2026-10-18)
 
