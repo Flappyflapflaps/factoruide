@@ -639,6 +639,7 @@ impl Editor {
             walks: Some(self.prepared.world.terrain.memory()),
             plan: steps,
             explicit: true,
+            end: None,
         })
     }
 

@@ -848,6 +848,8 @@ mod tests {
             time: 0.0,
             power: None,
             gear: None,
+            party: Vec::new(),
+            members: None,
             keep: false,
             event: None,
             spots: Vec::new(),
@@ -889,6 +891,9 @@ mod tests {
             spells: Vec::new(),
             checkpoints: Vec::new(),
             reputation: Vec::new(),
+            players: Vec::new(),
+            sync_max: None,
+            class_spells: Vec::new(),
             steps,
         }
     }

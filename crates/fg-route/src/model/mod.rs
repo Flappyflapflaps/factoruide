@@ -28,7 +28,8 @@ pub use guard::Guards;
 pub use loot::CommonLoot;
 pub use names::Names;
 pub use types::{
-    Dungeon, DungeonDef, EntityKind, ExploreArea, Guard, Initial, Loc, Model, Objective, ObjectiveOrder,
+    Dungeon, DungeonDef, EntityKind, ExploreArea, Guard, Initial, Loc, Mate, MateStart, Model, Objective,
+    ObjectiveOrder,
     ProfessionPlan, Profile, Quest, Spots, Teleport, TeleportDef, Vendor, race_bit,
 };
 
@@ -68,6 +69,19 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         &profile.spell_weights,
         params,
     )?;
+    // A group's other classes: the spells each one learns (the addon of each player trains its own).
+    let mut mate_spells = Vec::new();
+    for m in &profile.mates {
+        let mate = crate::power::PowerModel::load(
+            conn,
+            m.class_id,
+            m.race_id,
+            profile.to_level.max(60),
+            &m.spell_weights,
+            params,
+        )?;
+        mate_spells.push(mate.map(|p| p.ranks().map(|r| r.id).collect()).unwrap_or_default());
+    }
     let patrols = (sources.entities.paths.keys())
         .map(|&id| (id, sources.entities.path(world, id)))
         .filter(|(_, path)| path.len() >= 2)
@@ -102,6 +116,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         farm,
         loot,
         power,
+        mate_spells,
         rewards,
         dungeon_loot,
         patrols,
