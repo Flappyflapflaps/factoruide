@@ -137,6 +137,9 @@ pub fn plan_interruptible(
     for missing in planner.missing_zone_quests(&best) {
         prepared.notes.push(format!("zone quest not planned: {missing}"));
     }
+    for late in planner.late_timed_quests(&best) {
+        prepared.notes.push(format!("timed quest given up: {late}"));
+    }
     if !route.total_time.is_finite() {
         let why = planner
             .diagnose(&best)
