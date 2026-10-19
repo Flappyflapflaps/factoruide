@@ -79,7 +79,8 @@ local function Create()
                 if pasteCount < 20 then return end
                 pasted = table.concat(pasteParts, "", 1, pasteCount)
                 pasteParts, pasteCount = {}, 0
-                box:SetText("")
+                -- Its beginning only, to see something was pasted.
+                box:SetText(("%s… (%d KB)"):format(pasted:gsub("%s", ""):sub(1, 40), math.ceil(#pasted / 1024)))
                 box:ClearFocus()
                 Window:Status(T("Text pasted (%d KB): click the button below."):format(math.ceil(#pasted / 1024)))
             end)
