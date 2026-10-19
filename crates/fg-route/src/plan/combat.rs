@@ -36,8 +36,12 @@ impl Combat<'_> {
     /// the quest's level; talking and delivering nothing, nor using an object beside the quest's
     /// giver or turn-in (`Objective::beside_giver`).
     pub fn need(self, q: &Quest, o: &Objective) -> f64 {
+        // Beside the giver: the character stands there to talk to them anyway.
+        if o.beside_giver {
+            return 0.0;
+        }
         let guard = self.guard_need(&o.guard);
-        if o.beside_giver || o.kills <= 0.0 && o.uses <= 0.0 && o.loc.kind != EntityKind::Area {
+        if o.kills <= 0.0 && o.uses <= 0.0 && o.loc.kind != EntityKind::Area {
             return guard;
         }
         let mut need = q.level as f64;

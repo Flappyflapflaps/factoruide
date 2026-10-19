@@ -131,9 +131,8 @@ pub struct Objective {
     pub pack: f64,
     /// Hostile mobs around where it is done.
     pub guard: Guard,
-    /// An object used right beside the quest's giver or turn-in, no hostile mob around (the
-    /// campfire to sit at next to Kaga Wildhoof): done in their camp, out of any fight, it
-    /// requires no power, as talking to them.
+    /// An object used right beside the quest's giver or turn-in, no elite around (the campfire
+    /// to sit at next to Kaga Wildhoof): it requires no power, as talking to them.
     pub beside_giver: bool,
     /// The other places it can be done (other groups of its mobs or objects), each with what
     /// changes there: the mobs, their level and packs, the guards, the wait for respawns. The

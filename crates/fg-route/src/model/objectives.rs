@@ -15,16 +15,16 @@ use std::collections::HashMap;
 /// An object this close to the NPC giving or taking back the quest (yards) is used in their camp.
 const BESIDE_GIVER: f64 = 30.0;
 
-/// Objects used right beside the NPC giving or taking back the quest, no hostile mob around them (the
-/// campfire to sit at next to Kaga Wildhoof, The Great Outdoors): done in the camp, out of any
-/// fight, they require no power (`Objective::beside_giver`). The quest's level asked of them
+/// Objects used right beside the NPC giving or taking back the quest, no elite around them (the
+/// campfire to sit at next to Kaga Wildhoof, The Great Outdoors): the character stands there to
+/// talk to the NPC anyway, so they require no power (`Objective::beside_giver`). The quest's level asked of them
 /// otherwise made the character come back a level later, which the route never did.
 fn mark_beside_givers(givers: &Givers, objs: &mut [Objective]) {
     let beside = |o: &Objective| {
         o.dungeon.is_none()
             && o.kills <= 0.0
             && o.loc.kind == EntityKind::Object
-            && o.guard.count == 0
+            && !o.guard.elite
             && (givers.starts.iter().chain(&givers.ends))
                 .any(|l| l.kind == EntityKind::Npc && l.pos.dist(&o.loc.pos) <= BESIDE_GIVER)
     };
@@ -115,6 +115,12 @@ impl QuestBuilder<'_> {
             let kind = row.0;
             // The item the quest is offered for: in the bags from the accept on.
             if kind == ObjectiveKind::Item && row.1.is_some() && row.1 == givers.held {
+                continue;
+            }
+            // An item a child hands over (the Warsong scouts' updates): got at its hand-in, one
+            // of this quest's objectives.
+            let rewarded = |item: i64| self.sources.reward_of.get(&item).is_some_and(|q| q.iter().any(|q| children.contains(q)));
+            if kind == ObjectiveKind::Item && row.1.is_some_and(rewarded) {
                 continue;
             }
             if let Some(mut o) = self.objective(&quest, row)? {

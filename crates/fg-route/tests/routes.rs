@@ -1117,10 +1117,14 @@ fn link_open_while_a_quest_is_held() {
     let takes_it = |p: &mut Prepared, accepted: Vec<usize>, turned: Vec<usize>| {
         p.model.initial.accepted = accepted;
         p.model.initial.turned = turned;
+        // Quest 1 handed in after when in the log: kept there (one the route does nothing with
+        // is given up at the start).
+        let mut route = vec![Stop::quest(0, Kind::Objective(0))];
+        if p.model.initial.accepted.contains(&1) {
+            route.push(Stop::quest(1, Kind::TurnIn));
+        }
         let mut trace = Vec::new();
-        planner(p)
-            .simulate_full(&[Stop::quest(0, Kind::Objective(0))], Some(&mut trace))
-            .unwrap();
+        planner(p).simulate_full(&route, Some(&mut trace)).unwrap();
         trace
             .iter()
             .any(|t| matches!(t.event, Event::Link { first, .. } if p.world.links[first].name == "While quest 1 is held"))
@@ -2438,12 +2442,12 @@ fn campfire_beside_the_giver_needs_no_power() {
             q.min_level
         );
     }
-    // Only objects in a quiet camp count as beside the giver: never kills, never among mobs.
+    // Only objects count as beside the giver: never kills, never among elites.
     let p = prepare("human", "warrior", 30, &["progression=cautious"]);
     for q in &p.model.quests {
         for o in q.objectives.iter().filter(|o| o.beside_giver) {
             assert!(o.kills <= 0.0 && o.loc.kind == EntityKind::Object, "{}: {}", q.name, o.text);
-            assert_eq!(o.guard.count, 0, "{}: no hostile mob around", q.name);
+            assert!(!o.guard.elite, "{}: no elite around", q.name);
         }
     }
 }
@@ -2477,21 +2481,19 @@ fn camping_101_is_a_profession_quest_after_the_great_outdoors() {
 }
 
 /// The Warsong Reports (Horde, Ashenvale): Kadrak gives the Bundle of Reports with the quest,
-/// and the Warsong Report each scout's update asks for comes out of it. The updates are taken
-/// while The Warsong Reports is in the log, not before.
+/// each scout takes the Warsong Report out of it and hands over the update Kadrak asks for. The
+/// scouts' quests are handed in on the way (children of The Warsong Reports): their updates are
+/// got there, neither bought nor looked for, nor the report in the bundle.
 #[test]
-fn item_in_the_bag_a_quest_gives_needs_that_quest_held() {
+fn items_a_child_hands_over_are_got_at_its_hand_in() {
     let p = orc_warlock();
     let reports = quest(p, 6543).expect("The Warsong Reports planned");
-    let update = quest(p, 6545).expect("Warsong Runner Update planned");
-    let q = &p.model.quests[update as usize];
-    assert_eq!(q.pre_held, vec![6543]);
+    let q = &p.model.quests[reports as usize];
+    let children: Vec<i64> = q.objectives.iter().filter_map(|o| o.child).collect();
+    assert_eq!(children.len(), 3, "the three scouts' hand-ins: {children:?}");
     assert!(
-        q.objectives.iter().all(|o| o.loc.id != 16746),
-        "the Warsong Report is in the bundle, not looked for"
+        q.objectives.iter().all(|o| o.loc.kind != EntityKind::Item),
+        "no update to buy, no report to look for: {:?}",
+        q.objectives.iter().map(|o| &o.text).collect::<Vec<_>>()
     );
-    let planner = planner(p);
-    let take = Stop::quest(update, Kind::Accept);
-    assert!(planner.diagnose(&[take]).is_some(), "not before The Warsong Reports");
-    assert_eq!(planner.diagnose(&[Stop::quest(reports, Kind::Accept), take]), None);
 }
