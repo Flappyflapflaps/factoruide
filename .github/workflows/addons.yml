@@ -33,6 +33,10 @@ on:
         type: choice
         options: [release, beta, alpha]
         default: release
+      relations:
+        description: "Factoruide Guide requires Factoruide Profile on CurseForge (off while Profile awaits its approval: CurseForge refuses the relation)"
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -54,7 +58,7 @@ jobs:
             requires: ${{ vars.CURSEFORGE_PROFILE_SLUG }}
     env:
       ADDON: ${{ matrix.addon }}
-      REQUIRES: ${{ matrix.requires }}
+      REQUIRES: ${{ (inputs.tag || inputs.relations) && matrix.requires || '' }}
       TAG: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v5
