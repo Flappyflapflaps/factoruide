@@ -349,6 +349,10 @@ pub struct Quest {
     pub pre_all: Vec<i64>,
     pub pre_any: Vec<i64>,
     pub exclusive: Vec<i64>,
+    /// Quests to hold in the log when taking it: those whose starting item is a bag holding an
+    /// item it asks for (The Warsong Reports' Bundle of Reports, opened for the Warsong Report
+    /// each scout's update asks for).
+    pub pre_held: Vec<i64>,
     pub breadcrumb_for: Option<i64>,
     /// Work to get the item that starts the quest (kills at mob level, object uses).
     pub start_kills: f64,
