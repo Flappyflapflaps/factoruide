@@ -86,6 +86,9 @@ pub struct World {
     /// Named places of the zone maps (their exploration overlays): to tell which zone a point
     /// belongs to where zone maps overlap, and to name towns.
     landmarks: Vec<Landmark>,
+    /// Places up a building (`[[raised]]` of passes.toml): center, radius and the yards of
+    /// stairs or ramps walked to get there or back.
+    raised: Vec<(Pos, f64, f64)>,
 }
 
 /// A named place of a zone map (Ratchet, Valley of Trials...), at the center of its overlay.
@@ -263,6 +266,7 @@ impl World {
             taxi_by_x: Vec::new(),
             terrain: crate::terrain::Terrain::load(conn)?,
             landmarks: Vec::new(),
+            raised: Vec::new(),
         };
         world.landmarks = world.load_landmarks(conn)?;
         for i in 0..world.taxi_nodes.len() {
@@ -737,6 +741,19 @@ pub struct EnclosedDef {
     pub at: ZonePoint,
 }
 
+/// A place up a building (`[[raised]]` of `overrides/passes.toml`): the top of a watchtower,
+/// whose stairs the straight walk on the terrain does not see. Walking there from below, or back
+/// down, takes `climb` yards more.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct RaisedDef {
+    pub name: String,
+    pub at: ZonePoint,
+    /// Yards around `at` that are up there.
+    pub radius: f64,
+    /// Yards of stairs or ramps between up there and the ground.
+    pub climb: f64,
+}
+
 #[derive(Debug, Clone)]
 pub struct Pass {
     pub name: String,
@@ -809,6 +826,24 @@ impl World {
             }
         }
         warnings
+    }
+
+    /// Places up a building: walks between up there and elsewhere take their climb more. Before
+    /// the passages and links (their walks depend on it).
+    pub fn raise(&mut self, defs: &[RaisedDef]) {
+        self.raised = (defs.iter())
+            .filter_map(|d| Some((self.to_world(d.at.zone, d.at.x, d.at.y)?, d.radius, d.climb)))
+            .collect();
+    }
+
+    /// Yards of stairs between `a` and `b`: the climb of each raised place one of them is up and
+    /// the other not.
+    fn climb(&self, a: &Pos, b: &Pos) -> f64 {
+        let up = |p: &Pos, c: &Pos, r: f64| p.continent == c.continent && (p.x - c.x).hypot(p.y - c.y) <= r;
+        (self.raised.iter())
+            .filter(|(c, r, _)| up(a, c, *r) != up(b, c, *r))
+            .map(|(_, _, climb)| climb)
+            .sum()
     }
 
     /// Register passages; subzone positions come from the map exploration overlays.
@@ -1067,7 +1102,7 @@ impl World {
     /// Walk within a zone: around the steep terrain, straight when it does not know the way,
     /// infinite to or from an enclosed area.
     fn ground(&self, a: &Pos, b: &Pos, level: u8) -> f64 {
-        self.terrain.distance(a, b, level).unwrap_or_else(|| a.dist(b))
+        self.terrain.distance(a, b, level).unwrap_or_else(|| a.dist(b)) + self.climb(a, b)
     }
 
     /// Direct walk between close points of different zones when the terrain knows the way
