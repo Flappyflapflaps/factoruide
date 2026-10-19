@@ -1,0 +1,76 @@
+name: Web app
+
+# The web app built and deployed to Cloudflare Pages with its relay of /v1/* to the contribution
+# server (web/functions). From a release (release.yml, with its tag), or by hand from a branch
+# (main by default) to try it before one. Secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,
+# FG_PROXY_KEY (the key the server is started with) and FG_ORIGIN_HOST (the server's hidden name),
+# variable CLOUDFLARE_PAGES_PROJECT (default factoruide); the deployment is skipped without the
+# token.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The release's tag (vX.Y.Z)
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to deploy
+        default: main
+
+jobs:
+  web:
+    name: Web app
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || 'factoruide' }}
+      # The addon's page the app links to.
+      VITE_FG_ADDON_URL: ${{ vars.ADDON_URL }}
+      WASI_SDK: "34"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || inputs.ref }}
+          # The last tag, for the version shown when built by hand.
+          fetch-depth: 0
+      - name: Rust toolchain (from rust-toolchain.toml) and the browser's target
+        run: |
+          rustup toolchain install
+          rustup target add wasm32-wasip1-threads
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: wasi-sdk (the C parts of the backend)
+        run: |
+          curl -sSfL "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$WASI_SDK/wasi-sdk-$WASI_SDK.0-x86_64-linux.tar.gz" \
+            | tar xz -C "$RUNNER_TEMP"
+          echo "WASI_SDK_PATH=$RUNNER_TEMP/wasi-sdk-$WASI_SDK.0-x86_64-linux" >> "$GITHUB_ENV"
+      - name: Build
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          # A release: its version; by hand: the last tag's (scripts/build-web.sh).
+          if [ -n "$TAG" ]; then export FG_VERSION="${TAG#v}"; fi
+          scripts/build-web.sh
+      # The project (the first time) and the relay's settings, then the pages and the relay. By
+      # hand from another branch than main: a preview deployment, at its own address.
+      - name: Deploy
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        working-directory: web
+        env:
+          FG_PROXY_KEY: ${{ secrets.FG_PROXY_KEY }}
+          FG_ORIGIN_HOST: ${{ secrets.FG_ORIGIN_HOST }}
+          BRANCH: ${{ inputs.tag && 'main' || inputs.ref }}
+        run: |
+          npx --yes wrangler@4 pages project create "$PROJECT" --production-branch=main || true
+          if [ -n "$FG_PROXY_KEY" ] && [ -n "$FG_ORIGIN_HOST" ]; then
+            printf '%s' "$FG_PROXY_KEY" | npx --yes wrangler@4 pages secret put PROXY_KEY --project-name="$PROJECT"
+            printf '%s' "$FG_ORIGIN_HOST" | npx --yes wrangler@4 pages secret put ORIGIN_HOST --project-name="$PROJECT"
+          fi
+          npx --yes wrangler@4 pages deploy dist --project-name="$PROJECT" --branch="$BRANCH"

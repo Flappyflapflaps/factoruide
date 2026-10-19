@@ -1,0 +1,140 @@
+name: Addons
+
+# Each addon's folder alone, packaged and uploaded by the BigWigs packager to its CurseForge and
+# Wago projects (repository variables for their ids, secrets CF_API_KEY and WAGO_API_TOKEN for the
+# tokens; skipped without them).
+# - From a release (release.yml, with its tag): the addons whose version is the tag's
+#   (scripts/release.sh gives it to those changed since the last release), their zips added to
+#   the release.
+# - By hand: a branch (main by default) under the version given, to try the addons before a
+#   release; their zips are kept as the run's artifacts.
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The release's tag (vX.Y.Z)
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to publish
+        default: main
+      version:
+        description: Version the addons are published under (X.Y.Z)
+        required: true
+      addons:
+        description: Addons to publish
+        type: choice
+        options: [both, Factoruide_Profile, Factoruide_Guide]
+        default: both
+      channel:
+        description: CurseForge and Wago channel
+        type: choice
+        options: [release, beta, alpha]
+        default: release
+
+permissions:
+  contents: write
+
+jobs:
+  addon:
+    name: Addon ${{ matrix.addon }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - addon: Factoruide_Profile
+            curseforge: ${{ vars.CURSEFORGE_PROFILE_ID }}
+            wago: ${{ vars.WAGO_PROFILE_ID }}
+          - addon: Factoruide_Guide
+            curseforge: ${{ vars.CURSEFORGE_GUIDE_ID }}
+            wago: ${{ vars.WAGO_GUIDE_ID }}
+            # The CurseForge project it needs (a relation of each file uploaded).
+            requires: ${{ vars.CURSEFORGE_PROFILE_SLUG }}
+    env:
+      ADDON: ${{ matrix.addon }}
+      REQUIRES: ${{ matrix.requires }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || inputs.ref }}
+      - name: Version
+        id: version
+        env:
+          VERSION: ${{ inputs.version }}
+          ONLY: ${{ inputs.addons }}
+          CHANNEL: ${{ inputs.channel }}
+          REF: ${{ inputs.ref }}
+        run: |
+          toc="addon/$ADDON/$ADDON.toc"
+          if [ -n "$TAG" ]; then
+            version="${TAG#v}"
+            if ! grep -q "^## Version: $version$" "$toc"; then
+              echo "$ADDON: unchanged since its last release, not published"
+              exit 0
+            fi
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            git tag -l --format='%(contents)' "$TAG" > "$RUNNER_TEMP/CHANGES.md"
+            label="$TAG"
+          else
+            case $VERSION in
+              [0-9]*.[0-9]*.[0-9]*) ;;
+              *) echo "version X.Y.Z expected, got '$VERSION'" >&2; exit 1 ;;
+            esac
+            if [ "$ONLY" != both ] && [ "$ONLY" != "$ADDON" ]; then
+              echo "$ADDON: not asked for"
+              exit 0
+            fi
+            version="$VERSION"
+            # The packager takes the channel from the tag: "-beta" or "-alpha" in it.
+            label="v$version"
+            [ "$CHANNEL" = release ] || label="$label-$CHANNEL"
+            echo "Built from $(git rev-parse --short HEAD) of $REF, to try before a release." > "$RUNNER_TEMP/CHANGES.md"
+          fi
+          {
+            echo "publish=true"
+            echo "version=$version"
+            echo "label=$label"
+          } >> "$GITHUB_OUTPUT"
+      # The folder as its own repository, tagged with the label: the packager zips it whole,
+      # names it after the tag and takes CHANGES.md as its changelog.
+      - name: Addon folder
+        if: steps.version.outputs.publish
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          LABEL: ${{ steps.version.outputs.label }}
+        run: |
+          pkg="$RUNNER_TEMP/$ADDON"
+          cp -r "addon/$ADDON" "$pkg"
+          sed -i "s/^## Version: .*/## Version: $VERSION/" "$pkg/$ADDON.toc"
+          mv "$RUNNER_TEMP/CHANGES.md" "$pkg/CHANGES.md"
+          printf 'package-as: %s\nmanual-changelog:\n  filename: CHANGES.md\n  markup-type: markdown\n' "$ADDON" > "$pkg/.pkgmeta"
+          if [ -n "$REQUIRES" ]; then printf 'required-dependencies:\n  - %s\n' "$REQUIRES" >> "$pkg/.pkgmeta"; fi
+          cd "$pkg"
+          git init -q
+          git add -A
+          git -c user.name=Factoruide -c user.email=release@factoruide.invalid commit -q -m "$LABEL"
+          git tag "$LABEL"
+      - uses: BigWigsMods/packager@v2
+        if: steps.version.outputs.publish
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+        with:
+          args: >-
+            -t ${{ runner.temp }}/${{ matrix.addon }} -r ${{ runner.temp }}/release
+            ${{ matrix.curseforge && format('-p {0}', matrix.curseforge) || '' }}
+            ${{ matrix.wago && format('-a {0}', matrix.wago) || '' }}
+      - name: Zip in the release
+        if: steps.version.outputs.publish && inputs.tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$RUNNER_TEMP"/release/*.zip --clobber
+      - name: Zip kept with the run
+        if: steps.version.outputs.publish && !inputs.tag
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.addon }}
+          path: ${{ runner.temp }}/release/*.zip
