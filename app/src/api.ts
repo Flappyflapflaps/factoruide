@@ -583,6 +583,8 @@ export const api = {
   importProfile: (content: string) => invoke<ProfileImported>("import_profile", { content }).then((r) => (settingsChanged(), r)),
   /** Web build: what to take to the game (made again when the guides or the settings changed). */
   addonExport: () => invoke<AddonExport>("addon_export").then((r) => (settingsChanged(), r)),
+  /** Web build: downloads the guides followed as the data addon (Factoruide_Data, as the desktop app writes it) in a zip; returns its name. */
+  dataZip: () => invoke<WebFile>("data_zip").then(saved),
   /** Web build, WoW Forever: downloads the guides followed as a Polestar guide pack (a zip of its addon folder); returns its name. */
   polestarPack: () => invoke<WebFile>("polestar_pack").then(saved),
   onPlanProgress: (fn: (m: string) => void): Promise<UnlistenFn> =>

@@ -111,6 +111,10 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
     assert!(lua.contains("FG.Routes[\"Brouz web\"]"), "the guide");
     assert!(lua.contains("[\"Brouz-Realm\"] = \"Brouz web\""), "who follows it");
     assert!(lua.contains("FG.Services"), "the places");
+    // The same as the data addon, zipped.
+    let zip = call("data_zip", &serde_json::json!({})).unwrap();
+    assert_eq!(zip["file"], "Factoruide_Data.zip");
+    assert!(zip["base64"].as_str().unwrap().len() > 1000);
     assert!(
         !lua.contains("FG.Config") && !lua.contains("FactoruideSent"),
         "no settings, no sends"

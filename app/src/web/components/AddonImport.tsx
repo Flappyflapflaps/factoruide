@@ -40,7 +40,7 @@ export function AddonImport({ edition, onClose }: { edition: Edition | null; onC
       {!exported && !error && <p className="muted">{t("Préparation…")}</p>}
       {exported && (
         <>
-          <p>{t("Guides dans le texte : {n}.", { n: exported.guides })}</p>
+          <p>{t("Guides dans le texte : {n}.", { n: exported.guides })} {t("Ou, sans copier-coller, téléchargez le dossier Factoruide_Data à décompresser dans le dossier des addons du jeu.")}</p>
           <ol className="web-steps">
             <li>{t("Copiez le texte ci-dessous.")}</li>
             <li>{t("En jeu, tapez /fg import et collez-le dans la fenêtre (Ctrl+V).")}</li>
@@ -51,6 +51,9 @@ export function AddonImport({ edition, onClose }: { edition: Edition | null; onC
               {copied ? t("Copié ✓") : t("Copier le texte")}
             </button>
             <span className="muted">{t("{size} Ko", { size: Math.ceil(exported.text.length / 1024) })}</span>
+            <button onClick={() => api.dataZip().catch((e) => setError(String(e)))} title={t("Sans copier-coller : décompressez le zip dans le dossier Interface\\AddOns du jeu (il contient le dossier Factoruide_Data, qui remplace l'ancien), puis redémarrez le jeu s'il était ouvert.")}>
+              {t("Dossier Factoruide_Data (.zip)")}
+            </button>
             {edition === "forever" && (
               <button onClick={() => api.polestarPack().catch((e) => setError(String(e)))} title={t("Les mêmes guides pour Polestar : décompressez le pack dans le dossier Interface\\AddOns de WoW Forever.")}>
                 {t("Pack Polestar (.zip)")}

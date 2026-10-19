@@ -666,6 +666,20 @@ fn addon_synced() -> bool {
         && settings.addon_installed.as_deref() == Some(addon_snapshot(edition).as_str())
 }
 
+/// The same guides as the text for the game, as the data addon the desktop app writes
+/// (Factoruide_Data): a zip to unzip in the game's AddOns folder, nothing to paste.
+fn data_zip() -> CmdResult<serde_json::Value> {
+    let lua = String::from_utf8(fgstring::decode(fgstring::GUIDE_PREFIX, &addon_export()?.text)?).map_err(err)?;
+    let files: Vec<(String, Vec<u8>)> = job::data_addon_files(&lua, embedded::ADDON_INTERFACE, APP_VERSION, now()?)
+        .into_iter()
+        .map(|(name, content)| (format!("{}/{name}", job::DATA_ADDON), content.into_bytes()))
+        .collect();
+    Ok(serde_json::json!({
+        "file": format!("{}.zip", job::DATA_ADDON),
+        "base64": base64(&crate::zip::zip(&files)),
+    }))
+}
+
 /// WoW Forever: the guides the characters follow as a guide pack for Polestar, a zip of its
 /// addon folder to unzip in the game's AddOns folder.
 fn polestar_pack() -> CmdResult<serde_json::Value> {
@@ -1313,6 +1327,7 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         "install_addon" => to_json(install_addon()),
         "addon_export" => to_json(addon_export()),
         "polestar_pack" => polestar_pack(),
+        "data_zip" => data_zip(),
         "addon_synced" => Ok(Value::Bool(addon_synced())),
         "addon_health" => to_json(Ok(addon_health())),
         // Polestar is installed in the game: the browser cannot tell, the player says.

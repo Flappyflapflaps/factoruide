@@ -11,6 +11,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { CharactersPage } from "./pages/CharactersPage";
 import { ChangelogPage } from "./pages/ChangelogPage";
 import { ContributePage } from "./pages/ContributePage";
+import { HomePage } from "./pages/HomePage";
 import { NeedHelpPage } from "./pages/NeedHelpPage";
 import { IssueForm } from "./components/IssueForm";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -24,9 +25,10 @@ const ISSUES_URL = "https://github.com/brouznouf/factoruide/issues";
 
 const EDITION_LABELS: Record<Edition, string> = { forever: "Forever", classic: "Classic", tbc: "TBC" };
 
-type Page = "characters" | "plan" | "results" | "contribute" | "help" | "settings" | "changelog" | "report";
+type Page = "home" | "characters" | "plan" | "results" | "contribute" | "help" | "settings" | "changelog" | "report";
 
 const PAGES: { id: Page; label: string }[] = [
+  { id: "home", label: "Accueil" },
   { id: "plan", label: "Nouveau guide" },
   { id: "characters", label: "Personnages" },
   { id: "results", label: "Guides" },
@@ -65,7 +67,7 @@ export default function App() {
 
 function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
   const t = useT();
-  const [page, setPage] = useState<Page>("plan");
+  const [page, setPage] = useState<Page>("home");
   const main = useRef<HTMLElement>(null);
   useEffect(() => {
     if (page) main.current?.focus({ preventScroll: true });
@@ -281,6 +283,16 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
             onEdit={(v: GuideVersion) => openWizard({ initial: v.request, rerun: false })}
             onClone={(v: GuideVersion) => openWizard({ initial: { ...v.request, name: t("{name} (copie)", { name: v.request.name ?? v.meta.name }) }, rerun: false })}
             onUnsaved={setUnsaved}
+          />
+        )}
+        {page === "home" && (
+          <HomePage
+            key={edition ?? ""}
+            editionName={editions.find((e) => e.key === edition)?.name ?? ""}
+            onNewGuide={() => openWizard({ initial: null, rerun: false })}
+            onCharacters={() => setPage("characters")}
+            onGuides={() => setPage("results")}
+            onAddon={openAddonSite}
           />
         )}
         {page === "changelog" && <ChangelogPage />}

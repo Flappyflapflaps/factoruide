@@ -35,8 +35,16 @@ fn main() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut overrides = Vec::new();
     files(&root.join("overrides"), "", &["toml"], &[], &mut overrides);
+    // The game versions the guide addon declares, for the data addon's .toc.
+    let toc_path = root.join("addon/Factoruide_Guide/Factoruide_Guide.toc");
+    println!("cargo:rerun-if-changed={}", toc_path.display());
+    let toc = std::fs::read_to_string(&toc_path).unwrap();
+    let interface = toc
+        .lines()
+        .find(|l| l.starts_with("## Interface:"))
+        .unwrap_or("## Interface: 11508");
     let out = format!(
-        "pub const OVERRIDES: &[(&str, &[u8])] = &[\n{}];\n",
+        "pub const OVERRIDES: &[(&str, &[u8])] = &[\n{}];\npub const ADDON_INTERFACE: &str = {interface:?};\n",
         list(&mut overrides)
     );
     std::fs::write(Path::new(&std::env::var("OUT_DIR").unwrap()).join("embedded.rs"), out).unwrap();
