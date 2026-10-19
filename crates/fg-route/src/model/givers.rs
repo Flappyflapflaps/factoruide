@@ -110,17 +110,20 @@ impl QuestBuilder<'_> {
         Ok(givers)
     }
 
-    /// The item quest `quest`'s NPC offers it for: one of its objectives, got from an object the
-    /// sources also give as a starter (the library's books, "The Dalaran Digest": the librarian
-    /// offers it only while the book is in the bags, GitHub #29).
+    /// The item quest `quest`'s NPC offers it for: one of its objectives that the data also
+    /// gives as a starter, itself or the object it is looted from (the library's books, "The
+    /// Dalaran Digest": the librarian offers it only while the book is in the bags, GitHub #29).
+    /// The book is looted first, then the quest is taken and turned in at once at the librarian.
     fn held_item(&self, quest: i64, relations: &[(Role, EntityKind, i64)]) -> Option<i64> {
         let starts = |k: EntityKind| {
             relations
                 .iter()
                 .filter(move |(r, kind, _)| *r == Role::Start && *kind == k)
+                .map(|(_, _, id)| *id)
         };
         starts(EntityKind::Npc).next()?;
-        let objects: Vec<i64> = starts(EntityKind::Object).map(|(_, _, id)| *id).collect();
+        let objects: Vec<i64> = starts(EntityKind::Object).collect();
+        let items: Vec<i64> = starts(EntityKind::Item).collect();
         self.sources
             .objectives
             .get(&quest)?
@@ -129,10 +132,8 @@ impl QuestBuilder<'_> {
             .find_map(|o| {
                 let item = o.1?;
                 let origins = self.sources.item_origins.get(&item)?;
-                origins
-                    .iter()
-                    .any(|(t, id)| *t == SourceKind::Object && objects.contains(id))
-                    .then_some(item)
+                let from_starter = (origins.iter()).any(|(t, id)| *t == SourceKind::Object && objects.contains(id));
+                (from_starter || items.contains(&item)).then_some(item)
             })
     }
 
