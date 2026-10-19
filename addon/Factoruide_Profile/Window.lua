@@ -20,7 +20,7 @@ local function Create()
     frame = CreateFrame("Frame", "FactoruideTextWindow", UIParent, "BackdropTemplate")
     frame:SetSize(560, 340)
     frame:SetPoint("CENTER")
-    -- Over the addon's window (FULLSCREEN_DIALOG, opened from it).
+    -- Over the game's options (SettingsPanel: HIGH), from which it opens.
     frame:SetFrameStrata("FULLSCREEN_DIALOG")
     frame:SetFrameLevel(100)
     frame:SetClampedToScreen(true)

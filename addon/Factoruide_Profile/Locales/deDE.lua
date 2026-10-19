@@ -164,8 +164,6 @@ FG.Locales.deDE = {
     ["Ctrl + mouse wheel: its size"] = "Strg + Mausrad: Größe",
     ["Drag an end: its width"] = "Ein Ende ziehen: Breite",
     ["compass back at the top of the screen, at its first size"] = "Kompass zurück oben am Bildschirm, in seiner ursprünglichen Größe",
-    ["compass shown"] = "Kompass angezeigt",
-    ["compass hidden"] = "Kompass ausgeblendet",
     ["windows locked"] = "Fenster gesperrt",
     ["windows unlocked: drag them to move them"] = "Fenster entsperrt: zum Verschieben ziehen",
 }

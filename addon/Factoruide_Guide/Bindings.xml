@@ -1,10 +1,37 @@
 <Bindings>
     <Binding name="CLICK FGItemButton:LeftButton" header="FACTORUIDE" category="ADDONS">
     </Binding>
+    <Binding name="FACTORUIDE_NEXT" category="ADDONS">
+        Factoruide.Guide:NextGroup()
+    </Binding>
+    <Binding name="FACTORUIDE_PREV" category="ADDONS">
+        Factoruide.Guide:PrevGroup()
+    </Binding>
+    <Binding name="FACTORUIDE_SKIP" category="ADDONS">
+        Factoruide.Guide:SkipCurrent()
+    </Binding>
+    <Binding name="FACTORUIDE_UNDO" category="ADDONS">
+        Factoruide.Guide:UndoLastMark()
+    </Binding>
+    <Binding name="FACTORUIDE_SPOT" category="ADDONS">
+        Factoruide.Guide:NextSpot()
+    </Binding>
     <Binding name="FACTORUIDE_MODE" category="ADDONS">
         Factoruide.Guide:ToggleMode()
     </Binding>
+    <Binding name="FACTORUIDE_GUIDE" category="ADDONS">
+        Factoruide.Guide:ToggleShown()
+    </Binding>
+    <Binding name="FACTORUIDE_UI" category="ADDONS">
+        Factoruide:ToggleUI()
+    </Binding>
+    <Binding name="FACTORUIDE_TIME" category="ADDONS">
+        Factoruide.Timing:Print()
+    </Binding>
     <Binding name="FACTORUIDE_WIND" category="ADDONS">
         Factoruide.Wind:Gust()
+    </Binding>
+    <Binding name="FACTORUIDE_OPTIONS" category="ADDONS">
+        Factoruide:OpenSettings()
     </Binding>
 </Bindings>

@@ -139,7 +139,7 @@ function GuideTextDialog({ text, onClose }: { text: string; onClose: () => void 
             <ol className="export-steps">
               <li>{t("Copiez le texte ci-dessous.")}</li>
               <li>{t("En jeu, tapez /fg, cliquez sur « Importer un guide… », collez-le (Ctrl+V), puis Importer.")}</li>
-              <li>{t("Choisissez le guide de votre personnage dans la fenêtre /fg, page Guides (d'office s'il est le seul de sa race et de sa classe).")}</li>
+              <li>{t("Choisissez le guide de votre personnage en jeu avec /fg (d'office s'il est le seul de sa race et de sa classe).")}</li>
             </ol>
             <div className="row">
               <button className="primary" onClick={copy}>

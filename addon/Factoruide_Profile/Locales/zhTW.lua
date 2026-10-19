@@ -164,8 +164,6 @@ FG.Locales.zhTW = {
     ["Ctrl + mouse wheel: its size"] = "Ctrl + 滑鼠滾輪：大小",
     ["Drag an end: its width"] = "拖曳一端：寬度",
     ["compass back at the top of the screen, at its first size"] = "羅盤已回到螢幕頂端，恢復初始大小",
-    ["compass shown"] = "羅盤已顯示",
-    ["compass hidden"] = "羅盤已隱藏",
     ["windows locked"] = "視窗已鎖定",
     ["windows unlocked: drag them to move them"] = "視窗已解鎖：拖曳即可移動",
 }

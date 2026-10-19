@@ -289,7 +289,7 @@ local function Generate(json)
         "-- `luajit addon/tools/settings.lua` from the repository root. Do not edit.",
         "local FG = Factoruide",
         "",
-        "-- The settings in groups and sections, as the settings window shows them; texts in English.",
+        "-- The settings in groups and sections, as the game's options show them; texts in English.",
     }
     Emit(out, 0, "FG.SettingsSchema = ", { fields = groups }, "")
     out[#out + 1] = ""

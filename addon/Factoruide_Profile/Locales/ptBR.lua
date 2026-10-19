@@ -164,8 +164,6 @@ FG.Locales.ptBR = {
     ["Ctrl + mouse wheel: its size"] = "Ctrl + roda do mouse: seu tamanho",
     ["Drag an end: its width"] = "Arrastar uma ponta: sua largura",
     ["compass back at the top of the screen, at its first size"] = "bússola de volta ao topo da tela, no tamanho original",
-    ["compass shown"] = "bússola visível",
-    ["compass hidden"] = "bússola escondida",
     ["windows locked"] = "janelas travadas",
     ["windows unlocked: drag them to move them"] = "janelas destravadas: arraste-as para movê-las",
 }

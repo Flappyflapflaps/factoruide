@@ -24,4 +24,4 @@ Collector.lua
 Profile.lua
 Window.lua
 Export.lua
-Menu.lua
+Options.lua

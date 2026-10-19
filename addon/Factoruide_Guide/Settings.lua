@@ -1,4 +1,4 @@
--- The addon's settings, chosen in game (`/fg`, SettingsWindow.lua) and kept in the saved
+-- The addon's settings, chosen in game (`/fg`: the game's options, Options.lua) and kept in the saved
 -- variables, the same for every character: FactoruideDB.settings = { [key] = value }. A setting
 -- never chosen has its default. Their schema is addon/settings.json, written into
 -- SettingsSchema.lua (FG.SettingsSchema). The app's Config.lua (older versions) and the `Config` of
@@ -6,8 +6,8 @@
 
 local FG = Factoruide
 
--- Every frame of the guide hangs on this one: "Hide the addon's windows" hides them all at once. Only visual
--- frames: the event handlers keep running while hidden.
+-- Every frame of the guide hangs on this one: "Show or hide all the addon's windows" (a key binding)
+-- hides them all at once. Only visual frames: the event handlers keep running while hidden.
 FG.UIRoot = CreateFrame("Frame", "FactoruideUI", UIParent)
 FG.UIRoot:SetAllPoints(UIParent)
 
@@ -33,8 +33,8 @@ for locale, texts in pairs(FG.SettingsTexts or {}) do
 end
 FG.SettingsTexts = nil
 
--- Settings only changed in game, outside the settings window.
--- The whole addon's UI ("Hide the addon's windows" in `/fg`), for the session only.
+-- Settings only changed in game, outside the options.
+-- The whole addon's UI (a key binding shows or hides it), for the session only.
 FG.defaults.uiShown = true
 -- The next steps: their tab ("next" steps or quests to "pickup").
 FG.defaults.nextTab = "next"
@@ -127,6 +127,9 @@ function FG:UIWanted()
     return self:Get("uiShown")
 end
 
+--- Hide every window and mark of the addon, or show them again (a key binding).
+function FG:ToggleUI() self:SetUIShown(not self:UIWanted()) end
+
 --- Keep a setting (nil: back to its default). Applied at once (its listeners run).
 function FG:Save(key, value)
     local saved = Saved()
@@ -143,20 +146,6 @@ function FG:ToggleLock()
     self:Save("lockFrames", locked)
     self:Print(locked and FG.T("windows locked") or FG.T("windows unlocked: drag them to move them"))
 end
-
-FG:AddAction({
-    id = "hide",
-    section = "Windows",
-    label = function() return FG:UIWanted() and "Hide the addon's windows" or "Show the addon's windows" end,
-    help = "Every window and mark of the addon, until you show them again or reload the interface.",
-    run = function() FG:SetUIShown(not FG:UIWanted()) end,
-})
-FG:AddAction({
-    id = "lock",
-    section = "Windows",
-    label = function() return FG:Get("lockFrames") and "Unlock the windows" or "Lock the windows" end,
-    run = function() FG:ToggleLock() end,
-})
 
 -- Ctrl + mouse wheel over a window changes the size of the windows (`zoom(delta)` instead: its
 -- own size). The wheel is only taken while Ctrl is held, so that it still zooms the camera
@@ -258,7 +247,7 @@ FG:On("MODIFIER_STATE_CHANGED", function(key, down)
     end
 end)
 
---- The settings kept in game before the settings window (FactoruideDB.ui: the window size, the
+--- The settings kept in game before the options (FactoruideDB.ui: the window size, the
 --- guide's mode, the tabs...) move to FactoruideDB.settings once.
 function FG.MoveOldSettings()
     local saved, old = Saved(), type(FactoruideDB) == "table" and FactoruideDB.ui

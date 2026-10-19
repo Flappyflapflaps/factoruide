@@ -27,8 +27,8 @@ zones to do, the level to reach before moving on from each, and where the XP is.
 ## A guide that fits you
 
 - **Your character**: race, class and level range: start a guide at level 1, or from your
-  character as it is in game. The addon records it at each logout (or at once from its window:
-  **Save the profile now**): pick it in the list of the new guide and the guide goes on from where it
+  character as it is in game. The addon records it at each logout (or at once from its page of
+  the game's options: **Save the profile now**): pick it in the list of the new guide and the guide goes on from where it
   stands: its quests done are left out, those in its log are taken again when they help (as if
   never taken) and abandoned as the first step otherwise, from its position, with its
   hearthstone, flight paths, rested XP, gear, spells and professions.
@@ -48,7 +48,7 @@ zones to do, the level to reach before moving on from each, and where the XP is.
 - **Your group**: level in a duo or a group with other classes: faster fights, shared XP with the
   group bonus, quest items for everyone, each class's quests and trainers.
 - **Your language**: the app and the guide in 10 languages. A guide is computed once and shown in
-  the app's language; the addon writes it in the language you choose on its page.
+  the app's language; the addon writes it in the language you choose in its options.
 
 ![A new guide: character, professions, play style, dungeons by level and the zones to prefer or exclude on the map](docs/new-guide.png)
 
@@ -86,7 +86,8 @@ zones to do, the level to reach before moving on from each, and where the XP is.
      (`libwebkit2gtk-4.1-0` on Debian/Ubuntu, `webkit2gtk4.1` on Fedora, `webkit2gtk-4.1` on Arch).
 2. **Settings**: choose your WoW folder. Install the addon from
    [CurseForge](https://www.curseforge.com/wow/search?search=factoruide) (or your addon manager)
-   and set it up in game in its window (`/fg`): the app warns when it is missing or too old.
+   and set it up in game: `/fg` opens the addon's page in the game's options (AddOns →
+   Factoruide). The app warns when it is missing or too old.
 3. **New guide**: pick your character, professions, zones, dungeons and play style, then start
    the generation (about 2 minutes, 6 for a thorough one, depending on the processor). The best
    starting routes are picked first, then improved in rounds where the better half goes on: their
@@ -150,7 +151,7 @@ Warcraft`); choose another folder in Settings if needed.
 
 The app also builds as a website: a folder of static files where the guides are computed in
 the browser (`scripts/build-web.sh`). The browser cannot reach the game's folder: characters
-come from the game with **Export my character** in the addon's window (pasted in New guide), and
+come from the game with **Export my character** in the addon's options (pasted in New guide), and
 guides go to it with **Import a guide…** (the text a guide's Export gives). See
 [web/README.md](web/README.md).
 
@@ -159,10 +160,13 @@ guides go to it with **Import a guide…** (the text a guide's Export gives). Se
 The addon comes in two parts, installed from CurseForge: **Factoruide_Profile** records your
 character and what the game shows (profile, collector below; **Export my character** gives it to
 the web app), **Factoruide_Guide** shows the guide and everything around it. Each can go without
-the other: another addon can show your guides. Everything happens in one window, `/fg` (or
-`/factoruide`): its **Actions** page has a button for each thing (show or hide the guide, steps,
-windows, compass, export, import...), then the **Guides** page (the guides imported: choose the
-one each character follows, delete them) and the settings.
+the other: another addon can show your guides. `/fg` (or `/factoruide`) opens the addon's page in
+the game's options (AddOns → Factoruide): the character (**Export my character**, **Save the
+profile now**) and the guides (choose the one each character follows, start over, import, delete),
+then a page per group of settings and an Advanced page (the recordings). What you do while
+playing is on the guide's buttons and in the game's key bindings (Factoruide section): next and
+previous step, mark a step done, undo the last mark, next spot, full or minimal guide, show or
+hide the guide or all the addon's windows, time per level, quest item, gust of wind, the options.
 On WoW Forever with [Polestar](https://github.com/fitzforge/polestar) installed, the app also
 writes your guides as a Polestar guide pack (Factoruide_Polestar; the web app downloads it). In Polestar, choose Factoruide
 under "Suggest guides from" on the "Community guides" page: it offers each character the guide of
@@ -173,22 +177,23 @@ pack). Exporting another guide adds its `.guide` file to the pack and keeps the 
 a guide again replaces its file. `fg polestar --source --out <dir>` writes such a pack from the
 planned routes.
 
-- Guide: follows the guide chosen for the character (in the window's Guides page; the only one of
-  its race and class by itself) and advances by itself; previous and next step, mark a step done,
-  start over in the window. Two modes: full (a card with the current tasks, the next steps and
+- Guide: follows the guide chosen for the character (in the options' guides; the only one of
+  its race and class by itself) and advances by itself; previous and next step, start over on the
+  guide's buttons, mark a step done with a right click or a key binding. Two modes: full (a card with the current tasks, the next steps and
   the talent to learn) or minimal (a strip at the top of the screen, the next steps on
   mouse-over); a button or a key binding switches. Mobs living in several places: the compass
-  moves on to another place when nothing is found at one (**Next spot** at once), and the world
+  moves on to another place when nothing is found at one (**Next spot**, a key binding, at once), and the world
   map shows them all.
-- **Hide the guide** shows or hides the guide only; **Hide the addon's windows** hides all of its
-  windows and marks (guide, compass or wind, quest panel, quest item button, XP bar mark, map pins
-  and waypoint, the upgrade line of item tooltips, safety alerts) and the same button brings them
-  back as they were. For the session only: progress is kept and the automation goes on; clicked
-  in combat, it applies when the fight ends.
-- Windows move by dragging them anywhere; **Lock the windows** locks them (or unlocks them). Size:
+- **Show or hide the guide** (a key binding, or the setting) shows or hides the guide only;
+  **Show or hide all the addon's windows** (a key binding) hides all of its windows and marks
+  (guide, compass or wind, quest panel, quest item button, XP bar mark, map pins and waypoint, the
+  upgrade line of item tooltips, safety alerts) and the same key brings them back as they were.
+  For the session only: progress is kept and the automation goes on; pressed in combat, it
+  applies when the fight ends.
+- Windows move by dragging them anywhere; **Lock the windows** (a setting) locks them. Size:
   Ctrl + mouse wheel over a window, or the window size setting.
 - The compass: drag it to move it, Ctrl + mouse wheel over it for its own size, drag its ends for
-  its width (kept per character); a button hides or shows it, **Compass back to the top** puts it
+  its width (kept per character); a setting hides or shows it, **Compass back to the top** puts it
   back at the top of the screen at its first size. In minimal mode it sits on the strip and moves
   with it.
 - Helpers: a compass bar at the top of the screen with the step to go to (it stands out, with its

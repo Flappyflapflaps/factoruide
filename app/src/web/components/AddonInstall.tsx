@@ -9,7 +9,7 @@ export function AddonInstall() {
   return (
     <section className="panel web-install">
       <h3>{t("Installer l'addon")}</h3>
-      <p>{t("Installez l'addon Factoruide depuis CurseForge (ou votre gestionnaire d'addons), comme n'importe quel addon : il se met à jour de la même façon. Tout se fait dans sa fenêtre en jeu : /fg.")}</p>
+      <p>{t("Installez l'addon Factoruide depuis CurseForge (ou votre gestionnaire d'addons), comme n'importe quel addon : il se met à jour de la même façon. Tout se règle dans les options du jeu (AddOns → Factoruide) : /fg.")}</p>
       <div className="row">
         <a className="button primary" href={ADDON_URL} target="_blank" rel="noopener">
           {t("Page de l'addon")}

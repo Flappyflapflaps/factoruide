@@ -50,6 +50,8 @@ CreateFrame = function(kind, name, parent)
     function f:SetAlpha(a) self._alpha = a end
     function f:GetAlpha() return self._alpha or 1 end
     function f:IsShown() return self._shown end
+    function f:SetEnabled(enabled) self._enabled = enabled end
+    function f:IsEnabled() return self._enabled ~= false end
     function f:GetName() return self._name end
     function f:SetParent(p) self._parent = p end
     function f:GetParent() return self._parent end
@@ -67,31 +69,162 @@ CreateVector2D = function(x, y)
         GetXY = function() return x, y end,
     }
 end
-MinimalSliderWithSteppersMixin = { Label = {} }
-local settingsRegistered = 0
-local addonCategory -- the page of the game's options (AddOns)
-Settings = {
-    VarType = { Boolean = "boolean", Number = "number" },
-    RegisterVerticalLayoutCategory = function()
-        return {
-            GetID = function() return 1 end,
-        }
-    end,
-    RegisterProxySetting = function()
-        settingsRegistered = settingsRegistered + 1
-        return {}
-    end,
-    CreateCheckbox = function() end,
-    CreateSliderOptions = function()
-        return { SetLabelFormatter = function() end }
-    end,
-    CreateSlider = function() end,
-    RegisterCanvasLayoutCategory = function(frame, name)
-        return { frame = frame, name = name, GetID = function() return 2 end }
-    end,
-    RegisterAddOnCategory = function(category) addonCategory = category end,
-    OpenToCategory = function() end,
-}
+-- The game's options (Blizzard_Settings), recorded: categories and their controls (initializers),
+-- the proxy settings by variable, the category opened. Checks what the game checks (value types).
+local options = { categories = {}, settings = {}, notified = {}, opened = nil }
+MinimalSliderWithSteppersMixin = { Label = { Left = 1, Right = 2 } }
+do
+    local function Initializer(data)
+        local init = { data = data, predicates = {} }
+        function init:SetParentInitializer(parent, predicate)
+            assert(parent and parent ~= self, "a parent initializer")
+            self.parent = parent
+            if predicate then table.insert(self.predicates, predicate) end
+        end
+        function init:AddModifyPredicate(predicate) table.insert(self.predicates, predicate) end
+        function init:AddSearchTags() end
+        function init:GetSetting() return self.data.setting end
+        --- Whether the game lets it be changed now (its predicates).
+        function init:Enabled()
+            for _, predicate in ipairs(self.predicates) do
+                if not predicate() then return false end
+            end
+            return true
+        end
+        return init
+    end
+    local function Category(name, parent, frame)
+        local category = { name = name, parent = parent, frame = frame, initializers = {}, subcategories = {} }
+        category.id = #options.categories + 1
+        function category:GetID() return self.id end
+        if parent then
+            assert(not parent.registered, "subcategory " .. name .. " added after its category's registration")
+            table.insert(parent.subcategories, category)
+        end
+        table.insert(options.categories, category)
+        return category, category
+    end
+    local function Add(category, init)
+        table.insert(category.initializers, init)
+        return init
+    end
+    SettingsPanel = {
+        GetLayout = function(_, category)
+            return { AddInitializer = function(_, init) Add(category, init) end }
+        end,
+    }
+    Settings = {
+        VarType = { Boolean = "boolean", Number = "number", String = "string" },
+        RegisterCanvasLayoutCategory = function(frame, name) return Category(name, nil, frame) end,
+        RegisterVerticalLayoutCategory = function(name) return Category(name) end,
+        RegisterCanvasLayoutSubcategory = function(parent, frame, name) return Category(name, parent, frame) end,
+        RegisterVerticalLayoutSubcategory = function(parent, name) return Category(name, parent) end,
+        RegisterAddOnCategory = function(category)
+            assert(not category.parent, "a top category")
+            category.registered = true
+        end,
+        RegisterProxySetting = function(category, variable, varType, name, default, get, set)
+            assert(type(variable) == "string" and type(name) == "string", "variable and name")
+            assert(type(default) == varType, variable .. ": default of type " .. type(default) .. ", not " .. varType)
+            local setting =
+                { variable = variable, varType = varType, name = name, default = default, category = category }
+            function setting:GetValue() return get() end
+            function setting:SetValue(value)
+                assert(type(value) == varType, variable .. ": SetValue of type " .. type(value))
+                if get() ~= value then set(value) end
+            end
+            function setting:SetValueToDefault() self:SetValue(default) end
+            assert(not options.settings[variable], "registered twice: " .. variable)
+            options.settings[variable] = setting
+            return setting
+        end,
+        CreateCheckbox = function(category, setting, tooltip)
+            assert(setting.varType == "boolean", "a check box for a boolean")
+            return Add(
+                category,
+                Initializer({ kind = "checkbox", setting = setting, name = setting.name, tooltip = tooltip })
+            )
+        end,
+        CreateSlider = function(category, setting, sliderOptions, tooltip)
+            assert(setting.varType == "number" and sliderOptions, "a slider for a number")
+            return Add(
+                category,
+                Initializer({
+                    kind = "slider",
+                    setting = setting,
+                    name = setting.name,
+                    options = sliderOptions,
+                    tooltip = tooltip,
+                })
+            )
+        end,
+        CreateDropdown = function(category, setting, entries, tooltip)
+            assert(type(entries) == "function", "the drop-down's entries")
+            return Add(
+                category,
+                Initializer({
+                    kind = "dropdown",
+                    setting = setting,
+                    name = setting.name,
+                    options = entries,
+                    tooltip = tooltip,
+                })
+            )
+        end,
+        CreateSliderOptions = function(min, max, step)
+            local slider = { minValue = min, maxValue = max, steps = (max - min) / step, formatters = {} }
+            function slider:SetLabelFormatter(labelType, fn)
+                assert(labelType, "a label type")
+                self.formatters[labelType] = fn
+            end
+            return slider
+        end,
+        CreateControlTextContainer = function()
+            local container = { data = {} }
+            function container:Add(value, label, tooltip)
+                table.insert(self.data, { value = value, label = label, text = label, tooltip = tooltip })
+            end
+            function container:GetData() return self.data end
+            return container
+        end,
+        NotifyUpdate = function(variable) options.notified[variable] = (options.notified[variable] or 0) + 1 end,
+        OpenToCategory = function(id) options.opened = id end,
+    }
+    CreateSettingsListSectionHeaderInitializer = function(name, tooltip)
+        return Initializer({ kind = "header", name = name, tooltip = tooltip })
+    end
+    CreateSettingsButtonInitializer = function(name, buttonText, onClick, tooltip, addSearchTags)
+        assert(addSearchTags ~= nil, "addSearchTags is required")
+        return Initializer({
+            kind = "button",
+            name = name,
+            buttonText = buttonText,
+            buttonClick = onClick,
+            tooltip = tooltip,
+        })
+    end
+end
+--- The addon's category (Factoruide) in the game's options, and its page `name`.
+function options.Category()
+    for _, category in ipairs(options.categories) do
+        if category.name == "Factoruide" and not category.parent then return category end
+    end
+end
+function options.Page(name)
+    for _, category in ipairs(options.Category().subcategories) do
+        if category.name == name then return category end
+    end
+end
+--- Every control of the addon's pages (initializers).
+function options.Controls()
+    local out = {}
+    for _, category in ipairs(options.Category().subcategories) do
+        for _, init in ipairs(category.initializers) do
+            out[#out + 1] = init
+        end
+    end
+    return out
+end
 local calls = {}
 local function record(name)
     return function(...) calls[name] = { ... } end
@@ -283,14 +416,75 @@ load("Factoruide_Profile")
 if not profileOnly then load("Factoruide_Guide") end
 local FG = Factoruide
 
--- `/fg` (with anything after it) only opens the addon's window: what chat commands did before is
--- done with its buttons. A click on the button of action `id`, the window opened with `/fg` first.
-local function Press(id)
-    local window = FG.SettingsWindow and FG.SettingsWindow:Parts() or FG.Menu:Parts()
-    if not window or not window:IsShown() then SlashCmdList.FACTORUIDE("") end
-    local buttons = FG.SettingsWindow and FG.SettingsWindow:ActionButtons() or select(2, FG.Menu:Parts())
-    local button = assert(buttons[id], "no button " .. id)
-    button:GetScript("OnClick")(button, "LeftButton")
+local Press, Key, Click, Option
+do
+    -- The key bindings (Bindings.xml): their Lua, run as the game runs them on a key press.
+    local bindings = {}
+    options.bindings = bindings
+    if not profileOnly then
+        local xml = assert(io.open("addon/Factoruide_Guide/Bindings.xml")):read("*a")
+        for name, body in xml:gmatch('<Binding name="([^"]+)"[^>]*>(.-)</Binding>') do
+            bindings[name] = body
+        end
+    end
+    function Key(name) assert(loadstring(assert(bindings[name], "no binding " .. name)))() end
+
+    --- A click on the button labelled `label` (English, shown translated) in the addon's options: on
+    --- its main page or a row of its other pages.
+    --- Shown with its parents (frames of the test's CreateFrame only).
+    local function Visible(f)
+        while type(f) == "table" do
+            if rawget(f, "_shown") == false then return false end
+            f = rawget(f, "_parent")
+        end
+        return true
+    end
+    function Click(label)
+        local text = FG.T(label)
+        for _, f in ipairs(frames) do
+            if f._button and f:GetText() == text and Visible(f) and f:IsEnabled() then
+                return f:GetScript("OnClick")(f, "LeftButton")
+            end
+        end
+        for _, init in ipairs(options.Controls()) do
+            if init.data.kind == "button" and init.data.name == text then return init.data.buttonClick() end
+        end
+        error("no button " .. label)
+    end
+
+    --- The setting `variable` of the addon's options, as its control changes it.
+    function Option(variable) return assert(options.settings[variable], "no setting " .. variable) end
+    local function Toggle(variable)
+        local setting = Option(variable)
+        setting:SetValue(not setting:GetValue())
+    end
+
+    -- What the chat commands did before: a key binding while playing, a button or a check box of the
+    -- addon's options otherwise.
+    local PRESS = {
+        prev = function() Key("FACTORUIDE_PREV") end,
+        next = function() Key("FACTORUIDE_NEXT") end,
+        skip = function() Key("FACTORUIDE_SKIP") end,
+        undo = function() Key("FACTORUIDE_UNDO") end,
+        spot = function() Key("FACTORUIDE_SPOT") end,
+        mode = function() Key("FACTORUIDE_MODE") end,
+        guide = function() Key("FACTORUIDE_GUIDE") end,
+        hide = function() Key("FACTORUIDE_UI") end,
+        time = function() Key("FACTORUIDE_TIME") end,
+        status = function() Click("Recorded events") end,
+        reset = function() Click("Clear the recorded events") end,
+        export = function() Click("Export my character") end,
+        profile = function() Click("Save the profile now") end,
+        import = function() Click("Import a guide…") end,
+        clear = function() Click("Delete the imported guides") end,
+        macro = function() Click("Pick up the target macro") end,
+        compassReset = function() Click("Compass back to the top") end,
+        restart = function() Click("Start over") end,
+        debug = function() Toggle("Factoruide_debug") end,
+        lock = function() Toggle("Factoruide_lockFrames") end,
+        compass = function() Toggle("Factoruide_compassShown") end,
+    }
+    function Press(id) assert(PRESS[id], "nothing for " .. id)() end
 end
 
 local function fire(event, ...)
@@ -320,36 +514,31 @@ if profileOnly then
     assert(tonumber(char.events[1]:match("^(%d+)")) == 2, "numbered after the sent seq: " .. char.events[1])
     assert(char.guide == nil and waypoint == nil, "no guide state, no waypoint")
     assert(next(calls) == nil, "nothing done in game: " .. tostring(next(calls)))
-    -- `/fg` opens the profile part's own window (again: closes it); a sub-command too, it does
-    -- nothing else.
-    SlashCmdList.FACTORUIDE("")
-    local menu, buttons = FG.Menu:Parts()
-    assert(menu and menu:IsShown(), "/fg opens the window")
-    for _, id in ipairs({ "export", "profile", "status", "debug", "reset" }) do
-        assert(buttons[id], "a button for " .. id)
-    end
-    assert(buttons.import == nil and buttons.next == nil, "no guide button without the guide part")
-    SlashCmdList.FACTORUIDE("")
-    assert(not menu:IsShown(), "/fg again closes it")
+    assert(FG.Options and FG.Options.category, "the options built at login")
+    -- The addon's page in the game's options, with the profile part's own: the character on the
+    -- main page, the Advanced page. `/fg` (a sub-command too) opens it and does nothing else.
+    local category = options.Category()
+    assert(category and category.registered and category.frame, "the addon's main page in the game's options")
+    assert(#category.subcategories == 1 and options.Page("Avancé"), "only the Advanced page without the guide part")
     SlashCmdList.FACTORUIDE("export")
-    assert(
-        menu:IsShown() and not (FG.TextWindow:Parts() and FG.TextWindow:Parts():IsShown()),
-        "/fg export opens the window only"
-    )
-    -- Debug messages: on, then off again.
+    assert(options.opened == category:GetID(), "/fg opens the addon's page")
+    assert(not (FG.TextWindow:Parts() and FG.TextWindow:Parts():IsShown()), "/fg export opens the options only")
+    for _, f in ipairs(frames) do
+        assert(not (f._button and f:GetText() == FG.T("Import a guide…")), "no guide button without the guide part")
+    end
+    -- Debug messages: a check box.
     Press("debug")
-    assert(FactoruideDB.debug == true and buttons.debug.text == "Messages de débogage : oui", "debug on")
+    assert(FactoruideDB.debug == true and Option("Factoruide_debug"):GetValue() == true, "debug on")
     Press("debug")
     assert(not FactoruideDB.debug, "debug off")
-    -- Clearing the recorded events asks with a second click.
+    -- Clearing the recorded events asks first (the game's dialog).
     local recorded = #char.events
+    calls.StaticPopup_Show = nil
     Press("reset")
-    assert(#char.events == recorded and buttons.reset.text == "Sûr ?", "asked first")
-    runTimers()
-    assert(buttons.reset.text == "Effacer les événements enregistrés", "not confirmed: asked again next time")
-    Press("reset")
-    Press("reset")
+    assert(#char.events == recorded and calls.StaticPopup_Show[1] == "FACTORUIDE_CLEAR_EVENTS", "asked first")
+    StaticPopupDialogs.FACTORUIDE_CLEAR_EVENTS.OnAccept()
     assert(#char.events == 0, "recorded events cleared")
+    calls.StaticPopup_Show = nil
     fire("QUEST_ACCEPTED", 179)
     FG.Profile:Snapshot()
     local profile = FactoruideDB.profiles["Brouz-Realm"]
@@ -473,17 +662,17 @@ FG.Routes["prof-test"] = {
     },
 }
 -- No guide chosen and several made for a gnome mage: none followed; `/fg route` only opens the
--- window.
+-- addon's options.
 FG.Assignments["Brouz-Realm"] = nil
 useRoute(nil)
 assert(char.guide.route == nil, "no chosen route, got " .. tostring(char.guide.route))
-FG.SettingsWindow:Close()
+options.opened = nil
 SlashCmdList.FACTORUIDE("route gnome-mage")
 assert(char.guide.route == nil, "/fg route does not switch, got " .. tostring(char.guide.route))
-assert(FG.SettingsWindow:Parts():IsShown() and FG.SettingsWindow.page == 1, "/fg route opens the window")
--- Without a guide, the guide's buttons do nothing (greyed out).
-assert(FG.SettingsWindow:ActionButtons().next:GetAlpha() < 1, "next greyed out")
+assert(options.opened == options.Category():GetID(), "/fg route opens the options")
+-- Without a guide, the guide's keys do nothing.
 Press("next")
+Press("skip")
 assert(char.guide.route == nil and char.guide.step, "nothing happens")
 useRoute("prof-test")
 assert(char.guide.step == 2, "rank already learned, step " .. char.guide.step)
@@ -518,7 +707,8 @@ Press("skip")
 assert(char.guide.step == 5, "current quest skipped by hand, step " .. char.guide.step)
 Press("undo")
 assert(char.guide.step == 3, "undo brings the quest back, step " .. char.guide.step)
-assert(FG.SettingsWindow:ActionButtons().undo:GetAlpha() < 1, "nothing left to undo")
+Press("undo")
+assert(char.guide.step == 3, "nothing left to undo, step " .. char.guide.step)
 print("skip ok")
 
 -- Progress belongs to its guide: a quest marked done by hand in one is still to do in another,
@@ -876,7 +1066,7 @@ print("merchant ok")
 -- Skins: a skin registered through the public API styles every frame made so far.
 local skinned = {}
 FactoruideAPI.RegisterSkin("Test", function(frame, kind) skinned[kind] = (skinned[kind] or 0) + 1 end)
-assert(skinned.window == 3, "windows skinned: the card, the minimal strip and the addon's (opened)")
+assert(skinned.window == 2, "windows skinned: the card and the minimal strip")
 assert((skinned.panel or 0) >= 1, "panels skinned")
 assert(#FactoruideAPI.GetFrames() >= 2)
 assert(FG.Skin:Suite() == nil, "no UI suite in the tests")
@@ -2468,12 +2658,8 @@ end
 assert(FG.Card:Frame():IsVisible(), "the guide visible before hiding")
 local popupHidden
 StaticPopup_Hide = function(which) popupHidden = which end
-local hideButton = FG.SettingsWindow:ActionButtons().hide
-assert(hideButton.label:GetText() == "Masquer les fenêtres de l'addon", "the button hides them")
 Press("hide")
 assert(not root:IsShown() and not FG:Get("uiShown"), "hidden")
-assert(hideButton.label:GetText() == "Afficher les fenêtres de l'addon", "the button now shows them")
-assert(FG.SettingsWindow:Parts():IsShown(), "the addon's window stays to show them again")
 assert(popupHidden == "FACTORUIDE_RESET", "the guide's reset dialog closed")
 FG.Guide:Refresh()
 FG.Tracker:Refresh()
@@ -2495,7 +2681,6 @@ Press("hide")
 Press("hide")
 assert(not FG:Get("guideShown") and root:IsShown(), "the guide alone still hidden")
 assert(not FG.Card:Frame():IsShown(), "the guide's card stays hidden")
-assert(FG.SettingsWindow:ActionButtons().guide.label:GetText() == "Afficher le guide", "the button shows it")
 Press("guide")
 assert(FG.Card:Frame():IsVisible(), "the guide back")
 
@@ -2506,7 +2691,7 @@ local writesBeforeCombat = visibilityWrites
 Press("hide")
 assert(root:IsShown() and FG:Get("uiShown"), "hide waits during combat")
 assert(visibilityWrites == writesBeforeCombat, "nothing changed during combat")
-assert(hideButton.label:GetText() == "Afficher les fenêtres de l'addon", "the button says they will be hidden")
+assert(not FG:UIWanted(), "hidden after the fight")
 InCombatLockdown = function() return false end
 fire("PLAYER_REGEN_ENABLED")
 assert(not root:IsShown(), "hidden after the fight")
@@ -3318,9 +3503,9 @@ local function ExportImport()
     assert(char.guide.route == "solo", "kept following the guide")
     useRoute(nil)
     assert(char.guide.route == nil, "two gnome mage guides: none chosen")
-    -- The guides page of the settings window: the gnome mage's first, follow, delete.
-    FG.SettingsWindow:OpenGuides()
-    local rows = FG.SettingsWindow:GuideRows()
+    -- The guides on the options' main page: the gnome mage's first, follow, start over, delete.
+    FG.Options:Refresh()
+    local rows = FG.Options:GuideRows()
     local function Row(name)
         for _, row in ipairs(rows) do
             if row.guide and row.guide.name == name and row:IsShown() then return row end
@@ -3329,18 +3514,29 @@ local function ExportImport()
     assert(rows[1].guide.fits and rows[2].guide.fits and not rows[3].guide.fits, "this character's guides first")
     assert(Row("warrior").name:GetText():find("autre personnage", 1, true), "another character's guide")
     assert(Row("duo").details:GetText():find("niveaux 1%-60") and Row("duo").delete:IsShown(), "details")
+    assert(not Row("duo").restart:IsShown(), "start over: the guide followed only")
     Row("duo").follow.OnClick(Row("duo").follow)
     assert(char.guide.route == "duo" and FG.Guide:Route() == FG.Routes.duo, "chosen in the list")
-    assert(Row("duo").follow.label:GetText() == "Suivi" and Row("solo").follow.label:GetText() == "Suivre", "lit")
+    assert(Row("duo").follow:GetText() == "Suivi" and not Row("duo").follow:IsEnabled(), "followed")
+    assert(Row("solo").follow:GetText() == "Suivre" and Row("solo").follow:IsEnabled(), "another to follow")
+    assert(Row("duo").restart:IsShown() and Row("duo").lit._shown, "the guide followed: lit, start over")
+    calls.StaticPopup_Show = nil
+    char.guide.skippedQuests[5004] = true
+    Row("duo").restart.OnClick(Row("duo").restart)
+    assert(calls.StaticPopup_Show and calls.StaticPopup_Show[1] == "FACTORUIDE_RESET", "start over: asked")
+    char.guide.skippedQuests[5004] = nil
     -- The choice is the character's, kept in its saved state.
     assert(FactoruideDB.characters["Brouz-Realm"].guide.route == "duo", "choice saved per character")
     FG.Guide:FollowChoice()
     assert(char.guide.route == "duo", "and kept")
-    -- Delete: asked by a second click; the guide followed gone, back to the automatic choice.
+    -- Delete: asked first (the game's dialog); the guide followed gone, back to the automatic choice.
+    calls.StaticPopup_Show = nil
     local delete = Row("duo").delete
     delete.OnClick(delete)
-    assert(FactoruideDB.guides.duo and delete.label:GetText() ~= "Supprimer", "asks first")
-    delete.OnClick(delete)
+    local asked = calls.StaticPopup_Show
+    assert(asked and asked[1] == "FACTORUIDE_DELETE_GUIDE" and asked[2] == "duo", "asks first")
+    assert(FactoruideDB.guides.duo, "not before the answer")
+    StaticPopupDialogs.FACTORUIDE_DELETE_GUIDE.OnAccept(nil, asked[4])
     assert(not FactoruideDB.guides.duo and not FG.Routes.duo and not Row("duo"), "deleted")
     assert(char.guide.route == "solo", "back to the only gnome mage guide: " .. tostring(char.guide.route))
 
@@ -3361,7 +3557,7 @@ local function ExportImport()
     assert(FG.Import.info.solo.source == "app" and FG.Import.info.warrior.source == "import", "sources")
     assert(FG.DataGuide == nil and FG.DataSent["Brouz-Realm"] == 170, "data taken, its sent seqs kept")
     assert(FG:Get("compassShown") == true, "data's Config ignored")
-    FG.SettingsWindow:RefreshGuides()
+    FG.Options:Refresh()
     assert(Row("desk-mage") and not Row("desk-mage").delete:IsShown(), "the app's guides are not deleted in game")
     assert(Row("desk-mage").details:GetText():find("géré par l'application", 1, true), "managed by the app")
     assert(not FG.Import:Delete("desk-mage"), "not even by name")
@@ -3397,7 +3593,8 @@ local function ExportImport()
     assert(FactoruideDB.guides.solo, "not before the answer")
     StaticPopupDialogs.FACTORUIDE_CLEAR_GUIDES.OnAccept()
     assert(Empty(FactoruideDB.guides) and not FG.Routes.solo and char.guide.route == nil, "imports cleared")
-    FG.SettingsWindow:Close()
+    local ok = pcall(Press, "clear")
+    assert(not ok, "nothing left to delete: the button disabled")
 
     -- Empty generated files (the addon as published) and no import: a message, no guide.
     FG.Services, FG.Config = nil, nil
@@ -3460,44 +3657,18 @@ local function SettingsTest()
     FG:Save("scale", nil)
     FG:Save("compassShown", nil)
 
-    -- In the game's options, and `/fg`: the window on its actions page, closed again by `/fg`.
-    assert(addonCategory and addonCategory.name == "Factoruide", "a page in the game's options")
-    local window, pages = FG.SettingsWindow:Parts()
-    FG.SettingsWindow:Close()
-    FG.SettingsWindow:Show(3)
-    SlashCmdList.FACTORUIDE("")
-    assert(window:IsShown() and FG.SettingsWindow.page == 1, "/fg opens the window on its actions")
-    SlashCmdList.FACTORUIDE("")
-    assert(not window:IsShown(), "and closes it")
-    -- A button for each action, those of the profile part too.
-    local buttons = FG.SettingsWindow:ActionButtons()
-    for _, id in ipairs({
-        "prev",
-        "next",
-        "skip",
-        "undo",
-        "spot",
-        "restart",
-        "guide",
-        "mode",
-        "macro",
-        "time",
-        "hide",
-        "lock",
-        "compass",
-        "compassReset",
-        "export",
-        "profile",
-        "import",
-        "clear",
-        "status",
-        "debug",
-        "reset",
-    }) do
-        assert(buttons[id], "a button for " .. id)
+    -- The addon's category in the game's options (AddOns), its pages registered with it.
+    local category = options.Category()
+    assert(category and category.registered and category.frame, "a canvas page in the game's options (AddOns)")
+    local pages = {}
+    for _, page in ipairs(category.subcategories) do
+        pages[#pages + 1] = page.name
     end
-    assert(buttons.export.label:GetText() == "Exporter mon personnage", "labels translated")
-    -- The chat commands of before are gone: each only opens the window, nothing else happens.
+    assert(
+        table.concat(pages, ",") == "Affichage,Navigation,Automatisation,Conseils,Immersion,Avancé",
+        "a page per group, then Advanced: " .. table.concat(pages, ",")
+    )
+    -- `/fg`, with anything after it: opens the options on the addon's page, nothing else happens.
     local function Now()
         return table.concat({
             tostring(FG:Get("guideMode")),
@@ -3514,110 +3685,190 @@ local function SettingsTest()
     end
     local before = Now()
     reloaded = false
-    for _, old in ipairs({
-        "config",
-        "settings",
-        "guide",
-        "hide",
-        "show",
-        "compass reset",
-        "lock",
-        "next",
-        "prev",
-        "step 3",
-        "skip",
-        "restart",
-        "mode",
-        "route x",
-        "macro",
-        "spot",
-        "waypoint",
-        "scale 2",
-        "time",
-        "status",
-        "reset",
-        "profile",
-        "export",
-        "import clear",
-        "debug",
-    }) do
-        FG.SettingsWindow:Close()
+    for _, old in ipairs({ "", "config", "hide", "next", "skip", "mode", "route x", "time", "reset", "export" }) do
+        options.opened = nil
         SlashCmdList.FACTORUIDE(old)
-        assert(window:IsShown() and FG.SettingsWindow.page == 1, "/fg " .. old .. " opens the window")
+        assert(options.opened == category:GetID(), "/fg " .. old .. " opens the addon's options")
         assert(Now() == before and not reloaded, "/fg " .. old .. " does nothing else: " .. Now())
     end
     assert(SLASH_FACTORUIDE2 == "/factoruide", "/factoruide too")
+    -- The guide's options button too; in combat the game refuses: said in the chat instead.
+    options.opened = nil
+    FG:OpenSettings()
+    assert(options.opened == category:GetID(), "the guide's options button")
+    options.opened = nil
+    InCombatLockdown = function() return true end
+    local said
+    local realPrint = print
+    print = function(text) said = text end
+    SlashCmdList.FACTORUIDE("")
+    print = realPrint
+    InCombatLockdown = function() return false end
+    assert(options.opened == nil and said and said:find("combat", 1, true), "in combat: a message")
 
-    -- Every option of the schema has its row (those of this edition), and the language.
-    local rows = {}
-    for _, page in ipairs(pages) do
-        for _, row in ipairs(page.rows) do
-            rows[row.option.key] = row
+    -- Every option of the schema is a control of its group's page (those of this edition), under
+    -- its section's header, and the language.
+    local controls, headers = {}, {}
+    for _, page in ipairs(category.subcategories) do
+        for _, init in ipairs(page.initializers) do
+            local setting = init.data.setting
+            if setting then
+                controls[setting.variable:gsub("^Factoruide_", "")] = init
+                assert(setting.category == page, "the setting of its page")
+            elseif init.data.kind == "header" then
+                headers[init.data.name] = page.name
+            end
         end
     end
-    for _, option in ipairs(keys) do
-        if not option.only or option.only == FG.Edition then
-            assert(rows[option.key], "no row for " .. option.key)
-        else
-            assert(not rows[option.key], "row of another edition: " .. option.key)
+    local KINDS = { bool = "checkbox", number = "slider", select = "dropdown" }
+    for _, group in ipairs(FG.SettingsSchema) do
+        for _, section in ipairs(group.sections) do
+            for _, option in ipairs(section.options) do
+                local control = controls[option.key]
+                if not option.only or option.only == FG.Edition then
+                    assert(control and control.data.kind == KINDS[option.kind], "no control for " .. option.key)
+                    assert(control.data.name == FG.T(option.label), "label translated: " .. control.data.name)
+                    assert(control.data.setting.default == option.default, "default of " .. option.key)
+                    if option.help then
+                        assert(control.data.tooltip:find(FG.T(option.help), 1, true), "help of " .. option.key)
+                    end
+                    if section.title then
+                        assert(headers[FG.T(section.title)] == FG.T(group.title), "section " .. section.title)
+                    end
+                else
+                    assert(not control, "control of another edition: " .. option.key)
+                end
+            end
         end
     end
-    assert(rows.locale, "the language's row")
-    assert(rows.autoAccept.label:GetText() == "Accepter les quêtes automatiquement", "labels translated")
+    assert(controls.autoAccept.data.name == "Accepter les quêtes automatiquement", "labels translated")
+    assert(controls.locale and controls.locale.data.kind == "dropdown", "the language's control")
+    assert(controls.debug, "the debug messages' check box (Advanced)")
 
-    -- A check box: saved, read back, applied at once.
-    local function click(row, button) row.OnClick(row, button or "LeftButton") end
-    click(rows.autoAccept)
+    -- A check box: its setting reads FG:Get, writes FG:Save (saved, applied at once; the default
+    -- saves nothing).
+    local autoAccept = Option("Factoruide_autoAccept")
+    assert(autoAccept:GetValue() == true, "read")
+    autoAccept:SetValue(false)
     assert(FactoruideDB.settings.autoAccept == false and FG:Get("autoAccept") == false, "unchecked: saved")
     calls.AcceptQuest = nil
     fire("QUEST_DETAIL", 0)
     assert(not calls.AcceptQuest, "applied at once")
-    assert(rows.autoAccept.box.check._shown == false, "the box unchecked")
-    click(rows.autoAccept, "RightButton")
-    assert(FactoruideDB.settings.autoAccept == nil and FG:Get("autoAccept") == true, "right click: the default")
-    assert(rows.autoAccept.box.check._shown == true, "the box checked")
-    -- A number: steps within its bounds; a percent shown as such.
-    rows.trackerQuests.next.OnClick(rows.trackerQuests.next)
-    assert(FG:Get("trackerQuests") == 9 and rows.trackerQuests.value:GetText() == "9", "number stepped")
-    for _ = 1, 50 do
-        rows.trackerQuests.next.OnClick(rows.trackerQuests.next)
+    autoAccept:SetValueToDefault()
+    assert(FactoruideDB.settings.autoAccept == nil and FG:Get("autoAccept") == true, "the default: nothing saved")
+    -- A number: a slider within its bounds, on its steps; a percent shown as such.
+    local scale = controls.scale.data.options
+    assert(scale.minValue == 0.6 and scale.maxValue == 2 and math.abs(scale.steps - 28) < 1e-9, "the size's slider")
+    local label = scale.formatters[MinimalSliderWithSteppersMixin.Label.Right]
+    assert(label(0.95) == "95%", "size in percent: " .. label(0.95))
+    Option("Factoruide_scale"):SetValue(0.95000001)
+    assert(FG:Get("scale") == 0.95 and FactoruideDB.settings.scale == 0.95, "on its steps")
+    Option("Factoruide_trackerQuests"):SetValue(9)
+    assert(FG:Get("trackerQuests") == 9, "number saved")
+    assert(controls.trackerQuests.data.options.formatters[MinimalSliderWithSteppersMixin.Label.Right](9) == "9", "9")
+    Option("Factoruide_scale"):SetValueToDefault()
+    Option("Factoruide_trackerQuests"):SetValueToDefault()
+    -- A select: a drop-down of its choices, translated.
+    local styles = controls.windStyle.data.options()
+    assert(#styles == 4 and styles[2].value == "mist" and styles[2].label == "Brume basse", "the choices")
+    Option("Factoruide_windStyle"):SetValue("mist")
+    assert(FG:Get("windStyle") == "mist" and Option("Factoruide_windStyle"):GetValue() == "mist", "select saved")
+    Option("Factoruide_windStyle"):SetValueToDefault()
+    -- Requires: under the setting it needs, greyed while it is off.
+    assert(controls.trackerQuests.parent == controls.trackerShown, "under the setting it needs")
+    assert(controls.trackerQuests:Enabled(), "enabled while the tracker is on")
+    Option("Factoruide_trackerShown"):SetValue(false)
+    assert(not controls.trackerQuests:Enabled() and not controls.replaceTracker:Enabled(), "greyed while off")
+    Option("Factoruide_trackerShown"):SetValueToDefault()
+    assert(controls.trackerQuests:Enabled(), "back")
+    Option("Factoruide_pathMode"):SetValue("off")
+    assert(not controls.pathMap:Enabled(), "a select turned off greys too")
+    Option("Factoruide_pathMode"):SetValueToDefault()
+    -- Applied after a /reload only: said in its help; the game's dialog offers to reload, once for
+    -- changes made together.
+    assert(controls.uiTheme.data.tooltip:find("/reload", 1, true), "the help says /reload")
+    runTimers()
+    calls.StaticPopup_Show = nil
+    local asked = 0
+    StaticPopup_Show = function(which)
+        if which == "FACTORUIDE_RELOAD" then asked = asked + 1 end
     end
-    assert(FG:Get("trackerQuests") == 35, "not past its max")
-    rows.scale.prev.OnClick(rows.scale.prev)
-    assert(FG:Get("scale") == 0.95 and rows.scale.value:GetText() == "95%", "size in percent")
-    click(rows.scale, "RightButton")
-    click(rows.trackerQuests, "RightButton")
-    -- A select: the next choice, around.
-    click(rows.windStyle)
-    assert(FG:Get("windStyle") == "mist" and rows.windStyle.value:GetText() == "Brume basse", "select: next")
-    rows.windStyle.prev.OnClick(rows.windStyle.prev)
-    rows.windStyle.prev.OnClick(rows.windStyle.prev)
-    assert(FG:Get("windStyle") == "wisps", "select: around")
-    click(rows.windStyle, "RightButton")
-    -- Requires: greyed and unchanged while the setting it needs is off.
-    click(rows.trackerShown)
-    assert(rows.trackerQuests:GetAlpha() < 1, "greyed while the tracker is off")
-    rows.trackerQuests.next.OnClick(rows.trackerQuests.next)
-    click(rows.replaceTracker)
-    assert(FG:Get("trackerQuests") == 8 and FG:Get("replaceTracker") == true, "unchanged while greyed")
-    click(rows.trackerShown, "RightButton")
-    assert(rows.trackerQuests:GetAlpha() == 1, "back")
-    -- Applied after a /reload only: the window says so.
-    local reload = FG.SettingsWindow:ReloadShown()
-    assert(not reload, "no reload needed yet")
-    click(rows.uiTheme)
-    assert(FactoruideDB.settings.uiTheme == "parchemin" and FG.SettingsWindow:ReloadShown(), "theme saved, /reload")
-    click(rows.uiTheme, "RightButton")
+    Option("Factoruide_autoAccept"):SetValue(false)
+    runTimers()
+    assert(asked == 0, "no reload for a setting applied at once")
+    Option("Factoruide_autoAccept"):SetValueToDefault()
+    Option("Factoruide_uiTheme"):SetValue("parchemin")
+    Option("Factoruide_suiteSkin"):SetValue(not FG:Get("suiteSkin"))
+    assert(FactoruideDB.settings.uiTheme == "parchemin" and asked == 0, "theme saved, asked after the changes")
+    runTimers()
+    assert(asked == 1, "asked once: " .. asked)
+    StaticPopupDialogs.FACTORUIDE_RELOAD.OnAccept()
+    assert(reloaded, "the interface reloads")
+    reloaded = false
+    Option("Factoruide_uiTheme"):SetValueToDefault()
+    Option("Factoruide_suiteSkin"):SetValueToDefault()
+    runTimers()
+    StaticPopup_Show = record("StaticPopup_Show")
     -- The language: the game's, then each language.
-    click(rows.locale)
+    local languages = controls.locale.data.options()
+    assert(languages[1].value == "" and languages[1].label:find("Français", 1, true), "the game's first")
+    assert(#languages == #FG.LANGUAGES + 1, "then every language")
+    Option("Factoruide_locale"):SetValue("enUS")
     assert(FactoruideDB.settings.locale == "enUS" and FG.Lang() == "enUS", "language chosen")
-    click(rows.locale, "RightButton")
+    Option("Factoruide_locale"):SetValue("")
     assert(FactoruideDB.settings.locale == nil and FG.Lang() == "frFR", "the game's again")
+    -- Changed elsewhere (a key binding): the options show it; written by its own control: no
+    -- notice back to it.
+    options.notified = {}
+    Press("mode")
+    assert(options.notified.Factoruide_guideMode == 1, "the options told of the change")
+    Option("Factoruide_guideMode"):SetValue("full")
+    assert(options.notified.Factoruide_guideMode == 1, "not for the control's own change")
+    -- The buttons beside their settings.
+    local function After(key)
+        for _, page in ipairs(category.subcategories) do
+            for i, init in ipairs(page.initializers) do
+                if init.data.setting and init.data.setting.variable == "Factoruide_" .. key then
+                    return page.initializers[i + 1].data
+                end
+            end
+        end
+    end
+    assert(
+        After("targetMark").name == "Prendre la macro de ciblage",
+        "the macro's button: " .. After("targetMark").name
+    )
+    assert(After("compassShown").name == "Remettre la boussole en haut", "the compass's button")
+
+    -- The key bindings: each has its name (translated) and does what it says.
+    local names = 0
+    for name in pairs(options.bindings) do
+        local global = _G["BINDING_NAME_" .. name]
+        assert(type(global) == "string" and global ~= "", "no name for the binding " .. name)
+        names = names + 1
+    end
+    assert(names == 12 and BINDING_HEADER_FACTORUIDE == "Factoruide", "the bindings: " .. names)
+    assert(BINDING_NAME_FACTORUIDE_NEXT == "Étape suivante", "translated: " .. BINDING_NAME_FACTORUIDE_NEXT)
+    options.opened = nil
+    Key("FACTORUIDE_OPTIONS")
+    assert(options.opened == category:GetID(), "a key opens the options")
+    local shown = FG:Get("guideShown")
+    Key("FACTORUIDE_GUIDE")
+    assert(FG:Get("guideShown") == not shown and FactoruideDB.settings.guideShown == not shown, "the guide hidden")
+    Key("FACTORUIDE_GUIDE")
+    assert(FG:Get("guideShown") == shown, "and shown")
+    local gusts = 0
+    local gust = FG.Wind.Gust
+    FG.Wind.Gust = function() gusts = gusts + 1 end
+    Key("FACTORUIDE_WIND")
+    FG.Wind.Gust = gust
+    assert(gusts == 1, "a gust")
+    FG:Save("guideShown", nil)
+    FG:Save("guideMode", nil)
     -- Nothing left over: every setting back to its default.
     for _, option in ipairs(keys) do
         assert(FactoruideDB.settings[option.key] == nil, "left saved: " .. option.key)
     end
-    window:Hide()
     for msg in pairs(FactoruideDB.errors or {}) do
         assert(not msg:find("Settings", 1, true), "no error: " .. msg)
     end

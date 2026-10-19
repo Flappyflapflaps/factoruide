@@ -164,8 +164,6 @@ FG.Locales.koKR = {
     ["Ctrl + mouse wheel: its size"] = "Ctrl + 마우스 휠: 크기",
     ["Drag an end: its width"] = "끝을 드래그: 너비",
     ["compass back at the top of the screen, at its first size"] = "나침반을 화면 위쪽, 원래 크기로 되돌렸습니다",
-    ["compass shown"] = "나침반 표시",
-    ["compass hidden"] = "나침반 숨김",
     ["windows locked"] = "창 고정됨",
     ["windows unlocked: drag them to move them"] = "창 고정 해제: 드래그해서 옮기세요",
 }

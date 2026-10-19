@@ -1,14 +1,9 @@
 -- Quest item button: the item a current step's quest asks to use, one click (or one key: see
--- the game's key bindings, "Factoruide") away; left of the full guide, near the action bars with
+-- the game's key bindings, "Factoruide"; their names in Guide.lua) away; left of the full guide, near the action bars with
 -- the minimal one. Secure attributes and its place only change out of combat.
 
 local FG = Factoruide
 local T = FG.T
-
-BINDING_HEADER_FACTORUIDE = "Factoruide"
-_G["BINDING_NAME_CLICK FGItemButton:LeftButton"] = T("Use the quest item")
-BINDING_NAME_FACTORUIDE_MODE = T("Full or minimal guide")
-BINDING_NAME_FACTORUIDE_WIND = T("A gust of wind towards the guide's target")
 
 local ItemButton = { link = nil, pending = nil }
 FG.ItemButton = ItemButton

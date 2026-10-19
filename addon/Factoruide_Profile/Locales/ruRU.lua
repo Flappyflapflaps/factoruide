@@ -164,8 +164,6 @@ FG.Locales.ruRU = {
     ["Ctrl + mouse wheel: its size"] = "Ctrl + колесо мыши: размер",
     ["Drag an end: its width"] = "Перетащить край: ширина",
     ["compass back at the top of the screen, at its first size"] = "компас снова вверху экрана, в исходном размере",
-    ["compass shown"] = "компас показан",
-    ["compass hidden"] = "компас скрыт",
     ["windows locked"] = "окна закреплены",
     ["windows unlocked: drag them to move them"] = "окна откреплены: перетащите их, чтобы переместить",
 }

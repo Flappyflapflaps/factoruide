@@ -1,7 +1,7 @@
 -- The character's profile, read by the app to plan a guide from where the character stands:
 -- level and XP, quests done and in the log (with their objectives), position, hearthstone,
 -- flight paths, professions, riding, gear, spells, reputations and money. Saved at each logout and reload;
--- the window's "Save the profile now" saves it at once (the interface reloads to write it to disk).
+-- "Save the profile now" (the addon's options) saves it at once (the interface reloads to write it to disk).
 --
 -- FactoruideDB.profiles["Name-Realm"] = { level, xp, completed = { questID... }, log = {...} ... }
 
@@ -147,21 +147,6 @@ function Profile:Save()
     )
     ReloadUI()
 end
-
-FG:AddAction({
-    id = "export",
-    section = "Character and guides",
-    label = "Export my character",
-    help = "Your character as a text to paste in the Factoruide web app.",
-    run = function() Profile:Export() end,
-})
-FG:AddAction({
-    id = "profile",
-    section = "Character and guides",
-    label = "Save the profile now",
-    help = "Saves your character for the Factoruide app now: the interface reloads.",
-    run = function() Profile:Save() end,
-})
 
 FG:On("PLAYER_LOGIN", function()
     local key = FG:CharacterKey()

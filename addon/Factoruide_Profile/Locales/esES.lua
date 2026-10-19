@@ -164,8 +164,6 @@ FG.Locales.esES = {
     ["Ctrl + mouse wheel: its size"] = "Ctrl + rueda del ratón: su tamaño",
     ["Drag an end: its width"] = "Arrastrar un extremo: su anchura",
     ["compass back at the top of the screen, at its first size"] = "brújula de vuelta arriba de la pantalla, a su tamaño inicial",
-    ["compass shown"] = "brújula visible",
-    ["compass hidden"] = "brújula oculta",
     ["windows locked"] = "ventanas bloqueadas",
     ["windows unlocked: drag them to move them"] = "ventanas desbloqueadas: arrástralas para moverlas",
 }

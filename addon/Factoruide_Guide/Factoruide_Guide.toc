@@ -16,7 +16,7 @@ Import.lua
 SettingsSchema.lua
 Settings.lua
 Skin.lua
-SettingsWindow.lua
+Options.lua
 TalentBuilds_forever.lua
 TalentBuilds_classic.lua
 TalentBuilds_tbc.lua

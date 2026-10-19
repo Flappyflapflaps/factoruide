@@ -9,18 +9,18 @@ Cloudflare Pages...).
 The browser cannot reach the game's folder, so the addon and the app talk through texts the
 player copies:
 
-- **Characters**: in game, the addon's window (`/fg`), **Export my character**, gives the
+- **Characters**: in game, the addon's options (`/fg`), **Export my character**, gives the
   character's export (its profile). Pasted in **New guide** ("Start from a character", or opened
   from a text file), the guide starts from where the character stands.
 - **Guides**: on the Guides page, each guide's **Export** → Addon gives a text: in game, `/fg`,
   **Import a guide…**, paste it, Import. The guide joins those of the addon (one of the same name
-  is replaced; an older one asks first), and the window's Guides page chooses the one each
+  is replaced; an older one asks first), and the guides of the addon's options choose the one each
   character follows (by itself when it is the only one of its race and class). **Export all**
   downloads every guide at once as the `Factoruide_Data` folder to unzip in the AddOns folder,
   and on WoW Forever as a Polestar guide pack.
 - **The addon** is installed and updated from CurseForge like any addon, and set up in game
-  (its window: `/fg`). Neither app installs or configures it (the desktop app writes its guides in a
-  data addon of its own, `Factoruide_Data`).
+  (`/fg` opens its page in the game's options: AddOns → Factoruide). Neither app installs or
+  configures it (the desktop app writes its guides in a data addon of its own, `Factoruide_Data`).
 - **Data** stays in the browser (IndexedDB). The menu's Save / Restore download a backup file and
   read it back (to keep it, or move it to another browser); the language and the theme are there
   too.

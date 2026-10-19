@@ -1,4 +1,4 @@
--- "Export my character" (the window, `/fg`): the character's profile as one text to copy into the Factoruide web app, which
+-- "Export my character" (the addon's options, `/fg`): the character's profile as one text to copy into the Factoruide web app, which
 -- cannot read the game's files:
 --   FGP1:<LibDeflate:EncodeForPrint(LibDeflate:CompressDeflate(json))>
 -- json = { format = "factoruide-profile", version = 1, edition, addon, character, profile }.

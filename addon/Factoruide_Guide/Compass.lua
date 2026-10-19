@@ -14,8 +14,8 @@
 -- continent it only says so.
 -- Over the minimal guide's strip, else at the top of the screen. Dragged anywhere it moves
 -- (unless the windows are locked), Ctrl + mouse wheel changes its size, its ends dragged its
--- width; kept for the character. The window (`/fg`) hides or shows it, and puts it back at the
--- top, at its first size.
+-- width; kept for the character. The addon's options (`/fg`, Navigation) hide or show it, and put
+-- it back at the top, at its first size.
 
 local FG = Factoruide
 local T = FG.T
@@ -38,10 +38,7 @@ local L = {
     width = T("Drag an end: its width"),
     locked = T("Locked: unlock the windows in /fg to move it"),
     commands = T("/fg: hide it, or put it back at the top"),
-    shown = T("compass shown"),
-    hidden = T("compass hidden"),
     reset = T("compass back at the top of the screen, at its first size"),
-    replaced = T("the wind guides you instead of the compass (set in /fg, Immersion)"),
 }
 -- Every 45°, counter-clockwise from north (the game's facing).
 local CARDINALS = { T("N"), T("NW"), T("W"), T("SW"), T("S"), T("SE"), T("E"), T("NE") }
@@ -744,24 +741,9 @@ function Compass:ResetPlace()
     FG:Print(L.reset)
 end
 
---- Hide or show it (the setting, saved).
-function Compass:Toggle()
-    local shown = not FG:Get("compassShown")
-    FG:Save("compassShown", shown)
-    FG:Print(shown and L.shown or L.hidden)
-    if shown and FG.Wind and FG.Wind:Active() then FG:Print(L.replaced) end
-end
-
-FG:AddAction({
-    id = "compass",
-    section = "Windows",
-    label = function() return FG:Get("compassShown") and "Hide the compass" or "Show the compass" end,
-    run = function() Compass:Toggle() end,
-})
-FG:AddAction({
-    id = "compassReset",
-    section = "Windows",
+FG.Options:AddButton("compassShown", {
     label = "Compass back to the top",
+    text = "Put back",
     help = "At the top of the screen, at its first width and size.",
     run = function() Compass:ResetPlace() end,
 })

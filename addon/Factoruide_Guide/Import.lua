@@ -1,4 +1,4 @@
--- "Import a guide…" (the window, `/fg`): guides made in the Factoruide apps pasted in game, one text each (or several
+-- "Import a guide…" (the addon's options, `/fg`): guides made in the Factoruide apps pasted in game, one text each (or several
 -- guides in one):
 --   FGG1:<LibDeflate:EncodeForPrint(LibDeflate:CompressDeflate(lua))>
 -- lua = `Factoruide.Routes["name"] = {...}` for each guide, with its `.created` (unix seconds the
@@ -16,7 +16,7 @@
 --
 -- The guides in use (FG.Routes) are the union of the imported ones, Factoruide_Data's (FG.DataGuide,
 -- run by the profile part) and those an older app wrote into Routes.lua: of two with the same name,
--- the one computed last. Each character chooses its guide in the settings window (Guides page;
+-- the one computed last. Each character chooses its guide in the addon's options (main page, Guides;
 -- Guide.lua keeps the choice).
 
 local FG = Factoruide
@@ -292,7 +292,7 @@ FG:On("ADDON_LOADED", function(name)
     Import:ApplySaved()
 end)
 
--- The list (settings window) ----------------------------------------------------------------
+-- The list (the options' main page) ----------------------------------------------------------------
 
 --- Whether guide `r` was made for this character's race and class (and faction).
 function Import.Fits(r)
@@ -329,7 +329,7 @@ end
 
 local function Changed()
     if FG.Guide and FG.Guide.FollowChoice and FG.Guide:State() then FG.Guide:FollowChoice() end
-    if FG.SettingsWindow and FG.SettingsWindow.RefreshGuides then FG.SettingsWindow:RefreshGuides() end
+    FG.Options:Refresh()
 end
 
 --- Delete the imported guide `name` (those of the app stay: it writes them again). Returns whether
@@ -480,8 +480,7 @@ function Import:Submit(s)
     if #pending.older == 0 then return Done(self:Keep(pending, false)) end
     pendingAnswer = pending
     window:Status(T("Answer the question to finish the import"))
-    -- The question shows over the windows: they make way.
-    if FG.SettingsWindow and FG.SettingsWindow.Close then FG.SettingsWindow:Close() end
+    -- The question shows over the game's options, not over the text window: it makes way.
     window:Hide()
     StaticPopup_Show("FACTORUIDE_OLDER_GUIDE", Import.OlderQuestion(pending))
 end
@@ -522,7 +521,6 @@ end
 function Import:AskClear()
     local n = self:ImportedCount()
     if n == 0 then return FG:Print(T("no imported guide")) end
-    if FG.SettingsWindow and FG.SettingsWindow.Close then FG.SettingsWindow:Close() end
     StaticPopup_Show(
         "FACTORUIDE_CLEAR_GUIDES",
         string.format(T("Delete the %d imported guides? Those of the Factoruide app stay."), n)
@@ -537,23 +535,7 @@ FG:On("PLAYER_LOGIN", function()
             Import.failed
         )
     elseif fresh then
-        FG:Print(T("%d guides imported: choose the one to follow in /fg, Guides page"), fresh)
+        FG:Print(T("%d guides imported: choose the one to follow in /fg"), fresh)
     end
     FactoruideDB.guideImportFresh = nil
 end)
-
-FG:AddAction({
-    id = "import",
-    section = "Character and guides",
-    label = "Import a guide…",
-    help = "Paste a guide copied from the Factoruide web app.",
-    run = function() Import:Open() end,
-})
-FG:AddAction({
-    id = "clear",
-    section = "Character and guides",
-    label = "Delete the imported guides",
-    help = "Those of the Factoruide desktop app stay.",
-    enabled = function() return type(FactoruideDB) == "table" and Import:ImportedCount() > 0 end,
-    run = function() Import:AskClear() end,
-})
