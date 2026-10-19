@@ -190,6 +190,8 @@ FG.Locales.frFR = {
     -- Guides kept in game, chosen per character.
     ["No guide chosen for this character.\nType /fg and click Follow beside a guide."] = "Aucun guide choisi pour ce personnage.\nTapez /fg et cliquez sur Suivre à côté d'un guide.",
     ["No guide in this text"] = "Aucun guide dans ce texte",
+    ["This guide was made by a newer Factoruide app: update the Factoruide addon, then import it again"] = "Ce guide a été fait par une version plus récente de l'application Factoruide : mettez à jour l'addon Factoruide, puis importez-le à nouveau",
+    ["%s: made by a newer Factoruide app, update the Factoruide addon to follow it"] = "%s : fait par une version plus récente de l'application Factoruide, mettez à jour l'addon Factoruide pour le suivre",
     ["The guide %s is older than the one you have (computed on %s, yours on %s): replace it?"] = "Le guide %s est plus ancien que celui que vous avez (calculé le %s, le vôtre le %s) : le remplacer ?",
     ["%d guides are older than the ones you have (%s): replace them?"] = "%d guides sont plus anciens que ceux que vous avez (%s) : les remplacer ?",
     ["nothing imported: you kept your guides"] = "rien d'importé : vous avez gardé vos guides",

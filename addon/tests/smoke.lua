@@ -3347,6 +3347,18 @@ local function ExportImport()
     local window, edit, action, status = FG.TextWindow:Parts()
     assert(window:IsShown() and not action:IsShown(), "export window shown, no second button")
     local exported = edit:GetText()
+    -- `FG_PROFILE_EXPORT=<file> luajit addon/tests/smoke.lua`: this export also written into <file>
+    -- (the web app's fixtures of the released addons' exports, crates/fg-web/tests/profiles), and
+    -- with `FG_SAVED_VARIABLES=<file>` the saved variables as they are now (the desktop app's,
+    -- crates/fg-contrib/tests/saved-variables).
+    local function Fixture(variable, text)
+        if not os.getenv(variable) then return end
+        local file = assert(io.open(os.getenv(variable), "wb"))
+        file:write(text, "\n")
+        file:close()
+    end
+    Fixture("FG_PROFILE_EXPORT", exported)
+    Fixture("FG_SAVED_VARIABLES", "FactoruideDB = " .. assert(FG.Import.Serialize(FactoruideDB)):gsub("^return ", ""))
     assert(exported:sub(1, 5) == "FGP1:" and exported:match("^FGP1:[%w%(%)]+$"), "export prefix and alphabet")
     local json = deflate:DecompressDeflate(deflate:DecodeForPrint(exported:sub(6)))
     assert(json == FG.Export:Json(), "export round trip")
@@ -3400,6 +3412,11 @@ local function ExportImport()
     assert(Click(guideString:sub(1, 200)):find("abîmé", 1, true), "cut text refused")
     local notLua = "FGG1:" .. deflate:EncodeForPrint(deflate:CompressDeflate("FG.Routes = {"))
     assert(Click(notLua):find("pas pu être lu", 1, true), "Lua errors refused")
+    -- Made by a newer app for a newer addon (its format above the addon's): refused, the player
+    -- told to update the addon. Today's format and none (older apps) are read (ReleasedGuides).
+    local newer = GuideLua("web-next", 1000)
+        .. string.format('FG.Routes["web-next"].format = %d\n', FG.Import.FORMAT + 1)
+    assert(Click(Encode(newer)):find("mettez à jour l'addon", 1, true), "newer format refused: " .. status:GetText())
     assert(not reloaded and Empty(FactoruideDB.guides), "nothing kept from bad strings")
     -- Pasted: the game sends the characters one by one in the same frame (OnChar), the box
     -- itself holds little; the next frame joins them. Spaces and line breaks picked up with the
@@ -3564,6 +3581,13 @@ local function ExportImport()
     LoadData(dataLua:gsub("= 5000", "= 10"), 10)
     FG.Import:ApplySaved()
     assert(FG.Routes.solo.created == 2000 and FG.Import.info.solo.source == "import", "newer import wins")
+    -- A guide of Factoruide_Data made for a newer addon: left out, named for the login message.
+    LoadData(
+        GuideLua("desk-next", 5000) .. string.format('FG.Routes["desk-next"].format = %d\n', FG.Import.FORMAT + 1),
+        6500
+    )
+    FG.Import:ApplySaved()
+    assert(not FG.Routes["desk-next"] and FG.Import.tooNew[1] == "desk-next", "newer format left out")
     -- Data without `.created` (older apps): the time it was written.
     LoadData(plain:gsub("gnome%-mage", "old-desk"), 7000)
     FG.Import:ApplySaved()
@@ -3618,6 +3642,98 @@ local function ExportImport()
     print("guide import ok")
 end
 ExportImport()
+
+-- The guides the released apps wrote (addon/tests/guides, one file per release whose guide
+-- output changed, see its README): each still imported both ways (pasted, Factoruide_Data),
+-- listed, followed from its first step shown, and walked through to its end without error.
+local function ReleasedGuides()
+    local deflate = LibStub("LibDeflate")
+    local files = assert(loadfile("addon/tests/guides/index.lua"))()
+    assert(#files > 0, "released guides listed")
+    local level, quests, done = playerLevel, onQuest, completed
+    local errors = {}
+    for msg in pairs(FactoruideDB.errors or {}) do
+        errors[msg] = true
+    end
+    for _, file in ipairs(files) do
+        local lua = assert(io.open("addon/tests/guides/" .. file)):read("*a")
+        local ns = assert(FG.Import.Run(lua), file .. " runs")
+        local names = {}
+        for name in pairs(ns.Routes) do
+            names[#names + 1] = name
+        end
+        assert(#names > 0, file .. ": its guides")
+        for _, way in ipairs({ "import", "app" }) do
+            -- Only this guide.
+            FactoruideDB.guides, FactoruideDB.guideExtras, FactoruideDB.guideAssignments = {}, nil, nil
+            FG.Import.file, FG.Import.data = { routes = {}, assignments = {} }, nil
+            if way == "import" then
+                local text = "FGG1:" .. deflate:EncodeForPrint(deflate:CompressDeflate(lua))
+                local count, err = FG.Import:FromString(text)
+                assert(count == #names, file .. " pasted: " .. tostring(err))
+            else
+                FactoruideData, FactoruideDataTime = lua, 1700000000
+                assert(loadfile("addon/Factoruide_Profile/Data.lua"))("Factoruide_Profile", FG)
+                assert(FG.DataGuide and not FG.DataFailed, file .. " in Factoruide_Data: " .. tostring(FG.DataFailed))
+            end
+            FG.Import:ApplySaved()
+            local listed = {}
+            for _, guide in ipairs(FG.Import:List()) do
+                listed[guide.name] = guide
+            end
+            for _, name in ipairs(names) do
+                local what = file .. " (" .. way .. ") " .. name
+                assert(listed[name] and listed[name].source == way, what .. ": listed")
+                -- A character at level 1 with no quest yet.
+                playerLevel, onQuest, completed = 1, {}, {}
+                local view
+                local ui = FG.Guide:UI()
+                local render = ui.Render
+                ui.Render = function(self, v)
+                    view = v
+                    return render(self, v)
+                end
+                useRoute(name)
+                local route = FG.Guide:Route()
+                assert(route == FG.Routes[name] and char.guide.route == name, what .. ": followed")
+                assert(char.guide.step == 1, what .. ": from its first step, not " .. char.guide.step)
+                local first
+                for _, task in ipairs(view and view.tasks or {}) do
+                    if task.index == 1 then first = task end
+                end
+                assert(first and first.step == route.steps[1], what .. ": its first step shown")
+                -- Its first quest accepted (or the next page): the guide moves on.
+                local step = route.steps[1]
+                if step.k == "accept" and step.q then
+                    onQuest[step.q] = true
+                    fire("QUEST_ACCEPTED", step.q)
+                else
+                    Press("next")
+                end
+                assert(char.guide.step > 1, what .. ": advanced")
+                -- Page after page to its end.
+                for _ = 1, #route.steps do
+                    if char.guide.step > #route.steps then break end
+                    local at = char.guide.step
+                    Press("next")
+                    assert(char.guide.step > at, what .. ": stuck at step " .. at)
+                end
+                assert(char.guide.step == #route.steps + 1 and view.message == FG.Guide.L.done, what .. ": to its end")
+                ui.Render = render
+            end
+        end
+    end
+    for msg in pairs(FactoruideDB.errors or {}) do
+        assert(errors[msg], "no error: " .. msg)
+    end
+    playerLevel, onQuest, completed = level, quests, done
+    FactoruideDB.guides, FactoruideDB.guideExtras = {}, nil
+    FG.Import.file, FG.Import.data = { routes = {}, assignments = {} }, nil
+    FG.Import:ApplySaved()
+    useRoute(nil)
+    print("released guides ok: " .. #files)
+end
+ReleasedGuides()
 
 -- The settings: their schema (addon/settings.json, written into SettingsSchema.lua), the window.
 local function SettingsTest()

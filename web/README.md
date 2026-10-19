@@ -75,3 +75,12 @@ CurseForge (default: a search for it there).
 Any static web server does, with the headers above (or without them, through `coi.js`). For a
 quick look: `cd app && npm run dev -- --mode web` (after a build, for the backend and the data),
 then open http://localhost:5173.
+
+## Deployment
+
+Each release (`scripts/release.sh`) builds the web app from its tag and deploys it to Cloudflare
+Pages (`.github/workflows/release.yml`, job `web`): the repository needs the secrets
+`CLOUDFLARE_API_TOKEN` (a token allowed to edit Cloudflare Pages) and `CLOUDFLARE_ACCOUNT_ID`,
+and optionally the variable `CLOUDFLARE_PAGES_PROJECT` (default `factoruide`). The `_headers`
+file gives the page its cross-origin isolation there. The free plan's limits (20,000 files, 25 MiB
+a file) leave room: about 8,200 files, the largest 14 MB.

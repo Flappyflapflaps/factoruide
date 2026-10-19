@@ -124,3 +124,23 @@ fn places_of_services() {
     let lua = job::services_lua(&places);
     assert!(lua.contains(r#"{ "class", "A", 8, 0, "#) && lua.contains(r#""Marryk Nurribit", 944 }"#));
 }
+
+/// Each guide carries the format of the guides written today, which the addon checks against
+/// the newest it follows (Import.lua): a guide made for a newer addon asks to update it.
+#[test]
+fn each_guide_carries_its_format() {
+    let conn = database();
+    let mut other = route(&[("accept", 30.87, 66.2)]);
+    other.name = "other".into();
+    let lua = job::guides_lua(
+        &conn,
+        &overrides(),
+        Edition::Classic,
+        vec![(route(&[("accept", 30.23, 71.61)]), 1000, 3), (other, 1100, 1)],
+    )
+    .unwrap();
+    for name in ["walks", "other"] {
+        let line = format!("FG.Routes[\"{name}\"].format = {}\n", job::GUIDE_FORMAT);
+        assert_eq!(lua.matches(&line).count(), 1, "{name}: its format once");
+    }
+}

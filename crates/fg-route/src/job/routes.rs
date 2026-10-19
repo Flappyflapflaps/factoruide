@@ -79,10 +79,17 @@ pub fn write_data_addon(dir: &Path, lua: &str, interface: &str, version: &str, t
     Ok(())
 }
 
+/// The format of the guides `guides_lua` writes (each guide's `.format`; none: 1). The addon
+/// refuses a guide of a format above its own, asking to update it. The addon updates on its own
+/// (an addon site), the apps too: a newer addon reads every older guide, never the reverse. Bump
+/// it only when an addon that reads this format can no longer follow the guide correctly (a field
+/// it would misread, steps it would get wrong), not for what older addons can ignore.
+pub const GUIDE_FORMAT: u32 = 1;
+
 /// The Lua of guides for the addon (what `/fg import` and the data addon run): each route
 /// (written as it is), with when its version was computed and its number (the addon keeps the
-/// newer of two guides of a name), the walks for its compass, and the places of the trainers,
-/// vendors... in the language of the first guide.
+/// newer of two guides of a name), its format (`GUIDE_FORMAT`), the walks for its compass, and
+/// the places of the trainers, vendors... in the language of the first guide.
 pub fn guides_lua(
     conn: &Connection,
     overrides: &Overrides,
@@ -101,7 +108,7 @@ pub fn guides_lua(
         let name = export::lua_str(&route.name);
         let _ = writeln!(
             lua,
-            "FG.Routes[{name}].created = {created}\nFG.Routes[{name}].version = {version}"
+            "FG.Routes[{name}].created = {created}\nFG.Routes[{name}].version = {version}\nFG.Routes[{name}].format = {GUIDE_FORMAT}"
         );
     }
     lua.push('\n');

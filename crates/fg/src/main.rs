@@ -103,7 +103,12 @@ enum Command {
         json: bool,
     },
     /// Regenerate the data addon (Factoruide_Data) from routes/*.json
-    Addon,
+    Addon {
+        /// Write instead the guides' Lua as the apps export them (the text of an in-game import
+        /// and of the data addon), stamped computed at 0, version 1: the same text each time
+        #[arg(long)]
+        lua: Option<PathBuf>,
+    },
     /// Write the guide pack for the Polestar addon (WoW Forever) from every route JSON
     Polestar {
         /// The pack's addon folder (e.g. <WoW>/_classic_beta_/Interface/AddOns/Factoruide_Polestar),
@@ -239,7 +244,8 @@ fn main() -> Result<()> {
         )?,
         Command::Show { name, full } => route::show(&cli.routes, &name, full)?,
         Command::Diff { a, b, json } => diff::run(&cli.routes, &a, b.as_deref(), json)?,
-        Command::Addon => route::write_addon_routes(&open()?, &overrides, &cli.routes, &cli.addon_dir)?,
+        Command::Addon { lua: None } => route::write_addon_routes(&open()?, &overrides, &cli.routes, &cli.addon_dir)?,
+        Command::Addon { lua: Some(out) } => route::write_guides_lua(&open()?, &overrides, &cli.routes, &out)?,
         Command::Polestar { out, source } => {
             let write = if source {
                 fg_route::job::write_polestar_source

@@ -2,3 +2,4 @@ addon/Factoruide_Guide/Routes.lua
 addon/Factoruide_Guide/Config.lua
 addon/Factoruide_Profile/Sent.lua
 addon/tests/fixtures/
+addon/tests/guides/

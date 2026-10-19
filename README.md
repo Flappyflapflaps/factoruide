@@ -155,6 +155,16 @@ come from the game with **Export my character** in the addon's options (pasted i
 guides go to it with **Import a guide…** (the text a guide's Export gives). See
 [web/README.md](web/README.md).
 
+### Releases
+
+`scripts/release.sh X.Y.Z` tags main and pushes the tag; `.github/workflows/release.yml` then
+publishes everything under that one version: the desktop apps (GitHub release and updates), the
+web app (Cloudflare Pages) and the addons. An addon is published (CurseForge, Wago and a zip in
+the release) only when it changed since the last release: the script gives it the new version
+first, and the apps built from the tag ask for that version at least. A guide made by an older
+app stays readable by a newer addon: `addon/tests/guides` keeps one guide per release, and the
+addon's tests follow each of them.
+
 ## In game: the addon
 
 The addon comes in two parts, installed from CurseForge: **Factoruide_Profile** records your

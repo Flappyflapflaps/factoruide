@@ -2,7 +2,8 @@ name: Release
 
 # Pushing a tag vX.Y.Z (scripts/release.sh) builds the Windows installer, the macOS apps and the
 # Linux app, signs the updates and publishes them as a GitHub release, with latest.json: installed
-# apps offer it at startup. Run by hand with a tag, it builds the macOS and/or Linux apps and adds
+# apps offer it at startup. It also publishes the addons whose version is the tag's (CurseForge,
+# Wago, zips in the release) and deploys the web app (Cloudflare Pages). Run by hand with a tag, it builds the macOS and/or Linux apps and adds
 # them to that tag's release.
 on:
   push:
@@ -30,6 +31,8 @@ env:
   FG_CONTRIBUTION_SERVER: https://factoruide.brouznouf.com
   # A published build: it checks for updates (local and development builds do not).
   FG_RELEASE: "1"
+  # The addon's page the apps link to (repository variable, once its CurseForge project exists).
+  VITE_FG_ADDON_URL: ${{ vars.ADDON_URL }}
 
 jobs:
   windows:
@@ -195,3 +198,102 @@ jobs:
           cp target/release/factoruide-app "$out"
           tar czf "$out.tar.gz" "$out"
           gh release upload "$TAG" "$out.tar.gz" --clobber
+
+  # Each addon whose version is the tag's (scripts/release.sh gives it to those changed since the
+  # last release): its folder alone, packaged and uploaded by the BigWigs packager to its
+  # CurseForge and Wago projects (repository variables for their ids, secrets for the tokens;
+  # skipped without them), and its zip added to the release.
+  addons:
+    name: Addon ${{ matrix.addon }}
+    needs: windows
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - addon: Factoruide_Profile
+            curseforge: ${{ vars.CURSEFORGE_PROFILE_ID }}
+            wago: ${{ vars.WAGO_PROFILE_ID }}
+          - addon: Factoruide_Guide
+            curseforge: ${{ vars.CURSEFORGE_GUIDE_ID }}
+            wago: ${{ vars.WAGO_GUIDE_ID }}
+    env:
+      ADDON: ${{ matrix.addon }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Changed in this release
+        id: changed
+        run: |
+          if grep -q "^## Version: ${TAG#v}$" "addon/$ADDON/$ADDON.toc"; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "$ADDON: unchanged since its last release, not published"
+          fi
+      # The folder as its own repository tagged like the release: the packager zips it whole,
+      # names it after the tag and takes the release notes as its changelog.
+      - name: Addon folder
+        if: steps.changed.outputs.publish
+        run: |
+          git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+          pkg="$RUNNER_TEMP/$ADDON"
+          cp -r "addon/$ADDON" "$pkg"
+          git tag -l --format='%(contents)' "$TAG" > "$pkg/CHANGES.md"
+          printf 'package-as: %s\nmanual-changelog:\n  filename: CHANGES.md\n  markup-type: markdown\n' "$ADDON" > "$pkg/.pkgmeta"
+          cd "$pkg"
+          git init -q
+          git add -A
+          git -c user.name=Factoruide -c user.email=release@factoruide.invalid commit -q -m "$TAG"
+          git tag "$TAG"
+      - uses: BigWigsMods/packager@v2
+        if: steps.changed.outputs.publish
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+        with:
+          args: >-
+            -t ${{ runner.temp }}/${{ matrix.addon }} -r ${{ runner.temp }}/release
+            ${{ matrix.curseforge && format('-p {0}', matrix.curseforge) || '' }}
+            ${{ matrix.wago && format('-a {0}', matrix.wago) || '' }}
+      - name: Zip in the release
+        if: steps.changed.outputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$RUNNER_TEMP"/release/*.zip --clobber
+
+  # The web app: built from the tag and deployed to Cloudflare Pages (secrets CLOUDFLARE_API_TOKEN
+  # and CLOUDFLARE_ACCOUNT_ID, variable CLOUDFLARE_PAGES_PROJECT; skipped without them).
+  web:
+    name: Web app
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      WASI_SDK: "34"
+    steps:
+      - uses: actions/checkout@v5
+      - name: Rust toolchain (from rust-toolchain.toml) and the browser's target
+        run: |
+          rustup toolchain install
+          rustup target add wasm32-wasip1-threads
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: wasi-sdk (the C parts of the backend)
+        run: |
+          curl -sSfL "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-$WASI_SDK/wasi-sdk-$WASI_SDK.0-x86_64-linux.tar.gz" \
+            | tar xz -C "$RUNNER_TEMP"
+          echo "WASI_SDK_PATH=$RUNNER_TEMP/wasi-sdk-$WASI_SDK.0-x86_64-linux" >> "$GITHUB_ENV"
+      - name: Build
+        env:
+          FG_VERSION: ${{ github.ref_name }}
+        run: FG_VERSION="${FG_VERSION#v}" scripts/build-web.sh
+      - uses: cloudflare/wrangler-action@v3
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy web/dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT || 'factoruide' }} --branch=main

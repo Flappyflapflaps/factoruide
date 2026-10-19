@@ -15,6 +15,9 @@ fn call(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, String
     }
 }
 
+/// The page's files are shared: one test using them at a time.
+static STORE: Mutex<()> = Mutex::new(());
+
 /// The Classic database served as the site serves it.
 fn serve_classic() {
     let db = concat!(env!("CARGO_MANIFEST_DIR"), "/../../data/classic.sqlite.zst");
@@ -44,6 +47,7 @@ fn profile_export(name: &str, level: i64) -> String {
 /// it, sent to the game; its recordings kept until sent; everything saved for the next visit.
 #[test]
 fn a_character_pasted_gets_its_guide_into_the_game() {
+    let _store = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     serve_classic();
     store::clear();
     call("set_edition", &serde_json::json!({ "edition": "classic" })).unwrap();
@@ -192,4 +196,36 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
     call("delete_guide", &serde_json::json!({ "guide": guide })).unwrap();
     assert_eq!(call("data_zip", &serde_json::json!({})).unwrap_err(), "no guide yet");
     let _ = REPLIES.lock().unwrap().drain(..);
+}
+
+/// The exports of the released addons (tests/profiles, one per release whose export changed, see
+/// its README) are still read: the character, its game version, level, race and class.
+#[test]
+fn the_exports_of_released_addons_are_read() {
+    let _store = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/profiles");
+    let mut files: Vec<_> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|e| e == "txt"))
+        .collect();
+    files.sort();
+    assert!(!files.is_empty(), "no export in {dir}");
+    for file in files {
+        store::clear();
+        let what = file.display().to_string();
+        let content = std::fs::read_to_string(&file).unwrap();
+        let imported = call("import_profile", &serde_json::json!({ "content": content })).unwrap();
+        assert_eq!(imported["character"], "Brouz-Realm", "{what}");
+        assert_eq!(imported["edition"], "forever", "{what}");
+        assert_eq!(imported["level"], 4, "{what}");
+        call("set_edition", &serde_json::json!({ "edition": "forever" })).unwrap();
+        let characters = call("list_characters", &serde_json::json!({})).unwrap();
+        assert_eq!(characters.as_array().unwrap().len(), 1, "{what}");
+        assert_eq!(characters[0]["race"], "gnome", "{what}");
+        assert_eq!(characters[0]["class"], "mage", "{what}");
+        let profile = &characters[0]["profile"];
+        assert_eq!(profile["flights"], serde_json::json!([2, 12]), "{what}");
+        assert_eq!(profile["completed"], serde_json::json!([179, 233]), "{what}");
+    }
 }

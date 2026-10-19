@@ -127,6 +127,23 @@ pub fn write_addon_routes(conn: &Connection, overrides_dir: &Path, routes_dir: &
     Ok(())
 }
 
+/// Write the Lua of every route JSON as the apps export it (`job::guides_lua`) into `out`, each
+/// guide stamped computed at 0, version 1.
+pub fn write_guides_lua(conn: &Connection, overrides_dir: &Path, routes_dir: &Path, out: &Path) -> Result<()> {
+    let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
+    let routes = job::render_routes(conn, &job::load_routes(routes_dir)?, None)?;
+    let n = routes.len();
+    let lua = job::guides_lua(
+        conn,
+        &overrides,
+        crate::edition(),
+        routes.into_iter().map(|r| (r, 0, 1)).collect(),
+    )?;
+    std::fs::write(out, lua).with_context(|| format!("writing {}", out.display()))?;
+    eprintln!("wrote {} ({n} routes)", out.display());
+    Ok(())
+}
+
 /// Print a route as zone segments, with time and level at each change.
 pub fn show(routes_dir: &Path, name: &str, full: bool) -> Result<()> {
     let path = routes_dir.join(format!("{}.json", job::slug(name)));

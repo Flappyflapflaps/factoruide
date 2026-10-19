@@ -18,6 +18,10 @@
 -- run by the profile part) and those an older app wrote into Routes.lua: of two with the same name,
 -- the one computed last. Each character chooses its guide in the addon's options (main page, Guides;
 -- Guide.lua keeps the choice).
+--
+-- The addon updates on its own (an addon site), apart from the apps: it reads every guide an older
+-- app made. A guide's `.format` (none: 1) tells what it needs; one above Import.FORMAT was made for
+-- a newer addon: refused at the import, left out of Factoruide_Data's, the player asked to update.
 
 local FG = Factoruide
 local T = FG.T
@@ -25,6 +29,12 @@ local Import = {}
 FG.Import = Import
 
 Import.PREFIX = "FGG1:"
+
+--- The newest guide format this addon follows (the apps' GUIDE_FORMAT, fg-route job/routes.rs).
+Import.FORMAT = 1
+
+--- Whether guide `r` was made for a newer addon (its format above this addon's).
+function Import.TooNew(r) return (tonumber(r.format) or 1) > Import.FORMAT end
 
 --- Run a guide's Lua text in the sandbox: returns the table it filled (its `Factoruide`) and its
 --- FactoruideSent, or nil and the error.
@@ -156,10 +166,15 @@ function Import:Apply()
     end
     local data = self.data
 
-    local routes, info = {}, {}
-    -- Of two with the same name, the one computed last (the later offer when the same).
+    local routes, info, tooNew = {}, {}, {}
+    -- Of two with the same name, the one computed last (the later offer when the same). Those
+    -- made for a newer addon are left out (told at the login).
     local function Offer(name, r, source, created)
         if not IsGuide(name, r) then return end
+        if Import.TooNew(r) then
+            tooNew[name] = true
+            return
+        end
         created = tonumber(created) or 0
         if info[name] and info[name].created > created then return end
         routes[name] = r
@@ -178,6 +193,11 @@ function Import:Apply()
         if r then Offer(name, r, "import", entry.created) end
     end
     FG.Routes, self.info = routes, info
+    self.tooNew = {}
+    for name in pairs(tooNew) do
+        if not routes[name] then self.tooNew[#self.tooNew + 1] = name end
+    end
+    table.sort(self.tooNew)
 
     -- The other data (the places): the most recent of each.
     local extras = { { time = -1, ns = { Services = self.file.services } } }
@@ -207,13 +227,16 @@ function Import:Apply()
 end
 
 --- A text run (its `Factoruide`) made ready to keep: { guides = { name -> { text, created,
---- version, older = what is kept when older } }, count, extras, assignments }, or nil and an error.
---- Guides without `.created` take `when`.
+--- version, older = what is kept when older } }, count, extras, assignments, tooNew = names of the
+--- guides made for a newer addon, left out }, or nil and an error. Guides without `.created` take
+--- `when`.
 local function Prepare(ns, when)
     local db = DB()
-    local pending = { guides = {}, count = 0, older = {} }
+    local pending = { guides = {}, count = 0, older = {}, tooNew = {} }
     for name, r in pairs(type(ns.Routes) == "table" and ns.Routes or {}) do
-        if IsGuide(name, r) then
+        if IsGuide(name, r) and Import.TooNew(r) then
+            pending.tooNew[#pending.tooNew + 1] = name
+        elseif IsGuide(name, r) then
             local text, err = Import.Serialize(r)
             if not text then return nil, err end
             local created = tonumber(r.created) or when
@@ -387,6 +410,11 @@ function Import:Read(s)
     if not ns then return nil, string.format(T("The guide could not be read: %s"), tostring(sent)) end
     local pending, prepareErr = Prepare(ns, time())
     if not pending then return nil, string.format(T("The guide could not be read: %s"), tostring(prepareErr)) end
+    -- Made by a newer app: the whole text waits for the addon's update (its guides come together).
+    if #pending.tooNew > 0 then
+        return nil,
+            T("This guide was made by a newer Factoruide app: update the Factoruide addon, then import it again")
+    end
     if pending.count == 0 and not pending.extras then return nil, T("No guide in this text") end
     -- What the contribution server already has: the collector drops these rows.
     FactoruideDB.sent = type(FactoruideDB.sent) == "table" and FactoruideDB.sent or {}
@@ -536,6 +564,12 @@ FG:On("PLAYER_LOGIN", function()
         )
     elseif fresh then
         FG:Print(T("%d guides imported: choose the one to follow in /fg"), fresh)
+    end
+    if Import.tooNew and #Import.tooNew > 0 then
+        FG:Print(
+            T("%s: made by a newer Factoruide app, update the Factoruide addon to follow it"),
+            table.concat(Import.tooNew, ", ")
+        )
     end
     FactoruideDB.guideImportFresh = nil
 end)
