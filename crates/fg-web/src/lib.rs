@@ -113,28 +113,32 @@ mod exports {
         super::store::load(&String::from_utf8_lossy(&path), data);
     }
 
-    /// Grow the memory now, before any thread starts, as much as `max` bytes (in steps of 256 MiB
-    /// down to what the browser gives): the allocator keeps it. Returns the bytes reserved.
+    /// Grow the memory now, before any thread starts, up to `max` bytes (in blocks of 256 MiB,
+    /// as many as the browser gives): the allocator keeps it. Returns the bytes reserved.
     ///
-    /// The memory growing while threads run made some of them trap ("memory access out of
-    /// bounds" on memory just grown by another one, as if they still saw the former size). The
-    /// pages are only reserved: the browser gives them memory when they are first written.
+    /// Memory grown while threads run made some of them trap: the browser checks the copies of
+    /// memory (`memory.copy`) against the size each thread last saw, which lags behind for a
+    /// moment after another thread grew it. The pages are only reserved: they take memory once
+    /// written.
     #[unsafe(no_mangle)]
     pub extern "C" fn fg_reserve(max: usize) -> usize {
-        let mut size = max;
-        while size >= 256 << 20 {
-            if let Ok(layout) = std::alloc::Layout::from_size_align(size, 16) {
-                // SAFETY: a valid layout; the block is freed at once.
-                let block = unsafe { std::alloc::alloc(layout) };
-                if !block.is_null() {
-                    // SAFETY: allocated just above with this layout.
-                    unsafe { std::alloc::dealloc(block, layout) };
-                    return size;
-                }
+        const BLOCK: usize = 256 << 20;
+        let layout = std::alloc::Layout::from_size_align(BLOCK, 16).expect("a valid layout");
+        let mut blocks = Vec::new();
+        while blocks.len() * BLOCK + BLOCK <= max {
+            // SAFETY: a valid layout; every block is freed below.
+            let block = unsafe { std::alloc::alloc(layout) };
+            if block.is_null() {
+                break;
             }
-            size -= 256 << 20;
+            blocks.push(block);
         }
-        0
+        let reserved = blocks.len() * BLOCK;
+        for block in blocks {
+            // SAFETY: allocated above with this layout.
+            unsafe { std::alloc::dealloc(block, layout) };
+        }
+        reserved
     }
 
     /// A call from the page (a JSON text in a buffer of `fg_alloc`, handed over).

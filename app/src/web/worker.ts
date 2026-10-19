@@ -264,10 +264,10 @@ async function start(init: Init) {
     return;
   }
   // Once, in the main worker (the threads share what it initialized). The memory grows now,
-  // before any thread: threads trap on memory grown while they run.
+  // before any thread: a thread copying memory another one just grew traps (see fg_reserve).
   exports["_initialize"]();
-  const reserved = u32(exports.fg_reserve(3 * 1024 ** 3));
-  post({ log: `memory reserved: ${reserved >> 20} MiB`, error: false });
+  const reserved = u32(exports.fg_reserve(3.75 * 1024 ** 3));
+  post({ log: `memory reserved: ${reserved >>> 20} MiB`, error: false });
   for (const [path, data] of init.files) {
     const p = new TextEncoder().encode(path);
     const d = new Uint8Array(data);
@@ -283,7 +283,7 @@ self.onmessage = (e: MessageEvent<Init | { call: number; request: string }>) => 
       const req = new TextEncoder().encode(m.request);
       exports.fg_call(m.call, copyIn(req), req.length);
     } else {
-      start(m).catch((err) => post({ crash: String(err?.stack ?? err) }));
+      start(m).catch((err) => post({ crash: `${err?.stack ?? err} (memory ${memory?.buffer.byteLength >>> 20} MiB)` }));
     }
   } catch (err) {
     post({ crash: String((err as Error)?.stack ?? err) });
