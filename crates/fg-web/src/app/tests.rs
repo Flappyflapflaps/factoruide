@@ -132,6 +132,55 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
     call("addon_export", &serde_json::json!({})).unwrap();
     assert_eq!(call("addon_synced", &serde_json::json!({})).unwrap(), true);
 
+    // Watched, edited by hand, compared: the calls of the guide's page.
+    let timeline = call(
+        "guide_timeline",
+        &serde_json::json!({ "guide": guide, "version": 1, "locale": "frFR" }),
+    )
+    .unwrap();
+    assert!(!timeline["steps"].as_array().unwrap().is_empty());
+    let opened = call(
+        "edit_open",
+        &serde_json::json!({ "guide": guide, "version": 1, "locale": "enUS" }),
+    )
+    .unwrap();
+    let mut steps = opened["steps"].as_array().unwrap().clone();
+    assert!(steps.len() > 2);
+    steps.pop();
+    let view = call(
+        "edit_simulate",
+        &serde_json::json!({ "steps": steps, "locale": "enUS" }),
+    )
+    .unwrap();
+    assert_eq!(view["report"]["steps"].as_array().unwrap().len(), steps.len());
+    call(
+        "edit_suggest",
+        &serde_json::json!({ "steps": steps, "after": 0, "locale": "enUS" }),
+    )
+    .unwrap();
+    let edited = call("edit_save", &serde_json::json!({ "steps": steps })).unwrap();
+    assert_eq!(
+        (edited["version"].as_u64(), edited["edited"].as_bool()),
+        (Some(2), Some(true))
+    );
+    let compared = call(
+        "compare_versions",
+        &serde_json::json!({ "guide": guide, "a": 1, "b": 2, "locale": "enUS" }),
+    )
+    .unwrap();
+    assert!(!compared["text"].as_str().unwrap().is_empty());
+    call("delete_version", &serde_json::json!({ "guide": guide, "version": 2 })).unwrap();
+    // The other pages' data.
+    assert!(
+        !call("map_index", &serde_json::json!({}))
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    call("need_help", &serde_json::json!({ "locale": "enUS" })).unwrap();
+    assert_eq!(call("get_options", &serde_json::json!({})).unwrap()["max_level"], 60);
+
     // A file to share comes back as a new version.
     let shared = call("export_version", &serde_json::json!({ "guide": guide, "version": 1 })).unwrap();
     assert_eq!(shared["file"], format!("{guide}-v1.fgguide"));
