@@ -79,8 +79,16 @@ then open http://localhost:5173.
 ## Deployment
 
 Each release (`scripts/release.sh`) builds the web app from its tag and deploys it to Cloudflare
-Pages (`.github/workflows/release.yml`, job `web`): the repository needs the secrets
-`CLOUDFLARE_API_TOKEN` (a token allowed to edit Cloudflare Pages) and `CLOUDFLARE_ACCOUNT_ID`,
-and optionally the variable `CLOUDFLARE_PAGES_PROJECT` (default `factoruide`). The `_headers`
-file gives the page its cross-origin isolation there. The free plan's limits (20,000 files, 25 MiB
-a file) leave room: about 8,200 files, the largest 14 MB.
+Pages (`.github/workflows/release.yml`, job `web`), at `factoruide.brouznouf.com`. The repository
+needs the secrets `CLOUDFLARE_API_TOKEN` (allowed to edit Cloudflare Pages),
+`CLOUDFLARE_ACCOUNT_ID` and `FG_PROXY_KEY`, and optionally the variable `CLOUDFLARE_PAGES_PROJECT`
+(default `factoruide`; the job creates the project the first time). The `_headers` file gives
+the page its cross-origin isolation there. The free plan's limits (20,000 files, 25 MiB a file)
+leave room: about 8,200 files, the largest 14 MB.
+
+That name was the contribution server's: the desktop apps released before still post their
+contributions and reports to `/v1/*` there. `functions/v1/[[path]].js` (a Pages Function, the
+only path that runs code: the rest is served as files) relays them to the server, now at
+`api.factoruide.brouznouf.com`, where newer apps post directly. It tells the server each
+sender's address with the key both share (`FG_PROXY_KEY`, set as the project's `PROXY_KEY`; see
+the contribution server's README).
