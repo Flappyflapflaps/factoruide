@@ -3135,8 +3135,23 @@ local function ExportImport()
     local notLua = "FGG1:" .. deflate:EncodeForPrint(deflate:CompressDeflate("FG.Routes = {"))
     assert(Click(notLua):find("pas pu être lu", 1, true), "Lua errors refused")
     assert(not reloaded and FactoruideDB.guideImport == nil, "nothing kept from bad strings")
-    -- Spaces and line breaks picked up with the copy do not matter.
-    Click(guideString:sub(1, 100) .. "\n  " .. guideString:sub(101))
+    -- Pasted: the game sends the characters one by one in the same frame (OnChar), the box
+    -- itself holds little; the next frame joins them. Spaces and line breaks picked up with the
+    -- copy do not matter.
+    local pasteTime = GetTime
+    GetTime = function() return 42 end
+    local text = guideString:sub(1, 100) .. "\n  " .. guideString:sub(101)
+    edit:SetText("")
+    for i = 1, #text do
+        edit.OnChar(edit, text:sub(i, i))
+    end
+    GetTime = pasteTime
+    assert(rawget(edit, "OnUpdate"), "the paste is joined on the next frame")
+    edit.OnUpdate(edit)
+    assert(not rawget(edit, "OnUpdate"), "joined once")
+    assert((edit:GetText() or "") == "", "the box stays empty: " .. tostring(edit:GetText()):sub(1, 40))
+    assert(status:GetText():find("Ko", 1, true), "the paste's size told: " .. status:GetText())
+    action.OnClick()
     assert(reloaded and FactoruideDB.guideImport.text == guideLua, "import kept, interface reloaded")
     assert(FactoruideDB.sent["Brouz-Realm"] == 150 and FactoruideDB.sent["Other-Realm"] == 3, "sent seq imported")
     assert(#FG.Collector:Pending().events == 0, "rows up to the imported seq are sent")

@@ -9,6 +9,12 @@ FG.TextWindow = Window
 
 local frame, edit, title, hint, status, action, close
 local copyText -- the text to copy, put back when the player types in the box
+-- A paste: the edit box lays its whole text out, which freezes the game for hundreds of
+-- kilobytes. Pasting into a box that holds little, its characters are taken one by one as they
+-- come (OnChar, all in the same frame) and joined on the next frame.
+local PASTE_BOX_BYTES = 2500
+local pasted -- the text pasted, once joined
+local pasteParts, pasteCount, pasteTime = {}, 0, nil
 
 local function Create()
     frame = CreateFrame("Frame", "FactoruideTextWindow", UIParent, "BackdropTemplate")
@@ -60,10 +66,27 @@ local function Create()
     edit:SetAutoFocus(false)
     edit:SetFontObject(ChatFontNormal or GameFontHighlightSmall)
     edit:SetWidth(500)
-    -- No length limit: a guide is hundreds of kilobytes. Nothing runs per character: the text is
-    -- read once, on Import.
     edit:SetMaxBytes(0)
     edit:SetMaxLetters(0)
+    edit:SetScript("OnChar", function(self, c)
+        if copyText then return end
+        local now = GetTime()
+        if now ~= pasteTime then
+            pasteTime, pasteParts, pasteCount = now, {}, 0
+            self:SetScript("OnUpdate", function(box)
+                box:SetScript("OnUpdate", nil)
+                -- A few typed characters stay typed; a paste replaces the box's text.
+                if pasteCount < 20 then return end
+                pasted = table.concat(pasteParts, "", 1, pasteCount)
+                pasteParts, pasteCount = {}, 0
+                box:SetText("")
+                box:ClearFocus()
+                Window:Status(T("Text pasted (%d KB): click the button below."):format(math.ceil(#pasted / 1024)))
+            end)
+        end
+        pasteCount = pasteCount + 1
+        pasteParts[pasteCount] = c
+    end)
     edit:SetScript("OnEscapePressed", function() frame:Hide() end)
     edit:SetScript("OnTextChanged", function(self, userInput)
         if userInput and copyText then
@@ -99,13 +122,16 @@ end
 function Window:Open(opts)
     if not frame then Create() end
     copyText = opts.text
+    pasted = nil
+    -- To copy, the whole (small) text; to paste into, a box that holds little (see OnChar).
+    edit:SetMaxBytes(opts.text and 0 or PASTE_BOX_BYTES)
     title:SetText(opts.title or "Factoruide")
     hint:SetText(opts.hint or "")
     status:SetText("")
     close:SetText(opts.closeLabel or T("Close"))
     if opts.button then
         action:SetText(opts.button.label)
-        action:SetScript("OnClick", function() opts.button.onClick(edit:GetText() or "") end)
+        action:SetScript("OnClick", function() opts.button.onClick(pasted or edit:GetText() or "") end)
         action:Show()
     else
         action:Hide()

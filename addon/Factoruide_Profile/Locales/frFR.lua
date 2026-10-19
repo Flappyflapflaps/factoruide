@@ -209,4 +209,5 @@ FG.Locales.frFR = {
     ["Reload the interface"] = "Recharger l'interface",
     ["Open the settings"] = "Ouvrir les réglages",
     ["Also with /fg config in the chat."] = "Aussi avec /fg config dans la discussion.",
+    ["Text pasted (%d KB): click the button below."] = "Texte collé (%d Ko) : cliquez sur le bouton en dessous.",
 }
