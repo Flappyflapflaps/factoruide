@@ -1,6 +1,7 @@
 //! Experience rules of each game version.
 
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 
 /// Game version a guide is made for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
@@ -57,13 +58,49 @@ impl Edition {
         }
     }
 
-    /// Client folder in the WoW install.
-    pub fn client_folder(self) -> &'static str {
+    /// Client folders this game version may have in the WoW install, the preferred one first:
+    /// WoW Forever's beta is in `_classic_beta_`, its stress test made `_forever_` (the folder
+    /// after its release).
+    pub fn client_folders(self) -> &'static [&'static str] {
         match self {
-            Edition::Forever => "_classic_beta_",
-            Edition::Classic => "_classic_era_",
-            Edition::Tbc => "_anniversary_",
+            Edition::Forever => &["_forever_", "_classic_beta_"],
+            Edition::Classic => &["_classic_era_"],
+            Edition::Tbc => &["_anniversary_"],
         }
+    }
+
+    /// Whether a client folder name (`_classic_era_`...) is one of this game version's.
+    pub fn has_client_folder(self, name: &str) -> bool {
+        self.client_folders().contains(&name)
+    }
+
+    /// This game version's client folder in a WoW install (`root`). When several are there, the
+    /// one the game ran last in (its WTF/Config.wtf, written whenever the game quits), the
+    /// preferred one on a tie; none there: the preferred one.
+    pub fn client_dir(self, root: &Path) -> PathBuf {
+        let last_run = |dir: &Path| {
+            std::fs::metadata(dir.join("WTF/Config.wtf"))
+                .and_then(|m| m.modified())
+                .ok()
+        };
+        let folders = self.client_folders();
+        let mut best: Option<(PathBuf, Option<std::time::SystemTime>)> = None;
+        for folder in folders {
+            let dir = root.join(folder);
+            if !dir.is_dir() {
+                continue;
+            }
+            let time = last_run(&dir);
+            if best.as_ref().is_none_or(|(_, t)| time > *t) {
+                best = Some((dir, time));
+            }
+        }
+        best.map_or_else(|| root.join(folders[0]), |(dir, _)| dir)
+    }
+
+    /// Whether this game version is installed in a WoW install (`root`).
+    pub fn installed_in(self, root: &Path) -> bool {
+        self.client_folders().iter().any(|f| root.join(f).is_dir())
     }
 
     /// Overrides folder (`overrides/<key>/`), its files added to those of `overrides/`.

@@ -17,6 +17,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - New guide starts from a character saved by the addon; in the web app, paste the character exported in game.
 - The Characters and Addon pages are gone: the addon is installed from CurseForge and set up in game.
 - A bar says when the addon is missing or out of date, with a link to its page.
+- WoW Forever is also found in its new `_forever_` game folder (GitHub #32).
 
 ### Addon
 
