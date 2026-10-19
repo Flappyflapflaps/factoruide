@@ -83,3 +83,8 @@ a.button.primary {
 .sidebar-footer a.sidebar-link:hover {
   background: color-mix(in srgb, var(--wash) 8%, transparent);
 }
+/* The web build's panels above the characters (paste, text for the game): apart from what follows. */
+.web-paste,
+.web-import {
+  margin-bottom: 16px;
+}
