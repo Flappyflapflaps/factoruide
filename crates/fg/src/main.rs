@@ -26,8 +26,8 @@ struct Cli {
     /// Directory of the planned routes (JSON)
     #[arg(long, env = "FG_ROUTES", default_value = "routes", global = true)]
     routes: PathBuf,
-    /// Addon directory receiving Routes.lua
-    #[arg(long, env = "FG_ADDON_DIR", default_value = "addon/Factoruide_Guide", global = true)]
+    /// The data addon folder receiving the guides (Factoruide_Data: copy it into the game's AddOns)
+    #[arg(long, env = "FG_ADDON_DIR", default_value = "addon/Factoruide_Data", global = true)]
     addon_dir: PathBuf,
     #[command(subcommand)]
     command: Command,
@@ -35,7 +35,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Plan a leveling route and export it (routes/*.json and the addon's Routes.lua)
+    /// Plan a leveling route and export it (routes/*.json and the data addon)
     Route {
         /// Race key from overrides/races.toml (gnome, human, orc...)
         #[arg(long)]
@@ -102,7 +102,7 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Regenerate the addon's Routes.lua from routes/*.json
+    /// Regenerate the data addon (Factoruide_Data) from routes/*.json
     Addon,
     /// Write the guide pack for the Polestar addon (WoW Forever) from every route JSON
     Polestar {

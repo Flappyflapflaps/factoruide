@@ -109,12 +109,21 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
     write_addon_routes(conn, &opts.overrides, &opts.routes_dir, &opts.addon_dir)
 }
 
-/// Regenerate the addon's Routes.lua from every route JSON (each in its own language), and
-/// Services.lua.
+/// Write the data addon (`addon_dir`, Factoruide_Data) from every route JSON (each in its own
+/// language): copy it into the game next to the addon.
 pub fn write_addon_routes(conn: &Connection, overrides_dir: &Path, routes_dir: &Path, addon_dir: &Path) -> Result<()> {
     let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
-    let n = job::write_addon_routes(conn, &overrides, crate::edition(), routes_dir, addon_dir)?;
-    eprintln!("wrote {} ({n} routes)", addon_dir.join("Routes.lua").display());
+    // The game versions the guide addon of this checkout declares.
+    let guide_toc = addon_dir
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join("Factoruide_Guide/Factoruide_Guide.toc");
+    let interface = std::fs::read_to_string(&guide_toc)
+        .ok()
+        .and_then(|toc| toc.lines().find(|l| l.starts_with("## Interface:")).map(str::to_owned))
+        .unwrap_or_else(|| "## Interface: 11508".to_owned());
+    let n = job::write_addon_routes(conn, &overrides, crate::edition(), routes_dir, addon_dir, &interface)?;
+    eprintln!("wrote {} ({n} routes)", addon_dir.join("Data.lua").display());
     Ok(())
 }
 

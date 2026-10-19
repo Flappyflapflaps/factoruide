@@ -21,3 +21,4 @@ debug/
 # The web app: its build and the backend built for it.
 /web/dist/
 /app/src/web/fg_web.wasm
+/addon/Factoruide_Data/
