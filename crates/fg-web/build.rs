@@ -43,8 +43,16 @@ fn main() {
         .lines()
         .find(|l| l.starts_with("## Interface:"))
         .unwrap_or("## Interface: 11508");
+    // The oldest addon this app works with: the version of its .toc in this repository.
+    let profile_toc = root.join("addon/Factoruide_Profile/Factoruide_Profile.toc");
+    println!("cargo:rerun-if-changed={}", profile_toc.display());
+    let addon_version = std::fs::read_to_string(&profile_toc)
+        .unwrap()
+        .lines()
+        .find_map(|l| l.strip_prefix("## Version:"))
+        .map_or_else(String::new, |v| v.trim().to_owned());
     let out = format!(
-        "pub const OVERRIDES: &[(&str, &[u8])] = &[\n{}];\npub const ADDON_INTERFACE: &str = {interface:?};\n",
+        "pub const OVERRIDES: &[(&str, &[u8])] = &[\n{}];\npub const ADDON_INTERFACE: &str = {interface:?};\npub const ADDON_VERSION: &str = {addon_version:?};\n",
         list(&mut overrides)
     );
     std::fs::write(Path::new(&std::env::var("OUT_DIR").unwrap()).join("embedded.rs"), out).unwrap();

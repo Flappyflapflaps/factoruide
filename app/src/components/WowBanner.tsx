@@ -70,11 +70,11 @@ export function WowBanner({ editionName, onSettings, onAddon }: Props) {
       </div>
     );
   // In a browser: the addon version of the last export pasted.
-  if (IS_WEB && health?.installed_version && health.installed_version !== health.app_version)
+  if (IS_WEB && health?.outdated)
     return (
       <div className="wow-banner outdated" role="status">
         <span className="wow-banner-text">
-          <strong>{t("L'addon du jeu n'est pas à jour.")}</strong> {t("Le dernier export vient de la version {old} de l'addon : mettez-le à jour depuis CurseForge pour avoir les nouveautés.", { old: health.installed_version })}
+          <strong>{t("L'addon du jeu n'est pas à jour.")}</strong> {t("Le dernier export vient de la version {old} de l'addon : mettez-le à jour depuis CurseForge pour avoir les nouveautés.", { old: health.installed_version ?? "?" })}
         </span>
         <button onClick={onAddon}>{t("Page de l'addon")}</button>
       </div>

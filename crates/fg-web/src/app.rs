@@ -957,7 +957,24 @@ struct AddonState {
     app_version: &'static str,
     /// The version of the addon of the last export pasted.
     installed_version: Option<String>,
+    /// The oldest addon version this app works with, and whether the last export's is older.
+    required_version: &'static str,
+    outdated: bool,
     seen: Option<LastExport>,
+}
+
+/// Whether version `a` ("0.13.0") is older than `b`; versions that do not read as numbers are
+/// never older (an addon built by hand).
+fn older(a: &str, b: &str) -> bool {
+    let parse = |v: &str| {
+        v.split('.')
+            .map(|p| p.trim().parse::<u32>().ok())
+            .collect::<Option<Vec<_>>>()
+    };
+    match (parse(a), parse(b)) {
+        (Some(a), Some(b)) => a < b,
+        _ => false,
+    }
 }
 
 fn last_export(edition: Edition) -> Option<LastExport> {
@@ -969,6 +986,10 @@ fn addon_health() -> AddonState {
     AddonState {
         app_version: APP_VERSION,
         installed_version: seen.as_ref().map(|s| s.version.clone()),
+        required_version: embedded::ADDON_VERSION,
+        outdated: seen
+            .as_ref()
+            .is_some_and(|s| older(&s.version, embedded::ADDON_VERSION)),
         seen,
     }
 }

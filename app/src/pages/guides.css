@@ -69,6 +69,9 @@
   display: flex;
   gap: 2px;
 }
-.page-head .export-menu {
-  margin-left: 6px;
+.guides-head-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }

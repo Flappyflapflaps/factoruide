@@ -179,10 +179,12 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
           e.target.value = "";
         }}
       />
-      <button onClick={() => fileRef.current?.click()} title={t("Ajoute un guide reçu d'un autre joueur (fichier .fgguide)")}>
-        {t("Importer un guide…")}
-      </button>
-      {!!guides?.length && <GlobalExport edition={edition} count={guides.length} onDone={exported} />}
+      <div className="guides-head-actions">
+        <button onClick={() => fileRef.current?.click()} title={t("Ajoute un guide reçu d'un autre joueur (fichier .fgguide)")}>
+          {t("Importer un guide…")}
+        </button>
+        {!!guides?.length && <GlobalExport edition={edition} count={guides.length} onDone={exported} />}
+      </div>
     </div>
   );
   const notices = (
