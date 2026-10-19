@@ -32,6 +32,13 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 
 - The Great Outdoors is done in the starting camp right after The Adventurer: sitting at the campfire waits for no level (GitHub #35).
 - Camping 101 quests offered, optional, for the professions you level.
+- Tauren shamans get their Call of Earth quests again (GitHub #33), and Stars of Elune is planned.
+- Timed quests are done within their time limit (GitHub #34).
+- Quests started by a rare drop are no longer planned as if it dropped often.
+- Forever's dungeon quests give the XP the game gives.
+- Library books: the book is looted before going to the librarian.
+- The Warsong scouts' updates are planned, and Flight to Auberdine uses the free hippogryph.
+- Polestar guides wait for a quest to be complete before its turn-in.
 
 ## 0.13.0 (2026-10-18)
 
