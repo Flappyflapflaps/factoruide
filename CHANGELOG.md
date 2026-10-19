@@ -28,6 +28,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - Pasting a guide no longer freezes the game.
 - New key bindings: next and previous step, mark a step done, undo, next spot, show or hide the guide or every window, time per level, the options.
 - A guide made by a newer app asks you to update the addon instead of going wrong.
+- With the XP mark on, hovering the XP bar shows the game's XP and percentage again, with the guide's lines under them (GitHub #36).
 
 ### Guides
 
