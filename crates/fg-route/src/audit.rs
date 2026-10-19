@@ -98,6 +98,14 @@ pub const CHECKS: &[Check] = &[
                prerequisites, a sequence marked exclusive)",
         error: true,
     },
+    Check {
+        name: "timed-quests",
+        what: "quests of the guide whose objectives give a time (\"in ten minutes\") while the \
+               data has no time limit: the planner may do other things between taking and \
+               turning in, and the game fails the quest. Give the limit (`time_limit`) in the \
+               quest data, or accept a time that is no limit (a spell that lasts 2 minutes)",
+        error: false,
+    },
 ];
 
 /// Why a quest is left out when its objectives or their places are unknown to the data (the
@@ -181,6 +189,11 @@ pub fn audit(
     } else {
         Vec::new()
     };
+    let timed_text = if on("timed-quests") {
+        untimed_quests_saying_a_time(conn)?
+    } else {
+        HashMap::new()
+    };
     let trainer_quests = if on("other-class-quests") {
         trainer_quests(conn)?
     } else {
@@ -250,6 +263,9 @@ pub fn audit(
             unknown_starter_drops(&prepared.model, &starter_drops)
                 .into_iter()
                 .for_each(&mut add);
+        }
+        if on("timed-quests") {
+            timed_quests(&prepared.model, &timed_text).into_iter().for_each(&mut add);
         }
         if on("source-items") {
             uncovered_source_items(&prepared.model, &source_items)
@@ -804,6 +820,55 @@ fn chain_order(model: &Model, old_quests: &HashSet<i64>) -> Vec<Finding> {
     out
 }
 
+/// Quests without a time limit whose objectives text speaks of minutes or a time limit, with
+/// that text: Grace of An'she and Mu'sha ("before the incense burns to ash in ten minutes") had
+/// none, the guide did eight steps between taking and turning it in, and the game failed it.
+fn untimed_quests_saying_a_time(conn: &Connection) -> Result<HashMap<i64, String>> {
+    let has_limit: bool = conn.query_row(
+        "SELECT count(*) > 0 FROM pragma_table_info('m_quest') WHERE name = 'time_limit'",
+        [],
+        |r| r.get(0),
+    )?;
+    let limit = if has_limit { "coalesce(time_limit, 0)" } else { "0" };
+    let mut stmt = conn.prepare(&format!(
+        "SELECT id, objectives_text FROM m_quest WHERE {limit} <= 0 AND objectives_text IS NOT NULL"
+    ))?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))?;
+    let mut out = HashMap::new();
+    for row in rows {
+        let (id, text) = row?;
+        if says_a_time(&text) {
+            out.insert(id, text);
+        }
+    }
+    Ok(out)
+}
+
+/// The text gives a time to do the quest in.
+fn says_a_time(text: &str) -> bool {
+    let text = text.to_lowercase();
+    ["minute", "time limit", "time runs out", "before time"]
+        .iter()
+        .any(|w| text.contains(w))
+}
+
+fn timed_quests(model: &Model, untimed: &HashMap<i64, String>) -> Vec<Finding> {
+    model
+        .quests
+        .iter()
+        .filter_map(|q| {
+            let text = untimed.get(&q.id)?;
+            let excerpt: String = text.chars().take(120).collect();
+            Some(Finding {
+                check: "timed-quests",
+                key: format!("quest {}", q.id),
+                detail: format!("{} ({}): no time limit known, its objectives say \"{excerpt}\"", q.name, q.id),
+                races: Vec::new(),
+            })
+        })
+        .collect()
+}
+
 /// (parent, parent's name, child, child's name) of the children the guides hand in on the way
 /// (the repeatable ones, see the model's `LinkKind::Child`).
 fn child_links(conn: &Connection) -> Result<Vec<(i64, String, i64, String)>> {
@@ -993,5 +1058,20 @@ mod tests {
         p.model.quests[0].pre_any.clear();
         p.model.quests[2].pre_all = vec![a];
         assert_eq!(keys(&p.model), [format!("quest {c}")], "exclusive the other way");
+    }
+
+    /// A quest of the guide whose objectives give a time and that has no limit is found; with
+    /// a limit, or not in the guide, it is not.
+    #[test]
+    fn a_quest_saying_a_time_without_a_limit_is_found() {
+        let p = quests_at_start(2);
+        let id = p.model.quests[0].id;
+        let text = "Carry the Smoldering Incense to the shrine before the incense burns to ash in ten minutes!";
+        assert!(says_a_time(text));
+        assert!(!says_a_time("Kill 10 Plainstriders."));
+        let untimed = HashMap::from([(id, text.to_owned()), (990_002, text.to_owned())]);
+        let keys: Vec<String> = timed_quests(&p.model, &untimed).into_iter().map(|f| f.key).collect();
+        assert_eq!(keys, [format!("quest {id}")]);
+        assert!(timed_quests(&p.model, &HashMap::new()).is_empty());
     }
 }
