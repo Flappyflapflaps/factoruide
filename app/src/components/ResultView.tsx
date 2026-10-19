@@ -155,7 +155,7 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
   const follow = (n: number) =>
     act(async () => {
       const count = await api.setInstalled(meta.guide, n);
-      return IS_WEB ? t("Guides pour l'addon : {n} — page Addon, « Envoyer au jeu », puis /fg import en jeu", { n: count }) : t("Guides dans l'addon : {n} — faites /reload en jeu", { n: count });
+      return IS_WEB ? t("Guides pour l'addon : {n} — page Personnages, « Envoyer au jeu », puis /fg import en jeu", { n: count }) : t("Guides dans l'addon : {n} — faites /reload en jeu", { n: count });
     });
 
   const versions = guide?.versions ?? [];

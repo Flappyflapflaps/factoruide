@@ -55,3 +55,20 @@ a.button.primary {
   max-width: 40rem;
   margin: 3rem auto;
 }
+.web-sidebar-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+.web-sidebar-tools select {
+  width: 100%;
+}
+.web-sidebar-row {
+  display: flex;
+  gap: 0.4rem;
+}
+.web-sidebar-row button {
+  flex: 1;
+  font-size: 0.85em;
+}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type CharacterInfo, type GuideSummary, type Options } from "../api";
-import { useAddonHealth } from "../components/AddonInGame";
+import { useAddonHealth } from "../components/addonHealth";
 import { ClassName, FactionIcon, raceFaction } from "../components/Character";
 import { Hint } from "../components/Hint";
 import { Icon } from "../components/Icons";
@@ -8,6 +8,8 @@ import { PROFESSIONS } from "../components/ProfessionPicker";
 import { useDate, useGameName, useT } from "../i18n";
 import { IS_WEB } from "../web/mode";
 import { ProfilePaste } from "../web/components/ProfilePaste";
+import { AddonImport } from "../web/components/AddonImport";
+import type { Edition } from "../api";
 
 interface Props {
   /** Options of the game version (race names and factions), when loaded. */
@@ -18,8 +20,10 @@ interface Props {
   onNewGuide: (character: string) => void;
   /** Name of the game version chosen in the menu. */
   editionName: string;
-  /** Go to the addon page (to install it). */
+  /** Open the addon's page (to install it). */
   onAddon: () => void;
+  /** The game version the app works on. */
+  edition: Edition | null;
 }
 
 /** The latest version of a guide, and the one its characters follow. */
@@ -30,7 +34,7 @@ const followed = (g: GuideSummary) => g.versions.find((v) => v.version === g.ins
  * The account's characters the addon recorded, one block each: who it is, where it is, and the
  * guide it follows (0 or 1, chosen here only: the addon shows it in game after /reload).
  */
-export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, onAddon }: Props) {
+export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, onAddon, edition }: Props) {
   const health = useAddonHealth();
   const t = useT();
   const date = useDate();
@@ -42,6 +46,8 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, 
   const [allGuides, setAllGuides] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Web build: the text for the game, shown on demand.
+  const [sending, setSending] = useState(false);
 
   const load = useCallback(() => {
     api.listCharacters().then(setCharacters).catch((e) => setError(String(e)));
@@ -65,7 +71,7 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, 
         else delete next[character];
         return next;
       });
-      setMessage(IS_WEB ? t("Guides pour l'addon : {n} — page Addon, « Envoyer au jeu », puis /fg import en jeu", { n }) : t("Guides dans l'addon : {n} — faites /reload en jeu", { n }));
+      setMessage(IS_WEB ? t("Guides pour l'addon : {n} — « Envoyer au jeu », puis /fg import en jeu", { n }) : t("Guides dans l'addon : {n} — faites /reload en jeu", { n }));
     } catch (e) {
       setError(String(e));
     }
@@ -100,14 +106,20 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, 
           <Hint
             text={
               IS_WEB
-                ? `${t("Chaque personnage suit au plus un guide, choisi ici : l'addon le lui montre en jeu une fois les guides envoyés (page Addon).")} ${t("Un personnage manque ? Tapez /fg export en jeu avec lui et collez le texte ici.")}`
+                ? `${t("Chaque personnage suit au plus un guide, choisi ici : l'addon le lui montre en jeu une fois les guides envoyés (« Envoyer au jeu »).")} ${t("Un personnage manque ? Tapez /fg export en jeu avec lui et collez le texte ici.")}`
                 : `${t("Chaque personnage suit au plus un guide, choisi ici : l'addon le lui montre en jeu après /reload.")} ${t("Un personnage manque ? Connectez-vous avec lui en jeu, puis /reload.")}`
             }
           />
         </h2>
+        {IS_WEB && (
+          <button className="primary" onClick={() => setSending(true)} disabled={!Object.keys(assignments).length} title={t("Le texte à coller en jeu avec /fg import : les guides que suivent vos personnages.")}>
+            {t("Envoyer au jeu")}
+          </button>
+        )}
       </div>
       {message && <div className="success">{message}</div>}
       {error && <div className="error">{error}</div>}
+      {IS_WEB && sending && <AddonImport key={JSON.stringify(assignments)} edition={edition} onClose={() => setSending(false)} />}
       {IS_WEB && <ProfilePaste onImported={load} />}
       {characters === null ? (
         <div className="empty">{t("Chargement…")}</div>
@@ -116,7 +128,7 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, 
           <h3>{t("Aucun personnage pour {edition}", { edition: editionName })}</h3>
           <p>{t("Un personnage apparaît ici une fois son export collé ci-dessus. L'addon n'est pas encore dans le jeu ?")}</p>
           <button className="link" onClick={onAddon}>
-            {t("Aller à la page Addon")}
+            {t("Installer l'addon (CurseForge)")}
           </button>
         </section>
       ) : characters.length === 0 ? (
@@ -142,9 +154,9 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, 
               <strong>{t("Mauvaise version du jeu")}</strong> — {t("le personnage est sur une autre version que celle choisie en haut du menu ({edition}).", { edition: editionName })}
             </li>
             <li>
-              <strong>{t("Addon pas installé")}</strong> — {t("installez-le dans ce client depuis la page Addon.")}{" "}
+              <strong>{t("Addon pas installé")}</strong> — {t("installez-le dans ce client depuis CurseForge.")}{" "}
               <button className="link" onClick={onAddon}>
-                {t("Aller à la page Addon")}
+                {t("Installer l'addon (CurseForge)")}
               </button>
             </li>
             <li>

@@ -7,7 +7,6 @@ import { AboutPanels } from "../components/AboutPanels";
 import { Hint } from "../components/Hint";
 import { THEMES, applyTheme, savedTheme, type Theme } from "../theme";
 import { IS_WEB } from "../web/mode";
-import { Backup } from "../web/components/Backup";
 
 interface Props {
   /** Applied at once, saved with the other settings. */
@@ -192,7 +191,6 @@ export function SettingsPage({ onLanguage, version }: Props) {
       {message && <div className="success">{message}</div>}
       {error && <div className="error">{error}</div>}
     </section>
-    {IS_WEB && <Backup />}
       </div>
       <AboutPanels version={version} />
     </div>

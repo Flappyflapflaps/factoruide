@@ -84,7 +84,9 @@ zones to do, the level to reach before moving on from each, and where the XP is.
    - **Linux** (x86_64): make the `_amd64.AppImage` executable (`chmod +x`) and run it; it updates
      itself. Or take the executable alone (`_amd64.tar.gz`), which needs WebKitGTK 4.1 installed
      (`libwebkit2gtk-4.1-0` on Debian/Ubuntu, `webkit2gtk4.1` on Fedora, `webkit2gtk-4.1` on Arch).
-2. **Settings**: choose your WoW folder.
+2. **Settings**: choose your WoW folder. Install the addon from
+   [CurseForge](https://www.curseforge.com/wow/search?search=factoruide) (or your addon manager)
+   and set it up in game with `/fg config`: the app warns when it is missing or too old.
 3. **New guide**: pick your character, professions, zones, dungeons and play style, then start
    the generation (about 2 minutes, 6 for a thorough one, depending on the processor). The best
    starting routes are picked first, then improved in rounds where the better half goes on: their
@@ -95,6 +97,8 @@ zones to do, the level to reach before moving on from each, and where the XP is.
    ![Generating a guide: the time of the guide kept going down live, and its route drawn on the map](docs/generation.png)
 4. **Characters**: choose the guide each character follows (a guide started from a character
    follows it already), then `/reload` in game. A character follows only the guide chosen for it.
+   The app writes the guides in a data addon of its own, `Factoruide_Data` (restart the game the
+   first time, so that it finds the new folder).
 
 ### App updates
 
@@ -120,8 +124,7 @@ Applications. This is a local build, not an Apple-notarized distribution, and it
 does not check for the publisher's automatic updates.
 
 The app defaults to `/Applications/World of Warcraft`; choose another installation
-in the **Addon** page if needed. Follow the addon and guide steps above. After
-first installing the addon, restart WoW so it discovers the new files.
+in **Settings** if needed. Follow the addon and guide steps above.
 
 Verified on Apple Silicon with WoW Forever: native app launch, character profile
 import, guide generation and user-reported in-game use. Intel Macs have not been
@@ -148,16 +151,16 @@ Warcraft`); choose another folder in Settings if needed.
 The app also builds as a website: a folder of static files where the guides are computed in
 the browser (`scripts/build-web.sh`). The browser cannot reach the game's folder: characters
 come from the game with `/fg export` (pasted in the Characters page), and guides go to it with
-`/fg import` (the text the Addon page gives). See [web/README.md](web/README.md).
+`/fg import` (the text the Characters page gives). See [web/README.md](web/README.md).
 
 ## In game: the addon
 
-The addon comes in two parts: **Factoruide_Profile** records your character and what the game
-shows (profile, collector below), **Factoruide_Guide** shows the guide and everything around it.
-On WoW Forever, the **Addon** page can have [Polestar](https://github.com/fitzforge/polestar) show
-your guides instead: the app then installs them as a Polestar guide pack (Factoruide_Polestar),
-leaves the guide part out, and the profile part keeps recording (also when the app does not find
-Polestar: the pack shows once Polestar 0.2.5 or newer is installed). In Polestar, choose Factoruide
+The addon comes in two parts, installed from CurseForge: **Factoruide_Profile** records your
+character and what the game shows (profile, collector below; `/fg export` gives it to the web
+app), **Factoruide_Guide** shows the guide and everything around it. Each can go without the
+other: another addon can show your guides. Everything is set up in game: `/fg config`.
+On WoW Forever with [Polestar](https://github.com/fitzforge/polestar) installed, the app also
+writes your guides as a Polestar guide pack (Factoruide_Polestar; the web app downloads it). In Polestar, choose Factoruide
 under "Suggest guides from" on the "Community guides" page: it offers each character the guide of
 its race and class. **Export for Polestar…** on a guide writes it as Polestar's guide source (a
 `.guide` file, in English) into a pack folder for Polestar's own tools, which its Planner and Play

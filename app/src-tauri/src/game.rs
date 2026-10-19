@@ -4,7 +4,6 @@
 
 use fg_route::xp::Edition;
 use serde::Serialize;
-use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -12,9 +11,6 @@ use std::time::SystemTime;
 /// installed, and the guide, which depends on it.
 pub const PROFILE_ADDON: &str = "Factoruide_Profile";
 pub const GUIDE_ADDON: &str = "Factoruide_Guide";
-
-/// The files of an addon the app installs: (addon folder, [(file, content)]).
-pub type AddonFiles<'a> = [(&'a str, &'a [(&'a str, &'a [u8])])];
 
 /// Game version folders found in a folder (_retail_, _classic_era_...).
 pub fn client_folders(dir: &Path) -> Vec<String> {
@@ -244,21 +240,6 @@ pub fn toc_version(toc: &str) -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
-/// An addon's .toc with the app's version: the installed addon tells which app installed it.
-pub fn with_app_version(toc: &[u8]) -> Vec<u8> {
-    let text = String::from_utf8_lossy(toc);
-    let mut out = String::with_capacity(text.len());
-    for line in text.split_inclusive('\n') {
-        if line.starts_with("## Version:") {
-            let end = if line.ends_with("\r\n") { "\r\n" } else { "\n" };
-            let _ = write!(out, "## Version: {}{end}", env!("CARGO_PKG_VERSION"));
-        } else {
-            out.push_str(line);
-        }
-    }
-    out.into_bytes()
-}
-
 /// The files an addon's .toc loads (the game reads that list when it starts, not on /reload).
 pub fn toc_files(toc: &str) -> Vec<String> {
     toc.lines()
@@ -301,11 +282,16 @@ fn modified_secs(path: &Path) -> Option<i64> {
 #[derive(Debug, Default, Serialize)]
 pub struct AddonHealth {
     pub app_version: String,
-    /// The app version that installed the addon (none: not installed).
+    /// The version of the addon installed (none: not installed).
     pub installed_version: Option<String>,
+    /// The oldest version the app works with.
+    pub required_version: String,
+    /// Older than that: to update.
+    pub outdated: bool,
     /// When it was installed (seconds).
     pub installed_at: Option<i64>,
-    /// Every file of the addon is there.
+    /// Both parts are there (the guide part is optional for the app: another addon may show the
+    /// guides).
     pub complete: bool,
     /// The last time the addon ran in game, on any account.
     pub seen: Option<Seen>,
@@ -318,19 +304,36 @@ pub struct AddonHealth {
     pub saved_variables: u32,
 }
 
-/// What the game did with the addon of a game version (`files`: those the app installs, by
-/// addon folder).
-pub fn addon_health(root: &Path, edition: Edition, files: &AddonFiles<'_>) -> AddonHealth {
+/// Whether version `a` ("0.13.0") is older than `b`; versions that do not read as numbers are
+/// never older (an addon built by hand).
+pub fn older(a: &str, b: &str) -> bool {
+    let parse = |v: &str| {
+        v.split('.')
+            .map(|p| p.trim().parse::<u32>().ok())
+            .collect::<Option<Vec<_>>>()
+    };
+    match (parse(a), parse(b)) {
+        (Some(a), Some(b)) => a < b,
+        _ => false,
+    }
+}
+
+/// What the game did with the addon of a game version (`required`: the oldest version the app
+/// works with).
+pub fn addon_health(root: &Path, edition: Edition, required: &str) -> AddonHealth {
     let client = root.join(edition.client_folder());
     let addons = addons_dir(root, edition);
     let toc = addons.join(PROFILE_ADDON).join(format!("{PROFILE_ADDON}.toc"));
+    let installed_version = std::fs::read_to_string(&toc).ok().as_deref().and_then(toc_version);
     let mut health = AddonHealth {
         app_version: env!("CARGO_PKG_VERSION").into(),
-        installed_version: std::fs::read_to_string(&toc).ok().as_deref().and_then(toc_version),
+        outdated: installed_version.as_deref().is_some_and(|v| older(v, required)),
+        installed_version,
+        required_version: required.to_owned(),
         installed_at: modified_secs(&toc),
-        complete: files
+        complete: [PROFILE_ADDON, GUIDE_ADDON]
             .iter()
-            .all(|(addon, list)| list.iter().all(|(name, _)| addons.join(addon).join(name).is_file())),
+            .all(|a| addons.join(a).join(format!("{a}.toc")).is_file()),
         ..AddonHealth::default()
     };
     // The game writes every loaded addon's SavedVariables together: one newer than the install
@@ -397,6 +400,12 @@ mod tests {
     /// A version's folder, a folder inside it or the folder holding the game's are taken back to
     /// the game's folder; the addon never goes where the game would not read it.
     #[test]
+    fn versions_compare_by_their_numbers() {
+        assert!(older("0.9.1", "0.13.0") && older("0.13.0", "0.14.0") && older("1.2", "1.2.1"));
+        assert!(!older("0.14.0", "0.14.0") && !older("0.15.0", "0.14.0") && !older("dev", "0.14.0"));
+    }
+
+    #[test]
     fn the_game_folder_is_found_from_a_too_precise_or_too_wide_one() {
         let base = temp("root");
         let root = base.join("World of Warcraft");
@@ -436,15 +445,6 @@ mod tests {
     }
 
     #[test]
-    fn the_toc_says_which_app_installed_the_addon() {
-        let toc = with_app_version(b"## Title: Factoruide\r\n## Version: 0.5.0\r\n\r\nCore.lua\r\n");
-        let text = String::from_utf8(toc).unwrap();
-        assert_eq!(toc_version(&text).as_deref(), Some(env!("CARGO_PKG_VERSION")));
-        assert!(text.ends_with("\r\n\r\nCore.lua\r\n"));
-        assert_eq!(toc_files(&text), ["core.lua"]);
-    }
-
-    #[test]
     fn the_last_run_is_read_from_the_saved_variables() {
         let text = "FactoruideDB = {\n[\"version\"] = 3,\n[\"seen\"] = {\n[\"version\"] = \"0.13.0\",\n[\"time\"] = 1760000000,\n},\n}\n";
         assert_eq!(
@@ -474,11 +474,12 @@ mod tests {
             "Factoruide_Profile: disabled\n",
         )
         .unwrap();
-        let files: &AddonFiles<'_> = &[(PROFILE_ADDON, &[("Factoruide_Profile.toc", b"")])];
-
-        let health = addon_health(&root, Edition::Classic, files);
+        let health = addon_health(&root, Edition::Classic, "0.14.0");
         assert_eq!(health.installed_version.as_deref(), Some("0.13.0"));
-        assert!(health.complete && !health.not_loaded && health.seen.is_none());
+        assert!(health.outdated, "older than the app needs");
+        assert!(!addon_health(&root, Edition::Classic, "0.13.0").outdated);
+        assert!(!health.complete, "the guide part is missing");
+        assert!(!health.not_loaded && health.seen.is_none());
         assert_eq!(health.disabled_for, ["Thrall - Realm"]);
 
         // Another addon's data saved two minutes after the install.
@@ -491,7 +492,7 @@ mod tests {
             .unwrap()
             .set_modified(later)
             .unwrap();
-        assert!(addon_health(&root, Edition::Classic, files).not_loaded);
+        assert!(addon_health(&root, Edition::Classic, "0.13.0").not_loaded);
 
         // The addon ran after the install.
         let now = modified_secs(&other).unwrap();
@@ -500,7 +501,7 @@ mod tests {
             format!("FactoruideDB = {{\n[\"seen\"] = {{\n[\"time\"] = {now},\n[\"version\"] = \"0.13.0\",\n}},\n}}\n"),
         )
         .unwrap();
-        let health = addon_health(&root, Edition::Classic, files);
+        let health = addon_health(&root, Edition::Classic, "0.13.0");
         assert!(!health.not_loaded && health.saved_variables == 1);
         std::fs::remove_dir_all(&root).unwrap();
     }

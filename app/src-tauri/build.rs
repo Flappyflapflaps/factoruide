@@ -77,6 +77,18 @@ fn main() {
         "no database in {}: run `fg bundle`",
         dir.display()
     );
+    // The addon is installed from an addon site: the app only checks its version.
+    let toc_path = root.join("addon/Factoruide_Profile/Factoruide_Profile.toc");
+    println!("cargo:rerun-if-changed={}", toc_path.display());
+    let toc = std::fs::read_to_string(&toc_path).unwrap();
+    let field = |name: &str| {
+        toc.lines()
+            .find_map(|l| l.strip_prefix(name))
+            .map(|v| v.trim().to_owned())
+            .unwrap_or_default()
+    };
+    let addon_version = field("## Version:");
+    let addon_interface = format!("## Interface: {}", field("## Interface:"));
     let out = format!(
         "/// (edition, zstd database) of every edition bundled.\n\
          pub const DATABASES: &[(&str, &[u8])] = &[\n{databases}];\n\
@@ -85,24 +97,12 @@ fn main() {
          /// (edition, pack of its minimap's images) of the editions with one.\n\
          pub const MINIMAPS: &[(&str, &[u8])] = &[\n{minimaps}];\n\
          pub const OVERRIDES: &[(&str, &[u8])] = &[\n{}];\n\
-         /// The addon's two parts: the profile and recordings, and the guide.\n\
-         pub const PROFILE_ADDON: &[(&str, &[u8])] = &[\n{}];\n\
-         pub const GUIDE_ADDON: &[(&str, &[u8])] = &[\n{}];\n",
+         /// The oldest addon the app works with (the .toc version in this repository), and the\n\
+         /// game versions its .toc declares.\n\
+         pub const ADDON_VERSION: &str = {addon_version:?};\n\
+         pub const ADDON_INTERFACE: &str = {addon_interface:?};\n",
         files(&dir.join("maps"), &["webp"], &[], true),
         files(&root.join("overrides"), &["toml"], &[], true),
-        // Routes.lua, Services.lua, Config.lua and Sent.lua are written on install; textures are in Media/.
-        files(
-            &root.join("addon/Factoruide_Profile"),
-            &["lua", "toc", "xml"],
-            &["Sent.lua"],
-            true
-        ),
-        files(
-            &root.join("addon/Factoruide_Guide"),
-            &["lua", "toc", "xml", "tga"],
-            &["Routes.lua", "Services.lua", "Config.lua"],
-            true
-        ),
     );
     std::fs::write(Path::new(&std::env::var("OUT_DIR").unwrap()).join("embedded.rs"), out).unwrap();
     tauri_build::build();

@@ -12,17 +12,15 @@ interface Props {
 }
 
 /**
- * Over every page: a red bar while the addon cannot go into the game (no World of Warcraft
- * folder, no game in it, not the game version the app works on, no right to write there) or
- * the game does not load it; an orange one while the addon in the game is from another app
- * version. Gone once it is right.
+ * Over every page: a red bar while the guides cannot go into the game (no World of Warcraft
+ * folder, no game in it, not the game version the app works on, no right to write there), the
+ * addon is not installed or the game does not load it; an orange one while the addon is older
+ * than the app needs or the game must restart. Gone once it is right.
  */
 export function WowBanner({ editionName, onSettings, onAddon }: Props) {
   const t = useT();
   const [status, setStatus] = useState<WowStatus | null>(null);
   const [health, setHealth] = useState<AddonHealth | null>(null);
-  const [installing, setInstalling] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const check = useCallback(() => {
     api
       .wowStatus()
@@ -34,7 +32,7 @@ export function WowBanner({ editionName, onSettings, onAddon }: Props) {
   }, []);
   useEffect(() => {
     check();
-    // Saved settings or game version, an install, a game installed or played meanwhile.
+    // Saved settings or game version, guides written, a game installed or played meanwhile.
     window.addEventListener(SETTINGS_CHANGED, check);
     window.addEventListener("focus", check);
     return () => {
@@ -42,18 +40,6 @@ export function WowBanner({ editionName, onSettings, onAddon }: Props) {
       window.removeEventListener("focus", check);
     };
   }, [check]);
-  const install = async () => {
-    setInstalling(true);
-    setError(null);
-    try {
-      await api.installAddon();
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setInstalling(false);
-    }
-  };
-
   if (status?.problem) {
     const dir = status.root;
     const others = status.clients.filter((c) => SUPPORTED.includes(c)).map((c) => CLIENTS[c] ?? c);
@@ -88,21 +74,40 @@ export function WowBanner({ editionName, onSettings, onAddon }: Props) {
     return (
       <div className="wow-banner outdated" role="status">
         <span className="wow-banner-text">
-          <strong>{t("L'addon du jeu n'est pas à jour.")}</strong> {t("Le dernier export vient de la version {old} de l'addon : mettez-le à jour pour avoir les nouveautés.", { old: health.installed_version })}
+          <strong>{t("L'addon du jeu n'est pas à jour.")}</strong> {t("Le dernier export vient de la version {old} de l'addon : mettez-le à jour depuis CurseForge pour avoir les nouveautés.", { old: health.installed_version })}
         </span>
-        <button onClick={onAddon}>{t("Page Addon")}</button>
+        <button onClick={onAddon}>{t("Page de l'addon")}</button>
       </div>
     );
-  if (health?.installed_version && health.installed_version !== health.app_version)
+  // The desktop app: the addon comes from CurseForge, the app writes the guides beside it.
+  if (!IS_WEB && health && !health.installed_version)
+    return (
+      <div className="wow-banner" role="alert">
+        <span className="wow-banner-text">
+          <strong>{t("L'addon Factoruide n'est pas installé dans {edition}.", { edition: editionName })}</strong> {t("Installez-le depuis CurseForge (ou votre gestionnaire d'addons) : il enregistre vos personnages et affiche vos guides en jeu.")}
+        </span>
+        <button className="primary" onClick={onAddon}>
+          {t("Page de l'addon")}
+        </button>
+      </div>
+    );
+  if (!IS_WEB && health?.outdated)
     return (
       <div className="wow-banner outdated" role="status">
         <span className="wow-banner-text">
-          <strong>{t("L'addon du jeu n'est pas à jour.")}</strong> {t("Il vient de la version {old} de l'application : installez-le à nouveau pour avoir les nouveautés.", { old: health.installed_version })}
-          {error && <span className="field-error"> {error}</span>}
+          <strong>{t("L'addon du jeu n'est pas à jour.")}</strong> {t("Il est en version {old}, l'application demande la {version} ou plus récente : mettez-le à jour depuis CurseForge.", { old: health.installed_version ?? "?", version: health.required_version ?? "?" })}
         </span>
-        <button className="primary" onClick={install} disabled={installing}>
-          {t("Installer dans le jeu")}
+        <button className="primary" onClick={onAddon}>
+          {t("Page de l'addon")}
         </button>
+      </div>
+    );
+  if (!IS_WEB && health?.restart_needed)
+    return (
+      <div className="wow-banner outdated" role="status">
+        <span className="wow-banner-text">
+          <strong>{t("Redémarrez le jeu s'il est ouvert.")}</strong> {t("Vos guides sont dans un nouveau dossier d'addon (Factoruide_Data), que le jeu ne découvre qu'au démarrage : un /reload ne suffit pas cette fois.")}
+        </span>
       </div>
     );
   return null;

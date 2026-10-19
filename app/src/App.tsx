@@ -3,7 +3,6 @@ import { getVersion } from "@tauri-apps/api/app";
 import { api, type Edition, type EditionInfo, type GuideVersion, type Options, type PlanRequest } from "./api";
 import { clearMapCache } from "./components/WorldMap";
 import { I18nProvider, LANGS, detectLang, useT, type Lang } from "./i18n";
-import { AddonPage } from "./pages/AddonPage";
 import { WowBanner } from "./components/WowBanner";
 import { Welcome } from "./components/Welcome";
 import { NewRoutePage, type WizardStart } from "./pages/NewRoutePage";
@@ -17,19 +16,29 @@ import { IssueForm } from "./components/IssueForm";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { IS_WEB } from "./web/mode";
 import { WebWelcome } from "./web/components/WebWelcome";
+import { WebSidebarTools } from "./web/components/Sidebar";
+import { ADDON_URL } from "./web/components/AddonInstall";
+
+/** Where problems are reported from the web app (it sends nothing anywhere itself). */
+const ISSUES_URL = "https://github.com/brouznouf/factoruide/issues";
 
 const EDITION_LABELS: Record<Edition, string> = { forever: "Forever", classic: "Classic", tbc: "TBC" };
 
-type Page = "characters" | "plan" | "results" | "addon" | "contribute" | "help" | "settings" | "changelog" | "report";
+type Page = "characters" | "plan" | "results" | "contribute" | "help" | "settings" | "changelog" | "report";
 
 const PAGES: { id: Page; label: string }[] = [
   { id: "plan", label: "Nouveau guide" },
   { id: "characters", label: "Personnages" },
   { id: "results", label: "Guides" },
-  { id: "addon", label: "Addon" },
-  { id: "contribute", label: "Contribuer" },
-  { id: "help", label: "Besoin d'aide" },
-  { id: "settings", label: "Réglages" },
+  // The addon is installed, updated and set up in game (CurseForge, /fg config).
+  // In a browser, nothing is sent anywhere and the settings are in the menu.
+  ...(IS_WEB
+    ? []
+    : ([
+        { id: "contribute", label: "Contribuer" },
+        { id: "help", label: "Besoin d'aide" },
+        { id: "settings", label: "Réglages" },
+      ] as { id: Page; label: string }[])),
 ];
 
 /** App language: the saved setting, else the system language. */
@@ -85,6 +94,10 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
     if (unsaved.current && !confirm(t("Quitter l'édition sans enregistrer ? Les modifications seront perdues."))) return;
     unsaved.current = false;
     go();
+  };
+  // The addon comes from CurseForge: its page there.
+  const openAddonSite = () => {
+    api.openLink(ADDON_URL).catch(() => {});
   };
   const openWizard = (start: WizardStart) => {
     if (!busy) setWizard((w) => ({ key: w.key + 1, start }));
@@ -150,7 +163,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
           onDone={(addon) => {
             setWelcome(false);
             api.listEditions().then(setEditions).catch(() => {});
-            if (addon) setPage("addon");
+            if (addon) openAddonSite();
           }}
         />
       )}
@@ -193,19 +206,26 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
           </button>
         ))}
         <div className="sidebar-footer">
+          {IS_WEB && <WebSidebarTools onLanguage={onLanguage} />}
           <button className={page === "changelog" ? "active" : ""} onClick={() => away(() => setPage("changelog"))}>
             {t("Nouveautés")}
           </button>
-          <button className={page === "report" ? "active" : ""} onClick={() => away(() => setPage("report"))}>
-            {t("Signaler un problème")}
-          </button>
+          {IS_WEB ? (
+            <a className="sidebar-link" href={ISSUES_URL} target="_blank" rel="noopener">
+              {t("Signaler un problème")}
+            </a>
+          ) : (
+            <button className={page === "report" ? "active" : ""} onClick={() => away(() => setPage("report"))}>
+              {t("Signaler un problème")}
+            </button>
+          )}
           {version && <span>Factoruide {version}</span>}
         </div>
       </nav>
       {/* Focused on each page change: the keyboard scrolls it and a screen reader starts there. */}
       <main className="content" ref={main} tabIndex={-1}>
         <UpdateBanner busy={busy} unsaved={unsaved} />
-        <WowBanner editionName={editions.find((e) => e.key === edition)?.name ?? ""} onSettings={() => away(() => setPage("settings"))} onAddon={() => away(() => setPage("addon"))} />
+        <WowBanner editionName={editions.find((e) => e.key === edition)?.name ?? ""} onSettings={() => away(() => setPage("settings"))} onAddon={openAddonSite} />
         {/* Always mounted (hidden on other pages) so that a running generation goes on showing. */}
         {options && (
           <div hidden={page !== "plan"}>
@@ -243,7 +263,8 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
             key={edition ?? ""}
             options={options}
             editionName={edition ? EDITION_LABELS[edition] : ""}
-            onAddon={() => setPage("addon")}
+            onAddon={openAddonSite}
+            edition={edition}
             onOpenGuide={(guide, shown) => {
               setOpened({ guide, version: shown, notice: null });
               setPage("results");
@@ -262,7 +283,6 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
             onUnsaved={setUnsaved}
           />
         )}
-        {page === "addon" && <AddonPage />}
         {page === "changelog" && <ChangelogPage />}
         {page === "report" && (
           <div className="report-page">

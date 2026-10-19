@@ -10,7 +10,7 @@ const EDITION_OF: Record<string, Edition> = { _classic_beta_: "forever", _classi
 interface Props {
   /** Switch the game version the app works on. */
   onEdition: (edition: Edition) => Promise<void>;
-  /** `addon`: go on with the addon's setup. */
+  /** `addon`: open the addon's page (to install it). */
   onDone: (addon: boolean) => void;
 }
 
@@ -132,7 +132,7 @@ export function Welcome({ onEdition, onDone }: Props) {
         )}
         {step === 2 && (
           <>
-            <p>{t("C'est prêt. Prochaine étape : quelques questions pour régler l'addon, puis un guide pour votre personnage.")}</p>
+            <p>{t("C'est prêt. Installez l'addon Factoruide depuis CurseForge (ses réglages se font en jeu : /fg config), puis créez un guide pour votre personnage.")}</p>
           </>
         )}
         {error && <div className="error">{error}</div>}
@@ -159,7 +159,7 @@ export function Welcome({ onEdition, onDone }: Props) {
           )}
           {step === 2 && (
             <button className="primary" onClick={() => onDone(true)}>
-              {t("Configurer l'addon")}
+              {t("Page de l'addon")}
             </button>
           )}
         </div>

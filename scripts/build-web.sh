@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build the web app: a folder of static files any web server can serve (web/dist, or the folder
-# given), and optionally `fg-web-server` to serve it (see web/README.md).
+# given; see web/README.md).
 #
 #   WASI_SDK_PATH=~/wasi-sdk scripts/build-web.sh [out-dir]
 #

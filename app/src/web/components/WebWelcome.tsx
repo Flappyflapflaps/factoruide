@@ -60,7 +60,7 @@ export function WebWelcome({ editions, onEdition, onDone }: Props) {
             <ol className="web-steps">
               <li>{t("En jeu, tapez /fg export avec un personnage, et collez le texte dans la page Personnages : le guide partira de là où il en est.")}</li>
               <li>{t("Créez un guide (ou partez d'un niveau 1 sans personnage).")}</li>
-              <li>{t("Page Addon, « Envoyer au jeu » : copiez le texte, puis /fg import en jeu.")}</li>
+              <li>{t("Page Personnages, « Envoyer au jeu » : copiez le texte, puis /fg import en jeu.")}</li>
             </ol>
           </>
         )}

@@ -1,8 +1,8 @@
 # Factoruide in a browser
 
 The same app as the desktop one, as a folder of static files: the guides are computed in the
-browser, and kept there. Nothing needs a server but the page itself (and, to send contributions
-and reports, the contribution server).
+browser, and kept there. It sends nothing anywhere: any static host serves it (GitHub Pages,
+Cloudflare Pages...).
 
 ## What changes from the desktop app
 
@@ -10,18 +10,19 @@ The browser cannot reach the game's folder, so the addon and the app talk throug
 player copies:
 
 - **Characters**: in game, `/fg export` opens a window holding the character's export (its
-  profile and the addon's recordings). Pasted in the **Characters** page, the character is added
-  or brought up to date.
-- **Guides**: the **Addon** page's "Send to the game" gives a text holding the guides your
-  characters follow and the addon's settings. In game, `/fg import`, paste it, Import: the
-  interface reloads with them (`/fg import clear` removes them). With Polestar (WoW Forever), it
-  is a guide pack to unzip in the AddOns folder instead.
-- **The addon** is installed once like any addon (its page gives a zip of its two folders);
-  its generated files are empty, the guides come with `/fg import`.
-- **Contributions** send the addon's recordings that came with the exports (not the game's
-  caches, which the browser cannot read).
-- **Data** stays in the browser (IndexedDB). Settings has a backup file to keep it or move it
-  to another browser.
+  profile). Pasted in the **Characters** page (or opened from a text file), the character is
+  added or brought up to date.
+- **Guides**: the Characters page's "Send to the game" gives a text holding the guides your
+  characters follow. In game, `/fg import`, paste it, Import: the interface reloads with them
+  (`/fg import clear` removes them). On WoW Forever, the same guides also download as a Polestar
+  guide pack.
+- **The addon** is installed and updated from CurseForge like any addon, and set up in game
+  (`/fg config`). Neither app installs or configures it (the desktop app writes its guides in a
+  data addon of its own, `Factoruide_Data`).
+- **Data** stays in the browser (IndexedDB). The menu's Save / Restore download a backup file and
+  read it back (to keep it, or move it to another browser); the language and the theme are there
+  too.
+- No contributions and no reports from the browser: problems go to the project's GitHub issues.
 - Files to share (`.fgguide`, Polestar packs, configurations) are downloaded.
 
 The texts: `FGP1:` (export) and `FGG1:` (import), then the content compressed with raw DEFLATE
@@ -64,23 +65,11 @@ Needs Rust with the `wasm32-wasip1-threads` target, the [wasi-sdk](https://githu
 The folder holds the pages, the backend (`assets/*.wasm`, about 11 MB, 3 MB compressed) and the
 game data (`data/`: each game version's database, 11 to 14 MB, and its maps and minimap
 tiles). Each game version's data is fetched the first time it is used. Set `FG_VERSION` to the
-release's version (default: the last tag), `FG_CONTRIBUTION_SERVER` to the contribution server
-(default: the server the page comes from, see below) and `VITE_FG_ADDON_URL` to the addon's page
-on an addon site (shown on the Addon page).
+release's version (default: the last tag) and `VITE_FG_ADDON_URL` to the addon's page on
+CurseForge (default: a search for it there).
 
 ## Serve
 
-Any static web server does, with the headers above. Or `fg-web-server`, which sends them and
-passes the contributions and reports on to the contribution server, so that the page posts to
-its own server (no cross-origin request):
-
-    cargo build --release -p fg-web-server
-    target/release/fg-web-server --dir web/dist --listen 127.0.0.1:8080 \
-        --upstream https://contributions.example.org
-
-Put it behind an HTTPS proxy. It passes nothing about the player on (no address, no cookie, a
-fixed user agent). Without `fg-web-server`, a site built with `FG_CONTRIBUTION_SERVER` posts to
-that server directly, which must then allow the site's origin (CORS).
-
-For a quick look: `cd app && npm run dev -- --mode web` (after a build, for the backend and the
-data), then open http://localhost:5173.
+Any static web server does, with the headers above (or without them, through `coi.js`). For a
+quick look: `cd app && npm run dev -- --mode web` (after a build, for the backend and the data),
+then open http://localhost:5173.

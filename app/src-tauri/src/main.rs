@@ -136,10 +136,6 @@ impl Settings {
     fn addons_dir(&self, edition: Edition) -> PathBuf {
         self.wow_dir.join(edition.client_folder()).join("Interface/AddOns")
     }
-    /// The folder of the addon's profile part (its recordings, Sent.lua) in a game version's client.
-    fn profile_addon(&self, edition: Edition) -> PathBuf {
-        self.addons_dir(edition).join(PROFILE_ADDON)
-    }
     /// What shows the guides in a game version: Polestar exists on WoW Forever only.
     fn guide_addon(&self, edition: Edition) -> GuideAddon {
         if edition == Edition::Forever {
@@ -468,8 +464,6 @@ struct AddonState {
     health: game::AddonHealth,
     /// The last install added files the game reads only when it starts: a /reload is not enough.
     restart_needed: bool,
-    /// The guides are shown by Polestar (only the profile part is installed then).
-    polestar: bool,
 }
 
 #[tauri::command(async)]
@@ -479,20 +473,21 @@ struct AddonState {
 )]
 fn addon_health(state: State<'_, AppState>) -> AddonState {
     let settings = state.settings();
-    let polestar = settings.guide_addon(settings.edition) == GuideAddon::Polestar;
-    let guide: &[(&str, &[u8])] = if polestar { &[] } else { embedded::GUIDE_ADDON };
-    let files: &game::AddonFiles<'_> = &[(PROFILE_ADDON, embedded::PROFILE_ADDON), (GUIDE_ADDON, guide)];
     AddonState {
-        health: game::addon_health(&settings.wow_dir, settings.edition, files),
+        health: game::addon_health(&settings.wow_dir, settings.edition, ADDON_VERSION),
         restart_needed: *state.restart_needed.lock().unwrap(),
-        polestar,
     }
 }
 
 /// The .toc files of the addons the app installs and the files each loads ("<folder>" -> list).
 fn loaded_files(addons: &Path) -> BTreeMap<String, Vec<String>> {
     let mut out = BTreeMap::new();
-    for folder in [PROFILE_ADDON, GUIDE_ADDON, fg_route::export::polestar::ADDON] {
+    for folder in [
+        PROFILE_ADDON,
+        GUIDE_ADDON,
+        DATA_ADDON,
+        fg_route::export::polestar::ADDON,
+    ] {
         for entry in std::fs::read_dir(addons.join(folder)).into_iter().flatten().flatten() {
             let path = entry.path();
             if path.extension().is_some_and(|e| e == "toc")
@@ -1249,20 +1244,43 @@ fn assign_guide(state: State<'_, AppState>, character: String, guide: Option<Str
     install_addon(state)
 }
 
-/// Copy the addon into the game, with Routes.lua holding the guides assigned to a character (in
-/// the version they follow) and who follows which, and Config.lua the settings. Returns the
-/// number of guides in the addon.
+/// The data addon the app writes (never on an addon site, so that updating the addon from one
+/// never erases the guides): `FactoruideData` holds the same Lua as the web app's `/fg import`
+/// text, which the guide addon applies.
+const DATA_ADDON: &str = "Factoruide_Data";
+
+/// The oldest addon this app works with (its .toc version): older ones are to be updated.
+const ADDON_VERSION: &str = embedded::ADDON_VERSION;
+
+/// A Lua long string holding `text` (with a level of `=` the text does not close).
+fn lua_long_string(text: &str) -> String {
+    let mut level = 0;
+    while text.contains(&format!("]{}]", "=".repeat(level))) {
+        level += 1;
+    }
+    let eq = "=".repeat(level);
+    format!("[{eq}[\n{text}]{eq}]")
+}
+
+/// Write the guides assigned to a character (in the version they follow) and who follows which,
+/// the places of the trainers, vendors... and what the contribution server has (the addon drops
+/// those recordings) into the data addon; on WoW Forever with Polestar, its guide pack too. The
+/// addon itself comes from an addon site and is set up in game. Returns the number of guides.
 #[tauri::command(async)]
 #[expect(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
 )]
 fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
-    // Off the main thread, two installs could write the same files at once: one at a time.
+    write_data(&state)
+}
+
+/// What `install_addon` does.
+fn write_data(state: &AppState) -> CmdResult<usize> {
+    // Off the main thread, two writes could touch the same files at once: one at a time.
     static INSTALLING: Mutex<()> = Mutex::new(());
     let _one = INSTALLING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let settings = state.settings();
-    // Never a folder of its own making: the game would not read it.
     match game::status(&settings.wow_dir, settings.edition).problem {
         None => {}
         Some(WowProblem::NotWritable) => {
@@ -1283,111 +1301,86 @@ fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
     let addons = settings.addons_dir(settings.edition);
     let before = loaded_files(&addons);
     migrate_legacy_addon(&addons);
-    let profile = addons.join(PROFILE_ADDON);
-    write_addon_files(&profile, embedded::PROFILE_ADDON)?;
-    // Made again from what was sent, so a reinstall never brings back events already sent.
-    let sent = read_send_record(&send_record_file(&state.data_dir, settings.edition)).unwrap_or_default();
-    write_sent_lua(&profile, &sent.state).map_err(err)?;
     let assigned = state.assigned_routes();
-    let render = |r: &Route| state.render(r, settings.guide_locale.as_deref());
-    let count = match settings.guide_addon(settings.edition) {
-        GuideAddon::Factoruide => {
-            remove_addon(&addons.join(fg_route::export::polestar::ADDON))?;
-            let dest = addons.join(GUIDE_ADDON);
-            write_addon_files(&dest, embedded::GUIDE_ADDON)?;
-            let mut routes = assigned.values().map(render).collect::<CmdResult<Vec<_>>>()?;
-            routes.sort_by(|a, b| a.name.cmp(&b.name));
-            // The walks of the guides for the compass, and the places of the trainers, vendors...
-            let locale = (settings.guide_locale.clone())
-                .or_else(|| routes.first().and_then(|r| r.locale.clone()))
-                .unwrap_or_else(|| "enUS".into());
-            let services = job::addon_walks(
-                &state.open_db()?,
-                &overrides(settings.edition)?,
-                settings.edition,
-                &mut routes,
-                &*state.names(&locale)?,
-            )
-            .map_err(err)?;
-            std::fs::write(dest.join("Services.lua"), services).map_err(err)?;
-            // The addon finds a character's route by its name.
-            let mut lua = fg_route::export::to_lua(&routes);
-            lua.push_str("\n-- Which guide each character follows (assigned in the app).\nFG.Assignments = {\n");
-            for (character, guide) in state.assignments() {
-                if let Some(route) = assigned.get(&guide) {
-                    let _ = writeln!(lua, "  [{}] = {},", lua_string(&character), lua_string(&route.name));
-                }
-            }
-            lua.push_str("}\n");
-            std::fs::write(dest.join("Routes.lua"), lua).map_err(err)?;
-            // The addon's texts in the guides' language.
-            job::write_addon_config(&dest, &settings.addon, settings.guide_locale.as_deref()).map_err(err)?;
-            routes.len()
+    let mut routes = assigned
+        .values()
+        .map(|r| state.render(r, None))
+        .collect::<CmdResult<Vec<_>>>()?;
+    routes.sort_by(|a, b| a.name.cmp(&b.name));
+    let locale = routes
+        .first()
+        .and_then(|r| r.locale.clone())
+        .unwrap_or_else(|| "enUS".into());
+    let services = job::addon_walks(
+        &state.open_db()?,
+        &overrides(settings.edition)?,
+        settings.edition,
+        &mut routes,
+        &*state.names(&locale)?,
+    )
+    .map_err(err)?;
+    let mut lua = fg_route::export::to_lua(&routes);
+    lua.push_str("\n-- Which guide each character follows (assigned in the app).\nFG.Assignments = {\n");
+    for (character, guide) in state.assignments() {
+        if let Some(route) = assigned.get(&guide) {
+            let _ = writeln!(lua, "  [{}] = {},", lua_string(&character), lua_string(&route.name));
         }
-        // Polestar picks each character's guide by its race, class and level.
-        GuideAddon::Polestar => {
-            remove_addon(&addons.join(GUIDE_ADDON))?;
-            let guides = assigned
-                .iter()
-                .map(|(id, r)| Ok((id.clone(), render(r)?)))
-                .collect::<CmdResult<Vec<_>>>()?;
-            let dest = addons.join(fg_route::export::polestar::ADDON);
-            let files = fg_route::export::polestar::pack(&guides, env!("CARGO_PKG_VERSION"));
-            remove_addon(&dest)?;
-            std::fs::create_dir_all(&dest).map_err(err)?;
-            for (name, content) in files {
-                std::fs::write(dest.join(name), content).map_err(err)?;
-            }
-            guides.len()
+    }
+    lua.push_str("}\n");
+    lua.push_str(&services);
+    lua.push('\n');
+    let sent = read_send_record(&send_record_file(&state.data_dir, settings.edition)).unwrap_or_default();
+    lua.push_str(&sent_lua(&sent.state));
+    let dest = addons.join(DATA_ADDON);
+    std::fs::create_dir_all(&dest).map_err(err)?;
+    let guide_toc = addons.join(GUIDE_ADDON).join(format!("{GUIDE_ADDON}.toc"));
+    let interface = std::fs::read_to_string(&guide_toc)
+        .ok()
+        .and_then(|toc| toc.lines().find(|l| l.starts_with("## Interface:")).map(str::to_owned))
+        .unwrap_or_else(|| embedded::ADDON_INTERFACE.to_owned());
+    std::fs::write(
+        dest.join(format!("{DATA_ADDON}.toc")),
+        format!(
+            "{interface}\n## Title: Factoruide Data\n## Notes: The guides of the Factoruide app. Written by the app: do not edit.\n## Version: {}\nData.lua\n",
+            env!("CARGO_PKG_VERSION")
+        ),
+    )
+    .map_err(err)?;
+    std::fs::write(
+        dest.join("Data.lua"),
+        format!(
+            "-- Generated by the Factoruide app. Do not edit.\nFactoruideData = {}\nFactoruideDataTime = {}\n",
+            lua_long_string(&lua),
+            now()?
+        ),
+    )
+    .map_err(err)?;
+    // Polestar picks each character's guide by its race, class and level.
+    if settings.edition == Edition::Forever && polestar_installed_in(&settings) {
+        let guides = assigned
+            .iter()
+            .map(|(id, r)| Ok((id.clone(), state.render(r, None)?)))
+            .collect::<CmdResult<Vec<_>>>()?;
+        let pack = addons.join(fg_route::export::polestar::ADDON);
+        let files = fg_route::export::polestar::pack(&guides, env!("CARGO_PKG_VERSION"));
+        let _ = std::fs::remove_dir_all(&pack);
+        std::fs::create_dir_all(&pack).map_err(err)?;
+        for (name, content) in files {
+            std::fs::write(pack.join(name), content).map_err(err)?;
         }
-    };
+    }
     // A folder or a file the game does not load yet: it reads the .toc files when it starts.
     let after = loaded_files(&addons);
     let restart = after.iter().any(|(toc, files)| before.get(toc) != Some(files));
     *state.restart_needed.lock().unwrap() = restart;
     write_settings(
-        &state,
+        state,
         Settings {
             addon_installed: Some(addon_snapshot(&settings)),
             ..settings
         },
     )?;
-    Ok(count)
-}
-
-/// Put an addon's files into its folder, those of the version before removed (but the files the
-/// app writes, written next).
-fn write_addon_files(dest: &Path, files: &[(&str, &[u8])]) -> CmdResult<()> {
-    std::fs::create_dir_all(dest).map_err(err)?;
-    for entry in std::fs::read_dir(dest).map_err(err)?.flatten() {
-        let p = entry.path();
-        if p.extension().is_some_and(|e| e == "lua" || e == "toc" || e == "xml") {
-            std::fs::remove_file(p).map_err(err)?;
-        }
-    }
-    for (name, bytes) in files {
-        let path = dest.join(name);
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(err)?;
-        }
-        if Path::new(name)
-            .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case("toc"))
-        {
-            std::fs::write(path, game::with_app_version(bytes)).map_err(err)?;
-        } else {
-            std::fs::write(path, bytes).map_err(err)?;
-        }
-    }
-    Ok(())
-}
-
-/// Remove an addon the app installed (nothing when it is not there).
-fn remove_addon(dir: &Path) -> CmdResult<()> {
-    match std::fs::remove_dir_all(dir) {
-        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(err(e)),
-        _ => Ok(()),
-    }
+    Ok(routes.len())
 }
 
 /// Whether Polestar is installed in WoW Forever (it shows guides there only).
@@ -1397,8 +1390,11 @@ fn remove_addon(dir: &Path) -> CmdResult<()> {
     reason = "tauri commands take their arguments by value"
 )]
 fn polestar_installed(state: State<'_, AppState>) -> bool {
-    state
-        .settings()
+    polestar_installed_in(&state.settings())
+}
+
+fn polestar_installed_in(settings: &Settings) -> bool {
+    settings
         .addons_dir(Edition::Forever)
         .join("Polestar/Polestar.toc")
         .exists()
@@ -1423,7 +1419,7 @@ fn export_polestar(state: State<'_, AppState>, guide: String, version: u32, dir:
     Ok(pack.display().to_string())
 }
 
-/// Whether the addon in the game has the current settings (else it is to be installed again).
+/// Whether the data addon in the game has the current guides (else it is to be written again).
 #[tauri::command]
 #[expect(
     clippy::needless_pass_by_value,
@@ -1432,13 +1428,7 @@ fn export_polestar(state: State<'_, AppState>, guide: String, version: u32, dir:
 fn addon_synced(state: State<'_, AppState>) -> bool {
     let settings = state.settings();
     let addons = settings.addons_dir(settings.edition);
-    let shown_by = match settings.guide_addon(settings.edition) {
-        GuideAddon::Factoruide => addons.join(GUIDE_ADDON).join("Config.lua"),
-        GuideAddon::Polestar => addons.join(fg_route::export::polestar::ADDON).join("Guides.lua"),
-    };
-    addons.join(PROFILE_ADDON).join("Sent.lua").exists()
-        && shown_by.exists()
-        && !addons.join("Factoruide").exists()
+    addons.join(DATA_ADDON).join("Data.lua").exists()
         && settings.addon_installed.as_deref() == Some(addon_snapshot(&settings).as_str())
 }
 
@@ -1446,6 +1436,7 @@ fn addon_synced(state: State<'_, AppState>) -> bool {
 /// community tools the contribution page points to; nothing else.
 const LINKS: &[&str] = &[
     "https://github.com/brouznouf/factoruide/",
+    "https://www.curseforge.com/wow/",
     "https://github.com/Questie/QuestieTrace",
     "https://questie.dev/trace",
     "https://www.wowhead.com/",
@@ -2142,14 +2133,6 @@ fn sent_lua(state: &SendState) -> String {
     lua
 }
 
-/// Write Sent.lua into an installed addon (nothing when the addon is not there).
-fn write_sent_lua(addon_dir: &Path, state: &SendState) -> std::io::Result<()> {
-    if !addon_dir.is_dir() {
-        return Ok(());
-    }
-    write_atomic(&addon_dir.join("Sent.lua"), sent_lua(state).as_bytes())
-}
-
 /// What a contribution of this computer would hold now, for the current game version.
 #[derive(Serialize)]
 struct ContributionPreview {
@@ -2367,7 +2350,6 @@ fn post_contribution(url: &str, body: &[u8]) -> Posted {
 
 /// A contribution ready to post, with the record of its game version it updates.
 struct Outgoing {
-    edition: Edition,
     file: PathBuf,
     record: SendRecord,
     contribution: Contribution,
@@ -2391,7 +2373,6 @@ fn deliver(
         contribution,
         next,
         more,
-        ..
     } = out;
     let posted = post(&serde_json::to_vec(&contribution).map_err(err)?);
     match &posted {
@@ -2421,11 +2402,10 @@ fn deliver(
 /// Send a contribution to the server (the caller holds `send_lock`) and, once accepted, tell
 /// the addon what it can drop.
 fn send(state: &AppState, url: &str, out: Outgoing, now: u64, automatic: bool) -> CmdResult<(Posted, SendRecord)> {
-    let edition = out.edition;
     let (posted, record) = deliver(out, now, automatic, |body| post_contribution(url, body))?;
     if posted.accepted() {
-        // A failure only delays the purge: Sent.lua is written again with the addon.
-        let _ = write_sent_lua(&state.settings().profile_addon(edition), &record.state);
+        // The data addon tells the addon what it can drop; a failure only delays the purge.
+        let _ = write_data(state);
     }
     Ok((posted, record))
 }
@@ -2504,7 +2484,6 @@ async fn send_contribution(app: AppHandle) -> CmdResult<SendReport> {
                 return Ok(None);
             }
             let out = Outgoing {
-                edition,
                 file: file.clone(),
                 record: record.clone(),
                 contribution,
@@ -2704,13 +2683,8 @@ fn version_like(v: &str) -> bool {
 fn setup_of(state: &AppState) -> fg_contrib::issue::Setup {
     let settings = state.settings();
     let status = game::status(&settings.wow_dir, settings.edition);
-    let polestar = settings.guide_addon(settings.edition) == GuideAddon::Polestar;
-    let guide: &[(&str, &[u8])] = if polestar { &[] } else { embedded::GUIDE_ADDON };
-    let health = game::addon_health(
-        &status.root,
-        settings.edition,
-        &[(PROFILE_ADDON, embedded::PROFILE_ADDON), (GUIDE_ADDON, guide)],
-    );
+    let polestar = settings.edition == Edition::Forever && polestar_installed_in(&settings);
+    let health = game::addon_health(&status.root, settings.edition, ADDON_VERSION);
     let today = now().unwrap_or_default().cast_signed();
     fg_contrib::issue::Setup {
         wow_dir: private_path(&status.root).chars().take(300).collect(),
@@ -2852,7 +2826,6 @@ fn auto_contribute(state: &AppState) -> std::time::Duration {
         match (decision, collected) {
             (AutoDecision::Send, Ok(Some((contribution, next_state, more)))) => {
                 let out = Outgoing {
-                    edition,
                     file,
                     record,
                     contribution,
@@ -2938,7 +2911,7 @@ mod tests {
         let mut keys: Vec<(&str, i64)> = keys.iter().map(|(k, s)| (k.as_str(), *s)).collect();
         keys.extend([("ACCOUNT1/Twin-Realm", 4), ("ACCOUNT2/Twin-Realm", 8)]);
         let dir = temp_dir("sent-lua");
-        write_sent_lua(&dir, &sent(&keys)).unwrap();
+        std::fs::write(dir.join("Sent.lua"), sent_lua(&sent(&keys).clone())).unwrap();
         let lua = fg_contrib::lua::new_lua();
         let table = fg_contrib::lua::load_globals(&lua, &dir.join("Sent.lua"), &["FactoruideSent"])
             .unwrap()
@@ -2953,16 +2926,31 @@ mod tests {
         let mut expected: Vec<(String, i64)> = names.iter().map(|&(n, s)| (n.to_owned(), s)).collect();
         expected.sort();
         assert_eq!(read, expected);
-        // No addon installed: nothing written.
-        let missing = dir.join("not-installed");
-        write_sent_lua(&missing, &sent(&names)).unwrap();
-        assert!(!missing.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The data addon's text reads back as it was, whatever brackets the guides hold.
+    #[test]
+    fn the_data_addon_holds_the_text_as_is() {
+        let text = "FG.Routes[\"a]]b\"] = { t = \"x]=]y\" }\n";
+        let dir = temp_dir("data-lua");
+        std::fs::write(
+            dir.join("Data.lua"),
+            format!("FactoruideData = {}\n", lua_long_string(text)),
+        )
+        .unwrap();
+        let lua = fg_contrib::lua::new_lua();
+        let read = fg_contrib::lua::load_globals(&lua, &dir.join("Data.lua"), &["FactoruideData"])
+            .unwrap()
+            .pop()
+            .unwrap();
+        // A long string drops the line break right after its opening.
+        assert_eq!(read.str(), Some(text));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     fn outgoing(file: &Path, record: &SendRecord, next: SendState, more: bool) -> Outgoing {
         Outgoing {
-            edition: Edition::Classic,
             file: file.to_owned(),
             record: record.clone(),
             contribution: Contribution {

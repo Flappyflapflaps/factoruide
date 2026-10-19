@@ -28,36 +28,16 @@ fn list(entries: &mut [(String, std::path::PathBuf)]) -> String {
     })
 }
 
-/// Embeds the overrides and the addon (without the files the app writes) in the backend; the
-/// databases and maps are static files the page serves.
+/// Embeds the overrides in the backend; the databases and maps are static files the page
+/// serves.
 fn main() {
     println!("cargo:rerun-if-env-changed=FG_VERSION");
-    println!("cargo:rerun-if-env-changed=FG_CONTRIBUTION_SERVER");
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let (mut overrides, mut profile, mut guide) = (Vec::new(), Vec::new(), Vec::new());
+    let mut overrides = Vec::new();
     files(&root.join("overrides"), "", &["toml"], &[], &mut overrides);
-    files(
-        &root.join("addon/Factoruide_Profile"),
-        "",
-        &["lua", "toc", "xml"],
-        &["Sent.lua"],
-        &mut profile,
-    );
-    files(
-        &root.join("addon/Factoruide_Guide"),
-        "",
-        &["lua", "toc", "xml", "tga"],
-        &["Routes.lua", "Services.lua", "Config.lua"],
-        &mut guide,
-    );
     let out = format!(
-        "pub const OVERRIDES: &[(&str, &[u8])] = &[\n{}];\n\
-         /// The addon's two parts: the profile and recordings, and the guide.\n\
-         pub const PROFILE_ADDON: &[(&str, &[u8])] = &[\n{}];\n\
-         pub const GUIDE_ADDON: &[(&str, &[u8])] = &[\n{}];\n",
-        list(&mut overrides),
-        list(&mut profile),
-        list(&mut guide),
+        "pub const OVERRIDES: &[(&str, &[u8])] = &[\n{}];\n",
+        list(&mut overrides)
     );
     std::fs::write(Path::new(&std::env::var("OUT_DIR").unwrap()).join("embedded.rs"), out).unwrap();
 }

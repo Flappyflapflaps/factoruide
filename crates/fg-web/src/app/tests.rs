@@ -24,19 +24,18 @@ fn serve_classic() {
     }
 }
 
-/// What `/fg export` gives for a dwarf warrior at level 6.
-fn profile_export(name: &str, events: &[&str]) -> String {
+/// What `/fg export` gives for a dwarf warrior.
+fn profile_export(name: &str, level: i64) -> String {
     let json = serde_json::json!({
         "format": "factoruide-profile", "version": 1, "edition": "classic", "addon": "0.13.0",
         "character": name,
         "profile": {
-            "name": name, "race": 3, "class": "WARRIOR", "faction": "Alliance", "level": 6,
+            "name": name, "race": 3, "class": "WARRIOR", "faction": "Alliance", "level": level,
             "xp": 1200, "xp_max": 2800, "rested": 0, "resting": false, "completed": [179, 233, 234],
             "log": [], "position": { "map": 1426, "x": 0.468, "y": 0.52 }, "instance": false,
             "bind": { "name": "Coldridge Valley" }, "flights": [], "professions": [], "riding": 0,
             "gear": [], "spells": [], "reputation": [], "money": 1234, "time": 1_760_800_000
         },
-        "collector": { "race": "Dwarf", "class": "WARRIOR", "events": events },
     });
     fgstring::encode(fgstring::PROFILE_PREFIX, json.to_string().as_bytes())
 }
@@ -54,7 +53,7 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
         call("import_profile", &serde_json::json!({ "content": "hello" })).unwrap_err(),
         "not_a_profile"
     );
-    let export = profile_export("Brouz-Realm", &["1|1760790000|accept|179|npc|658|1426|29.9|71.2|1|"]);
+    let export = profile_export("Brouz-Realm", 5);
     let damaged = format!("{}x!", &export[..export.len() / 2]);
     assert_eq!(
         call("import_profile", &serde_json::json!({ "content": damaged })).unwrap_err(),
@@ -63,19 +62,12 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
 
     let imported = call("import_profile", &serde_json::json!({ "content": export })).unwrap();
     assert_eq!(imported["character"], "Brouz-Realm");
-    assert_eq!(imported["level"], 6);
-    assert_eq!(imported["events"], 1);
-    // Pasted again with one more recording: the profile replaced, the recordings joined.
-    let again = profile_export(
-        "Brouz-Realm",
-        &[
-            "1|1760790000|accept|179|npc|658|1426|29.9|71.2|1|",
-            "2|1760790100|turnin|179|npc|658|1426|29.9|71.2|2|",
-        ],
-    );
+    assert_eq!(imported["level"], 5);
+    // Pasted again later: the profile replaced.
+    let again = profile_export("Brouz-Realm", 6);
     assert_eq!(
-        call("import_profile", &serde_json::json!({ "content": again })).unwrap()["events"],
-        2
+        call("import_profile", &serde_json::json!({ "content": again })).unwrap()["level"],
+        6
     );
     let characters = call("list_characters", &serde_json::json!({})).unwrap();
     assert_eq!(characters.as_array().unwrap().len(), 1);
@@ -114,23 +106,15 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
     );
     assert_eq!(call("addon_synced", &serde_json::json!({})).unwrap(), true);
     let export = call("addon_export", &serde_json::json!({})).unwrap();
-    assert_eq!(export["kind"], "text");
     let lua =
         String::from_utf8(fgstring::decode(fgstring::GUIDE_PREFIX, export["text"].as_str().unwrap()).unwrap()).unwrap();
     assert!(lua.contains("FG.Routes[\"Brouz web\"]"), "the guide");
     assert!(lua.contains("[\"Brouz-Realm\"] = \"Brouz web\""), "who follows it");
+    assert!(lua.contains("FG.Services"), "the places");
     assert!(
-        lua.contains("FG.Services") && lua.contains("FG.Config = {"),
-        "places and settings"
+        !lua.contains("FG.Config") && !lua.contains("FactoruideSent"),
+        "no settings, no sends"
     );
-    assert!(lua.contains("FactoruideSent = {"), "what was sent");
-    // A setting changed: the text is made again.
-    let mut settings = call("get_settings", &serde_json::json!({})).unwrap();
-    settings["addon"] = serde_json::json!({ "autoAccept": false });
-    call("set_settings", &serde_json::json!({ "settings": settings })).unwrap();
-    assert_eq!(call("addon_synced", &serde_json::json!({})).unwrap(), false);
-    call("addon_export", &serde_json::json!({})).unwrap();
-    assert_eq!(call("addon_synced", &serde_json::json!({})).unwrap(), true);
 
     // Watched, edited by hand, compared: the calls of the guide's page.
     let timeline = call(
@@ -138,7 +122,7 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
         &serde_json::json!({ "guide": guide, "version": 1, "locale": "frFR" }),
     )
     .unwrap();
-    assert!(!timeline["steps"].as_array().unwrap().is_empty());
+    assert_ne!(timeline["steps"].as_array().unwrap().len(), 0);
     let opened = call(
         "edit_open",
         &serde_json::json!({ "guide": guide, "version": 1, "locale": "enUS" }),
@@ -168,17 +152,17 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
         &serde_json::json!({ "guide": guide, "a": 1, "b": 2, "locale": "enUS" }),
     )
     .unwrap();
-    assert!(!compared["text"].as_str().unwrap().is_empty());
+    assert_ne!(compared["text"].as_str().unwrap().len(), 0);
     call("delete_version", &serde_json::json!({ "guide": guide, "version": 2 })).unwrap();
     // The other pages' data.
-    assert!(
-        !call("map_index", &serde_json::json!({}))
+    assert_ne!(
+        call("map_index", &serde_json::json!({}))
             .unwrap()
             .as_array()
             .unwrap()
-            .is_empty()
+            .len(),
+        0
     );
-    call("need_help", &serde_json::json!({ "locale": "enUS" })).unwrap();
     assert_eq!(call("get_options", &serde_json::json!({})).unwrap()["max_level"], 60);
 
     // A file to share comes back as a new version.
@@ -189,17 +173,6 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
         (v2["version"].as_u64(), v2["imported"].as_bool()),
         (Some(2), Some(true))
     );
-
-    // The recordings go to the contribution server (anonymous); accepted, they are dropped.
-    let preview = call("contribution_preview", &serde_json::json!({})).unwrap();
-    assert_eq!(
-        (preview["events"].as_u64(), preview["characters"].as_u64()),
-        (Some(2), Some(1))
-    );
-    assert_eq!(preview["url"], "v1/contributions");
-    let error = call("send_contribution", &serde_json::json!({})).unwrap_err();
-    assert!(error.starts_with("404"), "no server in the tests: {error}");
-    assert!(read_send_record(Edition::Classic).unwrap().state.characters.is_empty());
 
     // Every file the page saved, given back at the next visit, gives the same guides.
     let saved: Vec<(String, Vec<u8>)> = ["settings.json", &format!("guides/classic/{guide}/guide.json")]
@@ -225,18 +198,4 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
     );
     assert_eq!(call("addon_export", &serde_json::json!({})).unwrap()["guides"], 0);
     let _ = REPLIES.lock().unwrap().drain(..);
-}
-
-/// The addon as a zip: both folders, the files the app used to write there empty, the .toc
-/// with the app's version.
-#[test]
-fn the_addon_downloads_as_a_zip_of_its_two_folders() {
-    let zip = addon_package();
-    assert_eq!(zip["file"], "Factoruide-addon.zip");
-    let text = zip["base64"].as_str().unwrap();
-    assert!(text.len() > 100_000 && text.len().is_multiple_of(4));
-    let names: Vec<&str> = embedded::GUIDE_ADDON.iter().map(|(n, _)| *n).collect();
-    assert!(names.contains(&"Import.lua") && !names.contains(&"Routes.lua"));
-    let toc = String::from_utf8(with_app_version(b"## Title: x\n## Version: 0.5.0\nCore.lua\n")).unwrap();
-    assert_eq!(toc, format!("## Title: x\n## Version: {APP_VERSION}\nCore.lua\n"));
 }

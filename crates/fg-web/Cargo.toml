@@ -12,9 +12,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 anyhow.workspace = true
-fg-contrib = { path = "../fg-contrib", default-features = false, features = ["anonymize"] }
 fg-route = { path = "../fg-route" }
-getrandom = "0.4"
 miniz_oxide = "0.8"
 rusqlite = { version = "0.40", features = ["bundled", "serialize"] }
 serde = { version = "1", features = ["derive"] }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api } from "../../api";
 import { useT } from "../../i18n";
 
@@ -12,6 +12,7 @@ export function ProfilePaste({ onImported }: { onImported: () => void }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
   const reasons: Record<string, string> = {
     not_a_profile: t("Ce texte n'est pas un export de personnage : en jeu, tapez /fg export et copiez tout le texte affiché."),
     corrupt_profile: t("Ce texte est incomplet ou abîmé : copiez-le de nouveau en entier (Ctrl+A puis Ctrl+C dans la fenêtre de l'addon)."),
@@ -39,7 +40,7 @@ export function ProfilePaste({ onImported }: { onImported: () => void }) {
       <ol className="web-steps">
         <li>{t("En jeu, connecté avec le personnage, tapez /fg export.")}</li>
         <li>{t("Copiez le texte de la fenêtre qui s'ouvre (il est déjà sélectionné : Ctrl+C).")}</li>
-        <li>{t("Collez-le ici (Ctrl+V).")}</li>
+        <li>{t("Collez-le ici (Ctrl+V), ou ouvrez un fichier texte qui le contient.")}</li>
       </ol>
       <textarea
         className="web-paste-box"
@@ -60,6 +61,20 @@ export function ProfilePaste({ onImported }: { onImported: () => void }) {
         <button className="primary" disabled={busy || !text.trim()} onClick={() => submit(text)}>
           {busy ? t("Lecture…") : t("Ajouter")}
         </button>
+        <button onClick={() => picker.current?.click()} disabled={busy}>
+          {t("Ouvrir un fichier…")}
+        </button>
+        <input
+          ref={picker}
+          type="file"
+          accept=".txt,text/plain"
+          hidden
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (f) await submit(await f.text());
+          }}
+        />
         {message && <span className="success">{message}</span>}
       </div>
       {error && <div className="error">{error}</div>}

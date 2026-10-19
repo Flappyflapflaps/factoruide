@@ -18,16 +18,17 @@ function saved(result: string | WebFile): string {
   return result.file;
 }
 
-/** What the player takes to the game in the web build: a text to paste with /fg import, or for Polestar a pack to unzip in the AddOns folder. */
-export type AddonExport = { kind: "text"; text: string; guides: number } | { kind: "zip"; file: string; base64: string; guides: number };
+/** Web build: the text the player pastes in game with /fg import (the guides their characters follow). */
+export interface AddonExport {
+  text: string;
+  guides: number;
+}
 
 /** A character's export (/fg export) pasted in the web app. */
 export interface ProfileImported {
   character: string;
   edition: Edition;
   level: number;
-  /** Recordings kept for the contribution server. */
-  events: number;
 }
 
 /** Planner tunables, mirror of `fg_route::Params`. */
@@ -439,8 +440,11 @@ export interface FoundGame {
 /** What the game did with the addon of the game version the app works on. */
 export interface AddonHealth {
   app_version: string;
-  /** The app version that installed the addon (null: not installed). */
+  /** The version of the addon installed (null: not installed; web: the addon of the last export). */
   installed_version: string | null;
+  /** The oldest addon version the app works with, and whether the installed one is older (desktop). */
+  required_version?: string;
+  outdated?: boolean;
   /** When it was installed (Unix seconds). */
   installed_at: number | null;
   /** Every file of the addon is there. */
@@ -579,8 +583,8 @@ export const api = {
   importProfile: (content: string) => invoke<ProfileImported>("import_profile", { content }).then((r) => (settingsChanged(), r)),
   /** Web build: what to take to the game (made again when the guides or the settings changed). */
   addonExport: () => invoke<AddonExport>("addon_export").then((r) => (settingsChanged(), r)),
-  /** Web build: downloads the addon (both folders, without guides) as a zip; returns its name. */
-  addonPackage: () => invoke<WebFile>("addon_package").then(saved),
+  /** Web build, WoW Forever: downloads the guides followed as a Polestar guide pack (a zip of its addon folder); returns its name. */
+  polestarPack: () => invoke<WebFile>("polestar_pack").then(saved),
   onPlanProgress: (fn: (m: string) => void): Promise<UnlistenFn> =>
     listen<string>("plan-progress", (e) => fn(e.payload)),
 };

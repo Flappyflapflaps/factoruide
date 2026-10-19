@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
-import { api, type AddonExport } from "../../api";
+import { api, type AddonExport, type Edition } from "../../api";
 import { useT } from "../../i18n";
-import { download, fromBase64 } from "../mode";
 
 /**
- * Web build: the guides and the addon's settings go to the game as a text pasted with
- * `/fg import` (or, for Polestar, a pack to unzip in the game's AddOns folder). Made again when
- * the guides or the settings changed.
+ * Web build: the guides the characters follow go to the game as a text pasted with
+ * `/fg import`, made again when the guides changed. On WoW Forever, also as a Polestar guide
+ * pack to download.
  */
-export function AddonImport({ onClose }: { onClose?: () => void }) {
+export function AddonImport({ edition, onClose }: { edition: Edition | null; onClose?: () => void }) {
   const t = useT();
   const [exported, setExported] = useState<AddonExport | null>(null);
   const [copied, setCopied] = useState(false);
@@ -39,9 +38,9 @@ export function AddonImport({ onClose }: { onClose?: () => void }) {
       </div>
       {error && <div className="error">{error}</div>}
       {!exported && !error && <p className="muted">{t("Préparation…")}</p>}
-      {exported?.kind === "text" && (
+      {exported && (
         <>
-          <p>{t("Guides dans le texte : {n}, avec les réglages de l'addon.", { n: exported.guides })}</p>
+          <p>{t("Guides dans le texte : {n}.", { n: exported.guides })}</p>
           <ol className="web-steps">
             <li>{t("Copiez le texte ci-dessous.")}</li>
             <li>{t("En jeu, tapez /fg import et collez-le dans la fenêtre (Ctrl+V).")}</li>
@@ -52,21 +51,13 @@ export function AddonImport({ onClose }: { onClose?: () => void }) {
               {copied ? t("Copié ✓") : t("Copier le texte")}
             </button>
             <span className="muted">{t("{size} Ko", { size: Math.ceil(exported.text.length / 1024) })}</span>
+            {edition === "forever" && (
+              <button onClick={() => api.polestarPack().catch((e) => setError(String(e)))} title={t("Les mêmes guides pour Polestar : décompressez le pack dans le dossier Interface\\AddOns de WoW Forever.")}>
+                {t("Pack Polestar (.zip)")}
+              </button>
+            )}
           </div>
           <textarea className="web-import-box" readOnly value={exported.text} onFocus={(e) => e.currentTarget.select()} spellCheck={false} />
-        </>
-      )}
-      {exported?.kind === "zip" && (
-        <>
-          <p>{t("Guides dans le pack Polestar : {n}.", { n: exported.guides })}</p>
-          <ol className="web-steps">
-            <li>{t("Téléchargez le pack.")}</li>
-            <li>{t("Décompressez-le dans le dossier Interface\\AddOns de WoW Forever (il contient le dossier Factoruide_Polestar, qui remplace l'ancien).")}</li>
-            <li>{t("Redémarrez le jeu s'il était ouvert.")}</li>
-          </ol>
-          <button className="primary" onClick={() => download(exported.file, fromBase64(exported.base64), "application/zip")}>
-            {t("Télécharger le pack")}
-          </button>
         </>
       )}
     </section>
