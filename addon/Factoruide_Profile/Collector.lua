@@ -6,8 +6,10 @@
 -- empty for none; data = key=value pairs joined by `;` (booleans 1, pairs as a:b,a:b, text with
 -- %, |, ; = and control characters percent-encoded). Rows saved before are tables:
 --   { seq, time, event, questID, entityType, entityID, uiMapID, x, y, level, data }
--- The app writes Sent.lua (`FactoruideSent[character] = last seq sent`), or a guide imported with
--- `/fg import` brings the same (`FactoruideDB.sent`): rows it has are dropped at login.
+-- The rows the app has (`FactoruideSent[character] = last seq sent`) come with the guides written
+-- by the desktop app into Factoruide_Data (FG.DataSent, Data.lua), the Sent.lua older versions of
+-- the app wrote, or a guide imported with `/fg import` (`FactoruideDB.sent`): they are dropped at
+-- login.
 -- Everything here is event driven (no OnUpdate), throttled and bounded.
 
 local _, FG = ...
@@ -142,13 +144,14 @@ local function SnapshotCharacter()
     char.questLog = log
 end
 
---- Last seq the app has received for this character, 0 when none: from Sent.lua or from the last
---- guide imported, the highest (the seq only grows, so it is the most recent).
+--- Last seq the app has received for this character, 0 when none: from Factoruide_Data, Sent.lua
+--- or the last guide imported, the highest (the seq only grows, so it is the most recent).
 local function SentSeq()
     local key = FG:CharacterKey()
     local file = type(FactoruideSent) == "table" and tonumber(FactoruideSent[key]) or 0
     local imported = type(FactoruideDB.sent) == "table" and tonumber(FactoruideDB.sent[key]) or 0
-    return math.max(file, imported)
+    local data = FG.DataSent and FG.DataSent[key] or 0
+    return math.max(file, imported, data)
 end
 
 --- Drop the rows the app already has, and the oldest beyond the cap. The seq keeps growing,
@@ -755,8 +758,8 @@ function Collector:PrintStatus()
     FG:Print("%d events recorded, %d not sent yet (%s)", #char.events, pending, table.concat(parts, ", "))
 end
 
---- For the profile export: this character's race and class, and its rows the app does not have
---- yet (the rows saved as tables by older versions are left out).
+--- This character's race and class, and its rows the app does not have yet (the rows saved as
+--- tables by older versions are left out).
 function Collector:Pending()
     if not char then return nil end
     local sent, rows = SentSeq(), {}

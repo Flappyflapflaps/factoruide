@@ -146,7 +146,6 @@ FG.Locales.ptBR = {
     ["Cooking"] = "Culinária",
     ["Fishing"] = "Pesca",
     ["First Aid"] = "Primeiros Socorros",
-    ["settings are configured in the Factoruide app (Addon tab), then /reload"] = "as configurações ficam no aplicativo Factoruide (aba Addon), depois /reload",
     ["the addon's windows will change when combat ends"] = "as janelas do addon vão mudar quando o combate terminar",
     ["Left-click: the compass points at this place"] = "Clique esquerdo: a bússola aponta para este local",
     ["Left-click: Shortest Path Forever goes there"] = "Clique esquerdo: o Shortest Path Forever vai até lá",
@@ -172,7 +171,7 @@ FG.Locales.ptBR = {
     ["compass shown (/fg compass hides it)"] = "bússola visível (/fg compass a esconde)",
     ["compass hidden (/fg compass shows it again)"] = "bússola escondida (/fg compass a mostra de novo)",
     ["compass back at the top of the screen, at its first size"] = "bússola de volta ao topo da tela, no tamanho original",
-    ["the wind guides you instead of the compass (set in the Factoruide app)"] = "o vento guia você no lugar da bússola (definido no app Factoruide)",
+    ["the wind guides you instead of the compass (set in /fg config)"] = "o vento guia você no lugar da bússola (definido em /fg config)",
     ["windows locked (/fg lock unlocks them)"] = "janelas travadas (/fg lock as destrava)",
     ["windows unlocked: drag them to move them"] = "janelas destravadas: arraste-as para movê-las",
 }

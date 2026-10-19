@@ -3,9 +3,9 @@
 ## Notes: Leveling route guide made in the Factoruide app, quest automation and fast loot.
 ## Notes-frFR: Guide de pexing fait dans l'application Factoruide, quêtes automatiques et loot rapide.
 ## Author: Joel Wurtz
-## Version: 0.5.0
+## Version: 0.14.0
 ## Dependencies: Factoruide_Profile
-## OptionalDeps: ElvUI, EllesmereUI, SpartanUI, Poulpix_UI_Immersive, ShortestPathForever
+## OptionalDeps: Factoruide_Data, ElvUI, EllesmereUI, SpartanUI, Poulpix_UI_Immersive, ShortestPathForever
 
 Libs\LibStub\LibStub.lua
 Libs\LibDeflate\LibDeflate.lua
@@ -13,8 +13,10 @@ Config.lua
 Routes.lua
 Services.lua
 Import.lua
+SettingsSchema.lua
 Settings.lua
 Skin.lua
+SettingsWindow.lua
 TalentBuilds_forever.lua
 TalentBuilds_classic.lua
 TalentBuilds_tbc.lua

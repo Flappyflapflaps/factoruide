@@ -1,0 +1,5 @@
+# Shipped empty (the repository root ignores them, as older app versions wrote them here).
+!/Factoruide_Guide/Routes.lua
+!/Factoruide_Guide/Config.lua
+!/Factoruide_Guide/Services.lua
+!/Factoruide_Profile/Sent.lua

@@ -41,7 +41,7 @@ local L = {
     shown = T("compass shown (/fg compass hides it)"),
     hidden = T("compass hidden (/fg compass shows it again)"),
     reset = T("compass back at the top of the screen, at its first size"),
-    replaced = T("the wind guides you instead of the compass (set in the Factoruide app)"),
+    replaced = T("the wind guides you instead of the compass (set in /fg config)"),
 }
 -- Every 45°, counter-clockwise from north (the game's facing).
 local CARDINALS = { T("N"), T("NW"), T("W"), T("SW"), T("S"), T("SE"), T("E"), T("NE") }

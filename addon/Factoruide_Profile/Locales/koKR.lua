@@ -146,7 +146,6 @@ FG.Locales.koKR = {
     ["Cooking"] = "요리",
     ["Fishing"] = "낚시",
     ["First Aid"] = "응급치료",
-    ["settings are configured in the Factoruide app (Addon tab), then /reload"] = "설정은 Factoruide 앱(애드온 탭)에서 한 뒤 /reload",
     ["the addon's windows will change when combat ends"] = "애드온 창은 전투가 끝나면 바뀝니다",
     ["Left-click: the compass points at this place"] = "왼쪽 클릭: 나침반이 이 장소를 가리킴",
     ["Left-click: Shortest Path Forever goes there"] = "왼쪽 클릭: Shortest Path Forever가 그곳으로 안내",
@@ -172,7 +171,7 @@ FG.Locales.koKR = {
     ["compass shown (/fg compass hides it)"] = "나침반 표시 (/fg compass로 숨김)",
     ["compass hidden (/fg compass shows it again)"] = "나침반 숨김 (/fg compass로 다시 표시)",
     ["compass back at the top of the screen, at its first size"] = "나침반을 화면 위쪽, 원래 크기로 되돌렸습니다",
-    ["the wind guides you instead of the compass (set in the Factoruide app)"] = "나침반 대신 바람이 안내합니다 (Factoruide 앱에서 설정)",
+    ["the wind guides you instead of the compass (set in /fg config)"] = "나침반 대신 바람이 안내합니다 (/fg config에서 설정)",
     ["windows locked (/fg lock unlocks them)"] = "창 고정됨 (/fg lock으로 해제)",
     ["windows unlocked: drag them to move them"] = "창 고정 해제: 드래그해서 옮기세요",
 }

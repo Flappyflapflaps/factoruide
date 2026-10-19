@@ -19,7 +19,10 @@ local function stub()
     -- The game refuses a missing font.
     function o:SetFontObject(font) assert(font ~= nil, "SetFontObject without a font") end
     -- Strict as the newer clients' API: a boolean, not nil.
-    function o:SetShown(shown) assert(type(shown) == "boolean", "SetShown(" .. tostring(shown) .. ")") end
+    function o:SetShown(shown)
+        assert(type(shown) == "boolean", "SetShown(" .. tostring(shown) .. ")")
+        self._shown = shown
+    end
     function o:GetPoint() return "TOP", nil, "TOP", 0, 0 end
     function o:GetID() return 1 end
     function o:SetFrameLevel(level) self._level = level end
@@ -44,6 +47,8 @@ CreateFrame = function(kind, name, parent)
     end
     function f:Show() self._shown = true end
     function f:Hide() self._shown = false end
+    function f:SetAlpha(a) self._alpha = a end
+    function f:GetAlpha() return self._alpha or 1 end
     function f:IsShown() return self._shown end
     function f:GetName() return self._name end
     function f:SetParent(p) self._parent = p end
@@ -64,6 +69,7 @@ CreateVector2D = function(x, y)
 end
 MinimalSliderWithSteppersMixin = { Label = {} }
 local settingsRegistered = 0
+local addonCategory -- the page of the game's options (AddOns)
 Settings = {
     VarType = { Boolean = "boolean", Number = "number" },
     RegisterVerticalLayoutCategory = function()
@@ -80,7 +86,10 @@ Settings = {
         return { SetLabelFormatter = function() end }
     end,
     CreateSlider = function() end,
-    RegisterAddOnCategory = function() end,
+    RegisterCanvasLayoutCategory = function(frame, name)
+        return { frame = frame, name = name, GetID = function() return 2 end }
+    end,
+    RegisterAddOnCategory = function(category) addonCategory = category end,
     OpenToCategory = function() end,
 }
 local calls = {}
@@ -249,19 +258,25 @@ SlashCmdList = {}
 local function load(addon)
     local private = {}
     for line in io.lines("addon/" .. addon .. "/" .. addon .. ".toc") do
-        -- Config.lua, Routes.lua, Services.lua and Sent.lua are written by the app and not
-        -- versioned.
+        -- Routes.lua and Services.lua ship empty: the guides of the tests instead, as an older app
+        -- version wrote them. Config.lua ships empty too: as an older app wrote it, ignored.
         if line == "Config.lua" then
-            Factoruide.Config = {}
-        elseif line == "Sent.lua" then
-            FactoruideSent = nil
+            assert(loadfile("addon/" .. addon .. "/Config.lua"))(addon, private)
+            Factoruide.Config = { autoAccept = false, guideMode = "minimal", locale = "deDE", scale = 1.5 }
         elseif line == "Routes.lua" or line == "Services.lua" then
+            assert(loadfile("addon/" .. addon .. "/" .. line))(addon, private)
             assert(loadfile("addon/tests/fixtures/" .. line))(addon, private)
         elseif line:match("%.lua$") then
             local chunk = assert(loadfile("addon/" .. addon .. "/" .. line:gsub("\\", "/")))
             chunk(addon, private)
         end
     end
+end
+-- Factoruide_Data (written by the desktop app) loads first. Alone with the profile part: what the
+-- server has (its FactoruideSent) still drops the collector's rows.
+if profileOnly then
+    FactoruideData = 'Factoruide.Routes = { x = { steps = {} } }\nFactoruideSent = { ["Brouz-Realm"] = 1 }\n'
+    FactoruideDataTime = 1700000000
 end
 load("Factoruide_Profile")
 if not profileOnly then load("Factoruide_Guide") end
@@ -288,6 +303,10 @@ if profileOnly then
     fire("QUEST_DETAIL", 0)
     fire("QUEST_ACCEPTED", 179)
     assert(#char.events >= 2, "collector recorded events")
+    assert(FG.DataSent["Brouz-Realm"] == 1 and FactoruideData == nil, "Factoruide_Data's sent seqs read, text let go")
+    assert(FG.DataGuide == nil and FG.Routes == nil, "no guide kept without the guide part")
+    -- The rows go on after the last the server has.
+    assert(tonumber(char.events[1]:match("^(%d+)")) == 2, "numbered after the sent seq: " .. char.events[1])
     assert(char.guide == nil and waypoint == nil, "no guide state, no waypoint")
     assert(next(calls) == nil, "nothing done in game: " .. tostring(next(calls)))
     SlashCmdList.FACTORUIDE("")
@@ -300,6 +319,7 @@ if profileOnly then
     local _, edit = FG.TextWindow:Parts()
     local json = LibStub("LibDeflate"):DecompressDeflate(LibStub("LibDeflate"):DecodeForPrint(edit:GetText():sub(6)))
     assert(json and json:find('"character":"Brouz-Realm"', 1, true), "export without the guide")
+    assert(not json:find('"collector"', 1, true) and not json:find('"events"', 1, true), "no collector rows")
     assert(next(FactoruideDB.errors or {}) == nil, "no error: " .. tostring(next(FactoruideDB.errors or {})))
     print("profile only ok: " .. #char.events .. " events")
     os.exit(0)
@@ -363,16 +383,18 @@ fire("LOOT_READY", false)
 assert(calls.loot == 3, "all loot slots taken")
 -- The guide's mode: switched in game and kept, the minimal strip shown instead of the card.
 SlashCmdList.FACTORUIDE("mode")
-assert(FG:Get("guideMode") == "minimal" and FactoruideDB.ui.guideMode == "minimal", "minimal mode kept")
+assert(FG:Get("guideMode") == "minimal" and FactoruideDB.settings.guideMode == "minimal", "minimal mode kept")
 assert(FG.Guide:Box() == FG.Mini:Frame(), "the minimal strip is the guide")
 SlashCmdList.FACTORUIDE("mode")
 assert(FG:Get("guideMode") == "full" and FG.Guide:Box() == FG.Card:Frame(), "back to the full card")
 
--- Settings from the app (Config.lua) are respected.
-FG.Config.autoAccept = false
+-- The settings of an older app's Config.lua are ignored: the defaults until chosen in game.
+assert(FG.Config.autoAccept == false and FG:Get("autoAccept") == true, "Config.lua ignored")
+assert(FG:Get("scale") == 1 and FG.Lang() == "frFR", "Config.lua's size and language ignored")
+FG:Save("autoAccept", false)
 calls.AcceptQuest = nil
 fire("QUEST_DETAIL", 0)
-assert(not calls.AcceptQuest, "auto accept disabled by the app")
+assert(not calls.AcceptQuest, "auto accept turned off in game")
 print("automation ok")
 
 -- Quest tracker: lists the log, hides Blizzard's tracker.
@@ -939,7 +961,7 @@ print("profile ok")
 
 -- Window size: Ctrl + mouse wheel over a window, or /fg scale; saved, nothing: the app's.
 SlashCmdList.FACTORUIDE("scale 1.3")
-assert(FG:Get("scale") == 1.3 and FactoruideDB.ui.scale == 1.3, "scale saved")
+assert(FG:Get("scale") == 1.3 and FactoruideDB.settings.scale == 1.3, "scale saved")
 local wheel
 for _, f in ipairs(frames) do
     if rawget(f, "OnMouseWheel") then wheel = f end
@@ -948,7 +970,7 @@ fire("MODIFIER_STATE_CHANGED", "LCTRL", 1)
 wheel.OnMouseWheel(wheel, 1)
 assert(FG:Get("scale") == 1.35, "zoomed in: " .. FG:Get("scale"))
 SlashCmdList.FACTORUIDE("scale")
-assert(FG:Get("scale") == 1 and FactoruideDB.ui.scale == nil, "back to the app's size")
+assert(FG:Get("scale") == 1 and FactoruideDB.settings.scale == nil, "back to the default size")
 print("scale ok")
 
 -- A part of the profile the game fails to give keeps its previous value, the error is kept.
@@ -1230,7 +1252,7 @@ print("dungeon ok")
 
 -- Only the guide's quests: those it still takes, not those it abandons, marked done by hand or
 -- out of it, nor escorts shared by the group (the event does not tell which quest).
-FG.Config.autoAccept = true
+FG:Save("autoAccept", nil)
 FG.Routes["accept-test"] = {
     race = 7,
     class = 8,
@@ -1472,7 +1494,7 @@ print("start over ok")
 
 -- The next steps' tab, kept.
 FG:Save("nextTab", "pickup")
-assert(FG:Get("nextTab") == "pickup" and FactoruideDB.ui.nextTab == "pickup", "tab kept")
+assert(FG:Get("nextTab") == "pickup" and FactoruideDB.settings.nextTab == "pickup", "tab kept")
 FG.Guide:Refresh()
 FG:Save("nextTab", nil)
 assert(FG:Get("nextTab") == "next", "default back")
@@ -1605,7 +1627,7 @@ do
     assert(#FG.Compass:Points() > 0, "the compass back")
     -- Hidden and shown in game (`/fg compass`), kept over the app's setting.
     SlashCmdList.FACTORUIDE("compass")
-    assert(FG:Get("compassShown") == false and FactoruideDB.ui.compassShown == false, "/fg compass: hidden, kept")
+    assert(FG:Get("compassShown") == false and FactoruideDB.settings.compassShown == false, "/fg compass: hidden, kept")
     assert(#FG.Compass:Points() == 0, "/fg compass: no compass")
     SlashCmdList.FACTORUIDE("compass")
     assert(FG:Get("compassShown") == true and #FG.Compass:Points() > 0, "/fg compass again: back")
@@ -1817,7 +1839,7 @@ FG:Save("guideMode", nil)
 -- The guide's button hides the whole panel (kept), the bank shows it while open.
 FG.Tracker:Toggle()
 FG.Tracker:Refresh()
-assert(not FG.Tracker.visible and FactoruideDB.ui.questPanel == false, "hidden by the guide's button")
+assert(not FG.Tracker.visible and FactoruideDB.settings.questPanel == false, "hidden by the guide's button")
 FG.Tracker:ShowItems(true)
 assert(FG.Tracker.visible, "shown at the bank")
 FG.Tracker:ShowItems(false)
@@ -2076,16 +2098,18 @@ C_QuestLog.GetQuestObjectives = pageObjectives
 onQuest[9301] = nil
 print("objectives by name ok")
 
--- Texts: in the language chosen in the app (Config.lua), else the game's; English without a
+-- Texts: in the language chosen in the settings, else the game's; English without a
 -- translation; Mexican Spanish as Spain's.
 assert(FG.T("Accept") == "Prendre", "the game's language: " .. FG.T("Accept"))
-FG.Config.locale = "deDE"
-assert(FG.T("Accept") == "Annehmen" and FG.T("No such text") == "No such text", "the app's language")
-FG.Config.locale = "esMX"
+FG:Save("locale", "deDE")
+assert(FG.T("Accept") == "Annehmen" and FG.T("No such text") == "No such text", "the chosen language")
+FG:Save("locale", "esMX")
 assert(FG.T("Accept") == "Aceptar", "Mexican Spanish")
-FG.Config.locale = "enUS"
+FG:Save("locale", "enUS")
 assert(FG.T("Accept") == "Accept", "English")
-FG.Config.locale = nil
+FG:Save("locale", "xxXX")
+assert(FG.T("Accept") == "Prendre", "an unknown language: the game's")
+FG:Save("locale", nil)
 print("languages ok")
 
 -- The tracker lists the guide's quests in progress even when the quest log lists none
@@ -2180,12 +2204,12 @@ dragNow = dragNow + 1
 stepRow.OnClick(stepRow, "LeftButton")
 assert(pointed == stepRow.index, "a click on the row still points at its step")
 assert(rawget(stepRow, "OnEnter"), "the row keeps its tooltip")
-FG.Config.lockFrames = true
+FG:Set("lockFrames", true)
 FG.Guide:State().point = nil
 drag(stepRow)
 drag(card)
 assert(cardMoves.moves == 1 and FG.Guide:State().point == nil, "locked windows do not move")
-FG.Config.lockFrames = nil
+FG:Set("lockFrames", nil)
 drag(card)
 assert(cardMoves.moves == 2, "the card itself still moves")
 
@@ -2274,10 +2298,10 @@ do
     assert(state.compassWidth == 460, "the left end dragged in: narrower")
     widen(left, 10000)
     assert(state.compassWidth == 240 and compass.width == 240, "not narrower than its least width")
-    FG.Config.lockFrames = true
+    FG:Set("lockFrames", true)
     widen(right, 50)
     assert(compass.width == 240, "locked: its ends do not move")
-    FG.Config.lockFrames = nil
+    FG:Set("lockFrames", nil)
     assert(rawget(right, "OnUpdate") == nil, "no sizing left running")
 
     -- Ctrl + wheel over it: its own size, not the other windows'.
@@ -2305,7 +2329,7 @@ do
         "the hint says how"
     )
     SlashCmdList.FACTORUIDE("lock")
-    assert(FG:Get("lockFrames") == true and FactoruideDB.ui.lockFrames == true, "/fg lock: kept")
+    assert(FG:Get("lockFrames") == true and FactoruideDB.settings.lockFrames == true, "/fg lock: kept")
     assert(
         hint():find("Verrouillée", 1, true) and not hint():find("Glisser : la déplacer", 1, true),
         "locked: the hint says so"
@@ -2399,7 +2423,7 @@ end
 assert(not xpMark:IsShown(), "no XP bar mark while hidden")
 assert(FG:Get("guideShown") and FG:Get("questPanel") and FG:Get("guideMode") == "full", "settings kept")
 assert(char.guide.step == stepBeforeHide, "progress kept")
-assert(FactoruideDB.ui.uiShown == nil, "hidden for the session only")
+assert(FactoruideDB.settings.uiShown == nil, "hidden for the session only")
 SlashCmdList.FACTORUIDE("show")
 SlashCmdList.FACTORUIDE("show")
 assert(root:IsShown() and FG:Get("uiShown"), "show twice: shown")
@@ -3064,7 +3088,7 @@ local function ExportImport()
 
     local deflate = LibStub("LibDeflate")
 
-    -- `/fg export`: a fresh profile and the rows not sent yet, compressed, in a window to copy.
+    -- `/fg export`: a fresh profile, compressed, in a window to copy (no collector rows).
     local profile = FactoruideDB.profiles["Brouz-Realm"]
     char.events = { "101|5|kill||npc|6|1426|30|70|1|", "102|6|kill||npc|6|1426|30|70|1|", { 103, 0, "kill" } }
     char.events[4] = '104|7|loot||npc|6|1426|30|70|1|name=Wolf "Meat"%0A'
@@ -3079,16 +3103,14 @@ local function ExportImport()
     local json = deflate:DecompressDeflate(deflate:DecodeForPrint(exported:sub(6)))
     assert(json == FG.Export:Json(), "export round trip")
     assert(json:find('"flights":[2,12]', 1, true), "flights as a sorted list")
-    assert(json:find('"events":["102|6|', 1, true) and not json:find('"101|', 1, true), "rows after the last sent")
-    assert(not json:find('"103', 1, true), "table rows left out")
+    assert(not json:find('"collector"', 1, true) and not json:find("|kill|", 1, true), "no collector rows")
     assert(json:find('"level":4', 1, true), "a fresh snapshot")
     local parsed = PythonJson(
         json,
         "assert d['format'] == 'factoruide-profile' and d['version'] == 1 and d['edition'] == 'forever'; "
             .. "assert d['addon'] == '0.13.0' and d['character'] == 'Brouz-Realm'; "
             .. "assert d['profile']['flights'] == [2, 12] and d['profile']['class'] == 'MAGE'; "
-            .. "assert d['collector']['class'] == 'MAGE' and len(d['collector']['events']) == 2; "
-            .. "assert d['collector']['events'][1].endswith('name=Wolf \"Meat\"%0A')"
+            .. "assert sorted(d) == ['addon', 'character', 'edition', 'format', 'profile', 'version']"
     )
     assert(parsed ~= false, "export JSON read by Python")
     print("profile export ok" .. (parsed == nil and " (python3 missing: JSON not parsed)" or ""))
@@ -3120,8 +3142,11 @@ local function ExportImport()
     assert(#FG.Collector:Pending().events == 0, "rows up to the imported seq are sent")
     FG.Import:ApplySaved()
     assert(FG.Routes["web-mage"] and not FG.Routes["gnome-mage"], "imported routes replace the files'")
-    assert(FG.Assignments["Brouz-Realm"] == "web-mage" and FG.Config.locale == "enUS", "assignments and config")
-    assert(FG:Get("compassShown") == false and FG.Lang() == "enUS", "imported settings read")
+    assert(FG.Assignments["Brouz-Realm"] == "web-mage" and FG.Import.source == "import", "assignments imported")
+    assert(
+        FG.Config.locale ~= "enUS" and FG:Get("compassShown") == true and FG.Lang() == "frFR",
+        "imported Config ignored"
+    )
     FG.Guide:FollowAssignment()
     assert(FG.Guide:Route() == FG.Routes["web-mage"] and char.guide.route == "web-mage", "imported guide followed")
 
@@ -3135,6 +3160,39 @@ local function ExportImport()
         FG.Import.Run("os.exit(1)") == nil and FG.Import.Run(string.dump(function() end)) == nil,
         "no os, no bytecode"
     )
+
+    -- Factoruide_Data, written by the desktop app: applied as an import; of the two, the most
+    -- recent wins. Its text runs in the profile part (Data.lua), before the guide part loads.
+    local dataLua = fixture:gsub("gnome%-mage", "desk-mage")
+        .. '\nFactoruideSent = { ["Brouz-Realm"] = 170 }\nFactoruide.Config = { compassShown = false }\n'
+    local function LoadData(when)
+        FactoruideData, FactoruideDataTime = dataLua, when
+        assert(loadfile("addon/Factoruide_Profile/Data.lua"))("Factoruide_Profile", FG)
+        assert(FactoruideData == nil and FG.DataGuide and FG.DataGuide.time == when, "data run, its text let go")
+    end
+    FactoruideDB.guideImport.time = 1000
+    LoadData(2000)
+    FG.Import:ApplySaved()
+    assert(FG.Import.source == "data" and FG.Routes["desk-mage"] and not FG.Routes["web-mage"], "newer data wins")
+    assert(FG.DataGuide == nil and FG.DataSent["Brouz-Realm"] == 170, "data taken, its sent seqs kept")
+    assert(FG:Get("compassShown") == true, "data's Config ignored")
+    LoadData(500)
+    FG.Import:ApplySaved()
+    assert(FG.Import.source == "import" and FG.Routes["web-mage"], "newer import wins")
+    -- A newer import that cannot be read: the data instead.
+    local goodText = FactoruideDB.guideImport.text
+    FactoruideDB.guideImport.text = "FG.Routes = {"
+    LoadData(500)
+    FG.Import:ApplySaved()
+    assert(FG.Import.source == "data" and FG.Import.failed, "unreadable import: the data")
+    FactoruideDB.guideImport.text = goodText
+    -- Data that is not data: nothing kept, the error counted.
+    FactoruideData, FactoruideDataTime = "Factoruide.f = function() end", 3000
+    assert(loadfile("addon/Factoruide_Profile/Data.lua"))("Factoruide_Profile", FG)
+    assert(FG.DataGuide == nil and FG.DataFailed, "functions refused in the data")
+    FG.DataFailed = nil
+    FG.Import:ApplySaved()
+    assert(FG.Import.source == "import", "the import then")
 
     -- Empty generated files (the addon as published) and no import: a message, no guide.
     SlashCmdList.FACTORUIDE("import clear")
@@ -3159,3 +3217,128 @@ local function ExportImport()
     print("guide import ok")
 end
 ExportImport()
+
+-- The settings: their schema (addon/settings.json, written into SettingsSchema.lua), the window.
+local function SettingsTest()
+    local tool = assert(loadfile("addon/tools/settings.lua"))("module")
+    local generated, current = tool.Compare()
+    assert(generated == current, "SettingsSchema.lua differs from settings.json: luajit addon/tools/settings.lua")
+    local schema = tool.Decode(assert(io.open("addon/settings.json")):read("*a"))
+    local keys = {}
+    for _, group in ipairs(schema.groups) do
+        for _, section in ipairs(group.sections) do
+            for _, option in ipairs(section.options) do
+                keys[#keys + 1] = option
+            end
+        end
+    end
+    assert(#keys > 50, "every option read: " .. #keys)
+
+    -- Nothing saved: the defaults; a saved value that does not fit: the default (numbers held
+    -- within their bounds).
+    FactoruideDB.settings = {}
+    for _, option in ipairs(keys) do
+        assert(FG:Get(option.key) == option.default, "default of " .. option.key)
+    end
+    FactoruideDB.settings = { scale = "big", guideMode = "weird", autoAccept = 1, trackerQuests = 99 }
+    assert(FG:Get("scale") == 1 and FG:Get("guideMode") == "full" and FG:Get("autoAccept") == true, "bad values")
+    assert(FG:Get("trackerQuests") == 35, "within bounds")
+    -- What the tests before chose (the guide's mode, tabs...) is let go.
+    FactoruideDB.settings = {}
+
+    -- Settings kept before the window (FactoruideDB.ui) move over once.
+    FactoruideDB.ui = { scale = 1.2, appGuideMode = "full", uiShown = false, compassShown = false }
+    FactoruideDB.settings.scale, FactoruideDB.settings.compassShown = nil, nil
+    FG.MoveOldSettings()
+    assert(FactoruideDB.ui == nil and FactoruideDB.settings.scale == 1.2, "old settings moved")
+    assert(FactoruideDB.settings.compassShown == false and FactoruideDB.settings.uiShown == nil, "not the session's")
+    assert(FactoruideDB.settings.appGuideMode == nil, "nor the app's leftovers")
+    FG:Save("scale", nil)
+    FG:Save("compassShown", nil)
+
+    -- In the game's options, and `/fg config` / `/fg settings`.
+    assert(addonCategory and addonCategory.name == "Factoruide", "a page in the game's options")
+    SlashCmdList.FACTORUIDE("config")
+    local window, pages = FG.SettingsWindow:Parts()
+    assert(window:IsShown(), "/fg config opens the window")
+    SlashCmdList.FACTORUIDE("config")
+    assert(not window:IsShown(), "and closes it")
+    SlashCmdList.FACTORUIDE("settings")
+    assert(window:IsShown(), "/fg settings opens it")
+
+    -- Every option of the schema has its row (those of this edition), and the language.
+    local rows = {}
+    for _, page in ipairs(pages) do
+        for _, row in ipairs(page.rows) do
+            rows[row.option.key] = row
+        end
+    end
+    for _, option in ipairs(keys) do
+        if not option.only or option.only == FG.Edition then
+            assert(rows[option.key], "no row for " .. option.key)
+        else
+            assert(not rows[option.key], "row of another edition: " .. option.key)
+        end
+    end
+    assert(rows.locale, "the language's row")
+    assert(rows.autoAccept.label:GetText() == "Accepter les quêtes automatiquement", "labels translated")
+
+    -- A check box: saved, read back, applied at once.
+    local function click(row, button) row.OnClick(row, button or "LeftButton") end
+    click(rows.autoAccept)
+    assert(FactoruideDB.settings.autoAccept == false and FG:Get("autoAccept") == false, "unchecked: saved")
+    calls.AcceptQuest = nil
+    fire("QUEST_DETAIL", 0)
+    assert(not calls.AcceptQuest, "applied at once")
+    assert(rows.autoAccept.box.check._shown == false, "the box unchecked")
+    click(rows.autoAccept, "RightButton")
+    assert(FactoruideDB.settings.autoAccept == nil and FG:Get("autoAccept") == true, "right click: the default")
+    assert(rows.autoAccept.box.check._shown == true, "the box checked")
+    -- A number: steps within its bounds; a percent shown as such.
+    rows.trackerQuests.next.OnClick(rows.trackerQuests.next)
+    assert(FG:Get("trackerQuests") == 9 and rows.trackerQuests.value:GetText() == "9", "number stepped")
+    for _ = 1, 50 do
+        rows.trackerQuests.next.OnClick(rows.trackerQuests.next)
+    end
+    assert(FG:Get("trackerQuests") == 35, "not past its max")
+    rows.scale.prev.OnClick(rows.scale.prev)
+    assert(FG:Get("scale") == 0.95 and rows.scale.value:GetText() == "95%", "size in percent")
+    click(rows.scale, "RightButton")
+    click(rows.trackerQuests, "RightButton")
+    -- A select: the next choice, around.
+    click(rows.windStyle)
+    assert(FG:Get("windStyle") == "mist" and rows.windStyle.value:GetText() == "Brume basse", "select: next")
+    rows.windStyle.prev.OnClick(rows.windStyle.prev)
+    rows.windStyle.prev.OnClick(rows.windStyle.prev)
+    assert(FG:Get("windStyle") == "wisps", "select: around")
+    click(rows.windStyle, "RightButton")
+    -- Requires: greyed and unchanged while the setting it needs is off.
+    click(rows.trackerShown)
+    assert(rows.trackerQuests:GetAlpha() < 1, "greyed while the tracker is off")
+    rows.trackerQuests.next.OnClick(rows.trackerQuests.next)
+    click(rows.replaceTracker)
+    assert(FG:Get("trackerQuests") == 8 and FG:Get("replaceTracker") == true, "unchanged while greyed")
+    click(rows.trackerShown, "RightButton")
+    assert(rows.trackerQuests:GetAlpha() == 1, "back")
+    -- Applied after a /reload only: the window says so.
+    local reload = FG.SettingsWindow:ReloadShown()
+    assert(not reload, "no reload needed yet")
+    click(rows.uiTheme)
+    assert(FactoruideDB.settings.uiTheme == "parchemin" and FG.SettingsWindow:ReloadShown(), "theme saved, /reload")
+    click(rows.uiTheme, "RightButton")
+    -- The language: the game's, then each language.
+    click(rows.locale)
+    assert(FactoruideDB.settings.locale == "enUS" and FG.Lang() == "enUS", "language chosen")
+    click(rows.locale, "RightButton")
+    assert(FactoruideDB.settings.locale == nil and FG.Lang() == "frFR", "the game's again")
+    -- Nothing left over: every setting back to its default.
+    for _, option in ipairs(keys) do
+        assert(FactoruideDB.settings[option.key] == nil, "left saved: " .. option.key)
+    end
+    window:Hide()
+    for msg in pairs(FactoruideDB.errors or {}) do
+        assert(not msg:find("Settings", 1, true), "no error: " .. msg)
+    end
+    print("settings ok")
+end
+SettingsTest()

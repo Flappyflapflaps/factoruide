@@ -1,0 +1,2 @@
+-- Empty in the published addon. Older versions of the Factoruide app wrote the places that
+-- serve the character here; they now come with the guides (Factoruide_Data or `/fg import`).

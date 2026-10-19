@@ -1,7 +1,8 @@
--- Settings come from the Factoruide app (generated Config.lua). In game, the window size, the
--- tab of the next steps, the guide's mode (full or minimal), the compass shown or not and the
--- windows locked or not are saved (the same for every character); the last three chosen in the
--- app win again when they change there.
+-- The addon's settings, chosen in game (`/fg config`, SettingsWindow.lua) and kept in the saved
+-- variables, the same for every character: FactoruideDB.settings = { [key] = value }. A setting
+-- never chosen has its default. Their schema is addon/settings.json, written into
+-- SettingsSchema.lua (FG.SettingsSchema). The app's Config.lua (older versions) and the `Config` of
+-- an imported guide are ignored.
 
 local FG = Factoruide
 
@@ -10,90 +11,29 @@ local FG = Factoruide
 FG.UIRoot = CreateFrame("Frame", "FactoruideUI", UIParent)
 FG.UIRoot:SetAllPoints(UIParent)
 
--- The settings chosen in the app and their defaults, written from addon/settings.json (see
--- addon_settings.rs in fg-route): edit that file, not this block.
--- BEGIN addon/settings.json
-FG.defaults = {
-    -- Affichage
-    guideShown = true,
-    guideMode = "full",
-    scale = 1,
-    lockFrames = false,
-    uiTheme = "dark",
-    suiteSkin = false,
-    questItemButton = true,
-    trackerShown = true,
-    replaceTracker = true,
-    trackerQuests = 8,
-    trackerAll = false,
-    professionsShown = true,
-    mapPins = true,
-    mapPinsCount = 15,
-    partySync = true,
-    -- Navigation
-    compassShown = true,
-    arrowShown = false,
-    waypoints = true,
-    spfLink = true,
-    pathMode = "auto",
-    pathMap = true,
-    targetMacro = true,
-    targetMark = true,
-    compassClass = true,
-    compassProfession = true,
-    compassFlight = true,
-    compassInn = false,
-    compassRepair = false,
-    compassFood = false,
-    compassBank = false,
-    compassAuction = false,
-    compassStable = false,
-    compassMail = false,
-    compassRange = 300,
-    -- Automatisation
-    autoAccept = true,
-    routeQuestsOnly = true,
-    autoTurnIn = true,
-    autoReward = false,
-    autoSellJunk = true,
-    autoRepair = true,
-    autoSupplies = false,
-    suppliesFood = 20,
-    suppliesWater = 20,
-    suppliesAmmo = 1000,
-    autoTrain = true,
-    trainUseful = true,
-    autoLearnTalents = false,
-    autoFly = true,
-    fastLoot = true,
-    -- Conseils
-    gearAdvisor = true,
-    talentAdvisor = true,
-    safetyAlerts = true,
-    xpMarker = true,
-    levelTiming = true,
-    -- Immersion
-    windGuide = "auto",
-    windStyle = "wind",
-    windInterval = 8,
-    windIntensity = 1,
-    poulpixFade = true,
-}
--- The bounds of the numbers.
-FG.bounds = {
-    scale = { 0.6, 2 },
-    trackerQuests = { 1, 35 },
-    mapPinsCount = { 3, 40 },
-    compassRange = { 100, 1000 },
-    suppliesFood = { 0, 100 },
-    suppliesWater = { 0, 100 },
-    suppliesAmmo = { 0, 3000 },
-    windInterval = { 3, 25 },
-    windIntensity = { 0.3, 2 },
-}
--- END addon/settings.json
+-- The settings' defaults, the bounds of the numbers, each setting's schema entry.
+FG.defaults, FG.bounds, FG.settingOptions = {}, {}, {}
+for _, group in ipairs(FG.SettingsSchema or {}) do
+    for _, section in ipairs(group.sections) do
+        for _, option in ipairs(section.options) do
+            FG.defaults[option.key] = option.default
+            FG.settingOptions[option.key] = option
+            if option.min then FG.bounds[option.key] = { option.min, option.max } end
+        end
+    end
+end
 
--- Settings only changed in game.
+-- Their texts in every language, beside the addon's own (which win when both have one).
+for locale, texts in pairs(FG.SettingsTexts or {}) do
+    local strings = FG.Locales[locale] or {}
+    FG.Locales[locale] = strings
+    for en, text in pairs(texts) do
+        if strings[en] == nil then strings[en] = text end
+    end
+end
+FG.SettingsTexts = nil
+
+-- Settings only changed in game, outside the settings window.
 -- The whole addon's UI (`/fg hide`, `/fg show`), for the session only.
 FG.defaults.uiShown = true
 -- The next steps: their tab ("next" steps or quests to "pickup").
@@ -106,23 +46,43 @@ FG.defaults.questPanel = true
 local session = {}
 local listeners = {}
 
--- Settings changed in game and kept (FactoruideDB.ui), over the app's.
-local SAVED = {
-    scale = true,
-    nextTab = true,
-    guideMode = true,
-    trackerTab = true,
-    questPanel = true,
-    compassShown = true,
-    lockFrames = true,
-}
--- Of those, the ones the app's value wins again when it changes there.
-local APP_WINS = { "guideMode", "compassShown", "lockFrames" }
+--- `value` when it fits setting `key` (its type, a choice of a select, a number within bounds),
+--- else nil.
+function FG.ValidSetting(key, value)
+    local option = FG.settingOptions[key]
+    if not option then
+        local default = FG.defaults[key]
+        if default ~= nil and type(value) ~= type(default) then return nil end
+        return value
+    end
+    if option.kind == "bool" then
+        if type(value) ~= "boolean" then return nil end
+        return value
+    end
+    if option.kind == "number" then
+        if type(value) ~= "number" or value ~= value then return nil end
+        return math.max(option.min, math.min(option.max, value))
+    end
+    for _, choice in ipairs(option.options) do
+        if choice.value == value then return value end
+    end
+    return nil
+end
 
+--- The saved settings' table, nil before the saved variables are loaded.
+local function Saved()
+    if type(FactoruideDB) ~= "table" then return nil end
+    if type(FactoruideDB.settings) ~= "table" then FactoruideDB.settings = {} end
+    return FactoruideDB.settings
+end
+
+--- A setting's value: changed for the session (`FG:Set`), else saved, else its default.
 function FG:Get(key)
     local v = session[key]
-    if v == nil and SAVED[key] and FactoruideDB and FactoruideDB.ui then v = FactoruideDB.ui[key] end
-    if v == nil and FG.Config then v = FG.Config[key] end
+    if v == nil then
+        local saved = Saved()
+        if saved and saved[key] ~= nil then v = FG.ValidSetting(key, saved[key]) end
+    end
     if v == nil then v = self.defaults[key] end
     return v
 end
@@ -131,6 +91,10 @@ local function Changed(key)
     local value = FG:Get(key)
     for _, fn in ipairs(listeners[key] or {}) do
         fn(value)
+    end
+    -- Then the views redrawn on any change ("*"): the setting's own listeners have run.
+    for _, fn in ipairs(listeners["*"] or {}) do
+        fn(key, value)
     end
 end
 
@@ -157,17 +121,17 @@ FG:On("PLAYER_REGEN_ENABLED", function()
     if pendingUI ~= nil then FG:SetUIShown(pendingUI) end
 end)
 
---- Keep a setting changed in game (nil: back to the app's).
+--- Keep a setting (nil: back to its default). Applied at once (its listeners run).
 function FG:Save(key, value)
-    FactoruideDB.ui = FactoruideDB.ui or {}
-    FactoruideDB.ui[key] = value
+    local saved = Saved()
+    if saved then saved[key] = FG.ValidSetting(key, value) end
     session[key] = nil
     Changed(key)
 end
 
 local SCALE_MIN, SCALE_MAX = FG.bounds.scale[1], FG.bounds.scale[2]
 
---- `/fg scale [size]`: window size (0.6 to 2; nothing: the app's).
+--- `/fg scale [size]`: window size (0.6 to 2; nothing: the default).
 function FG:ScaleCommand(arg)
     local v = tonumber(arg)
     self:Save("scale", v and math.max(SCALE_MIN, math.min(SCALE_MAX, v)) or nil)
@@ -283,21 +247,24 @@ FG:On("MODIFIER_STATE_CHANGED", function(key, down)
     end
 end)
 
---- The mode, the compass and the lock chosen in game are kept until the app's change (then the
---- app's apply): the app's last value is kept beside (`appGuideMode`...).
-FG:On("PLAYER_LOGIN", function()
-    FactoruideDB.ui = FactoruideDB.ui or {}
-    for _, key in ipairs(APP_WINS) do
-        local app = FG.Config and FG.Config[key]
-        local seen = "app" .. key:sub(1, 1):upper() .. key:sub(2)
-        if FactoruideDB.ui[seen] ~= app then
-            FactoruideDB.ui[seen] = app
-            FactoruideDB.ui[key] = nil
+--- The settings kept in game before the settings window (FactoruideDB.ui: the window size, the
+--- guide's mode, the tabs...) move to FactoruideDB.settings once.
+function FG.MoveOldSettings()
+    local saved, old = Saved(), type(FactoruideDB) == "table" and FactoruideDB.ui
+    if not saved or type(old) ~= "table" then return end
+    for key, value in pairs(old) do
+        if FG.defaults[key] ~= nil and key ~= "uiShown" and saved[key] == nil then
+            saved[key] = FG.ValidSetting(key, value)
         end
     end
+    FactoruideDB.ui = nil
+end
+FG.MoveOldSettings()
+FG:On("ADDON_LOADED", function(name)
+    if name == "Factoruide_Guide" then FG.MoveOldSettings() end
 end)
 
---- Call `fn(value)` whenever setting `key` changes.
+--- Call `fn(value)` whenever setting `key` changes; key "*": `fn(key, value)` on any change.
 function FG:OnSetting(key, fn)
     listeners[key] = listeners[key] or {}
     table.insert(listeners[key], fn)
@@ -307,5 +274,3 @@ FG:OnSetting("uiShown", function(shown)
     FG.UIRoot:SetShown(shown)
     if not shown and StaticPopup_Hide then StaticPopup_Hide("FACTORUIDE_RESET") end
 end)
-
-function FG:OpenSettings() FG:Print(FG.T("settings are configured in the Factoruide app (Addon tab), then /reload")) end

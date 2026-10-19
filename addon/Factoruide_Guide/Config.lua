@@ -1,0 +1,2 @@
+-- Empty in the published addon. Older versions of the Factoruide app wrote the addon's
+-- settings here; they are now chosen in game (`/fg config`) and this file is ignored.

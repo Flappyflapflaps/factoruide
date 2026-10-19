@@ -677,6 +677,7 @@ FG:On("PLAYER_LOGIN", function()
     for _, key in ipairs({
         "trackerShown",
         "trackerQuests",
+        "trackerAll",
         "professionsShown",
         "guideMode",
         "trackerTab",

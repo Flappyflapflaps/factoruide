@@ -146,7 +146,6 @@ FG.Locales.zhTW = {
     ["Cooking"] = "烹飪",
     ["Fishing"] = "釣魚",
     ["First Aid"] = "急救",
-    ["settings are configured in the Factoruide app (Addon tab), then /reload"] = "設定請在 Factoruide 應用程式（插件分頁）中進行，然後 /reload",
     ["the addon's windows will change when combat ends"] = "插件視窗將在戰鬥結束後切換",
     ["Left-click: the compass points at this place"] = "左鍵：指南針指向此地點",
     ["Left-click: Shortest Path Forever goes there"] = "左鍵：Shortest Path Forever 前往那裡",
@@ -172,7 +171,7 @@ FG.Locales.zhTW = {
     ["compass shown (/fg compass hides it)"] = "羅盤已顯示（/fg compass 可隱藏）",
     ["compass hidden (/fg compass shows it again)"] = "羅盤已隱藏（/fg compass 可再次顯示）",
     ["compass back at the top of the screen, at its first size"] = "羅盤已回到螢幕頂端，恢復初始大小",
-    ["the wind guides you instead of the compass (set in the Factoruide app)"] = "由風代替羅盤為你指引（在 Factoruide 應用程式中設定）",
+    ["the wind guides you instead of the compass (set in /fg config)"] = "由風代替羅盤為你指引（在 /fg config 中設定）",
     ["windows locked (/fg lock unlocks them)"] = "視窗已鎖定（/fg lock 解鎖）",
     ["windows unlocked: drag them to move them"] = "視窗已解鎖：拖曳即可移動",
 }

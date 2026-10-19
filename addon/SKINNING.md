@@ -1,7 +1,7 @@
 # Skinning the Factoruide addon
 
 The addon draws its frames in one place, `Factoruide_Guide/Skin.lua`: dark blue cards in the
-Factoruide app's colors. With the `suiteSkin` setting on ("UI suite style", Addon page of the app),
+Factoruide app's colors. With the `suiteSkin` setting on ("UI suite style" in `/fg config`),
 a loaded UI suite styles them instead.
 
 ## UI suites supported out of the box
@@ -31,6 +31,7 @@ The function runs on every frame already made and on every frame made later. Fra
 | `FactoruideMiniNext` (minimal guide's next steps) | panel | `title`, `rows` |
 | the minimal guide's labels, the item and talent names near the action bars | panel | `text` or `name` |
 | `FactoruideTracker` (quest panel) | panel | `line` (under the tabs) |
+| `FactoruideSettings` (settings window, `/fg config`) | window | `accent`, `title` |
 | `FGItemButton`, `FactoruideItemButton<n>` | icon | `icon`, `cooldown` |
 
 The compass bar (`FactoruideCompass`), the arrow (`FactoruideArrow`), the mark above an NPC's

@@ -1,7 +1,6 @@
 //! Running a planning job, from the request to the route: shared by the `fg` CLI and the desktop
 //! app.
 
-mod addon_settings;
 mod character;
 mod draft;
 mod edit;
@@ -17,7 +16,6 @@ mod services;
 mod start;
 mod timeline;
 
-pub use addon_settings::{addon_config_lua, write_addon_config};
 pub use draft::{EditView, ObjectiveAt, PlaceAt, QuestAt, Request, Requests, Suggestions};
 pub use edit::{
     CatalogDungeon, CatalogLink, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef,

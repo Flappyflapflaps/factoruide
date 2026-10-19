@@ -74,7 +74,12 @@ end
 
 --- The first quest item of these steps (quests in the log with a usable item).
 function ItemButton:SetSteps(steps)
-    if not FG:Get("questItemButton") or not GetQuestLogSpecialItemInfo then return end
+    if not GetQuestLogSpecialItemInfo then return end
+    -- Turned off in the settings: the button shown goes.
+    if not FG:Get("questItemButton") then
+        if self.link then Apply(nil) end
+        return
+    end
     for _, step in ipairs(steps) do
         local index = step.q and GetQuestLogIndexByID and GetQuestLogIndexByID(step.q)
         if index and index > 0 then

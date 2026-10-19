@@ -1,14 +1,18 @@
 -- `/fg import`: guides made in the Factoruide web app, which cannot write the game's files, pasted
 -- in game as one text:
 --   FGG1:<LibDeflate:EncodeForPrint(LibDeflate:CompressDeflate(lua))>
--- lua = what the desktop app writes into Routes.lua, Services.lua and Config.lua, and maybe
--- Sent.lua's `FactoruideSent = { ["Name-Realm"] = last seq }`. The text may come from someone
--- else: it runs in a sandbox holding only a fresh `Factoruide` table (no game API, no globals),
--- and must leave data only. What it sets there replaces what the files set (they ship empty).
+-- lua = the guides' Lua (`Factoruide.Routes`, `.Assignments`, `.Services`...) and maybe
+-- `FactoruideSent = { ["Name-Realm"] = last seq }`, the same text the desktop app writes into the
+-- data addon Factoruide_Data. It runs in a sandbox (FG.RunGuideText, the profile part's Data.lua)
+-- and must leave data only. What it sets there replaces what the files set (Routes.lua and
+-- Services.lua ship empty; older app versions wrote them). A `Factoruide.Config` is ignored: the
+-- settings are chosen in game.
 --
 -- The text is kept in FactoruideDB.guideImport = { text, time }: the profile part's saved
 -- variables are loaded before this addon's files run, so it applies here, right after the
--- generated files in the .toc and before every module reading FG.Routes, FG.Config...
+-- generated files in the .toc and before every module reading FG.Routes, FG.Services...
+-- Factoruide_Data's guides (FG.DataGuide, run by the profile part) apply the same way: of the two,
+-- the most recent (FactoruideDataTime against the import's time) wins.
 
 local FG = Factoruide
 local T = FG.T
@@ -17,50 +21,41 @@ FG.Import = Import
 
 Import.PREFIX = "FGG1:"
 
---- Whether `v` holds a function anywhere (keys included).
-local function HasFunction(v, seen)
-    if type(v) == "function" then return true end
-    if type(v) ~= "table" or seen[v] then return false end
-    seen[v] = true
-    for k, x in pairs(v) do
-        if HasFunction(k, seen) or HasFunction(x, seen) then return true end
-    end
-    return false
-end
-
 --- Run a guide's Lua text in the sandbox: returns the table it filled (its `Factoruide`) and its
 --- FactoruideSent, or nil and the error.
-function Import.Run(text)
-    -- Precompiled chunks can get out of a sandbox: source text only.
-    if type(text) ~= "string" or text:byte(1) == 27 then return nil, "not Lua source" end
-    local chunk, err = loadstring(text, "=import")
-    if not chunk then return nil, err end
-    local ns = {}
-    local env = { Factoruide = ns }
-    setfenv(chunk, env)
-    local ok, runErr = pcall(chunk)
-    if not ok then return nil, runErr end
-    local sent = type(env.FactoruideSent) == "table" and env.FactoruideSent or nil
-    if HasFunction(ns, {}) or HasFunction(sent, {}) then return nil, "functions are not allowed" end
-    return ns, sent
-end
+Import.Run = FG.RunGuideText
 
---- Copy what the import set over the namespace (the addon's functions stay).
+--- Copy what the guides set over the namespace (the addon's functions stay; no settings).
 local function Apply(ns)
     for k, v in pairs(ns) do
-        if type(FG[k]) ~= "function" then FG[k] = v end
+        if k ~= "Config" and type(FG[k]) ~= "function" then FG[k] = v end
     end
 end
 
---- Apply the guide imported before, if any (at load).
+--- Apply the guides kept: the imported ones or Factoruide_Data's, the most recent (the other when
+--- it cannot be read). `Import.source`: "import", "data" or nil.
 function Import:ApplySaved()
     local saved = FactoruideDB and FactoruideDB.guideImport
-    if type(saved) ~= "table" or type(saved.text) ~= "string" then return end
-    local ns, err = Import.Run(saved.text)
-    if ns then
-        Apply(ns)
-        self.active = saved
-    else
+    if type(saved) ~= "table" or type(saved.text) ~= "string" then saved = nil end
+    local data = FG.DataGuide
+    FG.DataGuide = nil
+    local order = {}
+    if saved then order[#order + 1] = { source = "import", time = tonumber(saved.time) or 0 } end
+    if data then order[#order + 1] = { source = "data", time = data.time } end
+    table.sort(order, function(a, b) return a.time > b.time end)
+    self.source, self.active, self.failed = nil, nil, nil
+    for _, entry in ipairs(order) do
+        if entry.source == "data" then
+            Apply(data.ns)
+            self.source = "data"
+            return
+        end
+        local ns, err = Import.Run(saved.text)
+        if ns then
+            Apply(ns)
+            self.source, self.active = "import", saved
+            return
+        end
         self.failed = tostring(err)
         FG:Error("import", err)
     end
@@ -101,14 +96,9 @@ function Import:FromString(s)
     if not ns then return nil, string.format(T("The guide could not be read: %s"), tostring(sent)) end
     FactoruideDB.guideImport = { text = text, time = time(), fresh = true }
     -- What the contribution server already has: the collector drops these rows.
-    if sent then
-        FactoruideDB.sent = type(FactoruideDB.sent) == "table" and FactoruideDB.sent or {}
-        for character, seq in pairs(sent) do
-            seq = tonumber(seq)
-            if type(character) == "string" and seq then
-                FactoruideDB.sent[character] = math.max(tonumber(FactoruideDB.sent[character]) or 0, seq)
-            end
-        end
+    FactoruideDB.sent = type(FactoruideDB.sent) == "table" and FactoruideDB.sent or {}
+    for character, seq in pairs(FG.SentSeqs(sent)) do
+        FactoruideDB.sent[character] = math.max(tonumber(FactoruideDB.sent[character]) or 0, seq)
     end
     local count = 0
     for _ in pairs(type(ns.Routes) == "table" and ns.Routes or {}) do

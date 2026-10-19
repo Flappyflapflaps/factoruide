@@ -146,7 +146,6 @@ FG.Locales.ruRU = {
     ["Cooking"] = "Кулинария",
     ["Fishing"] = "Рыбная ловля",
     ["First Aid"] = "Первая помощь",
-    ["settings are configured in the Factoruide app (Addon tab), then /reload"] = "настройки задаются в приложении Factoruide (вкладка Аддон), затем /reload",
     ["the addon's windows will change when combat ends"] = "окна аддона изменятся после окончания боя",
     ["Left-click: the compass points at this place"] = "ЛКМ: компас указывает на это место",
     ["Left-click: Shortest Path Forever goes there"] = "ЛКМ: Shortest Path Forever ведёт туда",
@@ -172,7 +171,7 @@ FG.Locales.ruRU = {
     ["compass shown (/fg compass hides it)"] = "компас показан (/fg compass скрывает его)",
     ["compass hidden (/fg compass shows it again)"] = "компас скрыт (/fg compass снова показывает его)",
     ["compass back at the top of the screen, at its first size"] = "компас снова вверху экрана, в исходном размере",
-    ["the wind guides you instead of the compass (set in the Factoruide app)"] = "вместо компаса вас ведёт ветер (настраивается в приложении Factoruide)",
+    ["the wind guides you instead of the compass (set in /fg config)"] = "вместо компаса вас ведёт ветер (настраивается в /fg config)",
     ["windows locked (/fg lock unlocks them)"] = "окна закреплены (/fg lock открепляет их)",
     ["windows unlocked: drag them to move them"] = "окна откреплены: перетащите их, чтобы переместить",
 }

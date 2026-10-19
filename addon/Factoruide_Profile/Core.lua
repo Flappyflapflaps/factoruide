@@ -6,14 +6,28 @@ _G.Factoruide = FG
 
 FG.DB_VERSION = 1
 
--- Texts in the language chosen in the app (`locale` of the guide part's Config.lua, written with
--- the guides), else the game's; the English text when there is no translation. The files of
--- Locales/ fill FG.Locales[locale] = { [English text] = translation }.
+-- Texts in the language chosen in the addon's settings (`locale`, FactoruideDB.settings), else the
+-- game's; the English text when there is no translation. The files of Locales/ fill
+-- FG.Locales[locale] = { [English text] = translation }.
 FG.Locales = {}
+
+-- The languages the addon can be set to (`/fg config`), besides the game's.
+FG.LANGUAGES = { "enUS", "frFR", "deDE", "esES", "esMX", "ptBR", "ruRU", "koKR", "zhCN", "zhTW" }
+local known = {}
+for _, lang in ipairs(FG.LANGUAGES) do
+    known[lang] = true
+end
+
+--- The language chosen in the settings, nil for the game's.
+function FG.ChosenLang()
+    local settings = type(FactoruideDB) == "table" and FactoruideDB.settings
+    local lang = type(settings) == "table" and settings.locale
+    return known[lang] and lang or nil
+end
 
 --- The addon's language (a game locale: "frFR", "deDE"...).
 function FG.Lang()
-    local lang = FG.Config and FG.Config.locale or (GetLocale and GetLocale()) or "enUS"
+    local lang = FG.ChosenLang() or (GetLocale and GetLocale()) or "enUS"
     if lang == "esMX" and not FG.Locales.esMX then return "esES" end
     return lang
 end
@@ -206,7 +220,9 @@ local classicLog = {
         return ids
     end,
 }
-FG.QuestLog = setmetatable({}, { __index = function(_, name) return C_QuestLog[name] or classicLog[name] end })
+FG.QuestLog = setmetatable({}, {
+    __index = function(_, name) return C_QuestLog[name] or classicLog[name] end,
+})
 
 --- Parse a GUID into its entity type ("npc", "object", "player") and ID.
 function FG.ParseGUID(guid)

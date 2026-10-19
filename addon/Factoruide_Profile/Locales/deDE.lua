@@ -146,7 +146,6 @@ FG.Locales.deDE = {
     ["Cooking"] = "Kochkunst",
     ["Fishing"] = "Angeln",
     ["First Aid"] = "Erste Hilfe",
-    ["settings are configured in the Factoruide app (Addon tab), then /reload"] = "Einstellungen werden in der Factoruide-App vorgenommen (Reiter Addon), danach /reload",
     ["the addon's windows will change when combat ends"] = "die Fenster des Addons ändern sich nach dem Kampf",
     ["Left-click: the compass points at this place"] = "Linksklick: Der Kompass zeigt auf diesen Ort",
     ["Left-click: Shortest Path Forever goes there"] = "Linksklick: Shortest Path Forever führt dorthin",
@@ -172,7 +171,7 @@ FG.Locales.deDE = {
     ["compass shown (/fg compass hides it)"] = "Kompass angezeigt (/fg compass blendet ihn aus)",
     ["compass hidden (/fg compass shows it again)"] = "Kompass ausgeblendet (/fg compass zeigt ihn wieder)",
     ["compass back at the top of the screen, at its first size"] = "Kompass zurück oben am Bildschirm, in seiner ursprünglichen Größe",
-    ["the wind guides you instead of the compass (set in the Factoruide app)"] = "der Wind führt dich statt des Kompasses (in der Factoruide-App eingestellt)",
+    ["the wind guides you instead of the compass (set in /fg config)"] = "der Wind führt dich statt des Kompasses (eingestellt in /fg config)",
     ["windows locked (/fg lock unlocks them)"] = "Fenster gesperrt (/fg lock entsperrt sie)",
     ["windows unlocked: drag them to move them"] = "Fenster entsperrt: zum Verschieben ziehen",
 }

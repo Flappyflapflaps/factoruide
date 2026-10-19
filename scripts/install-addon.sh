@@ -1,8 +1,8 @@
 #!/bin/sh
 # Copy the addon (Factoruide_Profile and Factoruide_Guide) into the WoW client. After a change:
 # /reload in game (a full client restart is needed when files are added or a .toc changes).
-# Config.lua, Routes.lua, Services.lua and Sent.lua are written by the Factoruide app: existing
-# ones are kept.
+# (As an addon site would. The app writes its guides in Factoruide_Data, left alone. Existing
+# Config.lua, Routes.lua, Services.lua and Sent.lua written by older apps are kept.)
 set -eu
 wow_dir=${FG_WOW_DIR:-"/mnt/g/Jeux/World of Warcraft"}
 client=${FG_CLIENT:-_classic_beta_}

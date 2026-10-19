@@ -1200,6 +1200,10 @@ FG:On("PLAYER_LOGIN", function()
     for _, key in ipairs({ "guideMode", "nextTab", "guideShown", "questPanel", "compassShown", "arrowShown" }) do
         FG:OnSetting(key, function() Guide:Refresh() end)
     end
+    -- Any other setting chosen in the settings window shows at once.
+    FG:OnSetting("*", function(key)
+        if key ~= "uiShown" and key ~= "scale" then Guide:Refresh() end
+    end)
     -- Hidden: the game's map pin goes too, and comes back with the guide.
     FG:OnSetting("uiShown", function(shown)
         if not shown and waypointStep and C_Map.ClearUserWaypoint then C_Map.ClearUserWaypoint() end
@@ -1436,7 +1440,7 @@ function Guide:Command(cmd, arg)
     elseif cmd == "waypoint" then
         FG:Set("waypoints", not FG:Get("waypoints"))
         FG:Print("waypoints %s", FG:Get("waypoints") and "on" or "off")
-    elseif cmd == "config" or cmd == "options" then
+    elseif cmd == "config" or cmd == "settings" or cmd == "options" then
         FG:OpenSettings()
     elseif cmd == "route" then
         -- Shown only: the guide is assigned to the character in the app.

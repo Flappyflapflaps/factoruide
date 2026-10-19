@@ -1,0 +1,2 @@
+-- Empty in the published addon. Older versions of the Factoruide app wrote here the rows
+-- the contribution server has (`FactoruideSent`); they now come with Factoruide_Data.

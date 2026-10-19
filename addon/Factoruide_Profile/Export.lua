@@ -1,8 +1,8 @@
--- `/fg export`: the character's profile and its recorded rows as one text to copy into the
--- Factoruide web app, which cannot read the game's files:
+-- `/fg export`: the character's profile as one text to copy into the Factoruide web app, which
+-- cannot read the game's files:
 --   FGP1:<LibDeflate:EncodeForPrint(LibDeflate:CompressDeflate(json))>
--- json = { format = "factoruide-profile", version = 1, edition, addon, character, profile,
--- collector = { race, class, events } }. Built only when the command is used.
+-- json = { format = "factoruide-profile", version = 1, edition, addon, character, profile }.
+-- Built only when the command is used.
 
 local addonName, FG = ...
 local T = FG.T
@@ -121,7 +121,6 @@ function Export:Json()
         addon = metadata and metadata(addonName, "Version") or "?",
         character = key,
         profile = ProfileForApp(profile),
-        collector = FG.Collector and FG.Collector:Pending() or { events = {} },
     })
 end
 

@@ -3,8 +3,9 @@
 ## Notes: Records your character (level, quests, professions, reputations) for the Factoruide app, and the quest data you choose to share.
 ## Notes-frFR: Enregistre votre personnage (niveau, quêtes, métiers, réputations) pour l'application Factoruide, et les données de quêtes que vous choisissez de partager.
 ## Author: Joel Wurtz
-## Version: 0.5.0
+## Version: 0.14.0
 ## SavedVariables: FactoruideDB
+## OptionalDeps: Factoruide_Data
 
 Libs\LibStub\LibStub.lua
 Libs\LibDeflate\LibDeflate.lua
@@ -18,6 +19,7 @@ Locales\koKR.lua
 Locales\zhCN.lua
 Locales\zhTW.lua
 Sent.lua
+Data.lua
 Collector.lua
 Profile.lua
 Window.lua
