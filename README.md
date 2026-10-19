@@ -143,6 +143,13 @@ builds do not check for the publisher's automatic updates. Outside WSL, the app 
 Battle.net in Lutris' Wine prefix (`~/Games/battlenet/drive_c/Program Files (x86)/World of
 Warcraft`); choose another folder in Settings if needed.
 
+### In a browser
+
+The app also builds as a website: a folder of static files where the guides are computed in
+the browser (`scripts/build-web.sh`). The browser cannot reach the game's folder: characters
+come from the game with `/fg export` (pasted in the Characters page), and guides go to it with
+`/fg import` (the text the Addon page gives). See [web/README.md](web/README.md).
+
 ## In game: the addon
 
 The addon comes in two parts: **Factoruide_Profile** records your character and what the game

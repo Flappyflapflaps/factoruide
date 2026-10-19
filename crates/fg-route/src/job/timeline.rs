@@ -209,9 +209,13 @@ fn point(p: &Pos) -> [f64; 3] {
     [p.continent as f64, round1(p.x), round1(p.y)]
 }
 
-#[expect(
-    clippy::trivially_copy_pass_by_ref,
-    reason = "serde's skip_serializing_if passes a reference"
+// An f64 is "trivially copied" where pointers are 64-bit only (not in the browser's wasm32).
+#[cfg_attr(
+    target_pointer_width = "64",
+    expect(
+        clippy::trivially_copy_pass_by_ref,
+        reason = "serde's skip_serializing_if passes a reference"
+    )
 )]
 fn is_zero(v: &f64) -> bool {
     *v == 0.0

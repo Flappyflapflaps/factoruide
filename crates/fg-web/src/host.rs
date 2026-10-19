@@ -30,6 +30,7 @@ mod imports {
 pub fn reply(id: u32, json: &str) {
     #[cfg(target_os = "wasi")]
     #[expect(unsafe_code, reason = "the page reads the text before the call returns")]
+    // SAFETY: the text lives until the call returns, and the page only reads it.
     unsafe {
         imports::fg_reply(id, json.as_ptr(), json.len());
     }
@@ -42,6 +43,7 @@ pub fn event(name: &str, payload: &serde_json::Value) {
     let json = serde_json::json!({ "event": name, "payload": payload }).to_string();
     #[cfg(target_os = "wasi")]
     #[expect(unsafe_code, reason = "the page reads the text before the call returns")]
+    // SAFETY: the text lives until the call returns, and the page only reads it.
     unsafe {
         imports::fg_event(json.as_ptr(), json.len());
     }
@@ -53,6 +55,7 @@ pub fn event(name: &str, payload: &serde_json::Value) {
 pub fn persist(path: &str, data: Option<&[u8]>) {
     #[cfg(target_os = "wasi")]
     #[expect(unsafe_code, reason = "the page copies the bytes before the call returns")]
+    // SAFETY: the bytes live until the call returns, and the page only reads them.
     unsafe {
         let (op, ptr, len) = data.map_or((1, std::ptr::null(), 0), |d| (0, d.as_ptr(), d.len()));
         imports::fg_persist(op, path.as_ptr(), path.len(), ptr, len);
@@ -69,13 +72,21 @@ pub fn fetch(method: &str, url: &str, content_type: Option<&str>, body: &[u8]) -
         let request = serde_json::json!({ "method": method, "url": url, "content_type": content_type }).to_string();
         let mut out = [0u32; 4];
         #[expect(unsafe_code, reason = "the page hands over buffers made by fg_alloc")]
+        // SAFETY: the request and body are only read; the answer's buffers are `fg_alloc`'s, of
+        // the lengths given, and handed over to us.
         let (status, body, meta) = unsafe {
-            let status = imports::fg_fetch(request.as_ptr(), request.len(), body.as_ptr(), body.len(), out.as_mut_ptr());
+            let status = imports::fg_fetch(
+                request.as_ptr(),
+                request.len(),
+                body.as_ptr(),
+                body.len(),
+                out.as_mut_ptr(),
+            );
             let take = |ptr: u32, len: u32| {
                 if ptr == 0 {
                     Vec::new()
                 } else {
-                    Vec::from_raw_parts(ptr as *mut u8, len as usize, len as usize)
+                    crate::take(ptr as *mut u8, len as usize)
                 }
             };
             (status, take(out[0], out[1]), take(out[2], out[3]))

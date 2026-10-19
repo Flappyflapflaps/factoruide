@@ -34,14 +34,13 @@ pub fn decode(prefix: &str, text: &str) -> Result<Vec<u8>, String> {
 /// bits first; the last 1 or 2 bytes as just enough characters.
 fn encode_for_print(data: &[u8], out: &mut String) {
     let char_of = |v: u32| char::from(ALPHABET[(v & 63) as usize]);
-    let mut chunks = data.chunks_exact(3);
-    for c in &mut chunks {
+    let (chunks, rest) = data.as_chunks::<3>();
+    for c in chunks {
         let v = u32::from(c[0]) | u32::from(c[1]) << 8 | u32::from(c[2]) << 16;
         for shift in [0, 6, 12, 18] {
             out.push(char_of(v >> shift));
         }
     }
-    let rest = chunks.remainder();
     let mut cache = 0u32;
     let mut bits = 0i32;
     for (i, &b) in rest.iter().enumerate() {
@@ -60,14 +59,14 @@ fn decode_for_print(text: &str) -> Option<Vec<u8>> {
     let value = |c: u8| ALPHABET.iter().position(|&a| a == c).map(|v| v as u32);
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len() * 3 / 4 + 2);
-    let mut chunks = bytes.chunks_exact(4);
-    for c in &mut chunks {
+    let (chunks, rest) = bytes.as_chunks::<4>();
+    for c in chunks {
         let v = value(c[0])? | value(c[1])? << 6 | value(c[2])? << 12 | value(c[3])? << 18;
         out.extend_from_slice(&[v as u8, (v >> 8) as u8, (v >> 16) as u8]);
     }
     let mut cache = 0u32;
     let mut bits = 0;
-    for &c in chunks.remainder() {
+    for &c in rest {
         cache |= value(c)? << bits;
         bits += 6;
         while bits >= 8 {
@@ -82,6 +81,7 @@ fn decode_for_print(text: &str) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
 
     #[test]
     fn what_is_encoded_decodes_whatever_its_length() {
@@ -106,6 +106,38 @@ mod tests {
         encode_for_print(b"\x01", &mut out);
         assert_eq!(out, "ba");
         assert_eq!(decode_for_print("ba").unwrap(), b"\x01");
+    }
+
+    /// The addon's LibDeflate reads what is encoded here and the other way round (with a Lua
+    /// interpreter at hand: luajit or lua5.1).
+    #[test]
+    fn the_addon_reads_them_and_they_read_the_addon() {
+        let Some(lua) = ["luajit", "lua5.1"]
+            .into_iter()
+            .find(|l| std::process::Command::new(l).arg("-v").output().is_ok())
+        else {
+            return;
+        };
+        let script = concat!(env!("CARGO_MANIFEST_DIR"), "/../../addon/tests/fgstring.lua");
+        let dir = std::env::temp_dir().join(format!("fg-string-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let text = (0..3000).fold(String::new(), |mut t, i| {
+            let _ = writeln!(t, "FG.Routes[{i}] = {{ t = \"é{i}\" }}");
+            t
+        });
+        let run = |args: &[&std::path::Path]| {
+            let out = std::process::Command::new(lua).arg(script).args(args).output().unwrap();
+            assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+            String::from_utf8(out.stdout).unwrap()
+        };
+        let encoded = dir.join("encoded.txt");
+        std::fs::write(&encoded, encode(GUIDE_PREFIX, text.as_bytes())).unwrap();
+        assert_eq!(run(&[std::path::Path::new("decode"), &encoded]), text);
+        let plain = dir.join("plain.json");
+        std::fs::write(&plain, &text).unwrap();
+        let theirs = run(&[std::path::Path::new("encode-profile"), &plain]);
+        assert_eq!(decode(PROFILE_PREFIX, &theirs).unwrap(), text.as_bytes());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

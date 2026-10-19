@@ -41,7 +41,7 @@ export default defineConfig(({ mode }) => ({
   // Relative paths: the site works from any folder of a server.
   base: mode === 'web' ? './' : '/',
   resolve: { alias: mode === 'web' ? web : {} },
-  define: { __APP_VERSION__: JSON.stringify(appVersion()) },
+  define: { FG_APP_VERSION: JSON.stringify(appVersion()) },
   worker: { format: 'es' },
   build: mode === 'web' ? { outDir: process.env.FG_WEB_OUT ?? '../web/dist', emptyOutDir: true, target: 'es2023' } : {},
   // The changelog shown in the app is the project's, one level up.

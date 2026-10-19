@@ -30,6 +30,10 @@ const post = (m: FromWorker, transfer: Transferable[] = []) => self.postMessage(
 
 // WASI errors used.
 const SUCCESS = 0;
+
+/** The backend's environment: room for the planner's threads, whose stacks hold more in
+ *  WebAssembly than natively. */
+const ENV = ["RUST_MIN_STACK=16777216"].map((e) => new TextEncoder().encode(e));
 const EBADF = 8;
 const EINVAL = 28;
 const ENOSYS = 52;
@@ -40,17 +44,30 @@ let exports: {
   fg_load(path: number, pathLen: number, data: number, dataLen: number): void;
   fg_call(id: number, request: number, len: number): void;
   wasi_thread_start(tid: number, arg: number): void;
+  /** The libc's start (a reactor module's `_initialize`). */
+  ["_initialize"](): void;
+  fg_reserve(max: number): number;
 };
 
 const bytes = () => new Uint8Array(memory.buffer);
 const view = () => new DataView(memory.buffer);
+/** The functions the module imports, their pointers and sizes read unsigned (past 2 GiB, wasm's
+ *  i32 arrive negative). */
+function unsigned<T extends Record<string, (...a: never[]) => unknown>>(fns: T): T {
+  return Object.fromEntries(
+    Object.entries(fns).map(([name, f]) => [name, (...args: unknown[]) => (f as (...a: unknown[]) => unknown)(...args.map((a) => (typeof a === "number" ? a >>> 0 : a)))]),
+  ) as unknown as T;
+}
+
 /** A copy out of the shared memory (TextDecoder and XHR refuse shared buffers). */
-const copyOut = (ptr: number, len: number) => bytes().slice(ptr, ptr + len);
+/** Pointers and lengths come as signed 32-bit integers: past 2 GiB they read negative. */
+const u32 = (n: number) => n >>> 0;
+const copyOut = (ptr: number, len: number) => bytes().slice(u32(ptr), u32(ptr) + u32(len));
 const text = (ptr: number, len: number) => new TextDecoder().decode(copyOut(ptr, len));
 
 /** A buffer of the backend's (`fg_alloc`) holding `data`, handed over to it. */
 function copyIn(data: Uint8Array): number {
-  const ptr = exports.fg_alloc(data.length);
+  const ptr = u32(exports.fg_alloc(data.length));
   bytes().set(data, ptr);
   return ptr;
 }
@@ -79,11 +96,20 @@ function wasi(): Record<string, WebAssembly.ImportValue> {
     },
     args_get: () => SUCCESS,
     environ_sizes_get(count: number, size: number) {
-      view().setUint32(count, 0, true);
-      view().setUint32(size, 0, true);
+      view().setUint32(count, ENV.length, true);
+      view().setUint32(size, ENV.reduce((n, e) => n + e.length + 1, 0), true);
       return SUCCESS;
     },
-    environ_get: () => SUCCESS,
+    environ_get(ptrs: number, buf: number) {
+      let at = buf;
+      ENV.forEach((e, i) => {
+        view().setUint32(ptrs + 4 * i, at, true);
+        bytes().set(e, at);
+        bytes()[at + e.length] = 0;
+        at += e.length + 1;
+      });
+      return SUCCESS;
+    },
     clock_res_get(_id: number, out: number) {
       view().setBigUint64(out, 1000n, true);
       return SUCCESS;
@@ -162,7 +188,7 @@ function wasi(): Record<string, WebAssembly.ImportValue> {
       return SUCCESS;
     },
   };
-  const all = new Proxy(impl, {
+  const all = new Proxy(unsigned(impl), {
     get: (target, name: string) => target[name] ?? (() => (name.startsWith("fd_") ? EBADF : ENOSYS)),
   });
   return Object.fromEntries(
@@ -175,7 +201,7 @@ function wasi(): Record<string, WebAssembly.ImportValue> {
 let currentModule: WebAssembly.Module;
 
 function fg(base: string): Record<string, WebAssembly.ImportValue> {
-  return {
+  return unsigned({
     fg_reply(id: number, ptr: number, len: number) {
       post({ reply: id, json: text(ptr, len) });
     },
@@ -210,7 +236,7 @@ function fg(base: string): Record<string, WebAssembly.ImportValue> {
         return answer(0, new Uint8Array(0), { error: String(e) });
       }
     },
-  };
+  });
 }
 
 async function start(init: Init) {
@@ -237,6 +263,11 @@ async function start(init: Init) {
     self.close();
     return;
   }
+  // Once, in the main worker (the threads share what it initialized). The memory grows now,
+  // before any thread: threads trap on memory grown while they run.
+  exports["_initialize"]();
+  const reserved = u32(exports.fg_reserve(3 * 1024 ** 3));
+  post({ log: `memory reserved: ${reserved >> 20} MiB`, error: false });
   for (const [path, data] of init.files) {
     const p = new TextEncoder().encode(path);
     const d = new Uint8Array(data);

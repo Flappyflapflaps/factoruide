@@ -162,7 +162,11 @@ fn database(edition: Edition) -> CmdResult<&'static [u8]> {
     let url = format!("data/{}.sqlite.zst", edition.key());
     let answer = host::fetch("GET", &url, None, &[])?;
     if answer.status != 200 {
-        return Err(format!("no data for {} ({url}: {})", edition.rules().edition_name, answer.status));
+        return Err(format!(
+            "no data for {} ({url}: {})",
+            edition.rules().edition_name,
+            answer.status
+        ));
     }
     let bytes = zstd::decode_all(answer.body.as_slice()).map_err(err)?;
     let bytes: &'static [u8] = Box::leak(bytes.into_boxed_slice());
@@ -188,7 +192,9 @@ fn override_file(name: &str) -> Option<String> {
     Some(String::from_utf8_lossy(bytes).into_owned())
 }
 
-static NAMES: LazyLock<Mutex<HashMap<(Edition, String), Arc<Names>>>> = LazyLock::new(Mutex::default);
+/// Names of an edition in a game language.
+type NamesCache = HashMap<(Edition, String), Arc<Names>>;
+static NAMES: LazyLock<Mutex<NamesCache>> = LazyLock::new(Mutex::default);
 
 fn names(edition: Edition, locale: &str) -> CmdResult<Arc<Names>> {
     let key = (edition, locale.to_owned());
@@ -302,7 +308,11 @@ fn guides_dir(edition: Edition) -> String {
 }
 
 fn guide_info(edition: Edition, id: &str) -> CmdResult<GuideInfo> {
-    serde_json::from_str(&store::read_string(&format!("{}/{id}/guide.json", guides_dir(edition)))?).map_err(err)
+    serde_json::from_str(&store::read_string(&format!(
+        "{}/{id}/guide.json",
+        guides_dir(edition)
+    ))?)
+    .map_err(err)
 }
 
 fn write_guide_info(edition: Edition, id: &str, info: &GuideInfo) -> CmdResult<()> {
@@ -408,12 +418,18 @@ fn add_version(
         character: request.start.as_ref().map(|s| s.name.clone()),
     };
     let folder = format!("{}/{id}/v{version}", guides_dir(edition));
-    store::write(&format!("{folder}/meta.json"), serde_json::to_vec_pretty(&meta).map_err(err)?);
+    store::write(
+        &format!("{folder}/meta.json"),
+        serde_json::to_vec_pretty(&meta).map_err(err)?,
+    );
     store::write(
         &format!("{folder}/request.json"),
         serde_json::to_vec_pretty(request).map_err(err)?,
     );
-    store::write(&format!("{folder}/outcome.json"), serde_json::to_vec(outcome).map_err(err)?);
+    store::write(
+        &format!("{folder}/outcome.json"),
+        serde_json::to_vec(outcome).map_err(err)?,
+    );
     Ok(meta)
 }
 
@@ -560,7 +576,14 @@ fn delete_version(guide: &str, v: u32) -> CmdResult<()> {
         delete_guide(guide)
     } else {
         if info.installed == Some(v) {
-            write_guide_info(edition, guide, &GuideInfo { installed: None, ..info })?;
+            write_guide_info(
+                edition,
+                guide,
+                &GuideInfo {
+                    installed: None,
+                    ..info
+                },
+            )?;
         }
         if assignments(edition).values().any(|g| g == guide) {
             install_addon()?;
@@ -675,7 +698,10 @@ fn install_addon() -> CmdResult<usize> {
             lua.push_str("}\n");
             lua.push_str(&services);
             lua.push('\n');
-            lua.push_str(&job::addon_config_lua(&settings.addon, settings.guide_locale.as_deref()));
+            lua.push_str(&job::addon_config_lua(
+                &settings.addon,
+                settings.guide_locale.as_deref(),
+            ));
             lua.push('\n');
             lua.push_str(&sent_lua(&read_send_record(edition)?.state));
             AddonExport::Text {
@@ -733,14 +759,17 @@ fn addon_synced() -> bool {
 
 /// The addon to install by hand (when it is not taken from an addon site): its two folders, as
 /// they are without guides, in a zip.
-fn addon_package() -> CmdResult<serde_json::Value> {
+fn addon_package() -> serde_json::Value {
     let mut files = Vec::new();
     for (folder, list) in [
         (PROFILE_ADDON, embedded::PROFILE_ADDON),
         (GUIDE_ADDON, embedded::GUIDE_ADDON),
     ] {
         for (name, bytes) in list {
-            let content = if name.ends_with(".toc") {
+            let content = if std::path::Path::new(name)
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("toc"))
+            {
                 with_app_version(bytes)
             } else {
                 bytes.to_vec()
@@ -759,7 +788,7 @@ fn addon_package() -> CmdResult<serde_json::Value> {
         format!("{PROFILE_ADDON}/Sent.lua"),
         b"-- Filled by `/fg import`.\n".to_vec(),
     ));
-    Ok(serde_json::json!({ "file": "Factoruide-addon.zip", "base64": base64(&crate::zip::zip(&files)) }))
+    serde_json::json!({ "file": "Factoruide-addon.zip", "base64": base64(&crate::zip::zip(&files)) })
 }
 
 /// An addon's .toc with the app's version.
@@ -801,7 +830,11 @@ fn export_polestar(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
     if edition() != Edition::Forever {
         return Err("Polestar is for WoW Forever only".into());
     }
-    let route = render(Edition::Forever, &version(Edition::Forever, guide, v)?.outcome.route, Some("enUS"))?;
+    let route = render(
+        Edition::Forever,
+        &version(Edition::Forever, guide, v)?.outcome.route,
+        Some("enUS"),
+    )?;
     let folder = job::POLESTAR_SOURCE_FOLDER;
     let files = vec![
         (
@@ -1065,7 +1098,7 @@ fn characters() -> CmdResult<Vec<CharacterInfo>> {
         .collect())
 }
 
-fn forget_character(character: String) -> CmdResult<()> {
+fn forget_character(character: &str) -> CmdResult<()> {
     let time = characters()?
         .into_iter()
         .find(|c| c.profile.name == character)
@@ -1074,10 +1107,10 @@ fn forget_character(character: String) -> CmdResult<()> {
     let edition = settings.edition;
     settings
         .forgotten_characters
-        .insert(forgotten_key(edition, &character), time);
+        .insert(forgotten_key(edition, character), time);
     write_settings(settings)?;
     let mut assigned = assignments(edition);
-    if assigned.remove(&character).is_some() {
+    if assigned.remove(character).is_some() {
         write_assignments(edition, &assigned)?;
         install_addon()?;
     }
@@ -1318,7 +1351,10 @@ fn read_send_record(edition: Edition) -> CmdResult<SendRecord> {
 }
 
 fn write_send_record(edition: Edition, record: &SendRecord) -> CmdResult<()> {
-    store::write(&send_record_file(edition), serde_json::to_vec_pretty(record).map_err(err)?);
+    store::write(
+        &send_record_file(edition),
+        serde_json::to_vec_pretty(record).map_err(err)?,
+    );
     Ok(())
 }
 
@@ -1363,7 +1399,7 @@ struct AutoStatus {
 
 /// `/v1/<path>` on the contribution server: the one configured, else the one built in
 /// (`FG_CONTRIBUTION_SERVER`), else the server the page comes from.
-fn server_endpoint(settings: &Settings, path: &str) -> Option<String> {
+fn server_endpoint(settings: &Settings, path: &str) -> String {
     let base = settings
         .contribution_url
         .as_deref()
@@ -1375,11 +1411,11 @@ fn server_endpoint(settings: &Settings, path: &str) -> Option<String> {
         .trim_end_matches('/')
         .trim_end_matches("/v1/contributions")
         .trim_end_matches("/contributions");
-    Some(if base.is_empty() {
+    if base.is_empty() {
         format!("v1/{path}")
     } else {
         format!("{base}/v1/{path}")
-    })
+    }
 }
 
 static SEND_LOCK: Mutex<()> = Mutex::new(());
@@ -1417,7 +1453,11 @@ fn recorded(edition: Edition) -> Vec<Character> {
                 class: kept.class,
                 day: None,
                 account: None,
-                events: kept.events.iter().map(|r| fg_contrib::collector::parse_row(r)).collect(),
+                events: kept
+                    .events
+                    .iter()
+                    .map(|r| fg_contrib::collector::parse_row(r))
+                    .collect(),
             })
         })
         .collect()
@@ -1481,7 +1521,7 @@ fn preview() -> CmdResult<ContributionPreview> {
         locales: Vec::new(),
         size: serde_json::to_vec(&c).map_err(err)?.len(),
         more,
-        url: server_endpoint(&settings, "contributions"),
+        url: Some(server_endpoint(&settings, "contributions")),
         last_sent: record.last_sent,
         retry_after: record.retry_after.filter(|&t| now().is_ok_and(|now| now < t)),
         automatic,
@@ -1582,9 +1622,10 @@ fn drop_sent(edition: Edition, state: &SendState) {
     for f in store::list(&dir) {
         let path = format!("{dir}/{f}");
         let Some(key) = f.strip_suffix(".json") else { continue };
-        let Some(sent) = state.characters.get(key) else { continue };
-        let Some(mut kept) = store::read(&path).and_then(|b| serde_json::from_slice::<CollectorExport>(&b).ok())
-        else {
+        let Some(sent) = state.characters.get(key) else {
+            continue;
+        };
+        let Some(mut kept) = store::read(&path).and_then(|b| serde_json::from_slice::<CollectorExport>(&b).ok()) else {
             continue;
         };
         let before = kept.events.len();
@@ -1614,7 +1655,7 @@ struct SendReport {
 fn send_contribution() -> CmdResult<SendReport> {
     let _sending = SEND_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let edition = edition();
-    let url = server_endpoint(&settings(), "contributions").ok_or("no contribution server configured")?;
+    let url = server_endpoint(&settings(), "contributions");
     let mut record = read_send_record(edition)?;
     if record.retry_after.is_some_and(|t| now().is_ok_and(|now| now < t)) {
         return Err("rate_limited".to_owned());
@@ -1666,7 +1707,8 @@ fn auto_contribute_loop() {
 fn auto_contribute() -> u64 {
     let mut next = AUTO_CHECK_EVERY;
     let settings = settings();
-    let (Some(url), Ok(now)) = (server_endpoint(&settings, "contributions"), now()) else {
+    let url = server_endpoint(&settings, "contributions");
+    let Ok(now) = now() else {
         return next;
     };
     if !settings.auto_contribute {
@@ -1674,10 +1716,16 @@ fn auto_contribute() -> u64 {
     }
     for edition in Edition::ALL {
         let _sending = SEND_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let Ok(record) = read_send_record(edition) else { continue };
-        let every = if record.more { AUTO_BACKLOG_EVERY } else { AUTO_SEND_EVERY };
-        let due = !record.retry_after.is_some_and(|t| now < t)
-            && !record.last_sent.is_some_and(|t| now.saturating_sub(t) < every);
+        let Ok(record) = read_send_record(edition) else {
+            continue;
+        };
+        let every = if record.more {
+            AUTO_BACKLOG_EVERY
+        } else {
+            AUTO_SEND_EVERY
+        };
+        let due = record.retry_after.is_none_or(|t| now >= t)
+            && record.last_sent.is_none_or(|t| now.saturating_sub(t) >= every);
         let record = if due {
             match send_one(edition, &url, &record, true) {
                 Ok(Some((_, sent, _))) => sent,
@@ -1780,7 +1828,7 @@ fn guide_report(g: &IssueGuide) -> CmdResult<(Edition, fg_contrib::issue::GuideR
 }
 
 fn send_issue(draft: IssueDraft) -> CmdResult<&'static str> {
-    let url = server_endpoint(&settings(), "issues").ok_or("no contribution server configured")?;
+    let url = server_endpoint(&settings(), "issues");
     let (edition, guide) = match &draft.guide {
         Some(g) => {
             let (e, report) = guide_report(g)?;
@@ -2000,14 +2048,14 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         }
         "compare_versions" => {
             #[derive(Deserialize)]
-            struct A {
+            struct Versions {
                 guide: String,
                 a: u32,
                 b: u32,
                 #[serde(default)]
                 locale: Option<String>,
             }
-            let x = args::<A>(a)?;
+            let x = args::<Versions>(a)?;
             to_json(compare_versions(&x.guide, x.a, x.b, x.locale.as_deref()))
         }
         "set_installed" => {
@@ -2034,7 +2082,7 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
             struct A {
                 character: String,
             }
-            to_json(forget_character(args::<A>(a)?.character))
+            to_json(forget_character(&args::<A>(a)?.character))
         }
         "export_version" => {
             let g = args::<GuideArgs>(a)?;
@@ -2057,7 +2105,7 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         "list_characters" => to_json(characters()),
         "install_addon" => to_json(install_addon()),
         "addon_export" => to_json(addon_export()),
-        "addon_package" => addon_package(),
+        "addon_package" => Ok(addon_package()),
         "addon_synced" => Ok(Value::Bool(addon_synced())),
         "addon_health" => to_json(Ok(addon_health())),
         "setup_report" => to_json(Ok(setup_of())),
@@ -2088,11 +2136,19 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         "map_index" => map_index(),
         "guide_timeline" => {
             let g = args::<GuideArgs>(a)?;
-            to_json(guide_timeline(&g.guide, version_of(&g)?, g.locale.as_deref().unwrap_or("enUS")))
+            to_json(guide_timeline(
+                &g.guide,
+                version_of(&g)?,
+                g.locale.as_deref().unwrap_or("enUS"),
+            ))
         }
         "edit_open" => {
             let g = args::<GuideArgs>(a)?;
-            to_json(edit_open(&g.guide, version_of(&g)?, g.locale.as_deref().unwrap_or("enUS")))
+            to_json(edit_open(
+                &g.guide,
+                version_of(&g)?,
+                g.locale.as_deref().unwrap_or("enUS"),
+            ))
         }
         "edit_simulate" => {
             let s = args::<StepsArgs>(a)?;

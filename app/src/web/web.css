@@ -1,0 +1,57 @@
+/* The web build's own blocks (src/web/components). */
+.web-steps {
+  margin: 0.4rem 0 0.8rem;
+  padding-left: 1.4rem;
+  line-height: 1.6;
+}
+.web-paste-box,
+.web-import-box {
+  width: 100%;
+  min-height: 5.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  word-break: break-all;
+  margin: 0.4rem 0;
+}
+.web-import-box {
+  min-height: 8rem;
+  opacity: 0.8;
+}
+.web-import-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.web-paste .row,
+.web-import .row,
+.web-install .row,
+.web-backup .row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+/* Links and file pickers looking like the buttons next to them. */
+a.button,
+label.button {
+  display: inline-flex;
+  align-items: center;
+  background: color-mix(in srgb, var(--wash) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--wash) 8%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+a.button:hover,
+label.button:hover {
+  background: color-mix(in srgb, var(--wash) 8%, transparent);
+}
+a.button.primary {
+  border-color: var(--accent-edge);
+}
+.web-unsupported {
+  max-width: 40rem;
+  margin: 3rem auto;
+}

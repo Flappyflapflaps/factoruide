@@ -6,7 +6,11 @@ fn crc32(data: &[u8]) -> u32 {
     for &b in data {
         crc ^= u32::from(b);
         for _ in 0..8 {
-            crc = if crc & 1 == 1 { (crc >> 1) ^ 0xEDB8_8320 } else { crc >> 1 };
+            crc = if crc & 1 == 1 {
+                (crc >> 1) ^ 0xEDB8_8320
+            } else {
+                crc >> 1
+            };
         }
     }
     !crc
@@ -40,8 +44,8 @@ pub fn zip(files: &[(String, Vec<u8>)]) -> Vec<u8> {
             h.extend_from_slice(&(name.len() as u16).to_le_bytes());
             h.extend_from_slice(&0u16.to_le_bytes());
             if central {
-                h.extend_from_slice(&[0; 8]);
-                h.extend_from_slice(&0u32.to_le_bytes());
+                // Comment length, disk, internal and external attributes.
+                h.extend_from_slice(&[0; 10]);
                 h.extend_from_slice(&offset.to_le_bytes());
             }
             h.extend_from_slice(name.as_bytes());
@@ -68,6 +72,35 @@ mod tests {
     #[test]
     fn crc_of_the_check_string() {
         assert_eq!(super::crc32(b"123456789"), 0xCBF4_3926);
+    }
+
+    /// `unzip` reads the archive back, when it is installed.
+    #[test]
+    fn unzip_reads_it_back() {
+        let dir = std::env::temp_dir().join(format!("fg-zip-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("t.zip");
+        let files = [
+            ("a/b.txt".to_owned(), b"hello".to_vec()),
+            ("c.lua".to_owned(), vec![7; 1000]),
+        ];
+        std::fs::write(&file, super::zip(&files)).unwrap();
+        if let Ok(out) = std::process::Command::new("unzip")
+            .arg("-p")
+            .arg(&file)
+            .arg("a/b.txt")
+            .output()
+        {
+            assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+            assert_eq!(out.stdout, b"hello");
+            let test = std::process::Command::new("unzip")
+                .arg("-t")
+                .arg(&file)
+                .output()
+                .unwrap();
+            assert!(test.status.success(), "{}", String::from_utf8_lossy(&test.stdout));
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

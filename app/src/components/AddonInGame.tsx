@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, SETTINGS_CHANGED, type AddonHealth } from "../api";
 import { useDate, useT } from "../i18n";
+import { IS_WEB } from "../web/mode";
 
 /** Looked at again on these, and when the window comes back (a game played meanwhile). */
 export function useAddonHealth() {
@@ -30,7 +31,15 @@ export function AddonInGame() {
   const health = useAddonHealth();
   if (!health) return null;
   const lines: { ok: boolean; text: string }[] = [];
-  if (!health.installed_version) lines.push({ ok: false, text: t("Pas encore installé dans le jeu.") });
+  // In a browser, the game is known from the characters' exports pasted.
+  if (IS_WEB) {
+    if (!health.seen) lines.push({ ok: false, text: t("Aucun export reçu de ce jeu : tapez /fg export en jeu, et collez le texte dans la page Personnages.") });
+    else {
+      lines.push({ ok: true, text: t("Dernier export reçu le {date} (addon {version}).", { date: date(health.seen.time), version: health.seen.version || "?" }) });
+      if (health.seen.version && health.seen.version !== health.app_version)
+        lines.push({ ok: false, text: t("L'addon du jeu est en version {old}, l'application en {version} : mettez l'addon à jour.", { old: health.seen.version, version: health.app_version }) });
+    }
+  } else if (!health.installed_version) lines.push({ ok: false, text: t("Pas encore installé dans le jeu.") });
   else {
     lines.push({
       ok: health.complete,

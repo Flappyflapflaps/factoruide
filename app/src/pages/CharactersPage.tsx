@@ -6,6 +6,8 @@ import { Hint } from "../components/Hint";
 import { Icon } from "../components/Icons";
 import { PROFESSIONS } from "../components/ProfessionPicker";
 import { useDate, useGameName, useT } from "../i18n";
+import { IS_WEB } from "../web/mode";
+import { ProfilePaste } from "../web/components/ProfilePaste";
 
 interface Props {
   /** Options of the game version (race names and factions), when loaded. */
@@ -63,7 +65,7 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, 
         else delete next[character];
         return next;
       });
-      setMessage(t("Guides dans l'addon : {n} — faites /reload en jeu", { n }));
+      setMessage(IS_WEB ? t("Guides pour l'addon : {n} — page Addon, « Envoyer au jeu », puis /fg import en jeu", { n }) : t("Guides dans l'addon : {n} — faites /reload en jeu", { n }));
     } catch (e) {
       setError(String(e));
     }
@@ -96,14 +98,27 @@ export function CharactersPage({ options, onOpenGuide, onNewGuide, editionName, 
         <h2>
           {t("Personnages")}
           <Hint
-            text={`${t("Chaque personnage suit au plus un guide, choisi ici : l'addon le lui montre en jeu après /reload.")} ${t("Un personnage manque ? Connectez-vous avec lui en jeu, puis /reload.")}`}
+            text={
+              IS_WEB
+                ? `${t("Chaque personnage suit au plus un guide, choisi ici : l'addon le lui montre en jeu une fois les guides envoyés (page Addon).")} ${t("Un personnage manque ? Tapez /fg export en jeu avec lui et collez le texte ici.")}`
+                : `${t("Chaque personnage suit au plus un guide, choisi ici : l'addon le lui montre en jeu après /reload.")} ${t("Un personnage manque ? Connectez-vous avec lui en jeu, puis /reload.")}`
+            }
           />
         </h2>
       </div>
       {message && <div className="success">{message}</div>}
       {error && <div className="error">{error}</div>}
+      {IS_WEB && <ProfilePaste onImported={load} />}
       {characters === null ? (
         <div className="empty">{t("Chargement…")}</div>
+      ) : characters.length === 0 && IS_WEB ? (
+        <section className="panel characters-empty">
+          <h3>{t("Aucun personnage pour {edition}", { edition: editionName })}</h3>
+          <p>{t("Un personnage apparaît ici une fois son export collé ci-dessus. L'addon n'est pas encore dans le jeu ?")}</p>
+          <button className="link" onClick={onAddon}>
+            {t("Aller à la page Addon")}
+          </button>
+        </section>
       ) : characters.length === 0 ? (
         <section className="panel characters-empty">
           <h3>{t("Aucun personnage pour {edition}", { edition: editionName })}</h3>

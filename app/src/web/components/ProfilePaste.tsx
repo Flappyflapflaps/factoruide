@@ -1,0 +1,68 @@
+import { useState } from "react";
+import { api } from "../../api";
+import { useT } from "../../i18n";
+
+/**
+ * Web build: a character comes from the game as a text: `/fg export` in game, copied, pasted
+ * here. Pasting it again later updates the character (level, quests, position...).
+ */
+export function ProfilePaste({ onImported }: { onImported: () => void }) {
+  const t = useT();
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const reasons: Record<string, string> = {
+    not_a_profile: t("Ce texte n'est pas un export de personnage : en jeu, tapez /fg export et copiez tout le texte affiché."),
+    corrupt_profile: t("Ce texte est incomplet ou abîmé : copiez-le de nouveau en entier (Ctrl+A puis Ctrl+C dans la fenêtre de l'addon)."),
+  };
+  const submit = async (content: string) => {
+    if (!content.trim()) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const r = await api.importProfile(content);
+      setText("");
+      setMessage(t("{name} (niveau {level}) est à jour.", { name: r.character.split("-")[0], level: r.level }));
+      onImported();
+    } catch (e) {
+      const key = String(e).split(":")[0];
+      setError(reasons[key] ?? String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="panel web-paste">
+      <h3>{t("Ajouter ou mettre à jour un personnage")}</h3>
+      <ol className="web-steps">
+        <li>{t("En jeu, connecté avec le personnage, tapez /fg export.")}</li>
+        <li>{t("Copiez le texte de la fenêtre qui s'ouvre (il est déjà sélectionné : Ctrl+C).")}</li>
+        <li>{t("Collez-le ici (Ctrl+V).")}</li>
+      </ol>
+      <textarea
+        className="web-paste-box"
+        value={text}
+        placeholder="FGP1:…"
+        spellCheck={false}
+        onChange={(e) => setText(e.target.value)}
+        onPaste={(e) => {
+          // Pasted whole: kept at once.
+          const pasted = e.clipboardData.getData("text");
+          if (pasted.trim().startsWith("FGP1:") && !text.trim()) {
+            e.preventDefault();
+            void submit(pasted);
+          }
+        }}
+      />
+      <div className="row">
+        <button className="primary" disabled={busy || !text.trim()} onClick={() => submit(text)}>
+          {busy ? t("Lecture…") : t("Ajouter")}
+        </button>
+        {message && <span className="success">{message}</span>}
+      </div>
+      {error && <div className="error">{error}</div>}
+    </section>
+  );
+}

@@ -1,6 +1,34 @@
-// Typed access to the Tauri backend (app/src-tauri/src/main.rs).
+// Typed access to the Tauri backend (app/src-tauri/src/main.rs), or in the web build to the
+// backend in Web Workers (crates/fg-web, see web/host.ts).
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { download, fromBase64 } from "./web/mode";
+
+/** A file the web backend made for the browser to download (the desktop app writes it itself and gives its path). */
+export interface WebFile {
+  file: string;
+  text?: string;
+  base64?: string;
+}
+
+/** The path of a file the desktop app wrote, or the name of the one the browser downloads. */
+function saved(result: string | WebFile): string {
+  if (typeof result === "string") return result;
+  download(result.file, result.base64 !== undefined ? fromBase64(result.base64) : (result.text ?? ""));
+  return result.file;
+}
+
+/** What the player takes to the game in the web build: a text to paste with /fg import, or for Polestar a pack to unzip in the AddOns folder. */
+export type AddonExport = { kind: "text"; text: string; guides: number } | { kind: "zip"; file: string; base64: string; guides: number };
+
+/** A character's export (/fg export) pasted in the web app. */
+export interface ProfileImported {
+  character: string;
+  edition: Edition;
+  level: number;
+  /** Recordings kept for the contribution server. */
+  events: number;
+}
 
 /** Planner tunables, mirror of `fg_route::Params`. */
 export interface Params {
@@ -474,7 +502,7 @@ export const api = {
   deleteVersion: (guide: string, version: number) => invoke<void>("delete_version", { guide, version }),
   deleteGuide: (guide: string) => invoke<void>("delete_guide", { guide }),
   /** Writes the version as a .fgguide file in Downloads; returns its path. */
-  exportVersion: (guide: string, version: number) => invoke<string>("export_version", { guide, version }),
+  exportVersion: (guide: string, version: number) => invoke<string | WebFile>("export_version", { guide, version }).then(saved),
   /** Adds a guide received as a .fgguide (or .bqroute) file (its content), as a new version. */
   importGuide: (content: string) => invoke<VersionMeta>("import_guide", { content }),
   mapIndex: () => invoke<MapInfo[]>("map_index"),
@@ -497,14 +525,14 @@ export const api = {
     invoke<ArrayBuffer>("minimap_image", { map, level, x, y }).then((bytes) =>
       URL.createObjectURL(new Blob([bytes], { type: "image/webp" })),
     ),
-  exportRequest: (request: PlanRequest) => invoke<string>("export_request", { request }),
+  exportRequest: (request: PlanRequest) => invoke<string | WebFile>("export_request", { request }).then(saved),
   /** Copies the addon into the game with the installed guides. */
   /** Returns the number of guides installed. */
   installAddon: () => invoke<number>("install_addon").then((n) => (settingsChanged(), n)),
   /** Whether Polestar is installed in WoW Forever. */
   polestarInstalled: () => invoke<boolean>("polestar_installed"),
   /** Export a guide version into a pack folder for Polestar's own tools in `dir` (WoW Forever only): the pack's folder. */
-  exportPolestar: (guide: string, version: number, dir: string) => invoke<string>("export_polestar", { guide, version, dir }),
+  exportPolestar: (guide: string, version: number, dir: string) => invoke<string | WebFile>("export_polestar", { guide, version, dir }).then(saved),
   /** Whether the addon in the game has the current settings. */
   addonSynced: () => invoke<boolean>("addon_synced"),
   /** Open a page of the project's repository in the browser. */
@@ -547,6 +575,12 @@ export const api = {
   editClose: () => invoke<void>("edit_close"),
   /** A version replayed to be watched (`locale`: language of its names). */
   guideTimeline: (guide: string, version: number, locale: string) => invoke<Timeline>("guide_timeline", { guide, version, locale }),
+  /** Web build: keeps a character's export (the text of /fg export). */
+  importProfile: (content: string) => invoke<ProfileImported>("import_profile", { content }).then((r) => (settingsChanged(), r)),
+  /** Web build: what to take to the game (made again when the guides or the settings changed). */
+  addonExport: () => invoke<AddonExport>("addon_export").then((r) => (settingsChanged(), r)),
+  /** Web build: downloads the addon (both folders, without guides) as a zip; returns its name. */
+  addonPackage: () => invoke<WebFile>("addon_package").then(saved),
   onPlanProgress: (fn: (m: string) => void): Promise<UnlistenFn> =>
     listen<string>("plan-progress", (e) => fn(e.payload)),
 };

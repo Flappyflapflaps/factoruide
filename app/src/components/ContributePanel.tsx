@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type AutoSendStatus, type ContributionPreview, type Settings } from "../api";
 import { bcp47, useDate, useLang, useT } from "../i18n";
 import { Hint } from "./Hint";
+import { IS_WEB } from "../web/mode";
 
 /**
  * Send this computer's quest cache and addon recordings to consolidate the quest database (a
@@ -73,9 +74,11 @@ export function ContributePanel() {
         <Hint text={t("Chaque envoi est comparé aux données déjà sûres : seules les informations confirmées par plusieurs joueurs sont intégrées.")} />
       </h3>
       <p className="muted">
-        {t(
-          "Les quêtes que votre jeu a vues (son cache de quêtes) et ce que l'addon a enregistré (quêtes prises et rendues, PNJ et positions) complètent la base de quêtes. Plus il y a de joueurs, plus les guides sont justes.",
-        )}
+        {IS_WEB
+          ? t("Ce que l'addon a enregistré (quêtes prises et rendues, PNJ et positions), venu avec les exports de vos personnages, complète la base de quêtes. Plus il y a de joueurs, plus les guides sont justes.")
+          : t(
+              "Les quêtes que votre jeu a vues (son cache de quêtes) et ce que l'addon a enregistré (quêtes prises et rendues, PNJ et positions) complètent la base de quêtes. Plus il y a de joueurs, plus les guides sont justes.",
+            )}
       </p>
       <ul className="contribute-privacy">
         <li>{t("Anonyme : ni nom de personnage, ni compte, ni heure de jeu (seulement le jour). Uniquement des données du jeu : quêtes, PNJ, objets, positions.")}</li>
@@ -86,13 +89,14 @@ export function ContributePanel() {
         <>
           <p className="muted">{t("Ce qui partirait maintenant : seulement ce qui est nouveau depuis le dernier envoi.")}</p>
           <div className="contribute-figures">
-            <div className="tile">
+            {/* The browser cannot read the game's caches. */}
+            {!IS_WEB && <div className="tile">
               <span>{t("Quêtes du cache")}</span>
               <strong>{preview.quests}</strong>
               <small>
                 {t("+ {n} PNJ et objets", { n: preview.entities })} · {preview.locales.join(", ") || "—"}
               </small>
-            </div>
+            </div>}
             <div className="tile">
               <span>{t("Enregistrements de l'addon")}</span>
               <strong>{preview.events}</strong>
@@ -101,13 +105,17 @@ export function ContributePanel() {
             <div className="tile">
               <span>{t("Taille")}</span>
               <strong>{kilobytes(preview.size)}</strong>
-              <small title={preview.client_dir}>{preview.client_dir}</small>
+              {!IS_WEB && <small title={preview.client_dir}>{preview.client_dir}</small>}
             </div>
           </div>
         </>
       )}
       {preview?.more && <div className="notice">{t("Plus de nouveautés qu'un envoi ne peut en contenir : ces chiffres sont ceux du premier envoi, la suite partira aux suivants.")}</div>}
-      {preview && !preview.found && <div className="error">{t("Dossier du jeu introuvable : vérifiez le dossier World of Warcraft dans les Réglages.")}</div>}
+      {preview && !preview.found && (
+        <div className={IS_WEB ? "notice" : "error"}>
+          {IS_WEB ? t("Aucun personnage pour l'instant : les enregistrements de l'addon viennent avec les exports collés dans la page Personnages (/fg export en jeu).") : t("Dossier du jeu introuvable : vérifiez le dossier World of Warcraft dans les Réglages.")}
+        </div>
+      )}
       {preview && !preview.url && <div className="notice">{t("L'envoi n'est pas disponible : aucun serveur de contribution n'est configuré.")}</div>}
       {preview?.retry_after && <div className="notice">{t("Le serveur demande d'attendre : prochain envoi possible le {date}.", { date: date(preview.retry_after) })}</div>}
       <div className="actions">

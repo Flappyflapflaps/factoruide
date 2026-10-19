@@ -7,6 +7,7 @@ use std::sync::Mutex;
 static FILES: Mutex<BTreeMap<String, Vec<u8>>> = Mutex::new(BTreeMap::new());
 
 /// A file the page had saved, given back at startup (not saved again).
+#[cfg(any(target_os = "wasi", test))]
 pub fn load(path: &str, data: Vec<u8>) {
     FILES.lock().unwrap().insert(path.to_owned(), data);
 }
@@ -28,12 +29,6 @@ pub fn write(path: &str, data: impl Into<Vec<u8>>) {
     let data = data.into();
     crate::host::persist(path, Some(&data));
     FILES.lock().unwrap().insert(path.to_owned(), data);
-}
-
-pub fn remove(path: &str) {
-    if FILES.lock().unwrap().remove(path).is_some() {
-        crate::host::persist(path, None);
-    }
 }
 
 /// Remove a folder: every file under `dir`. Returns whether there was one.

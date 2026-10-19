@@ -6,6 +6,9 @@
 //! (`fg_call`) is queued and answered (`host::reply`) by a thread of its own, so that a long
 //! computation never holds the others up, and the planner's threads are threads.
 
+#[cfg(any(target_os = "wasi", unix))]
+#[expect(unsafe_code, reason = "an allocator, over wasi-libc's malloc")]
+pub mod alloc;
 mod app;
 mod fgstring;
 pub mod host;
@@ -15,13 +18,19 @@ mod zip;
 use std::collections::VecDeque;
 use std::sync::{Condvar, Mutex};
 
+#[cfg(target_os = "wasi")]
+#[global_allocator]
+static ALLOCATOR: alloc::Sharded = alloc::Sharded;
+
 mod embedded {
     include!(concat!(env!("OUT_DIR"), "/embedded.rs"));
 }
 
-/// Calls waiting for a thread, and how many threads wait for one.
+/// Calls waiting for a thread (id, request), and how many threads wait for one.
+type Calls = (VecDeque<(u32, Vec<u8>)>, usize);
+
 struct Queue {
-    calls: Mutex<(VecDeque<(u32, Vec<u8>)>, usize)>,
+    calls: Mutex<Calls>,
     ready: Condvar,
 }
 
@@ -64,6 +73,17 @@ fn serve() {
     }
 }
 
+/// Take back a buffer of `fg_alloc`.
+///
+/// # Safety
+/// `ptr` and `len` must be those of a buffer of `fg_alloc` not taken yet.
+#[cfg(target_os = "wasi")]
+#[expect(unsafe_code, reason = "buffers the page filled")]
+unsafe fn take(ptr: *mut u8, len: usize) -> Vec<u8> {
+    // SAFETY: see above; `fg_alloc` made the capacity `len.max(1)`.
+    unsafe { Vec::from_raw_parts(ptr, len, len.max(1)) }
+}
+
 #[cfg(target_os = "wasi")]
 #[expect(unsafe_code, reason = "the functions the page calls")]
 mod exports {
@@ -76,14 +96,7 @@ mod exports {
         v.as_mut_ptr()
     }
 
-    /// Take back a buffer of `fg_alloc`.
-    ///
-    /// # Safety
-    /// `ptr` and `len` must be those of a buffer of `fg_alloc` not taken yet.
-    unsafe fn take(ptr: *mut u8, len: usize) -> Vec<u8> {
-        // SAFETY: see above; `fg_alloc` made the capacity `len.max(1)`.
-        unsafe { Vec::from_raw_parts(ptr, len, len.max(1)) }
-    }
+    use super::take;
 
     /// Free a buffer of `fg_alloc` the page did not hand over.
     #[unsafe(no_mangle)]
@@ -98,6 +111,30 @@ mod exports {
         // SAFETY: buffers of `fg_alloc`, handed over.
         let (path, data) = unsafe { (take(path, path_len), take(data, data_len)) };
         super::store::load(&String::from_utf8_lossy(&path), data);
+    }
+
+    /// Grow the memory now, before any thread starts, as much as `max` bytes (in steps of 256 MiB
+    /// down to what the browser gives): the allocator keeps it. Returns the bytes reserved.
+    ///
+    /// The memory growing while threads run made some of them trap ("memory access out of
+    /// bounds" on memory just grown by another one, as if they still saw the former size). The
+    /// pages are only reserved: the browser gives them memory when they are first written.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn fg_reserve(max: usize) -> usize {
+        let mut size = max;
+        while size >= 256 << 20 {
+            if let Ok(layout) = std::alloc::Layout::from_size_align(size, 16) {
+                // SAFETY: a valid layout; the block is freed at once.
+                let block = unsafe { std::alloc::alloc(layout) };
+                if !block.is_null() {
+                    // SAFETY: allocated just above with this layout.
+                    unsafe { std::alloc::dealloc(block, layout) };
+                    return size;
+                }
+            }
+            size -= 256 << 20;
+        }
+        0
     }
 
     /// A call from the page (a JSON text in a buffer of `fg_alloc`, handed over).

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, SETTINGS_CHANGED, type AddonHealth, type WowStatus } from "../api";
 import { useT } from "../i18n";
 import { CLIENTS, SUPPORTED } from "../wow";
+import { IS_WEB } from "../web/mode";
 
 interface Props {
   /** The game version the app works on (switching it fires SETTINGS_CHANGED). */
@@ -78,6 +79,16 @@ export function WowBanner({ editionName, onSettings, onAddon }: Props) {
       <div className="wow-banner" role="alert">
         <span className="wow-banner-text">
           <strong>{t("Le jeu n'a pas chargé l'addon.")}</strong> {t("Le jeu a tourné depuis l'installation sans le lancer : à l'écran de sélection du personnage, bouton AddOns, cochez Factoruide (et « Charger les AddOns périmés » si on vous le demande).")}
+        </span>
+        <button onClick={onAddon}>{t("Page Addon")}</button>
+      </div>
+    );
+  // In a browser: the addon version of the last export pasted.
+  if (IS_WEB && health?.installed_version && health.installed_version !== health.app_version)
+    return (
+      <div className="wow-banner outdated" role="status">
+        <span className="wow-banner-text">
+          <strong>{t("L'addon du jeu n'est pas à jour.")}</strong> {t("Le dernier export vient de la version {old} de l'addon : mettez-le à jour pour avoir les nouveautés.", { old: health.installed_version })}
         </span>
         <button onClick={onAddon}>{t("Page Addon")}</button>
       </div>

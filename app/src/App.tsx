@@ -15,6 +15,8 @@ import { ContributePage } from "./pages/ContributePage";
 import { NeedHelpPage } from "./pages/NeedHelpPage";
 import { IssueForm } from "./components/IssueForm";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { IS_WEB } from "./web/mode";
+import { WebWelcome } from "./web/components/WebWelcome";
 
 const EDITION_LABELS: Record<Edition, string> = { forever: "Forever", classic: "Classic", tbc: "TBC" };
 
@@ -103,7 +105,8 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
     api.listEditions().then(setEditions).catch(() => {});
     api.getSettings().then((s) => setEdition(s.edition)).catch(() => {});
     Promise.all([api.getSettings(), api.wowStatus()])
-      .then(([s, w]) => setWelcome(!s.welcome_done && (w.problem === "missing" || w.problem === "no_game")))
+      // In a browser, no game folder to look for: the first visit's questions are asked once.
+      .then(([s, w]) => setWelcome(!s.welcome_done && (IS_WEB || w.problem === "missing" || w.problem === "no_game")))
       .catch(() => {});
   }, []);
   // Each game version keeps its new guide's configuration: coming back to it finds it as left.
@@ -128,7 +131,17 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
 
   return (
     <div className="app">
-      {welcome && (
+      {welcome && IS_WEB && (
+        <WebWelcome
+          editions={editions}
+          onEdition={switchEdition}
+          onDone={(characters) => {
+            setWelcome(false);
+            if (characters) setPage("characters");
+          }}
+        />
+      )}
+      {welcome && !IS_WEB && (
         <Welcome
           onEdition={async (e) => {
             await switchEdition(e);
@@ -218,7 +231,9 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
           !options &&
           (error ? (
             <div className="error">
-              {t("Impossible de charger les données : {error}", { error })}
+              {error.includes("not_isolated")
+                ? t("Ce navigateur ne permet pas à Factoruide de calculer les guides (il lui faut les Web Workers à mémoire partagée) : essayez une version récente de Chrome, Edge, Firefox ou Safari, et rechargez la page.")
+                : t("Impossible de charger les données : {error}", { error })}
             </div>
           ) : (
             <div className="empty">{t("Chargement…")}</div>

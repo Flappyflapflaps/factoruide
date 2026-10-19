@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { IS_WEB } from "../web/mode";
 import { api, fmtTime, type GuideSummary, type GuideVersion, type Options, type Timeline, type VersionMeta } from "../api";
 import { Character } from "./Character";
 import { EditBar, useEditedView, useUndoKeys } from "./EditMode";
@@ -151,7 +152,11 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
     }
   };
   // The version the guide's characters follow (the latest unless one is chosen).
-  const follow = (n: number) => act(async () => t("Guides dans l'addon : {n} — faites /reload en jeu", { n: await api.setInstalled(meta.guide, n) }));
+  const follow = (n: number) =>
+    act(async () => {
+      const count = await api.setInstalled(meta.guide, n);
+      return IS_WEB ? t("Guides pour l'addon : {n} — page Addon, « Envoyer au jeu », puis /fg import en jeu", { n: count }) : t("Guides dans l'addon : {n} — faites /reload en jeu", { n: count });
+    });
 
   const versions = guide?.versions ?? [];
   const previous = versions.find((v) => v.version < meta.version);
@@ -215,9 +220,10 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
                 act(async () => {
                   const dir = await open({ directory: true, title: t("Dossier où exporter le pack Polestar") });
                   if (typeof dir !== "string") return;
-                  return t("Guide exporté pour Polestar dans {path} : ouvrez ce dossier dans Planner ou Play de Polestar.", {
-                    path: await api.exportPolestar(meta.guide, meta.version, dir),
-                  });
+                  const path = await api.exportPolestar(meta.guide, meta.version, dir);
+                  return IS_WEB
+                    ? t("Pack Polestar téléchargé ({path}) : décompressez-le et ouvrez son dossier dans Planner ou Play de Polestar.", { path })
+                    : t("Guide exporté pour Polestar dans {path} : ouvrez ce dossier dans Planner ou Play de Polestar.", { path });
                 })
               }
               title={`${t("Exporter pour Polestar…")} : ${t("Écrit le guide au format .guide de Polestar (en anglais) dans un dossier de pack, à ouvrir dans ses outils Planner et Play")}`}

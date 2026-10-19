@@ -6,6 +6,9 @@ import { AddonSetup } from "../components/AddonSetup";
 import { SettingRow } from "../components/ParamField";
 import { Hint } from "../components/Hint";
 import { gameLocale, LANGS, useLang, useT } from "../i18n";
+import { IS_WEB } from "../web/mode";
+import { AddonImport } from "../web/components/AddonImport";
+import { AddonInstall } from "../web/components/AddonInstall";
 
 export function AddonPage() {
   const t = useT();
@@ -27,6 +30,8 @@ export function AddonPage() {
   const [polestar, setPolestar] = useState(false);
   // The setup questions shown instead of the settings; asked by themselves the first time.
   const [setup, setSetup] = useState(false);
+  // Web build: what to paste in game, shown after "Send to the game".
+  const [importShown, setImportShown] = useState(false);
 
   // Every option with its value (the default when unset), the guide language and what shows the guides.
   const snapshot = (s: Settings) =>
@@ -74,6 +79,10 @@ export function AddonPage() {
   };
   const install = async () => {
     setError(null);
+    if (IS_WEB) {
+      setImportShown(true);
+      return;
+    }
     try {
       const n = await api.installAddon();
       const restart = (await api.addonHealth().catch(() => null))?.restart_needed;
@@ -143,7 +152,13 @@ export function AddonPage() {
       <div className="page-head">
         <h2>
           {t("Addon")}
-          <Hint text={t("Les réglages sont enregistrés à chaque modification ; « Installer dans le jeu » les envoie à l'addon (puis /reload en jeu).")} />
+          <Hint
+            text={
+              IS_WEB
+                ? t("Les réglages sont enregistrés à chaque modification ; « Envoyer au jeu » les donne à l'addon avec vos guides (/fg import en jeu).")
+                : t("Les réglages sont enregistrés à chaque modification ; « Installer dans le jeu » les envoie à l'addon (puis /reload en jeu).")
+            }
+          />
         </h2>
         <span className="muted save-status">{saving ? t("Enregistrement…") : message}</span>
         <button onClick={() => setSetup(true)} title={t("Quelques questions pour régler l'addon d'un coup")}>
@@ -155,10 +170,12 @@ export function AddonPage() {
           disabled={saving}
           title={synced === false ? t("L'addon du jeu n'a pas encore ces réglages.") : undefined}
         >
-          {t("Installer dans le jeu")}
+          {IS_WEB ? t("Envoyer au jeu") : t("Installer dans le jeu")}
         </button>
       </div>
       {error && <div className="error">{error}</div>}
+      {IS_WEB && importShown && <AddonImport key={saved ?? ""} onClose={() => setImportShown(false)} />}
+      {IS_WEB && <AddonInstall />}
       <AddonInGame />
       {forever && (
         <section className="panel guide-addon">

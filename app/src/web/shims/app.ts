@@ -1,2 +1,2 @@
 // `@tauri-apps/api/app` in the web build.
-export const getVersion = async () => __APP_VERSION__;
+export const getVersion = async () => FG_APP_VERSION;
