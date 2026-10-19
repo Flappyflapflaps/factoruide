@@ -36,7 +36,6 @@ FG.Locales.zhTW = {
     ["Left-click: the compass points at this step"] = "左鍵：指南針指向此步驟",
     ["Lvl"] = "等級",
     ["planned"] = "計畫",
-    ["No guide for this character.\nAssign one in the Factoruide app (Characters)."] = "此角色沒有指南。\n請在 Factoruide 應用程式（角色）中指派一個。",
     ["Route finished!"] = "路線完成！",
     ["yd"] = "碼",
     ["Previous step"] = "上一步",

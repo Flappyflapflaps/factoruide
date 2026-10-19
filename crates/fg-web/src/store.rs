@@ -21,10 +21,6 @@ pub fn read_string(path: &str) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|e| format!("{path}: {e}"))
 }
 
-pub fn exists(path: &str) -> bool {
-    FILES.lock().unwrap().contains_key(path)
-}
-
 pub fn write(path: &str, data: impl Into<Vec<u8>>) {
     let data = data.into();
     crate::host::persist(path, Some(&data));

@@ -36,7 +36,6 @@ FG.Locales.deDE = {
     ["Left-click: the compass points at this step"] = "Linksklick: Der Kompass zeigt auf diesen Schritt",
     ["Lvl"] = "Stufe",
     ["planned"] = "geplant",
-    ["No guide for this character.\nAssign one in the Factoruide app (Characters)."] = "Kein Guide für diesen Charakter.\nWeise ihm in der Factoruide-App einen zu (Charaktere).",
     ["Route finished!"] = "Route abgeschlossen!",
     ["yd"] = "m",
     ["Previous step"] = "Vorheriger Schritt",

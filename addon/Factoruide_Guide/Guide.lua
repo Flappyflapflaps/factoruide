@@ -24,7 +24,7 @@ local L = {
     pointHint = T("Left-click: the compass points at this step"),
     level = T("Lvl"),
     planned = T("planned"),
-    noRoute = T("No guide for this character.\nAssign one in the Factoruide app (Characters)."),
+    noRoute = T("No guide chosen for this character.\nChoose one in the settings: /fg config, Guides."),
     noGuides = T("No guide yet.\nMake one in the Factoruide web app, then type /fg import."),
     done = T("Route finished!"),
     yards = T("yd"),
@@ -1175,18 +1175,48 @@ local function UseRoute(name)
     BuildGroups()
 end
 
---- The guide the app assigned to this character (Routes.lua's FG.Assignments), nil when none:
---- a character follows only the guide chosen for it in the app, never one picked in game.
-local function PickRoute()
-    local name = FG.Assignments and FG.Assignments[FG:CharacterKey()]
-    if name and FG.Routes and FG.Routes[name] then return name end
+--- The guide a character follows without having chosen one: the only guide made for its race
+--- and class; else the one an older app assigned to it (FG.Assignments); else none.
+local function AutoRoute()
+    local routes = FG.Routes or {}
+    local found
+    for name, r in pairs(routes) do
+        if FG.Import.Fits(r) then
+            if found then
+                found = nil
+                break
+            end
+            found = name
+        end
+    end
+    if found then return found end
+    local assigned = FG.Assignments and FG.Assignments[FG:CharacterKey()]
+    if assigned and routes[assigned] then return assigned end
 end
 
---- Follow the guide assigned to the character again (Routes.lua reloaded, tests).
-function Guide:FollowAssignment()
+--- The guide the character chose (kept in its state), while it is there; else the automatic one.
+local function PickRoute()
+    if state.route and FG.Routes and FG.Routes[state.route] then return state.route end
+    return AutoRoute()
+end
+
+--- Follow the guide chosen for the character again, or the automatic one when it is gone.
+function Guide:FollowChoice()
     UseRoute(PickRoute())
     self:Resync()
 end
+
+--- The character follows the guide `name` from now on (nil: back to the automatic choice).
+function Guide:Choose(name)
+    if not state then return end
+    UseRoute(name)
+    if not name then UseRoute(PickRoute()) end
+    self:Resync()
+    if FG.SettingsWindow and FG.SettingsWindow.RefreshGuides then FG.SettingsWindow:RefreshGuides() end
+end
+
+--- The name of the guide followed, nil when none.
+function Guide:RouteName() return route and state.route end
 
 FG:On("PLAYER_LOGIN", function()
     local char = FactoruideDB.characters[FG:CharacterKey()]
@@ -1443,8 +1473,8 @@ function Guide:Command(cmd, arg)
     elseif cmd == "config" or cmd == "settings" or cmd == "options" then
         FG:OpenSettings()
     elseif cmd == "route" then
-        -- Shown only: the guide is assigned to the character in the app.
-        FG:Print("guide: %s (assigned in the Factoruide app, Characters)", tostring(state.route))
+        -- Shown only: the guide is chosen in the settings window.
+        FG:Print(T("guide: %s (chosen in /fg config, Guides)"), tostring(state.route))
     else
         return false
     end

@@ -4,7 +4,7 @@ use super::phrase::Arg;
 use super::types::{Route, Step, TargetKind};
 use std::fmt::Write as _;
 
-fn lua_str(s: &str) -> String {
+pub fn lua_str(s: &str) -> String {
     format!("{s:?}")
 }
 

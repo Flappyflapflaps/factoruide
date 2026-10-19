@@ -1,6 +1,6 @@
 -- The settings window (`/fg config`, the guide's settings button, the game's options: AddOns,
--- Factoruide): every setting of the schema (SettingsSchema.lua) in its group and section, and the
--- addon's language. A change is saved (FG:Save) and applied at once; the few that need a /reload
+-- Factoruide): the guides (which one the character follows, imports), every setting of the
+-- schema (SettingsSchema.lua) in its group and section, and the addon's language. A change is saved (FG:Save) and applied at once; the few that need a /reload
 -- say so. Mouse over a row: its help; right click: back to its default.
 
 local FG = Factoruide
@@ -269,6 +269,158 @@ local function Page(title, sections)
     return page
 end
 
+-- The guides page: the guides in use (imported, or written by the desktop app), the one this
+-- character follows, a button to follow another, to delete an imported one, to import more.
+
+local GUIDE_ROW = 46
+local guidesPage
+local CONFIRM_SECONDS = 4
+
+--- "Race Class" of a guide (the game's names, the class in its color), its numbers when unknown.
+local function RaceClass(r)
+    local race = C_CreatureInfo and C_CreatureInfo.GetRaceInfo and r.race and C_CreatureInfo.GetRaceInfo(r.race)
+    local class = C_CreatureInfo and C_CreatureInfo.GetClassInfo and r.class and C_CreatureInfo.GetClassInfo(r.class)
+    local raceName = race and race.raceName
+    local className, classFile = class and class.className, class and class.classFile
+    -- Without C_CreatureInfo: the character's own names when they are its race and class.
+    local myRaceName, _, myRace = UnitRace("player")
+    local myClassName, myClassFile, myClass = UnitClass("player")
+    if not raceName and r.race == FG.Readable(myRace) then raceName = myRaceName end
+    if not className and r.class == FG.Readable(myClass) then
+        className, classFile = myClassName, myClassFile
+    end
+    raceName = raceName or (r.race and "#" .. tostring(r.race)) or "?"
+    className = className or (r.class and "#" .. tostring(r.class)) or "?"
+    local color = classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
+    if color and color.r then
+        className = string.format("|cff%02x%02x%02x%s|r", color.r * 255, color.g * 255, color.b * 255, className)
+    end
+    return raceName .. " " .. className
+end
+
+--- The line under a guide's name: who it is for, its levels, when it was computed, where from.
+local function GuideDetails(guide)
+    local r = guide.route
+    local parts = { RaceClass(r) }
+    if r.fromLevel and r.toLevel then parts[#parts + 1] = string.format(T("levels %d-%d"), r.fromLevel, r.toLevel) end
+    if guide.created and guide.created > 0 and date then
+        parts[#parts + 1] = string.format(T("computed on %s"), date("%Y-%m-%d", guide.created))
+    end
+    if guide.version then parts[#parts + 1] = "v" .. tostring(guide.version) end
+    parts[#parts + 1] = guide.source == "import" and T("imported") or T("from the app (managed by the app)")
+    return table.concat(parts, "  ·  ")
+end
+
+--- A guide's row: name, details, Follow and Delete (asks again before deleting).
+local function GuideRow(parent, width)
+    local row = CreateFrame("Frame", nil, parent)
+    row:SetSize(width, GUIDE_ROW)
+    row.lit = Skin:Fill(row, "BACKGROUND", "blue", 0.12)
+    row.lit:SetAllPoints()
+    row.name = Skin:Text(row, 13, "text")
+    row.name:SetPoint("TOPLEFT", 8, -7)
+    row.name:SetPoint("RIGHT", -170, 0)
+    row.details = Skin:Text(row, 10, "text2")
+    row.details:SetPoint("TOPLEFT", 8, -26)
+    row.details:SetPoint("RIGHT", -170, 0)
+    row.follow = SmallButton(row, T("Follow"), 84)
+    row.follow:SetPoint("RIGHT", -86, 0)
+    row.follow.on = Skin:Fill(row.follow, "BORDER", "blue", 0.5)
+    row.follow.on:SetAllPoints()
+    row.follow:SetScript("OnClick", function()
+        if row.guide and FG.Guide then FG.Guide:Choose(row.guide.name) end
+    end)
+    row.delete = SmallButton(row, T("Delete"), 74)
+    row.delete:SetPoint("RIGHT", -8, 0)
+    row.delete:SetScript("OnClick", function(self)
+        local name = row.guide and row.guide.name
+        if not name then return end
+        if self.armed ~= name then
+            -- First click: asks; a second one within a few seconds deletes.
+            self.armed = name
+            self.label:SetText(T("Sure?"))
+            C_Timer.After(CONFIRM_SECONDS, function()
+                if self.armed == name then
+                    self.armed = false
+                    self.label:SetText(T("Delete"))
+                end
+            end)
+            return
+        end
+        self.armed = false
+        self.label:SetText(T("Delete"))
+        FG.Import:Delete(name)
+        FG:Print(T("guide %s deleted"), name)
+    end)
+    return row
+end
+
+--- Lay the guides page out again (guides added, deleted, followed).
+local function LayoutGuides()
+    local page = guidesPage
+    if not page then return end
+    local list = FG.Import and FG.Import:List() or {}
+    local followed = FG.Guide and FG.Guide.RouteName and FG.Guide:RouteName()
+    local y = 40
+    for i, guide in ipairs(list) do
+        local row = page.guideRows[i] or GuideRow(page, page:GetWidth())
+        page.guideRows[i] = row
+        row.guide = guide
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, -y)
+        local isFollowed = guide.name == followed
+        row.name:SetText(
+            guide.name .. (guide.fits and "" or "  " .. Skin.Hex("dim") .. T("(another character)") .. "|r")
+        )
+        row.details:SetText(GuideDetails(guide))
+        row.lit:SetShown(isFollowed)
+        row.follow.on:SetShown(isFollowed)
+        row.follow.label:SetText(isFollowed and T("Followed") or T("Follow"))
+        row.delete:SetShown(guide.source == "import")
+        if row.delete.armed ~= guide.name then
+            row.delete.armed = false
+            row.delete.label:SetText(T("Delete"))
+        end
+        row:Show()
+        y = y + GUIDE_ROW + 4
+    end
+    for i = #list + 1, #page.guideRows do
+        page.guideRows[i].guide = false
+        page.guideRows[i]:Hide()
+    end
+    page.empty:SetShown(#list == 0)
+    if #list == 0 then y = y + 40 end
+    page:SetHeight(y)
+    page.height = y
+end
+
+--- The guides page (no setting rows).
+local function GuidesPage()
+    local page = CreateFrame("Frame", nil, scroll)
+    local width = WIDTH - NAV - 34
+    page:SetWidth(width)
+    page.title, page.rows, page.guideRows = "Guides", {}, {}
+    page.import = SmallButton(page, T("Import a guide…"))
+    page.import:SetWidth((tonumber(page.import.label:GetStringWidth()) or 100) + 20)
+    page.import:SetPoint("TOPRIGHT", -8, -8)
+    page.import:SetScript("OnClick", function()
+        if FG.Import then FG.Import:Open() end
+    end)
+    page.head = Skin:Text(page, 11, "text2")
+    page.head:SetPoint("TOPLEFT", 8, -12)
+    page.head:SetPoint("RIGHT", page.import, "LEFT", -8, 0)
+    page.head:SetText(T("The guide this character follows: click Follow."))
+    page.empty = Skin:Text(page, 12, "text2")
+    page.empty:SetWordWrap(true)
+    page.empty:SetPoint("TOPLEFT", 8, -48)
+    page.empty:SetPoint("RIGHT", -8, 0)
+    page.empty:SetText(T("No guide yet: import one with the button above, or send it from the Factoruide desktop app."))
+    page:Hide()
+    guidesPage = page
+    LayoutGuides()
+    return page
+end
+
 local function UpdateThumb()
     if not current then return end
     local range = math.max(0, current.height - VIEW)
@@ -340,14 +492,14 @@ local function Create()
     thumb = Skin:Fill(frame, "OVERLAY", "edge", 1)
     thumb:SetWidth(4)
 
-    -- The groups, then the language.
-    local groups = {}
+    -- The guides, the groups, then the language.
+    local groups = { { title = "Guides", page = GuidesPage } }
     for _, group in ipairs(FG.SettingsSchema or {}) do
         groups[#groups + 1] = group
     end
     groups[#groups + 1] = { title = "Language", sections = { { options = { LANGUAGE } } } }
     for i, group in ipairs(groups) do
-        pages[i] = Page(group.title, group.sections)
+        pages[i] = group.page and group.page() or Page(group.title, group.sections)
         local tab = CreateFrame("Button", nil, frame)
         tab:SetSize(NAV - 16, 26)
         tab:SetPoint("TOPLEFT", 8, -TOP - (i - 1) * 28)
@@ -376,6 +528,7 @@ end
 --- Bring every row to its setting's value.
 function SettingsWindow:Refresh()
     if not frame then return end
+    LayoutGuides()
     for _, page in ipairs(pages) do
         for _, row in ipairs(page.rows) do
             UpdateRow(row)
@@ -390,6 +543,27 @@ function SettingsWindow:Open()
     self:Refresh()
     frame:Show()
 end
+
+function SettingsWindow:Close()
+    if frame then frame:Hide() end
+end
+
+--- Bring the guides page to the guides in use and the one followed.
+function SettingsWindow:RefreshGuides()
+    LayoutGuides()
+    if current == guidesPage then UpdateThumb() end
+end
+
+--- Open the window on its guides page.
+function SettingsWindow:OpenGuides()
+    self:Open()
+    for i, page in ipairs(pages) do
+        if page == guidesPage then self:Show(i) end
+    end
+end
+
+--- The guides page's rows (`.guide`, `.follow`, `.delete`), nil before the first use (tests).
+function SettingsWindow:GuideRows() return guidesPage and guidesPage.guideRows end
 
 function SettingsWindow:Toggle()
     if frame and frame:IsShown() then return frame:Hide() end

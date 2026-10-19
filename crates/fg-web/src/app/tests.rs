@@ -94,31 +94,25 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
         1
     );
 
-    // Followed by the character: the text for the game holds its guide and who follows it.
-    assert_eq!(call("addon_synced", &serde_json::json!({})).unwrap(), false);
-    assert_eq!(
-        call(
-            "assign_guide",
-            &serde_json::json!({ "character": "Brouz-Realm", "guide": guide })
-        )
-        .unwrap(),
-        1
-    );
-    assert_eq!(call("addon_synced", &serde_json::json!({})).unwrap(), true);
-    let export = call("addon_export", &serde_json::json!({})).unwrap();
+    // Its text for the game: the guide, when it was computed and its version, the places.
+    let export = call("guide_text", &serde_json::json!({ "guide": guide, "version": 1 })).unwrap();
     let lua =
         String::from_utf8(fgstring::decode(fgstring::GUIDE_PREFIX, export["text"].as_str().unwrap()).unwrap()).unwrap();
-    assert!(lua.contains("FG.Routes[\"Brouz web\"]"), "the guide");
-    assert!(lua.contains("[\"Brouz-Realm\"] = \"Brouz web\""), "who follows it");
+    assert!(lua.contains("FG.Routes[\"Brouz web\"] = {"), "the guide");
+    assert!(
+        lua.contains(&format!("FG.Routes[\"Brouz web\"].created = {}", meta["created"])),
+        "when it was computed"
+    );
+    assert!(lua.contains("FG.Routes[\"Brouz web\"].version = 1"), "its version");
     assert!(lua.contains("FG.Services"), "the places");
-    // The same as the data addon, zipped.
+    assert!(
+        !lua.contains("FG.Assignments") && !lua.contains("FG.Config") && !lua.contains("FactoruideSent"),
+        "no assignment, no settings, no sends"
+    );
+    // Every guide, as the data addon, zipped.
     let zip = call("data_zip", &serde_json::json!({})).unwrap();
     assert_eq!(zip["file"], "Factoruide_Data.zip");
     assert!(zip["base64"].as_str().unwrap().len() > 1000);
-    assert!(
-        !lua.contains("FG.Config") && !lua.contains("FactoruideSent"),
-        "no settings, no sends"
-    );
 
     // Watched, edited by hand, compared: the calls of the guide's page.
     let timeline = call(
@@ -194,12 +188,8 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
         2
     );
 
-    // Deleted: its character follows nothing, the text for the game has no guide.
+    // Deleted: nothing left to send.
     call("delete_guide", &serde_json::json!({ "guide": guide })).unwrap();
-    assert_eq!(
-        call("list_assignments", &serde_json::json!({})).unwrap(),
-        serde_json::json!({})
-    );
-    assert_eq!(call("addon_export", &serde_json::json!({})).unwrap()["guides"], 0);
+    assert_eq!(call("data_zip", &serde_json::json!({})).unwrap_err(), "no guide yet");
     let _ = REPLIES.lock().unwrap().drain(..);
 }

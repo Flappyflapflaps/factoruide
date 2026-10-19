@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
-import { IS_WEB } from "../web/mode";
-import { api, fmtTime, type GuideSummary, type GuideVersion, type Options, type Timeline, type VersionMeta } from "../api";
+import { api, fmtTime, type Edition, type GuideSummary, type GuideVersion, type Options, type Timeline, type VersionMeta } from "../api";
 import { Character } from "./Character";
 import { EditBar, useEditedView, useUndoKeys } from "./EditMode";
 import { GuideViewer } from "./GuideViewer";
@@ -12,9 +10,12 @@ import { StepTable } from "./StepTable";
 import { gameLocale, useDate, useLang, useT } from "../i18n";
 import { Icon } from "./Icons";
 import { IssueForm } from "./IssueForm";
+import { ExportMenu } from "./ExportMenu";
 
 interface Props {
   version: GuideVersion;
+  /** The game version the app works on (Polestar exists on WoW Forever only). */
+  edition: Edition | null;
   /** Compute the same configuration again (new data, new algorithm): a new version. */
   onRerun: (version: GuideVersion) => void;
   /** Start a new configuration from this one. */
@@ -51,7 +52,7 @@ export function Delta({ seconds }: { seconds: number }) {
 }
 
 /** A guide version: watched on its map (steps, character, time), its figures and versions, and what to do with it. */
-export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsaved, onOpenVersion, onCompare, options, editing }: Props) {
+export function ResultView({ version, edition, onRerun, onEdit, onClone, onSaved, onUnsaved, onOpenVersion, onCompare, options, editing }: Props) {
   const t = useT();
   const date = useDate();
   const lang = useLang();
@@ -130,14 +131,6 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
 
   // The guide and its versions, read again after each action.
   useEffect(() => fetchGuide(meta.guide, setGuide), [meta.guide]);
-  // Polestar exists on WoW Forever only.
-  const [forever, setForever] = useState(false);
-  useEffect(() => {
-    api
-      .getSettings()
-      .then((s) => setForever(s.edition === "forever"))
-      .catch(() => setForever(false));
-  }, []);
   const loadGuide = () => fetchGuide(meta.guide, setGuide);
 
   const act = async (action: () => Promise<string | void>) => {
@@ -151,11 +144,11 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
       setError(String(e));
     }
   };
-  // The version the guide's characters follow (the latest unless one is chosen).
+  // The version the global export sends to the game (the latest unless one is chosen).
   const follow = (n: number) =>
     act(async () => {
-      const count = await api.setInstalled(meta.guide, n);
-      return IS_WEB ? t("Guides pour l'addon : {n} — page Personnages, « Envoyer au jeu », puis /fg import en jeu", { n: count }) : t("Guides dans l'addon : {n} — faites /reload en jeu", { n: count });
+      await api.setInstalled(meta.guide, n);
+      return t("La version {n} est celle de l'export global.", { n });
     });
 
   const versions = guide?.versions ?? [];
@@ -168,7 +161,7 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
         <div className="rh-title">
           <h2>
             {route.name} <span className="version-tag">v{meta.version}</span>
-            {installed && versions.length > 1 && <span className="tag installed">{t("suivie")}</span>}
+            {installed && versions.length > 1 && <span className="tag installed" title={t("Version envoyée au jeu par l'export global")}>{t("exportée")}</span>}
           </h2>
           <div className="muted result-meta">
             <Character race={version.request.race} klass={version.request.class} group={version.request.group} options={options} /> ·{" "}
@@ -180,9 +173,19 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
           </div>
         </div>
         <div className="actions compact">
+          <ExportMenu
+            guide={meta.guide}
+            version={meta.version}
+            edition={edition}
+            prominent
+            onDone={(r) => {
+              setError(r.error ?? null);
+              setMessage(r.message || null);
+            }}
+          />
           {!installed && (
-            <button className="primary" onClick={() => follow(meta.version)} title={t("Les personnages de ce guide suivront cette version en jeu.")}>
-              {t("Suivre cette version")}
+            <button onClick={() => follow(meta.version)} title={t("L'export global enverra cette version au jeu (sinon la plus récente).")}>
+              {t("Utiliser cette version")}
             </button>
           )}
           <button className="icon-only" onClick={() => onRerun(version)} title={`${t("Relancer le calcul")} : ${t("Même configuration, données et algorithme actuels : nouvelle version")}`} aria-label={t("Relancer le calcul")}>
@@ -203,33 +206,6 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
           {onClone && (
             <button className="icon-only" onClick={() => onClone(version)} title={`${t("Cloner")} : ${t("Nouveau guide à partir de la même configuration")}`} aria-label={t("Cloner")}>
               <Icon name="clone" />
-            </button>
-          )}
-          <button
-            className="icon-only"
-            onClick={() => act(async () => t("Fichier à partager enregistré : {path}", { path: await api.exportVersion(meta.guide, meta.version) }))}
-            title={`${t("Partager")} : ${t("Enregistre un fichier .fgguide (configuration et guide) à envoyer aux autres joueurs")}`}
-            aria-label={t("Partager")}
-          >
-            <Icon name="share" />
-          </button>
-          {forever && (
-            <button
-              className="icon-only"
-              onClick={() =>
-                act(async () => {
-                  const dir = await open({ directory: true, title: t("Dossier où exporter le pack Polestar") });
-                  if (typeof dir !== "string") return;
-                  const path = await api.exportPolestar(meta.guide, meta.version, dir);
-                  return IS_WEB
-                    ? t("Pack Polestar téléchargé ({path}) : décompressez-le et ouvrez son dossier dans Planner ou Play de Polestar.", { path })
-                    : t("Guide exporté pour Polestar dans {path} : ouvrez ce dossier dans Planner ou Play de Polestar.", { path });
-                })
-              }
-              title={`${t("Exporter pour Polestar…")} : ${t("Écrit le guide au format .guide de Polestar (en anglais) dans un dossier de pack, à ouvrir dans ses outils Planner et Play")}`}
-              aria-label={t("Exporter pour Polestar…")}
-            >
-              <Icon name="polestar" />
             </button>
           )}
           <button
@@ -347,7 +323,7 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
                           ) : (
                             <strong>v{v.version}</strong>
                           )}
-                          {followed === v.version && <span className="tag installed">{t("suivie")}</span>}
+                          {followed === v.version && <span className="tag installed" title={t("Version envoyée au jeu par l'export global")}>{t("exportée")}</span>}
                           {v.imported && <span className="tag">{t("importé")}</span>}
                           {v.edited && <span className="tag">{t("modifiée")}</span>}
                         </td>
@@ -365,8 +341,8 @@ export function ResultView({ version, onRerun, onEdit, onClone, onSaved, onUnsav
                             </button>
                           )}
                           {followed !== v.version && (
-                            <button className="link" onClick={() => follow(v.version)}>
-                              {t("Suivre")}
+                            <button className="link" onClick={() => follow(v.version)} title={t("L'export global enverra cette version au jeu (sinon la plus récente).")}>
+                              {t("Utiliser")}
                             </button>
                           )}
                           {v.version !== meta.version && (

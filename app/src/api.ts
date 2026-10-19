@@ -18,12 +18,6 @@ function saved(result: string | WebFile): string {
   return result.file;
 }
 
-/** Web build: the text the player pastes in game with /fg import (the guides their characters follow). */
-export interface AddonExport {
-  text: string;
-  guides: number;
-}
-
 /** A character's export (/fg export) pasted in the web app. */
 export interface ProfileImported {
   character: string;
@@ -501,8 +495,8 @@ export const api = {
   getVersion: (guide: string, version: number, locale: string) => invoke<GuideVersion>("get_version", { guide, version, locale }),
   /** Versions `a` and `b` of a guide compared, written in `locale` (game locale). */
   compareVersions: (guide: string, a: number, b: number, locale: string) => invoke<Comparison>("compare_versions", { guide, a, b, locale }),
-  /** Installs this version of the guide in the addon (`null`: removes the guide from it). */
-  setInstalled: (guide: string, version: number | null) => invoke<number>("set_installed", { guide, version }),
+  /** The version of the guide the global export sends to the game (`null`: the latest). */
+  setInstalled: (guide: string, version: number | null) => invoke<void>("set_installed", { guide, version }),
   deleteVersion: (guide: string, version: number) => invoke<void>("delete_version", { guide, version }),
   deleteGuide: (guide: string) => invoke<void>("delete_guide", { guide }),
   /** Writes the version as a .fgguide file in Downloads; returns its path. */
@@ -512,10 +506,6 @@ export const api = {
   mapIndex: () => invoke<MapInfo[]>("map_index"),
   /** Characters the addon recorded in the game client of the current game version, most recently played first. */
   listCharacters: () => invoke<CharacterInfo[]>("list_characters"),
-  /** Which guide each character follows ("Name-Realm" -> guide id). */
-  listAssignments: () => invoke<Record<string, string>>("list_assignments"),
-  /** Make a character follow a guide (null: none) and write the addon; returns its number of guides. */
-  assignGuide: (character: string, guide: string | null) => invoke<number>("assign_guide", { character, guide }).then((n) => (settingsChanged(), n)),
   /** Take a character out of the list (deleted in game; back if played again): it no longer follows a guide. */
   forgetCharacter: (character: string) => invoke<void>("forget_character", { character }),
   /** A map image (WebP), as an object URL. */
@@ -530,8 +520,7 @@ export const api = {
       URL.createObjectURL(new Blob([bytes], { type: "image/webp" })),
     ),
   exportRequest: (request: PlanRequest) => invoke<string | WebFile>("export_request", { request }).then(saved),
-  /** Copies the addon into the game with the installed guides. */
-  /** Returns the number of guides installed. */
+  /** Desktop: writes every guide into the game (the data addon Factoruide_Data); returns their number. */
   installAddon: () => invoke<number>("install_addon").then((n) => (settingsChanged(), n)),
   /** Whether Polestar is installed in WoW Forever. */
   polestarInstalled: () => invoke<boolean>("polestar_installed"),
@@ -581,12 +570,15 @@ export const api = {
   guideTimeline: (guide: string, version: number, locale: string) => invoke<Timeline>("guide_timeline", { guide, version, locale }),
   /** Web build: keeps a character's export (the text of /fg export). */
   importProfile: (content: string) => invoke<ProfileImported>("import_profile", { content }).then((r) => (settingsChanged(), r)),
-  /** Web build: what to take to the game (made again when the guides or the settings changed). */
-  addonExport: () => invoke<AddonExport>("addon_export").then((r) => (settingsChanged(), r)),
-  /** Web build: downloads the guides followed as the data addon (Factoruide_Data, as the desktop app writes it) in a zip; returns its name. */
+  /** The text to paste in game with /fg import: this guide version (the addon adds it to its guides, or replaces the one of its name). */
+  guideText: (guide: string, version: number) =>
+    invoke<string | { text: string }>("guide_text", { guide, version }).then((r) => (typeof r === "string" ? r : r.text)),
+  /** Web build: downloads every guide as the data addon (Factoruide_Data, as the desktop app writes it) in a zip; returns its name. */
   dataZip: () => invoke<WebFile>("data_zip").then(saved),
-  /** Web build, WoW Forever: downloads the guides followed as a Polestar guide pack (a zip of its addon folder); returns its name. */
+  /** Web build, WoW Forever: downloads every guide as a Polestar guide pack (a zip of its addon folder); returns its name. */
   polestarPack: () => invoke<WebFile>("polestar_pack").then(saved),
+  /** Desktop, WoW Forever: writes every guide into the game as a Polestar guide pack; returns their number. */
+  installPolestar: () => invoke<number>("install_polestar").then((n) => (settingsChanged(), n)),
   onPlanProgress: (fn: (m: string) => void): Promise<UnlistenFn> =>
     listen<string>("plan-progress", (e) => fn(e.payload)),
 };

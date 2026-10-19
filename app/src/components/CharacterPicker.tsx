@@ -1,6 +1,9 @@
 import type { CharacterInfo, StartState } from "../api";
 import { useDate, useGameName, useT } from "../i18n";
 import { Hint } from "./Hint";
+import { IS_WEB } from "../web/mode";
+import { ProfilePaste } from "../web/components/ProfilePaste";
+import { useState } from "react";
 
 interface Props {
   /** Characters the addon recorded (null while loading). */
@@ -8,16 +11,20 @@ interface Props {
   /** The character the guide starts from (null: a new character). */
   start: StartState | null;
   onPick: (character: CharacterInfo | null) => void;
+  /** Web build: a character's export was pasted (its "Name-Realm"). */
+  onImported?: (name: string) => void;
 }
 
 /** Start the guide from a character recorded in game (`/fg profile`, or at each logout): its
  * level, quests done and in the log, position, hearthstone and flight paths. */
-export function CharacterPicker({ characters, start, onPick }: Props) {
+export function CharacterPicker({ characters, start, onPick, onImported }: Props) {
   const t = useT();
   const date = useDate();
   const gameName = useGameName();
   const latest = start ? characters?.find((c) => c.profile.name === start.name) : undefined;
   const pick = (name: string) => onPick(characters?.find((c) => c.profile.name === name) ?? null);
+  // Web build: the export of a character, pasted here.
+  const [pasting, setPasting] = useState(false);
   const xpShare = start && start.xp_max > 0 ? Math.floor((100 * start.xp) / start.xp_max) : 0;
 
   return (
@@ -43,6 +50,20 @@ export function CharacterPicker({ characters, start, onPick }: Props) {
           </option>
         ))}
       </select>
+      {IS_WEB && !pasting && (
+        <button className="link" onClick={() => setPasting(true)}>
+          {t("Coller l'export d'un personnage (/fg export)…")}
+        </button>
+      )}
+      {IS_WEB && pasting && (
+        <ProfilePaste
+          compact
+          onImported={(name) => {
+            setPasting(false);
+            onImported?.(name);
+          }}
+        />
+      )}
       {start && (
         <div className="character-summary">
           <span>{t("Niveau {level} ({pct} %)", { level: start.level, pct: xpShare })}</span>

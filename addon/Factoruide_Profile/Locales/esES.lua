@@ -36,7 +36,6 @@ FG.Locales.esES = {
     ["Left-click: the compass points at this step"] = "Clic izquierdo: la brújula apunta a este paso",
     ["Lvl"] = "Niv.",
     ["planned"] = "previsto",
-    ["No guide for this character.\nAssign one in the Factoruide app (Characters)."] = "Ninguna guía para este personaje.\nAsígnale una en la aplicación Factoruide (Personajes).",
     ["Route finished!"] = "¡Ruta terminada!",
     ["yd"] = "m",
     ["Previous step"] = "Paso anterior",

@@ -506,12 +506,11 @@ fn loaded_files(addons: &Path) -> BTreeMap<String, Vec<String>> {
 // Guides ---------------------------------------------------------------------------
 //
 // A guide is a name and its versions: every computation (first one, or computed again with the
-// same name) adds a version. A character follows 0 or 1 guide, assigned in the app only (never
-// in game); a guide can serve several characters. The addon gets the guides assigned to a
-// character, each in its chosen version (the latest by default), and who follows which.
+// same name) adds a version. The guides go to the game all together (the data addon) or one by
+// one (the text of `/fg import`), each in the version its page says to follow; the player picks
+// a character's guide in game.
 //
-//   guides/characters.json            "Name-Realm" -> guide (slug)
-//   guides/<slug>/guide.json          name, version the characters follow
+//   guides/<slug>/guide.json          name, version to follow
 //   guides/<slug>/v<N>/meta.json      summary of the version
 //   guides/<slug>/v<N>/request.json   configuration
 //   guides/<slug>/v<N>/outcome.json   computed guide
@@ -711,68 +710,25 @@ impl AppState {
         Ok(meta)
     }
 
-    /// Which guide each character follows ("Name-Realm" -> guide).
-    fn assignments(&self) -> BTreeMap<String, String> {
-        let path = self.guides().join("characters.json");
-        match std::fs::read_to_string(&path) {
-            Ok(text) => serde_json::from_str(&text).unwrap_or_default(),
-            Err(_) => self.first_assignments(),
-        }
-    }
-
-    /// Before characters followed a guide, guides were installed in the addon: a guide installed
-    /// and computed from a character now goes to that character (the most recent one first).
-    fn first_assignments(&self) -> BTreeMap<String, String> {
-        let mut out = BTreeMap::new();
-        let mut guides: Vec<(u64, String, String)> = std::fs::read_dir(self.guides())
-            .into_iter()
-            .flatten()
-            .flatten()
-            .filter_map(|e| {
-                let id = e.file_name().to_string_lossy().into_owned();
-                let version = self.guide_info(&id).ok()?.installed?;
-                let meta = self.versions(&id).into_iter().find(|m| m.version == version)?;
-                Some((meta.created, meta.character?, id))
-            })
-            .collect();
-        guides.sort();
-        for (_, character, id) in guides.into_iter().rev() {
-            out.entry(character).or_insert(id);
-        }
-        out
-    }
-
-    fn write_assignments(&self, assignments: &BTreeMap<String, String>) -> CmdResult<()> {
-        std::fs::create_dir_all(self.guides()).map_err(err)?;
-        std::fs::write(
-            self.guides().join("characters.json"),
-            serde_json::to_string_pretty(assignments).map_err(err)?,
-        )
-        .map_err(err)
-    }
-
     /// The version of a guide its characters follow: the one chosen, else the latest.
     fn followed_version(&self, id: &str) -> Option<u32> {
         let chosen = self.guide_info(id).ok()?.installed;
         chosen.or_else(|| self.versions(id).first().map(|v| v.version))
     }
 
-    /// The guides assigned to a character, in the version they follow, by guide.
-    fn assigned_routes(&self) -> BTreeMap<String, Route> {
-        let mut routes = BTreeMap::new();
-        for id in self.assignments().into_values() {
-            if routes.contains_key(&id) {
-                continue;
-            }
-            if let Some(route) = self
-                .followed_version(&id)
-                .and_then(|v| self.version(&id, v).ok())
-                .map(|v| v.outcome.route)
-            {
-                routes.insert(id, route);
-            }
+    /// Every guide in the version its page says to follow (the latest unless one is chosen),
+    /// written in the language it was made in, with when that version was computed and its
+    /// number.
+    fn followed_guides(&self) -> CmdResult<Vec<(Route, u64, u32)>> {
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(self.guides()).into_iter().flatten().flatten() {
+            let id = entry.file_name().to_string_lossy().into_owned();
+            let Some(n) = self.followed_version(&id) else { continue };
+            let Ok(v) = self.version(&id, n) else { continue };
+            out.push((self.render(&v.outcome.route, None)?, v.meta.created, n));
         }
-        routes
+        out.sort_by(|a, b| a.0.name.cmp(&b.0.name));
+        Ok(out)
     }
 }
 
@@ -1162,7 +1118,7 @@ fn get_version(
     clippy::needless_pass_by_value,
     reason = "tauri commands take their arguments by value"
 )]
-fn set_installed(state: State<'_, AppState>, guide: String, version: Option<u32>) -> CmdResult<usize> {
+fn set_installed(state: State<'_, AppState>, guide: String, version: Option<u32>) -> CmdResult<()> {
     let info = state.guide_info(&guide)?;
     state.write_guide_info(
         &guide,
@@ -1170,8 +1126,7 @@ fn set_installed(state: State<'_, AppState>, guide: String, version: Option<u32>
             installed: version,
             ..info
         },
-    )?;
-    install_addon(state)
+    )
 }
 
 #[tauri::command(async)]
@@ -1190,10 +1145,6 @@ fn delete_version(state: State<'_, AppState>, guide: String, version: u32) -> Cm
                 },
             )?;
         }
-        // Its characters may have followed the version deleted.
-        if state.assignments().values().any(|g| *g == guide) {
-            install_addon(state)?;
-        }
         Ok(())
     }
 }
@@ -1204,44 +1155,7 @@ fn delete_version(state: State<'_, AppState>, guide: String, version: u32) -> Cm
     reason = "tauri commands take their arguments by value"
 )]
 fn delete_guide(state: State<'_, AppState>, guide: String) -> CmdResult<()> {
-    std::fs::remove_dir_all(state.guides().join(&guide)).map_err(err)?;
-    // Its characters follow no guide any more.
-    let mut assignments = state.assignments();
-    let before = assignments.len();
-    assignments.retain(|_, g| *g != guide);
-    if assignments.len() != before {
-        state.write_assignments(&assignments)?;
-        install_addon(state)?;
-    }
-    Ok(())
-}
-
-/// Which guide each character follows ("Name-Realm" -> guide).
-#[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
-fn list_assignments(state: State<'_, AppState>) -> BTreeMap<String, String> {
-    state.assignments()
-}
-
-/// Make a character follow a guide (`None`: no guide), then write the addon. Returns the number
-/// of guides in the addon.
-#[tauri::command(async)]
-fn assign_guide(state: State<'_, AppState>, character: String, guide: Option<String>) -> CmdResult<usize> {
-    let mut assignments = state.assignments();
-    match guide {
-        Some(guide) => {
-            state.guide_info(&guide)?;
-            assignments.insert(character, guide);
-        }
-        None => {
-            assignments.remove(&character);
-        }
-    }
-    state.write_assignments(&assignments)?;
-    install_addon(state)
+    std::fs::remove_dir_all(state.guides().join(&guide)).map_err(err)
 }
 
 use job::DATA_ADDON;
@@ -1288,33 +1202,15 @@ fn write_data(state: &AppState) -> CmdResult<usize> {
     let addons = settings.addons_dir(settings.edition);
     let before = loaded_files(&addons);
     migrate_legacy_addon(&addons);
-    let assigned = state.assigned_routes();
-    let mut routes = assigned
-        .values()
-        .map(|r| state.render(r, None))
-        .collect::<CmdResult<Vec<_>>>()?;
-    routes.sort_by(|a, b| a.name.cmp(&b.name));
-    let locale = routes
-        .first()
-        .and_then(|r| r.locale.clone())
-        .unwrap_or_else(|| "enUS".into());
-    let services = job::addon_walks(
+    let guides = state.followed_guides()?;
+    let count = guides.len();
+    let mut lua = job::guides_lua(
         &state.open_db()?,
         &overrides(settings.edition)?,
         settings.edition,
-        &mut routes,
-        &*state.names(&locale)?,
+        guides,
     )
     .map_err(err)?;
-    let mut lua = fg_route::export::to_lua(&routes);
-    lua.push_str("\n-- Which guide each character follows (assigned in the app).\nFG.Assignments = {\n");
-    for (character, guide) in state.assignments() {
-        if let Some(route) = assigned.get(&guide) {
-            let _ = writeln!(lua, "  [{}] = {},", lua_string(&character), lua_string(&route.name));
-        }
-    }
-    lua.push_str("}\n");
-    lua.push_str(&services);
     lua.push('\n');
     let sent = read_send_record(&send_record_file(&state.data_dir, settings.edition)).unwrap_or_default();
     lua.push_str(&sent_lua(&sent.state));
@@ -1331,20 +1227,6 @@ fn write_data(state: &AppState) -> CmdResult<usize> {
         now()?,
     )
     .map_err(err)?;
-    // Polestar picks each character's guide by its race, class and level.
-    if settings.edition == Edition::Forever && polestar_installed_in(&settings) {
-        let guides = assigned
-            .iter()
-            .map(|(id, r)| Ok((id.clone(), state.render(r, None)?)))
-            .collect::<CmdResult<Vec<_>>>()?;
-        let pack = addons.join(fg_route::export::polestar::ADDON);
-        let files = fg_route::export::polestar::pack(&guides, env!("CARGO_PKG_VERSION"));
-        let _ = std::fs::remove_dir_all(&pack);
-        std::fs::create_dir_all(&pack).map_err(err)?;
-        for (name, content) in files {
-            std::fs::write(pack.join(name), content).map_err(err)?;
-        }
-    }
     // A folder or a file the game does not load yet: it reads the .toc files when it starts.
     let after = loaded_files(&addons);
     let restart = after.iter().any(|(toc, files)| before.get(toc) != Some(files));
@@ -1356,7 +1238,62 @@ fn write_data(state: &AppState) -> CmdResult<usize> {
             ..settings
         },
     )?;
-    Ok(routes.len())
+    Ok(count)
+}
+
+/// WoW Forever: every guide (see `followed_guides`) as a guide pack for Polestar, written into
+/// the game (Polestar picks each character's guide by its race, class and level). Returns the
+/// number of guides.
+#[tauri::command(async)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn install_polestar(state: State<'_, AppState>) -> CmdResult<usize> {
+    let settings = state.settings();
+    if settings.edition != Edition::Forever {
+        return Err("Polestar is for WoW Forever only".into());
+    }
+    let guides = state
+        .followed_guides()?
+        .into_iter()
+        .map(|(route, _, _)| (job::slug(&route.name), route))
+        .collect::<Vec<_>>();
+    let pack = settings
+        .addons_dir(Edition::Forever)
+        .join(fg_route::export::polestar::ADDON);
+    let files = fg_route::export::polestar::pack(&guides, env!("CARGO_PKG_VERSION"));
+    let _ = std::fs::remove_dir_all(&pack);
+    std::fs::create_dir_all(&pack).map_err(err)?;
+    for (name, content) in files {
+        std::fs::write(pack.join(name), content).map_err(err)?;
+    }
+    *state.restart_needed.lock().unwrap() = true;
+    Ok(guides.len())
+}
+
+/// What the player pastes in game with `/fg import`: one guide version (the addon adds it to
+/// the guides it has, or replaces the one of its name).
+#[tauri::command(async)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn guide_text(state: State<'_, AppState>, guide: String, version: u32) -> CmdResult<String> {
+    let v = state.version(&guide, version)?;
+    let edition = v.request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
+    let route = state.render(&v.outcome.route, None)?;
+    let lua = job::guides_lua(
+        &state.open_db()?,
+        &overrides(edition)?,
+        edition,
+        vec![(route, v.meta.created, version)],
+    )
+    .map_err(err)?;
+    Ok(fg_route::export::fgstring::encode(
+        fg_route::export::fgstring::GUIDE_PREFIX,
+        lua.as_bytes(),
+    ))
 }
 
 /// Whether Polestar is installed in WoW Forever (it shows guides there only).
@@ -1651,13 +1588,7 @@ fn forget_character(state: State<'_, AppState>, character: String) -> CmdResult<
     settings
         .forgotten_characters
         .insert(forgotten_key(settings.edition, &character), time);
-    write_settings(&state, settings)?;
-    let mut assignments = state.assignments();
-    if assignments.remove(&character).is_some() {
-        state.write_assignments(&assignments)?;
-        install_addon(state)?;
-    }
-    Ok(())
+    write_settings(&state, settings)
 }
 
 fn characters(state: &AppState) -> CmdResult<Vec<CharacterInfo>> {
@@ -1955,8 +1886,8 @@ fn main() {
             set_installed,
             delete_version,
             delete_guide,
-            list_assignments,
-            assign_guide,
+            guide_text,
+            install_polestar,
             forget_character,
             export_version,
             import_guide,
@@ -2380,8 +2311,12 @@ fn deliver(
 fn send(state: &AppState, url: &str, out: Outgoing, now: u64, automatic: bool) -> CmdResult<(Posted, SendRecord)> {
     let (posted, record) = deliver(out, now, automatic, |body| post_contribution(url, body))?;
     if posted.accepted() {
-        // The data addon tells the addon what it can drop; a failure only delays the purge.
-        let _ = write_data(state);
+        // The data addon tells the addon what it can drop (when the guides were sent to the game
+        // already: never sends them by itself); a failure only delays the purge.
+        let settings = state.settings();
+        if settings.addons_dir(settings.edition).join(DATA_ADDON).exists() {
+            let _ = write_data(state);
+        }
     }
     Ok((posted, record))
 }

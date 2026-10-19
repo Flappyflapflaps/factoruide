@@ -36,7 +36,6 @@ FG.Locales.ruRU = {
     ["Left-click: the compass points at this step"] = "ЛКМ: компас указывает на этот шаг",
     ["Lvl"] = "Ур.",
     ["planned"] = "план",
-    ["No guide for this character.\nAssign one in the Factoruide app (Characters)."] = "Для этого персонажа нет гайда.\nНазначьте его в приложении Factoruide (Персонажи).",
     ["Route finished!"] = "Маршрут пройден!",
     ["yd"] = "м",
     ["Previous step"] = "Предыдущий шаг",

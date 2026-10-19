@@ -2,6 +2,7 @@
 
 mod checkpoints;
 pub mod diff;
+pub mod fgstring;
 pub mod format;
 mod grind_spots;
 mod lua;
@@ -13,7 +14,7 @@ mod vendors;
 mod writer;
 
 pub use format::{FORMAT, read_route};
-pub use lua::to_lua;
+pub use lua::{lua_str, to_lua};
 pub use phrase::{Arg, Phrase};
 pub use templates::Lang;
 pub use types::{

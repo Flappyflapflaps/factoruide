@@ -36,7 +36,6 @@ FG.Locales.koKR = {
     ["Left-click: the compass points at this step"] = "왼쪽 클릭: 나침반이 이 단계를 가리킴",
     ["Lvl"] = "레벨",
     ["planned"] = "계획",
-    ["No guide for this character.\nAssign one in the Factoruide app (Characters)."] = "이 캐릭터의 가이드가 없습니다.\nFactoruide 앱(캐릭터)에서 지정하세요.",
     ["Route finished!"] = "경로 완료!",
     ["yd"] = "미터",
     ["Previous step"] = "이전 단계",

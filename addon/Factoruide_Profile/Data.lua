@@ -4,7 +4,7 @@
 -- dependency) and sets two globals:
 --   FactoruideData = [==[ the same Lua text as an import ]==]
 --   FactoruideDataTime = unix seconds it was written
--- The text sets `Factoruide.Routes`, `.Assignments`, `.Services`... and maybe
+-- The text sets `Factoruide.Routes[name]` for each guide, `.Services`... and maybe
 -- `FactoruideSent = { ["Name-Realm"] = last seq }`, the rows the contribution server has: the
 -- collector drops them, with or without the guide part. The text runs once, here; the guide part
 -- takes what it set (`FG.DataGuide`) at its load.

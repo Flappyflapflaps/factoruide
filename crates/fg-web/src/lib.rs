@@ -10,7 +10,6 @@
 #[expect(unsafe_code, reason = "an allocator, over wasi-libc's malloc")]
 pub mod alloc;
 mod app;
-mod fgstring;
 pub mod host;
 mod store;
 mod zip;

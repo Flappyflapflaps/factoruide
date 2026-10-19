@@ -79,6 +79,36 @@ pub fn write_data_addon(dir: &Path, lua: &str, interface: &str, version: &str, t
     Ok(())
 }
 
+/// The Lua of guides for the addon (what `/fg import` and the data addon run): each route
+/// (written as it is), with when its version was computed and its number (the addon keeps the
+/// newer of two guides of a name), the walks for its compass, and the places of the trainers,
+/// vendors... in the language of the first guide.
+pub fn guides_lua(
+    conn: &Connection,
+    overrides: &Overrides,
+    edition: Edition,
+    guides: Vec<(Route, u64, u32)>,
+) -> Result<String> {
+    use std::fmt::Write as _;
+    let (mut routes, stamps): (Vec<Route>, Vec<(u64, u32)>) = guides.into_iter().map(|(r, c, v)| (r, (c, v))).unzip();
+    let locale = routes
+        .first()
+        .and_then(|r| r.locale.clone())
+        .unwrap_or_else(|| "enUS".into());
+    let services = addon_walks(conn, overrides, edition, &mut routes, &Names::load(conn, &locale)?)?;
+    let mut lua = export::to_lua(&routes);
+    for (route, (created, version)) in routes.iter().zip(stamps) {
+        let name = export::lua_str(&route.name);
+        let _ = writeln!(
+            lua,
+            "FG.Routes[{name}].created = {created}\nFG.Routes[{name}].version = {version}"
+        );
+    }
+    lua.push('\n');
+    lua.push_str(&services);
+    Ok(lua)
+}
+
 /// Write the data addon into `addon_dir` from every saved route, each written in its own
 /// language, with their walks and the places of the trainers, vendors... (`addon_walks`).
 pub fn write_addon_routes(

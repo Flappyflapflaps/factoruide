@@ -6,7 +6,7 @@ import { useT } from "../../i18n";
  * Web build: a character comes from the game as a text: `/fg export` in game, copied, pasted
  * here. Pasting it again later updates the character (level, quests, position...).
  */
-export function ProfilePaste({ onImported }: { onImported: () => void }) {
+export function ProfilePaste({ onImported, compact }: { onImported: (name: string) => void; compact?: boolean }) {
   const t = useT();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,7 +26,7 @@ export function ProfilePaste({ onImported }: { onImported: () => void }) {
       const r = await api.importProfile(content);
       setText("");
       setMessage(t("{name} (niveau {level}) est à jour.", { name: r.character.split("-")[0], level: r.level }));
-      onImported();
+      onImported(r.character);
     } catch (e) {
       const key = String(e).split(":")[0];
       setError(reasons[key] ?? String(e));
@@ -35,8 +35,8 @@ export function ProfilePaste({ onImported }: { onImported: () => void }) {
     }
   };
   return (
-    <section className="panel web-paste">
-      <h3>{t("Ajouter ou mettre à jour un personnage")}</h3>
+    <section className={compact ? "web-paste compact" : "panel web-paste"}>
+      {!compact && <h3>{t("Ajouter ou mettre à jour un personnage")}</h3>}
       <ol className="web-steps">
         <li>{t("En jeu, connecté avec le personnage, tapez /fg export.")}</li>
         <li>{t("Copiez le texte de la fenêtre qui s'ouvre (il est déjà sélectionné : Ctrl+C).")}</li>

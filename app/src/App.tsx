@@ -8,7 +8,6 @@ import { Welcome } from "./components/Welcome";
 import { NewRoutePage, type WizardStart } from "./pages/NewRoutePage";
 import { GuidesPage, type OpenGuide } from "./pages/GuidesPage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { CharactersPage } from "./pages/CharactersPage";
 import { ChangelogPage } from "./pages/ChangelogPage";
 import { ContributePage } from "./pages/ContributePage";
 import { HomePage } from "./pages/HomePage";
@@ -24,12 +23,11 @@ const ISSUES_URL = "https://github.com/brouznouf/factoruide/issues";
 
 const EDITION_LABELS: Record<Edition, string> = { forever: "Forever", classic: "Classic", tbc: "TBC" };
 
-type Page = "home" | "characters" | "plan" | "results" | "contribute" | "help" | "settings" | "changelog" | "report";
+type Page = "home" | "plan" | "results" | "contribute" | "help" | "settings" | "changelog" | "report";
 
 const PAGES: { id: Page; label: string }[] = [
   { id: "home", label: "Accueil" },
   { id: "plan", label: "Nouveau guide" },
-  { id: "characters", label: "Personnages" },
   { id: "results", label: "Guides" },
   // The addon is installed, updated and set up in game (CurseForge, /fg config).
   // In a browser, nothing is sent anywhere and the settings are in the menu.
@@ -227,9 +225,6 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
               onBusy={setBusy}
               onDraft={saveDraft}
               onDone={(meta, notice) => {
-                // Started from a character's block: the character follows its new guide.
-                const character = wizard.start.character;
-                if (character) api.assignGuide(character, meta.guide).catch((e) => setError(String(e)));
                 // Not over a guide being edited: the new guide waits in "Mes guides".
                 if (unsaved.current) return;
                 setOpened({ guide: meta.guide, version: meta.version, notice });
@@ -249,20 +244,6 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
           ) : (
             <div className="empty">{t("Chargement…")}</div>
           ))}
-        {page === "characters" && (
-          <CharactersPage
-            key={edition ?? ""}
-            options={options}
-            editionName={edition ? EDITION_LABELS[edition] : ""}
-            onAddon={openAddonSite}
-            edition={edition}
-            onOpenGuide={(guide, shown) => {
-              setOpened({ guide, version: shown, notice: null });
-              setPage("results");
-            }}
-            onNewGuide={(character) => openWizard({ initial: null, rerun: false, character })}
-          />
-        )}
         {page === "results" && (
           <GuidesPage
             key={`${edition ?? ""}-${opened?.guide ?? ""}-${opened?.version ?? ""}`}
@@ -272,6 +253,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
             onEdit={(v: GuideVersion) => openWizard({ initial: v.request, rerun: false })}
             onClone={(v: GuideVersion) => openWizard({ initial: { ...v.request, name: t("{name} (copie)", { name: v.request.name ?? v.meta.name }) }, rerun: false })}
             onUnsaved={setUnsaved}
+            edition={edition}
           />
         )}
         {page === "home" && (
@@ -279,7 +261,6 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
             key={edition ?? ""}
             editionName={editions.find((e) => e.key === edition)?.name ?? ""}
             onNewGuide={() => openWizard({ initial: null, rerun: false })}
-            onCharacters={() => setPage("characters")}
             onGuides={() => setPage("results")}
             onAddon={openAddonSite}
           />

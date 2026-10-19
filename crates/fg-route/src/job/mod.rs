@@ -28,7 +28,7 @@ pub use race::{optimize, optimize_interruptible};
 pub use reputation::race_base;
 pub use request::{PlanOutcome, PlanRequest, Prepared};
 pub use routes::{
-    DATA_ADDON, POLESTAR_SOURCE_FOLDER, add_polestar_source, addon_walks, data_addon_files, load_routes,
+    DATA_ADDON, POLESTAR_SOURCE_FOLDER, add_polestar_source, addon_walks, data_addon_files, guides_lua, load_routes,
     lua_long_string, polestar_source_dir, render_routes, save_route, slug, write_addon_routes, write_data_addon,
     write_polestar_pack, write_polestar_source,
 };

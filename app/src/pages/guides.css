@@ -1,0 +1,74 @@
+/* The Guides page: a box per guide. */
+.guide-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(30rem, 1fr));
+  gap: 18px;
+}
+.guide-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 22px;
+}
+/* A box with its menu open stays over the boxes after it. */
+.guide-card:has(.export-menu-list) {
+  z-index: 20;
+}
+.guide-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.guide-card-name {
+  font-size: 1.3rem;
+  font-weight: 600;
+  text-align: left;
+}
+.guide-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.guide-card-who {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.guide-card-facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 4px 0 0;
+}
+.guide-card-facts dt {
+  font-size: 0.8em;
+  color: var(--text-muted);
+}
+.guide-card-facts dd {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+.guide-card-date {
+  margin: 0;
+  font-size: 0.85em;
+}
+.guide-card footer {
+  margin-top: auto;
+  padding-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.guide-card-icons {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+}
+.page-head .export-menu {
+  margin-left: 6px;
+}

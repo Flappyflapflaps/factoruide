@@ -161,6 +161,7 @@ wipe = function(t)
     return t
 end
 time = os.time
+date = os.date
 GetTime = function() return os.clock() + 1000 end
 GetLocale = function() return "frFR" end
 UnitName = function() return "Brouz" end
@@ -326,11 +327,8 @@ if profileOnly then
 end
 assert(char.guide.route == "gnome-mage", "assigned route followed: " .. tostring(char.guide.route))
 
---- Assign a route to the character, as the app does in Routes.lua, and follow it.
-local function useRoute(name)
-    FG.Assignments["Brouz-Realm"] = name
-    FG.Guide:FollowAssignment()
-end
+--- Choose a route for the character, as in the settings window's guides page, and follow it.
+local function useRoute(name) FG.Guide:Choose(name) end
 assert(char.guide.step == 1)
 assert(waypoint and waypoint.m == 1426, "waypoint set")
 
@@ -435,9 +433,10 @@ FG.Routes["prof-test"] = {
         { k = "grind", t = "Grind", lvl = 60 },
     },
 }
--- No guide assigned: none followed (never picked by race or class); /fg route does not switch.
+-- No guide chosen and several made for a gnome mage: none followed; /fg route does not switch.
+FG.Assignments["Brouz-Realm"] = nil
 useRoute(nil)
-assert(char.guide.route == nil, "no assigned route, got " .. tostring(char.guide.route))
+assert(char.guide.route == nil, "no chosen route, got " .. tostring(char.guide.route))
 SlashCmdList.FACTORUIDE("route gnome-mage")
 assert(char.guide.route == nil, "/fg route does not switch, got " .. tostring(char.guide.route))
 useRoute("prof-test")
@@ -3115,15 +3114,33 @@ local function ExportImport()
     assert(parsed ~= false, "export JSON read by Python")
     print("profile export ok" .. (parsed == nil and " (python3 missing: JSON not parsed)" or ""))
 
-    -- `/fg import`: a guide pasted from the web app replaces what the files set.
+    -- `/fg import`: guides pasted from the apps, one text each (or several in one); imports add up.
     local fixture = assert(io.open("addon/tests/fixtures/Routes.lua")):read("*a")
-    local guideLua = fixture:gsub("gnome%-mage", "web-mage")
-        .. '\nlocal FG = Factoruide\nFG.Config = { locale = "enUS", compassShown = false }\n'
-        .. 'FactoruideSent = { ["Brouz-Realm"] = 150, ["Other-Realm"] = 3 }\n'
-    local guideString = "FGG1:" .. deflate:EncodeForPrint(deflate:CompressDeflate(guideLua))
+    -- Without the older apps' assignments.
+    local plain = fixture:gsub("%-%- Which guide each character follows.-}\n", "")
+    assert(not plain:find("Assignments", 1, true), "fixture without assignments")
+    --- A guide's text as the apps export it: `name`, computed at `created`, for class `class`.
+    local function GuideLua(name, created, class, extra)
+        local lua = plain:gsub("gnome%-mage", name)
+        if class then lua = lua:gsub("class = 8,", "class = " .. class .. ",", 1) end
+        return lua
+            .. string.format("FG.Routes[%q].created = %d\nFG.Routes[%q].version = 3\n", name, created, name)
+            .. (extra or "")
+    end
+    local function Empty(t) return t == nil or pairs(t)(t) == nil end
+    local function Encode(lua) return "FGG1:" .. deflate:EncodeForPrint(deflate:CompressDeflate(lua)) end
+    local guideLua = GuideLua(
+        "web-mage",
+        1000,
+        nil,
+        'FG.Config = { locale = "enUS", compassShown = false }\n'
+            .. 'FactoruideSent = { ["Brouz-Realm"] = 150, ["Other-Realm"] = 3 }\n'
+    )
+    local guideString = Encode(guideLua)
     SlashCmdList.FACTORUIDE("import")
     assert(window:IsShown() and action:IsShown() and (edit:GetText() or "") == "", "import window, empty box")
     local function Click(text)
+        FG.Import:Open()
         edit:SetText(text)
         action.OnClick()
         return status:GetText()
@@ -3134,7 +3151,7 @@ local function ExportImport()
     assert(Click(guideString:sub(1, 200)):find("abîmé", 1, true), "cut text refused")
     local notLua = "FGG1:" .. deflate:EncodeForPrint(deflate:CompressDeflate("FG.Routes = {"))
     assert(Click(notLua):find("pas pu être lu", 1, true), "Lua errors refused")
-    assert(not reloaded and FactoruideDB.guideImport == nil, "nothing kept from bad strings")
+    assert(not reloaded and Empty(FactoruideDB.guides), "nothing kept from bad strings")
     -- Pasted: the game sends the characters one by one in the same frame (OnChar), the box
     -- itself holds little; the next frame joins them. Spaces and line breaks picked up with the
     -- copy do not matter.
@@ -3152,18 +3169,53 @@ local function ExportImport()
     assert(edit:GetText():sub(1, 5) == "FGG1:" and #edit:GetText() < 80, "the box shows the paste's beginning only")
     assert(status:GetText():find("Ko", 1, true), "the paste's size told: " .. status:GetText())
     action.OnClick()
-    assert(reloaded and FactoruideDB.guideImport.text == guideLua, "import kept, interface reloaded")
+    local kept = FactoruideDB.guides["web-mage"]
+    assert(reloaded and kept and kept.created == 1000 and kept.version == 3, "guide kept, interface reloaded")
     assert(FactoruideDB.sent["Brouz-Realm"] == 150 and FactoruideDB.sent["Other-Realm"] == 3, "sent seq imported")
     assert(#FG.Collector:Pending().events == 0, "rows up to the imported seq are sent")
     FG.Import:ApplySaved()
-    assert(FG.Routes["web-mage"] and not FG.Routes["gnome-mage"], "imported routes replace the files'")
-    assert(FG.Assignments["Brouz-Realm"] == "web-mage" and FG.Import.source == "import", "assignments imported")
+    assert(FG.Routes["web-mage"] and FG.Routes["gnome-mage"], "imported guides beside the files'")
+    assert(FG.Routes["web-mage"].created == 1000 and #FG.Routes["web-mage"].steps > 10, "the guide read back")
+    assert(FG.Import.info["web-mage"].source == "import" and FG.Import.info["gnome-mage"].source == "app", "sources")
     assert(
         FG.Config.locale ~= "enUS" and FG:Get("compassShown") == true and FG.Lang() == "frFR",
         "imported Config ignored"
     )
-    FG.Guide:FollowAssignment()
+    useRoute("web-mage")
     assert(FG.Guide:Route() == FG.Routes["web-mage"] and char.guide.route == "web-mage", "imported guide followed")
+
+    -- A second text adds its guide to the first one.
+    reloaded = false
+    Click(Encode(GuideLua("web-warrior", 1100, 1)))
+    assert(reloaded and FactoruideDB.guides["web-mage"] and FactoruideDB.guides["web-warrior"], "imports add up")
+    -- The same guide computed later: replaces it, no question; computed at the same time: too.
+    calls.StaticPopup_Show = nil
+    Click(Encode(GuideLua("web-mage", 1200)))
+    assert(FactoruideDB.guides["web-mage"].created == 1200 and not calls.StaticPopup_Show, "newer replaces")
+    Click(Encode(GuideLua("web-mage", 1200)))
+    assert(FactoruideDB.guides["web-mage"].created == 1200 and not calls.StaticPopup_Show, "same: replaced quietly")
+    -- Computed before the one kept: asked; "no" keeps it, "yes" replaces it. The other guides of
+    -- the text are kept either way.
+    reloaded = false
+    Click(Encode(GuideLua("web-mage", 900) .. GuideLua("web-rogue", 1300, 4)))
+    local popup = calls.StaticPopup_Show
+    assert(popup and popup[1] == "FACTORUIDE_OLDER_GUIDE", "asked")
+    assert(popup[2]:find("web-mage", 1, true) and popup[2]:find("1970-01-01", 1, true), "question: " .. popup[2])
+    assert(not reloaded and FactoruideDB.guides["web-mage"].created == 1200, "nothing kept before the answer")
+    StaticPopupDialogs.FACTORUIDE_OLDER_GUIDE.OnCancel()
+    assert(FactoruideDB.guides["web-mage"].created == 1200, "no: kept")
+    assert(FactoruideDB.guides["web-rogue"] and reloaded, "the newer guide of the text kept anyway")
+    reloaded = false
+    calls.StaticPopup_Show = nil
+    Click(Encode(GuideLua("web-mage", 900)))
+    assert(calls.StaticPopup_Show, "asked again")
+    StaticPopupDialogs.FACTORUIDE_OLDER_GUIDE.OnAccept()
+    assert(FactoruideDB.guides["web-mage"].created == 900 and reloaded, "yes: replaced")
+    -- Answered "no" with nothing else in the text: nothing to reload.
+    reloaded = false
+    Click(Encode(GuideLua("web-mage", 800)))
+    StaticPopupDialogs.FACTORUIDE_OLDER_GUIDE.OnCancel()
+    assert(FactoruideDB.guides["web-mage"].created == 900 and not reloaded, "nothing imported")
 
     -- The sandbox: no globals, no game API, data only.
     local sandbox =
@@ -3175,44 +3227,117 @@ local function ExportImport()
         FG.Import.Run("os.exit(1)") == nil and FG.Import.Run(string.dump(function() end)) == nil,
         "no os, no bytecode"
     )
+    -- Kept as Lua text: read back the same, a table inside itself refused.
+    local value = { 1, nil, 'a\n"b"\0', x = 0.1, [1.5] = true, ["end"] = { -3, 1 / 3, 2 ^ 60 } }
+    local back = assert(loadstring(assert(FG.Import.Serialize(value))))()
+    assert(back[1] == 1 and back[2] == nil and back[3] == value[3] and back.x == 0.1 and back[1.5], "serialized")
+    assert(back["end"][1] == -3 and back["end"][2] == 1 / 3 and back["end"][3] == 2 ^ 60, "numbers exact")
+    local loop = {}
+    loop.self = loop
+    assert(FG.Import.Serialize(loop) == nil, "loops refused")
 
-    -- Factoruide_Data, written by the desktop app: applied as an import; of the two, the most
-    -- recent wins. Its text runs in the profile part (Data.lua), before the guide part loads.
-    local dataLua = fixture:gsub("gnome%-mage", "desk-mage")
-        .. '\nFactoruideSent = { ["Brouz-Realm"] = 170 }\nFactoruide.Config = { compassShown = false }\n'
-    local function LoadData(when)
-        FactoruideData, FactoruideDataTime = dataLua, when
+    -- Which guide a character follows. Only guides kept from here on (no files' guides).
+    FG.Import.file = { routes = {}, assignments = {} }
+    FactoruideDB.guides, FactoruideDB.guideAssignments = {}, nil
+    FG.Import:Apply()
+    useRoute(nil)
+    assert(char.guide.route == nil, "no guide: none followed")
+    -- The only guide made for its race and class: followed by itself.
+    Click(Encode(GuideLua("solo", 2000) .. GuideLua("warrior", 2000, 1)))
+    FG.Import:Apply()
+    FG.Guide:FollowChoice()
+    assert(char.guide.route == "solo", "the only gnome mage guide followed: " .. tostring(char.guide.route))
+    -- A second one: the guide followed stays; without a choice, none until one is chosen.
+    Click(Encode(GuideLua("duo", 2100)))
+    FG.Import:Apply()
+    FG.Guide:FollowChoice()
+    assert(char.guide.route == "solo", "kept following the guide")
+    useRoute(nil)
+    assert(char.guide.route == nil, "two gnome mage guides: none chosen")
+    -- The guides page of the settings window: the gnome mage's first, follow, delete.
+    FG.SettingsWindow:OpenGuides()
+    local rows = FG.SettingsWindow:GuideRows()
+    local function Row(name)
+        for _, row in ipairs(rows) do
+            if row.guide and row.guide.name == name and row:IsShown() then return row end
+        end
+    end
+    assert(rows[1].guide.fits and rows[2].guide.fits and not rows[3].guide.fits, "this character's guides first")
+    assert(Row("warrior").name:GetText():find("autre personnage", 1, true), "another character's guide")
+    assert(Row("duo").details:GetText():find("niveaux 1%-60") and Row("duo").delete:IsShown(), "details")
+    Row("duo").follow.OnClick(Row("duo").follow)
+    assert(char.guide.route == "duo" and FG.Guide:Route() == FG.Routes.duo, "chosen in the list")
+    assert(Row("duo").follow.label:GetText() == "Suivi" and Row("solo").follow.label:GetText() == "Suivre", "lit")
+    -- The choice is the character's, kept in its saved state.
+    assert(FactoruideDB.characters["Brouz-Realm"].guide.route == "duo", "choice saved per character")
+    FG.Guide:FollowChoice()
+    assert(char.guide.route == "duo", "and kept")
+    -- Delete: asked by a second click; the guide followed gone, back to the automatic choice.
+    local delete = Row("duo").delete
+    delete.OnClick(delete)
+    assert(FactoruideDB.guides.duo and delete.label:GetText() ~= "Supprimer", "asks first")
+    delete.OnClick(delete)
+    assert(not FactoruideDB.guides.duo and not FG.Routes.duo and not Row("duo"), "deleted")
+    assert(char.guide.route == "solo", "back to the only gnome mage guide: " .. tostring(char.guide.route))
+
+    -- Factoruide_Data, written by the desktop app: its guides beside the imported ones, of two with
+    -- the same name the one computed last. Its text runs in the profile part (Data.lua), before
+    -- the guide part loads.
+    local dataLua = GuideLua("solo", 5000)
+        .. GuideLua("desk-mage", 5000):gsub("local FG = Factoruide\nFG.Routes = FG.Routes or {}\n", "")
+        .. 'FactoruideSent = { ["Brouz-Realm"] = 170 }\nFactoruide.Config = { compassShown = false }\n'
+    local function LoadData(lua, when)
+        FactoruideData, FactoruideDataTime = lua, when
         assert(loadfile("addon/Factoruide_Profile/Data.lua"))("Factoruide_Profile", FG)
         assert(FactoruideData == nil and FG.DataGuide and FG.DataGuide.time == when, "data run, its text let go")
     end
-    FactoruideDB.guideImport.time = 1000
-    LoadData(2000)
+    LoadData(dataLua, 6000)
     FG.Import:ApplySaved()
-    assert(FG.Import.source == "data" and FG.Routes["desk-mage"] and not FG.Routes["web-mage"], "newer data wins")
+    assert(FG.Routes["desk-mage"] and FG.Routes.warrior and FG.Routes.solo.created == 5000, "union, newer data wins")
+    assert(FG.Import.info.solo.source == "app" and FG.Import.info.warrior.source == "import", "sources")
     assert(FG.DataGuide == nil and FG.DataSent["Brouz-Realm"] == 170, "data taken, its sent seqs kept")
     assert(FG:Get("compassShown") == true, "data's Config ignored")
-    LoadData(500)
+    FG.SettingsWindow:RefreshGuides()
+    assert(Row("desk-mage") and not Row("desk-mage").delete:IsShown(), "the app's guides are not deleted in game")
+    assert(Row("desk-mage").details:GetText():find("géré par l'application", 1, true), "managed by the app")
+    assert(not FG.Import:Delete("desk-mage"), "not even by name")
+    LoadData(dataLua:gsub("= 5000", "= 10"), 10)
     FG.Import:ApplySaved()
-    assert(FG.Import.source == "import" and FG.Routes["web-mage"], "newer import wins")
-    -- A newer import that cannot be read: the data instead.
-    local goodText = FactoruideDB.guideImport.text
-    FactoruideDB.guideImport.text = "FG.Routes = {"
-    LoadData(500)
+    assert(FG.Routes.solo.created == 2000 and FG.Import.info.solo.source == "import", "newer import wins")
+    -- Data without `.created` (older apps): the time it was written.
+    LoadData(plain:gsub("gnome%-mage", "old-desk"), 7000)
     FG.Import:ApplySaved()
-    assert(FG.Import.source == "data" and FG.Import.failed, "unreadable import: the data")
-    FactoruideDB.guideImport.text = goodText
+    assert(FG.Import.info["old-desk"].created == 7000, "data's time")
     -- Data that is not data: nothing kept, the error counted.
     FactoruideData, FactoruideDataTime = "Factoruide.f = function() end", 3000
     assert(loadfile("addon/Factoruide_Profile/Data.lua"))("Factoruide_Profile", FG)
     assert(FG.DataGuide == nil and FG.DataFailed, "functions refused in the data")
     FG.DataFailed = nil
+
+    -- An older app's text: the whole text kept before (guideImport) moves to one guide each, its
+    -- assignments are the first choice of the characters they name when several guides fit.
+    FG.Import.data = nil
+    FactoruideDB.guideImport = { text = fixture:gsub("gnome%-mage", "old-mage"), time = 4000 }
     FG.Import:ApplySaved()
-    assert(FG.Import.source == "import", "the import then")
+    assert(FactoruideDB.guideImport == nil and FactoruideDB.guides["old-mage"].created == 4000, "moved")
+    assert(FG.Assignments["Brouz-Realm"] == "old-mage", "assignments kept")
+    useRoute(nil)
+    assert(char.guide.route == "old-mage", "two gnome mage guides: the one assigned")
+    useRoute("solo")
+    assert(char.guide.route == "solo", "a choice wins over the assignment")
+
+    -- `/fg import clear`: asked, then every imported guide deleted.
+    calls.StaticPopup_Show = nil
+    SlashCmdList.FACTORUIDE("import clear")
+    assert(calls.StaticPopup_Show and calls.StaticPopup_Show[1] == "FACTORUIDE_CLEAR_GUIDES", "asked")
+    assert(FactoruideDB.guides.solo, "not before the answer")
+    StaticPopupDialogs.FACTORUIDE_CLEAR_GUIDES.OnAccept()
+    assert(Empty(FactoruideDB.guides) and not FG.Routes.solo and char.guide.route == nil, "imports cleared")
+    FG.SettingsWindow:Close()
 
     -- Empty generated files (the addon as published) and no import: a message, no guide.
-    SlashCmdList.FACTORUIDE("import clear")
-    assert(FactoruideDB.guideImport == nil, "import cleared")
-    FG.Routes, FG.Assignments, FG.Services, FG.Config = nil, nil, nil, nil
+    FG.Services, FG.Config = nil, nil
+    FG.Import:Apply()
     local rendered
     local ui = FG.Guide:UI()
     local render = ui.Render
@@ -3220,7 +3345,7 @@ local function ExportImport()
         rendered = view
         return render(self, view)
     end
-    FG.Guide:FollowAssignment()
+    FG.Guide:FollowChoice()
     FG.Guide:Refresh()
     ui.Render = render
     assert(

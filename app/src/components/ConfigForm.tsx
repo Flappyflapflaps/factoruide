@@ -332,7 +332,21 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
           <section className="panel">
             <h3>{t("Personnage")}</h3>
             <div className="character-grid">
-              <CharacterPicker characters={characters} start={start} onPick={pickCharacter} />
+              <CharacterPicker
+                characters={characters}
+                start={start}
+                onPick={pickCharacter}
+                onImported={(character) =>
+                  api
+                    .listCharacters()
+                    .then((list) => {
+                      setCharacters(list);
+                      const found = list.find((c) => c.profile.name === character);
+                      if (found) pickCharacter(found);
+                    })
+                    .catch(() => {})
+                }
+              />
               <label className={`field guide-name${nameMissing ? " invalid" : ""}`}>
                 <span>
                   {t("Nom du guide")} <em className="required">*</em>

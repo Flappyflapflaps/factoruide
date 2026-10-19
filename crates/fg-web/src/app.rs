@@ -1,11 +1,12 @@
 //! The app's calls, as the desktop app's backend answers them (app/src-tauri/src/main.rs), on
 //! the files of `store` instead of the app's folders and with the addon reached through texts:
-//! the guide import the player pastes in game (`addon_export`), the character export pasted in
+//! the guide import the player pastes in game (`guide_text`), the character export pasted in
 //! the app (`import_profile`).
 
-use crate::{embedded, fgstring, host, store};
+use crate::{embedded, host, store};
 use fg_route::Route;
 use fg_route::export::diff::{self, Change, RouteDiff};
+use fg_route::export::fgstring;
 use fg_route::job::{self, EditCatalog, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState};
 use fg_route::model::Names;
 use fg_route::terrain::{WalkMemory, Walks};
@@ -14,7 +15,6 @@ use rusqlite::Connection;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
-use std::fmt::Write as _;
 use std::sync::{Arc, LazyLock, Mutex};
 
 type CmdResult<T> = Result<T, String>;
@@ -42,9 +42,6 @@ struct Settings {
     language: Option<String>,
     #[serde(default)]
     all_guides: bool,
-    /// What the last text for the game was made with (`guides_stamp`).
-    #[serde(default)]
-    addon_installed: Option<String>,
     #[serde(default)]
     welcome_done: bool,
     #[serde(default)]
@@ -58,7 +55,6 @@ impl Default for Settings {
             edition: Edition::Forever,
             language: None,
             all_guides: false,
-            addon_installed: None,
             welcome_done: false,
             forgotten_characters: BTreeMap::new(),
         }
@@ -88,11 +84,6 @@ fn write_settings(settings: Settings) -> CmdResult<()> {
     store::write(SETTINGS_FILE, serde_json::to_vec_pretty(&settings).map_err(err)?);
     *current = settings;
     Ok(())
-}
-
-/// What the text for the game depends on: who follows which guide version.
-fn addon_snapshot(edition: Edition) -> String {
-    serde_json::to_string(&guides_stamp(edition)).unwrap_or_default()
 }
 
 // Game data ----------------------------------------------------------------------------
@@ -380,51 +371,22 @@ fn add_version(
     Ok(meta)
 }
 
-fn assignments(edition: Edition) -> BTreeMap<String, String> {
-    store::read(&format!("{}/characters.json", guides_dir(edition)))
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
-}
-
-fn write_assignments(edition: Edition, assignments: &BTreeMap<String, String>) -> CmdResult<()> {
-    store::write(
-        &format!("{}/characters.json", guides_dir(edition)),
-        serde_json::to_vec_pretty(assignments).map_err(err)?,
-    );
-    Ok(())
-}
-
 fn followed_version(edition: Edition, id: &str) -> Option<u32> {
     let chosen = guide_info(edition, id).ok()?.installed;
     chosen.or_else(|| versions(edition, id).first().map(|v| v.version))
 }
 
-/// The guides assigned to a character, in the version they follow, by guide.
-fn assigned_routes(edition: Edition) -> BTreeMap<String, Route> {
-    let mut routes = BTreeMap::new();
-    for id in assignments(edition).into_values() {
-        if routes.contains_key(&id) {
-            continue;
-        }
-        if let Some(route) = followed_version(edition, &id)
-            .and_then(|v| version(edition, &id, v).ok())
-            .map(|v| v.outcome.route)
-        {
-            routes.insert(id, route);
-        }
-    }
-    routes
-}
-
-/// What the guides in the import depend on: who follows which version (made when it was).
-fn guides_stamp(edition: Edition) -> Vec<(String, String, u32, u64)> {
-    assignments(edition)
+/// Every guide in the version its page says to follow (the latest unless one is chosen), written
+/// in the language it was made in, with when that version was computed and its number.
+fn followed_guides(edition: Edition) -> CmdResult<Vec<(Route, u64, u32)>> {
+    store::list(&guides_dir(edition))
         .into_iter()
-        .filter_map(|(character, id)| {
-            let v = followed_version(edition, &id)?;
-            let created = versions(edition, &id).into_iter().find(|m| m.version == v)?.created;
-            Some((character, id, v, created))
+        .filter_map(|id| {
+            let n = followed_version(edition, &id)?;
+            let v = version(edition, &id, n).ok()?;
+            Some((v.outcome.route, v.meta.created, n))
         })
+        .map(|(route, created, n)| Ok((render(edition, &route, None)?, created, n)))
         .collect()
 }
 
@@ -508,11 +470,10 @@ fn get_version(guide: &str, n: u32, locale: Option<&str>) -> CmdResult<GuideVers
     Ok(v)
 }
 
-fn set_installed(guide: &str, v: Option<u32>) -> CmdResult<usize> {
+fn set_installed(guide: &str, v: Option<u32>) -> CmdResult<()> {
     let edition = edition();
     let info = guide_info(edition, guide)?;
-    write_guide_info(edition, guide, &GuideInfo { installed: v, ..info })?;
-    install_addon()
+    write_guide_info(edition, guide, &GuideInfo { installed: v, ..info })
 }
 
 fn delete_version(guide: &str, v: u32) -> CmdResult<()> {
@@ -532,9 +493,6 @@ fn delete_version(guide: &str, v: u32) -> CmdResult<()> {
                 },
             )?;
         }
-        if assignments(edition).values().any(|g| g == guide) {
-            install_addon()?;
-        }
         Ok(())
     }
 }
@@ -544,132 +502,36 @@ fn delete_guide(guide: &str) -> CmdResult<()> {
     if !store::remove_dir(&format!("{}/{guide}", guides_dir(edition))) {
         return Err(format!("no guide {guide}"));
     }
-    let mut assigned = assignments(edition);
-    let before = assigned.len();
-    assigned.retain(|_, g| g != guide);
-    if assigned.len() != before {
-        write_assignments(edition, &assigned)?;
-        install_addon()?;
-    }
     Ok(())
 }
 
-fn assign_guide(character: String, guide: Option<String>) -> CmdResult<usize> {
+// The guides for the game ---------------------------------------------------------------------
+
+/// What the player pastes in game with `/fg import`: one guide version (the addon adds it to the
+/// guides it has, or replaces the one of its name).
+fn guide_text(guide: &str, n: u32) -> CmdResult<serde_json::Value> {
     let edition = edition();
-    let mut assigned = assignments(edition);
-    match guide {
-        Some(guide) => {
-            guide_info(edition, &guide)?;
-            assigned.insert(character, guide);
-        }
-        None => {
-            assigned.remove(&character);
-        }
-    }
-    write_assignments(edition, &assigned)?;
-    install_addon()
-}
-
-// The text for the game -------------------------------------------------------------------
-
-/// What the player pastes in game with `/fg import`: the guides their characters follow (each
-/// in the version it follows, in the language it was made in), who follows which, and the
-/// places of the trainers, vendors... (the Lua the desktop app writes in Factoruide_Data).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct AddonExport {
-    text: String,
-    guides: usize,
-}
-
-fn addon_export_file(edition: Edition) -> String {
-    format!("addon-export-{}.json", edition.key())
-}
-
-/// A Lua string literal.
-fn lua_string(text: &str) -> String {
-    let mut out = String::from("\"");
-    for c in text.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '"' => out.push_str("\\\""),
-            '\n' => out.push_str("\\n"),
-            c if c.is_ascii_control() => {
-                let _ = write!(out, "\\{:03}", c as u32);
-            }
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
-}
-
-/// The text for the game, made again and saved; the settings note it was made.
-fn install_addon() -> CmdResult<usize> {
-    static MAKING: Mutex<()> = Mutex::new(());
-    let _one = MAKING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    let settings = settings();
-    let edition = settings.edition;
-    let assigned = assigned_routes(edition);
-    let mut routes = assigned
-        .values()
-        .map(|r| render(edition, r, None))
-        .collect::<CmdResult<Vec<_>>>()?;
-    routes.sort_by(|a, b| a.name.cmp(&b.name));
-    let locale = routes
-        .first()
-        .and_then(|r| r.locale.clone())
-        .unwrap_or_else(|| "enUS".into());
-    let services = job::addon_walks(
+    let v = version(edition, guide, n)?;
+    let route = render(edition, &v.outcome.route, None)?;
+    let lua = job::guides_lua(
         &open_db(edition)?,
         &overrides(edition)?,
         edition,
-        &mut routes,
-        &*names(edition, &locale)?,
+        vec![(route, v.meta.created, n)],
     )
     .map_err(err)?;
-    let mut lua = fg_route::export::to_lua(&routes);
-    lua.push_str("\n-- Which guide each character follows (assigned in the app).\nFG.Assignments = {\n");
-    for (character, guide) in assignments(edition) {
-        if let Some(route) = assigned.get(&guide) {
-            let _ = writeln!(lua, "  [{}] = {},", lua_string(&character), lua_string(&route.name));
-        }
-    }
-    lua.push_str("}\n");
-    lua.push_str(&services);
-    let export = AddonExport {
-        text: fgstring::encode(fgstring::GUIDE_PREFIX, lua.as_bytes()),
-        guides: routes.len(),
-    };
-    store::write(&addon_export_file(edition), serde_json::to_vec(&export).map_err(err)?);
-    write_settings(Settings {
-        addon_installed: Some(addon_snapshot(edition)),
-        ..settings
-    })?;
-    Ok(export.guides)
+    Ok(serde_json::json!({ "text": fgstring::encode(fgstring::GUIDE_PREFIX, lua.as_bytes()) }))
 }
 
-/// The text for the game made last (made now when there is none, or it is out of date).
-fn addon_export() -> CmdResult<AddonExport> {
-    let edition = edition();
-    if !addon_synced() {
-        install_addon()?;
-    }
-    let bytes = store::read(&addon_export_file(edition)).ok_or("no text for the game made yet")?;
-    serde_json::from_slice(&bytes).map_err(err)
-}
-
-/// Whether the last text for the game has the current guides.
-fn addon_synced() -> bool {
-    let settings = settings();
-    let edition = settings.edition;
-    store::exists(&addon_export_file(edition))
-        && settings.addon_installed.as_deref() == Some(addon_snapshot(edition).as_str())
-}
-
-/// The same guides as the text for the game, as the data addon the desktop app writes
-/// (Factoruide_Data): a zip to unzip in the game's AddOns folder, nothing to paste.
+/// Every guide (see `followed_guides`) as the data addon the desktop app writes
+/// (Factoruide_Data): a zip to unzip in the game's AddOns folder.
 fn data_zip() -> CmdResult<serde_json::Value> {
-    let lua = String::from_utf8(fgstring::decode(fgstring::GUIDE_PREFIX, &addon_export()?.text)?).map_err(err)?;
+    let edition = edition();
+    let guides = followed_guides(edition)?;
+    if guides.is_empty() {
+        return Err("no guide yet".into());
+    }
+    let lua = job::guides_lua(&open_db(edition)?, &overrides(edition)?, edition, guides).map_err(err)?;
     let files: Vec<(String, Vec<u8>)> = job::data_addon_files(&lua, embedded::ADDON_INTERFACE, APP_VERSION, now()?)
         .into_iter()
         .map(|(name, content)| (format!("{}/{name}", job::DATA_ADDON), content.into_bytes()))
@@ -680,16 +542,16 @@ fn data_zip() -> CmdResult<serde_json::Value> {
     }))
 }
 
-/// WoW Forever: the guides the characters follow as a guide pack for Polestar, a zip of its
-/// addon folder to unzip in the game's AddOns folder.
+/// WoW Forever: every guide as a guide pack for Polestar, a zip of its addon folder to unzip in
+/// the game's AddOns folder.
 fn polestar_pack() -> CmdResult<serde_json::Value> {
     if edition() != Edition::Forever {
         return Err("Polestar is for WoW Forever only".into());
     }
-    let guides = assigned_routes(Edition::Forever)
-        .iter()
-        .map(|(id, r)| Ok((id.clone(), render(Edition::Forever, r, None)?)))
-        .collect::<CmdResult<Vec<_>>>()?;
+    let guides = followed_guides(Edition::Forever)?
+        .into_iter()
+        .map(|(route, _, _)| (job::slug(&route.name), route))
+        .collect::<Vec<_>>();
     let folder = fg_route::export::polestar::ADDON;
     let files: Vec<(String, Vec<u8>)> = fg_route::export::polestar::pack(&guides, APP_VERSION)
         .into_iter()
@@ -999,13 +861,7 @@ fn forget_character(character: &str) -> CmdResult<()> {
     settings
         .forgotten_characters
         .insert(forgotten_key(edition, character), time);
-    write_settings(settings)?;
-    let mut assigned = assignments(edition);
-    if assigned.remove(character).is_some() {
-        write_assignments(edition, &assigned)?;
-        install_addon()?;
-    }
-    Ok(())
+    write_settings(settings)
 }
 
 /// What the addon's export holds (`/fg export`, see the addon's Profile.lua).
@@ -1210,11 +1066,7 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
             struct A {
                 settings: Settings,
             }
-            let mut s = args::<A>(a)?.settings;
-            let before = settings();
-            if s.addon_installed.is_none() {
-                s.addon_installed = before.addon_installed;
-            }
+            let s = args::<A>(a)?.settings;
             to_json(write_settings(s))
         }
         "set_edition" => {
@@ -1288,16 +1140,6 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
             to_json(delete_version(&g.guide, version_of(&g)?))
         }
         "delete_guide" => to_json(delete_guide(&args::<GuideArgs>(a)?.guide)),
-        "list_assignments" => to_json(Ok(assignments(edition()))),
-        "assign_guide" => {
-            #[derive(Deserialize)]
-            struct A {
-                character: String,
-                guide: Option<String>,
-            }
-            let x = args::<A>(a)?;
-            to_json(assign_guide(x.character, x.guide))
-        }
         "forget_character" => {
             #[derive(Deserialize)]
             struct A {
@@ -1324,11 +1166,12 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
             to_json(import_profile(&args::<A>(a)?.content))
         }
         "list_characters" => to_json(characters()),
-        "install_addon" => to_json(install_addon()),
-        "addon_export" => to_json(addon_export()),
+        "guide_text" => {
+            let g = args::<GuideArgs>(a)?;
+            guide_text(&g.guide, version_of(&g)?)
+        }
         "polestar_pack" => polestar_pack(),
         "data_zip" => data_zip(),
-        "addon_synced" => Ok(Value::Bool(addon_synced())),
         "addon_health" => to_json(Ok(addon_health())),
         // Polestar is installed in the game: the browser cannot tell, the player says.
         "polestar_installed" => Ok(Value::Bool(true)),
