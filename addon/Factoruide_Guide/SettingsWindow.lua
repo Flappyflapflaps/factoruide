@@ -1,7 +1,9 @@
--- The settings window (`/fg config`, the guide's settings button, the game's options: AddOns,
--- Factoruide): the guides (which one the character follows, imports), every setting of the
--- schema (SettingsSchema.lua) in its group and section, and the addon's language. A change is saved (FG:Save) and applied at once; the few that need a /reload
--- say so. Mouse over a row: its help; right click: back to its default.
+-- The addon's window (`/fg`, the guide's settings button, the game's options: AddOns,
+-- Factoruide): the actions (a button each, FG.Actions: what chat commands did before), the guides
+-- (which one the character follows, imports), every setting of the schema (SettingsSchema.lua) in
+-- its group and section, and the addon's language. A change is saved (FG:Save) and applied at
+-- once; the few that need a /reload say so. Mouse over a row: its help; right click: back to its
+-- default.
 
 local FG = Factoruide
 local T = FG.T
@@ -421,6 +423,74 @@ local function GuidesPage()
     return page
 end
 
+-- The actions page: the buttons of FG.Actions in their sections, two a row.
+
+local ACTION_W, ACTION_H, ACTION_GAP, ACTION_HEAD = 232, 22, 4, 24
+local actionsPage
+
+local function SetLabel(button, text) button.label:SetText(text) end
+
+--- Bring the action buttons to their actions' texts and whether they can be used now.
+local function UpdateActions()
+    if not actionsPage then return end
+    for _, button in pairs(actionsPage.actionButtons) do
+        local action = button.action
+        if button.armed ~= true then SetLabel(button, FG.ActionLabel(action)) end
+        button:SetAlpha((not action.enabled or action.enabled()) and 1 or 0.4)
+    end
+end
+
+local function ActionTooltip(button)
+    local action = button.action
+    if not action.help or not GameTooltip or not GameTooltip.SetOwner then return end
+    GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
+    GameTooltip:SetText(FG.ActionLabel(action), 1, 1, 1, 1, true)
+    if GameTooltip.AddLine then GameTooltip:AddLine(T(action.help), 0.8, 0.82, 0.86, true) end
+    GameTooltip:Show()
+end
+
+local function ActionsPage()
+    local page = CreateFrame("Frame", nil, scroll)
+    page:SetWidth(WIDTH - NAV - 34)
+    page.title, page.rows, page.actionButtons = "Actions", {}, {}
+    local y = 4
+    for _, section in ipairs(FG.ACTION_SECTIONS) do
+        local actions = {}
+        for _, action in ipairs(FG.Actions) do
+            if action.section == section then actions[#actions + 1] = action end
+        end
+        if #actions > 0 then
+            local head = Skin:Text(page, 13, "cyan")
+            head:SetPoint("TOPLEFT", 8, -(y + 6))
+            head:SetText(T(section))
+            y = y + ACTION_HEAD
+            for i, action in ipairs(actions) do
+                local button = SmallButton(page, "", ACTION_W)
+                button:SetHeight(ACTION_H)
+                button.action = action
+                local column, line = (i - 1) % 2, math.floor((i - 1) / 2)
+                button:SetPoint("TOPLEFT", 8 + column * (ACTION_W + 10), -(y + line * (ACTION_H + ACTION_GAP)))
+                button:SetScript("OnClick", function(self)
+                    FG.ClickAction(action, self, SetLabel)
+                    SettingsWindow:Refresh()
+                end)
+                button:SetScript("OnEnter", ActionTooltip)
+                button:SetScript("OnLeave", function()
+                    if GameTooltip and GameTooltip.Hide then GameTooltip:Hide() end
+                end)
+                page.actionButtons[action.id] = button
+            end
+            y = y + math.ceil(#actions / 2) * (ACTION_H + ACTION_GAP) + 8
+        end
+    end
+    page:SetHeight(y)
+    page.height = y
+    page:Hide()
+    actionsPage = page
+    UpdateActions()
+    return page
+end
+
 local function UpdateThumb()
     if not current then return end
     local range = math.max(0, current.height - VIEW)
@@ -465,7 +535,7 @@ local function Create()
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame.title = Skin:Text(frame, 15, "text")
     frame.title:SetPoint("TOPLEFT", 16, -14)
-    frame.title:SetText(T("Factoruide settings"))
+    frame.title:SetText("Factoruide")
     Skin:Style(frame, "window", { frame.title })
     -- Escape closes it.
     if UISpecialFrames then table.insert(UISpecialFrames, "FactoruideSettings") end
@@ -492,8 +562,8 @@ local function Create()
     thumb = Skin:Fill(frame, "OVERLAY", "edge", 1)
     thumb:SetWidth(4)
 
-    -- The guides, the groups, then the language.
-    local groups = { { title = "Guides", page = GuidesPage } }
+    -- The actions, the guides, the groups, then the language.
+    local groups = { { title = "Actions", page = ActionsPage }, { title = "Guides", page = GuidesPage } }
     for _, group in ipairs(FG.SettingsSchema or {}) do
         groups[#groups + 1] = group
     end
@@ -529,6 +599,7 @@ end
 function SettingsWindow:Refresh()
     if not frame then return end
     LayoutGuides()
+    UpdateActions()
     for _, page in ipairs(pages) do
         for _, row in ipairs(page.rows) do
             UpdateRow(row)
@@ -570,6 +641,16 @@ function SettingsWindow:Toggle()
     self:Open()
 end
 
+--- `/fg`: open the window on its actions page (or close it when open).
+function SettingsWindow:ToggleHome()
+    if frame and frame:IsShown() then return frame:Hide() end
+    self:Open()
+    self:Show(1)
+end
+
+--- The actions page's buttons (action id -> button), nil before the first use (tests).
+function SettingsWindow:ActionButtons() return actionsPage and actionsPage.actionButtons end
+
 --- Whether the window asks for a /reload (a setting applied after it was changed).
 function SettingsWindow:ReloadShown() return reloadNeeded end
 
@@ -578,21 +659,26 @@ function SettingsWindow:Parts() return frame, pages end
 
 function FG:OpenSettings() SettingsWindow:Toggle() end
 
+-- The action buttons follow the settings they show (the guide shown, the windows locked...).
+FG:OnSetting("*", function()
+    if frame and frame:IsShown() then UpdateActions() end
+end)
+
 -- In the game's options (AddOns): a page with a button opening the window.
 FG:On("PLAYER_LOGIN", function()
     local panel = CreateFrame("Frame")
     panel.name = "Factoruide"
     local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -16)
-    title:SetText(T("Factoruide settings"))
+    title:SetText("Factoruide")
     local open = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     open:SetSize(220, 26)
     open:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -12)
-    open:SetText(T("Open the settings"))
+    open:SetText(T("Open the Factoruide window"))
     open:SetScript("OnClick", function() SettingsWindow:Open() end)
     local hint = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     hint:SetPoint("TOPLEFT", open, "BOTTOMLEFT", 0, -10)
-    hint:SetText(T("Also with /fg config in the chat."))
+    hint:SetText(T("Also with /fg in the chat."))
     if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then
         local category = Settings.RegisterCanvasLayoutCategory(panel, "Factoruide")
         Settings.RegisterAddOnCategory(category)

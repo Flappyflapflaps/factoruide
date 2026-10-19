@@ -1,5 +1,5 @@
 -- Leveling time: the real play time on reaching each level (from /played), compared with the
--- guide's plan (`levels` of the route). Shown in the guide header; `/fg time` for the detail
+-- guide's plan (`levels` of the route). Shown in the guide header; "Time per level" (`/fg`) for the detail
 -- and the estimated end.
 
 local FG = Factoruide
@@ -84,7 +84,7 @@ function Timing:Short()
     return string.format("  |cff%s%s%s|r", color, delta <= 0 and "−" or "+", Duration(delta))
 end
 
---- `/fg time`: time per level against the plan, and the estimated end.
+--- "Time per level" (`/fg`): time per level against the plan, and the estimated end.
 function Timing:Print()
     local route = FG.Guide and FG.Guide:Route()
     local times = Times() or {}
@@ -112,3 +112,11 @@ function Timing:Print()
         FG:Print(T("estimated end: %s (planned %s)"), Duration(route.time * real / planned), Duration(route.time))
     end
 end
+
+FG:AddAction({
+    id = "time",
+    section = "Guide",
+    label = "Time per level",
+    help = "In the chat: your time per level against the guide's plan, and the estimated end.",
+    run = function() Timing:Print() end,
+})

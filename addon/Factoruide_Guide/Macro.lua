@@ -79,7 +79,7 @@ function Macro:SetSteps(steps)
     end
 end
 
---- `/fg macro`: create the macro if needed and put it on the cursor, to drop on an action bar.
+--- "Pick up the target macro" (`/fg`): create the macro if needed and put it on the cursor, to drop on an action bar.
 function Macro:Pickup()
     local index = Write(self.body or Body(self.names), true)
     if index and PickupMacro then
@@ -95,3 +95,11 @@ frame:RegisterEvent("PLAYER_REGEN_ENABLED")
 frame:SetScript("OnEvent", function()
     if Macro.pending and Macro.body then Write(Macro.body, false) end
 end)
+
+FG:AddAction({
+    id = "macro",
+    section = "Guide",
+    label = "Pick up the target macro",
+    help = "It targets the mobs or NPC of the current step: drop it on an action bar and bind a key.",
+    run = function() Macro:Pickup() end,
+})

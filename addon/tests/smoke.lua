@@ -283,6 +283,16 @@ load("Factoruide_Profile")
 if not profileOnly then load("Factoruide_Guide") end
 local FG = Factoruide
 
+-- `/fg` (with anything after it) only opens the addon's window: what chat commands did before is
+-- done with its buttons. A click on the button of action `id`, the window opened with `/fg` first.
+local function Press(id)
+    local window = FG.SettingsWindow and FG.SettingsWindow:Parts() or FG.Menu:Parts()
+    if not window or not window:IsShown() then SlashCmdList.FACTORUIDE("") end
+    local buttons = FG.SettingsWindow and FG.SettingsWindow:ActionButtons() or select(2, FG.Menu:Parts())
+    local button = assert(buttons[id], "no button " .. id)
+    button:GetScript("OnClick")(button, "LeftButton")
+end
+
 local function fire(event, ...)
     for _, f in ipairs(frames) do
         if f.OnEvent and f.events[event] then f.OnEvent(f, event, ...) end
@@ -310,13 +320,42 @@ if profileOnly then
     assert(tonumber(char.events[1]:match("^(%d+)")) == 2, "numbered after the sent seq: " .. char.events[1])
     assert(char.guide == nil and waypoint == nil, "no guide state, no waypoint")
     assert(next(calls) == nil, "nothing done in game: " .. tostring(next(calls)))
+    -- `/fg` opens the profile part's own window (again: closes it); a sub-command too, it does
+    -- nothing else.
     SlashCmdList.FACTORUIDE("")
-    SlashCmdList.FACTORUIDE("help")
+    local menu, buttons = FG.Menu:Parts()
+    assert(menu and menu:IsShown(), "/fg opens the window")
+    for _, id in ipairs({ "export", "profile", "status", "debug", "reset" }) do
+        assert(buttons[id], "a button for " .. id)
+    end
+    assert(buttons.import == nil and buttons.next == nil, "no guide button without the guide part")
+    SlashCmdList.FACTORUIDE("")
+    assert(not menu:IsShown(), "/fg again closes it")
+    SlashCmdList.FACTORUIDE("export")
+    assert(
+        menu:IsShown() and not (FG.TextWindow:Parts() and FG.TextWindow:Parts():IsShown()),
+        "/fg export opens the window only"
+    )
+    -- Debug messages: on, then off again.
+    Press("debug")
+    assert(FactoruideDB.debug == true and buttons.debug.text == "Messages de débogage : oui", "debug on")
+    Press("debug")
+    assert(not FactoruideDB.debug, "debug off")
+    -- Clearing the recorded events asks with a second click.
+    local recorded = #char.events
+    Press("reset")
+    assert(#char.events == recorded and buttons.reset.text == "Sûr ?", "asked first")
+    runTimers()
+    assert(buttons.reset.text == "Effacer les événements enregistrés", "not confirmed: asked again next time")
+    Press("reset")
+    Press("reset")
+    assert(#char.events == 0, "recorded events cleared")
+    fire("QUEST_ACCEPTED", 179)
     FG.Profile:Snapshot()
     local profile = FactoruideDB.profiles["Brouz-Realm"]
     assert(profile and profile.level == 1 and profile.class == "MAGE", "profile saved")
     -- The export needs nothing of the guide part.
-    SlashCmdList.FACTORUIDE("export")
+    Press("export")
     local _, edit = FG.TextWindow:Parts()
     local json = LibStub("LibDeflate"):DecompressDeflate(LibStub("LibDeflate"):DecodeForPrint(edit:GetText():sub(6)))
     assert(json and json:find('"character":"Brouz-Realm"', 1, true), "export without the guide")
@@ -343,11 +382,11 @@ fire("QUEST_TURNED_IN", 179, 80, 0)
 assert(char.guide.step == 4, "objective and turn-in skipped, step " .. char.guide.step)
 
 -- Back one page: steps 3 to 6 (Sten Stoutarm, Balir Frosthammer) are one group, step 2 another.
-SlashCmdList.FACTORUIDE("prev")
+Press("prev")
 assert(char.guide.step == 2, "the page before, step " .. char.guide.step)
-SlashCmdList.FACTORUIDE("next")
+Press("next")
 assert(char.guide.step == 3, "the page after it, step " .. char.guide.step)
-SlashCmdList.FACTORUIDE("status")
+Press("status")
 assert(#char.events >= 2, "collector recorded events")
 print("smoke test ok: step " .. char.guide.step .. ", " .. #char.events .. " events")
 
@@ -355,7 +394,7 @@ print("smoke test ok: step " .. char.guide.step .. ", " .. #char.events .. " eve
 FG.Guide:Advance()
 assert(char.guide.step == 4 and FG.Guide:CurrentSteps()[1] == 3, "same page, its step not done yet")
 -- Going back to a page done already stays there (refresh and quest events), the resync goes forward.
-SlashCmdList.FACTORUIDE("prev")
+Press("prev")
 FG.Guide:Advance()
 assert(char.guide.step == 2, "stays after manual navigation")
 fire("QUEST_LOG_UPDATE")
@@ -380,10 +419,10 @@ assert(calls.GetQuestReward and calls.GetQuestReward[1] == 1, "single reward tak
 fire("LOOT_READY", false)
 assert(calls.loot == 3, "all loot slots taken")
 -- The guide's mode: switched in game and kept, the minimal strip shown instead of the card.
-SlashCmdList.FACTORUIDE("mode")
+Press("mode")
 assert(FG:Get("guideMode") == "minimal" and FactoruideDB.settings.guideMode == "minimal", "minimal mode kept")
 assert(FG.Guide:Box() == FG.Mini:Frame(), "the minimal strip is the guide")
-SlashCmdList.FACTORUIDE("mode")
+Press("mode")
 assert(FG:Get("guideMode") == "full" and FG.Guide:Box() == FG.Card:Frame(), "back to the full card")
 
 -- The settings of an older app's Config.lua are ignored: the defaults until chosen in game.
@@ -433,12 +472,19 @@ FG.Routes["prof-test"] = {
         { k = "grind", t = "Grind", lvl = 60 },
     },
 }
--- No guide chosen and several made for a gnome mage: none followed; /fg route does not switch.
+-- No guide chosen and several made for a gnome mage: none followed; `/fg route` only opens the
+-- window.
 FG.Assignments["Brouz-Realm"] = nil
 useRoute(nil)
 assert(char.guide.route == nil, "no chosen route, got " .. tostring(char.guide.route))
+FG.SettingsWindow:Close()
 SlashCmdList.FACTORUIDE("route gnome-mage")
 assert(char.guide.route == nil, "/fg route does not switch, got " .. tostring(char.guide.route))
+assert(FG.SettingsWindow:Parts():IsShown() and FG.SettingsWindow.page == 1, "/fg route opens the window")
+-- Without a guide, the guide's buttons do nothing (greyed out).
+assert(FG.SettingsWindow:ActionButtons().next:GetAlpha() < 1, "next greyed out")
+Press("next")
+assert(char.guide.route == nil and char.guide.step, "nothing happens")
 useRoute("prof-test")
 assert(char.guide.step == 2, "rank already learned, step " .. char.guide.step)
 cooking = 25
@@ -468,15 +514,16 @@ FG.Routes["skip-test"] = {
 completed[5003] = true
 useRoute("skip-test")
 assert(char.guide.step == 3, "outdated and alternative steps skipped, step " .. char.guide.step)
-SlashCmdList.FACTORUIDE("skip")
+Press("skip")
 assert(char.guide.step == 5, "current quest skipped by hand, step " .. char.guide.step)
-SlashCmdList.FACTORUIDE("skip 5004")
+Press("undo")
 assert(char.guide.step == 3, "undo brings the quest back, step " .. char.guide.step)
+assert(FG.SettingsWindow:ActionButtons().undo:GetAlpha() < 1, "nothing left to undo")
 print("skip ok")
 
 -- Progress belongs to its guide: a quest marked done by hand in one is still to do in another,
 -- and coming back finds the marks again. A new version keeps the quests, not the step marks.
-SlashCmdList.FACTORUIDE("skip")
+Press("skip")
 FG.Routes["other-test"] = {
     race = 7,
     class = 8,
@@ -692,7 +739,7 @@ FG.Routes["macro-test"] = {
 }
 onQuest[7101] = true
 useRoute("macro-test")
-SlashCmdList.FACTORUIDE("macro")
+Press("macro")
 local index = GetMacroIndexByName("FG Cible")
 assert(index > 0, "target macro created")
 assert(
@@ -702,7 +749,7 @@ assert(
 -- The skull: WoW Forever blocks SetRaidTarget from a macro's /run (Classic Era and TBC do not).
 assert(FG.Edition == "forever" and not macros[index].body:find("/run", 1, true), "no skull on Forever")
 FG.Edition = "classic"
-SlashCmdList.FACTORUIDE("next")
+Press("next")
 assert(
     macros[index].body:find("/targetexact Marshal McBride", 1, true),
     "macro follows the step: " .. macros[index].body
@@ -829,7 +876,7 @@ print("merchant ok")
 -- Skins: a skin registered through the public API styles every frame made so far.
 local skinned = {}
 FactoruideAPI.RegisterSkin("Test", function(frame, kind) skinned[kind] = (skinned[kind] or 0) + 1 end)
-assert(skinned.window == 2, "guide windows skinned: the card and the minimal strip")
+assert(skinned.window == 3, "windows skinned: the card, the minimal strip and the addon's (opened)")
 assert((skinned.panel or 0) >= 1, "panels skinned")
 assert(#FactoruideAPI.GetFrames() >= 2)
 assert(FG.Skin:Suite() == nil, "no UI suite in the tests")
@@ -845,7 +892,7 @@ assert(close(FG.Compass.Left(FG.Compass.Angle(0, -10, 0)), -90), "east, facing n
 print("compass angles ok")
 
 -- A step whose mobs live in several places: the arrow moves on from a place where the character
--- waited out of combat (nothing there), and on /fg spot; around again once all are visited.
+-- waited out of combat (nothing there), and on "Next spot"; around again once all are visited.
 do
     local now, fighting = 100, false
     local realTime, realCombat = GetTime, UnitAffectingCombat
@@ -884,9 +931,9 @@ do
     now = 170
     FG.Guide:Refresh()
     assert(waypoint.x == 0.5 and waypoint.y == 0.5, "waited there out of combat: the closest other place")
-    SlashCmdList.FACTORUIDE("spot")
-    assert(waypoint.x == 0.1, "/fg spot: the next one")
-    SlashCmdList.FACTORUIDE("spot")
+    Press("spot")
+    assert(waypoint.x == 0.1, "next spot: the next one")
+    Press("spot")
     assert(waypoint.x == 0.2993, "all visited: around again from the closest")
     local places, at = FG.Guide:SpotPlaces()
     assert(#places == 3 and at == 1, "the places for the map pins")
@@ -934,7 +981,7 @@ do
     print("patrol ok")
 end
 
--- Profile: what the app plans a guide from, saved at login, logout and on /fg profile.
+-- Profile: what the app plans a guide from, saved at login, logout and with "Save the profile now".
 local profile = FactoruideDB.profiles["Brouz-Realm"]
 assert(profile and profile.level == 1 and profile.race == 7 and profile.class == "MAGE", "profile saved")
 assert(profile.rested == 600 and profile.xp_max == 400 and profile.resting, "XP and rested XP")
@@ -952,23 +999,20 @@ C_QuestLog.GetQuestObjectives = function()
     return { { text = "Tough Wolf Meat: 3/8", numFulfilled = 3, numRequired = 8, finished = false } }
 end
 C_QuestLog.GetAllCompletedQuestIDs = function() return { 179, 233 } end
-SlashCmdList.FACTORUIDE("profile")
+Press("profile")
 assert(reloaded, "the interface reloads to write the profile")
 assert(#profile.completed == 2, "quests done")
 assert(profile.log[1].id == 233 and profile.log[1].objectives[1].done == 3, "log with its objectives")
 print("profile ok")
 
--- Window size: Ctrl + mouse wheel over a window, or /fg scale; saved, nothing: the app's.
-SlashCmdList.FACTORUIDE("scale 1.3")
+-- Window size: Ctrl + mouse wheel over a window, or the setting; saved, nothing: the default.
+FG:Save("scale", 1.3)
 assert(FG:Get("scale") == 1.3 and FactoruideDB.settings.scale == 1.3, "scale saved")
-local wheel
-for _, f in ipairs(frames) do
-    if rawget(f, "OnMouseWheel") then wheel = f end
-end
+local wheel = FG.Card:Frame()
 fire("MODIFIER_STATE_CHANGED", "LCTRL", 1)
 wheel.OnMouseWheel(wheel, 1)
 assert(FG:Get("scale") == 1.35, "zoomed in: " .. FG:Get("scale"))
-SlashCmdList.FACTORUIDE("scale")
+FG:Save("scale", nil)
 assert(FG:Get("scale") == 1 and FactoruideDB.settings.scale == nil, "back to the default size")
 print("scale ok")
 
@@ -1276,7 +1320,7 @@ local function taken(q)
 end
 assert(not taken(9001), "a quest the guide abandons is not taken")
 assert(taken(9002), "a quest of the guide is taken")
-SlashCmdList.FACTORUIDE("skip 9003")
+FG.Guide:ToggleSkip(3) -- right click on its step
 assert(not taken(9003), "a quest marked done by hand is not taken")
 assert(not taken(9999), "a quest out of the guide is not taken")
 -- Classic and TBC have no quests taken on sight (no QuestGetAutoAccept).
@@ -1477,7 +1521,7 @@ useRoute("skip-test")
 char.guide.skippedQuests[5004] = true
 char.guide.marks[1] = "skip"
 calls.StaticPopup_Show = nil
-FG.Guide:AskReset()
+Press("restart")
 assert(calls.StaticPopup_Show and calls.StaticPopup_Show[1] == "FACTORUIDE_RESET", "asked first")
 FG.Guide:Reset()
 for q in pairs(char.guide.skippedQuests) do
@@ -1489,6 +1533,18 @@ end
 calls.StaticPopup_Show = nil
 FG.Guide:AskReset()
 assert(not calls.StaticPopup_Show, "nothing to undo: no question")
+-- A step without a quest marked by hand, undone with the window's button.
+FG.Guide:ToggleSkip(5)
+assert(char.guide.marks[5] == "skip", "step marked")
+Press("undo")
+assert(char.guide.marks[5] == nil, "step mark undone")
+-- The time per level, in the chat.
+local printed = {}
+local realPrint = print
+print = function(text) printed[#printed + 1] = text end
+Press("time")
+print = realPrint
+assert(#printed > 0, "time per level printed")
 print("start over ok")
 
 -- The next steps' tab, kept.
@@ -1624,12 +1680,15 @@ do
     assert(#FG.Compass:Points() == 0, "no compass")
     FG:Set("compassShown", nil)
     assert(#FG.Compass:Points() > 0, "the compass back")
-    -- Hidden and shown in game (`/fg compass`), kept over the app's setting.
-    SlashCmdList.FACTORUIDE("compass")
-    assert(FG:Get("compassShown") == false and FactoruideDB.settings.compassShown == false, "/fg compass: hidden, kept")
-    assert(#FG.Compass:Points() == 0, "/fg compass: no compass")
-    SlashCmdList.FACTORUIDE("compass")
-    assert(FG:Get("compassShown") == true and #FG.Compass:Points() > 0, "/fg compass again: back")
+    -- Hidden and shown in game (the window's compass button), kept.
+    Press("compass")
+    assert(
+        FG:Get("compassShown") == false and FactoruideDB.settings.compassShown == false,
+        "compass button: hidden, kept"
+    )
+    assert(#FG.Compass:Points() == 0, "compass button: no compass")
+    Press("compass")
+    assert(FG:Get("compassShown") == true and #FG.Compass:Points() > 0, "compass button again: back")
     FG:Save("compassShown", nil)
 end
 print("compass places ok")
@@ -2020,11 +2079,11 @@ ravagers[1].numFulfilled, ravagers[1].finished = 10, true
 fire("QUEST_LOG_UPDATE")
 runTimers()
 assert(page() == "1,2" and char.guide.step == 2, "the page stays until both are done: " .. page())
-SlashCmdList.FACTORUIDE("next")
+Press("next")
 assert(page() == "3", "the turn-in alone, not its objectives again: " .. page())
 local turnin = FG.Guide.view.tasks[1]
 assert(turnin.have == 10 and turnin.need == 20, "the turn-in shows how far the quest is")
-SlashCmdList.FACTORUIDE("prev")
+Press("prev")
 assert(page() == "1,2", "back to the objectives' page: " .. page())
 C_QuestLog.GetQuestObjectives = pageObjectives
 onQuest[9201] = nil
@@ -2236,7 +2295,7 @@ tracker.placed = nil
 FG.Tracker:Refresh()
 
 -- The minimal guide: its strip, the next steps under it and the compass over it move the strip.
-SlashCmdList.FACTORUIDE("mode")
+Press("mode")
 local strip = FG.Mini:Frame()
 local stripMoves = watchMoves(strip)
 local drop = named("FactoruideMiniNext")
@@ -2256,7 +2315,7 @@ local compass = named("FactoruideCompass")
 local compassMoves = watchMoves(compass)
 drag(compass)
 assert(stripMoves.moves == 2 and compassMoves.moves == 0, "the compass over the strip moves the strip")
-SlashCmdList.FACTORUIDE("mode")
+Press("mode")
 drag(compass)
 assert(compassMoves.moves == 1, "on its own, the compass moves itself")
 local compassPoint = FG.Guide:State().compassPoint
@@ -2267,8 +2326,8 @@ GetTime = realDragTime
 print("drag anywhere ok")
 
 -- The compass: its ends dragged change its width (its middle stays), Ctrl + wheel its own size,
--- kept for the character; a hint on the bar says how; `/fg compass reset` puts it back;
--- `/fg lock` locks the windows.
+-- kept for the character; a hint on the bar says how; "Compass back to the top" puts it
+-- back; "Lock the windows" locks the windows.
 do
     local state = FG.Guide:State()
     compass.GetEffectiveScale = function() return 1 end
@@ -2327,8 +2386,8 @@ do
         hint():find("Glisser : la déplacer", 1, true) and hint():find("Ctrl + molette", 1, true),
         "the hint says how"
     )
-    SlashCmdList.FACTORUIDE("lock")
-    assert(FG:Get("lockFrames") == true and FactoruideDB.settings.lockFrames == true, "/fg lock: kept")
+    Press("lock")
+    assert(FG:Get("lockFrames") == true and FactoruideDB.settings.lockFrames == true, "lock button: kept")
     assert(
         hint():find("Verrouillée", 1, true) and not hint():find("Glisser : la déplacer", 1, true),
         "locked: the hint says so"
@@ -2336,13 +2395,13 @@ do
     local moves = compassMoves.moves
     drag(compass)
     assert(compassMoves.moves == moves, "locked: it does not move")
-    SlashCmdList.FACTORUIDE("lock")
-    assert(FG:Get("lockFrames") == false, "/fg lock again: unlocked")
+    Press("lock")
+    assert(FG:Get("lockFrames") == false, "lock button again: unlocked")
     FG:Save("lockFrames", nil)
     GameTooltip.AddLine = nil
 
     -- Back at the top, at its first size.
-    SlashCmdList.FACTORUIDE("compass reset")
+    Press("compassReset")
     assert(state.compassPoint == nil and state.compassWidth == nil and state.compassScale == nil, "reset: forgotten")
     assert(compass.width == 420 and math.abs(compass.scale - windows) < 1e-9, "reset: its first width and size")
     p = compass.points[1]
@@ -2351,8 +2410,9 @@ do
 end
 print("compass layout ok")
 
--- `/fg hide` hides every window and mark of the addon at once (one parent frame), for the
--- session; `/fg show` brings them back as they were. Progress and settings are kept.
+-- "Hide the addon's windows" (`/fg`) hides every window and mark of the addon at once (one parent
+-- frame), for the session; clicked again it brings them back as they were. Progress and settings
+-- are kept.
 FG.Routes["visibility-test"] = {
     race = 7,
     class = 8,
@@ -2408,9 +2468,12 @@ end
 assert(FG.Card:Frame():IsVisible(), "the guide visible before hiding")
 local popupHidden
 StaticPopup_Hide = function(which) popupHidden = which end
-SlashCmdList.FACTORUIDE("hide")
-SlashCmdList.FACTORUIDE("hide")
-assert(not root:IsShown() and not FG:Get("uiShown"), "hide twice: hidden")
+local hideButton = FG.SettingsWindow:ActionButtons().hide
+assert(hideButton.label:GetText() == "Masquer les fenêtres de l'addon", "the button hides them")
+Press("hide")
+assert(not root:IsShown() and not FG:Get("uiShown"), "hidden")
+assert(hideButton.label:GetText() == "Afficher les fenêtres de l'addon", "the button now shows them")
+assert(FG.SettingsWindow:Parts():IsShown(), "the addon's window stays to show them again")
 assert(popupHidden == "FACTORUIDE_RESET", "the guide's reset dialog closed")
 FG.Guide:Refresh()
 FG.Tracker:Refresh()
@@ -2423,37 +2486,38 @@ assert(not xpMark:IsShown(), "no XP bar mark while hidden")
 assert(FG:Get("guideShown") and FG:Get("questPanel") and FG:Get("guideMode") == "full", "settings kept")
 assert(char.guide.step == stepBeforeHide, "progress kept")
 assert(FactoruideDB.settings.uiShown == nil, "hidden for the session only")
-SlashCmdList.FACTORUIDE("show")
-SlashCmdList.FACTORUIDE("show")
-assert(root:IsShown() and FG:Get("uiShown"), "show twice: shown")
+Press("hide")
+assert(root:IsShown() and FG:Get("uiShown"), "shown again")
 assert(FG.Card:Frame():IsVisible() and xpMark:IsShown(), "the guide and the XP bar mark back")
--- `/fg guide` stays the guide's own switch: shown again with the rest, it stays hidden.
-SlashCmdList.FACTORUIDE("guide")
-SlashCmdList.FACTORUIDE("hide")
-SlashCmdList.FACTORUIDE("show")
+-- "Hide the guide" stays the guide's own switch: shown again with the rest, it stays hidden.
+Press("guide")
+Press("hide")
+Press("hide")
 assert(not FG:Get("guideShown") and root:IsShown(), "the guide alone still hidden")
 assert(not FG.Card:Frame():IsShown(), "the guide's card stays hidden")
-SlashCmdList.FACTORUIDE("guide")
+assert(FG.SettingsWindow:ActionButtons().guide.label:GetText() == "Afficher le guide", "the button shows it")
+Press("guide")
 assert(FG.Card:Frame():IsVisible(), "the guide back")
 
 -- In combat (the quest item buttons are secure), the change waits for the end of the fight; the
--- last command typed wins.
+-- button says what comes, the last click wins.
 InCombatLockdown = function() return true end
 local writesBeforeCombat = visibilityWrites
-SlashCmdList.FACTORUIDE("hide")
+Press("hide")
 assert(root:IsShown() and FG:Get("uiShown"), "hide waits during combat")
 assert(visibilityWrites == writesBeforeCombat, "nothing changed during combat")
+assert(hideButton.label:GetText() == "Afficher les fenêtres de l'addon", "the button says they will be hidden")
 InCombatLockdown = function() return false end
 fire("PLAYER_REGEN_ENABLED")
 assert(not root:IsShown(), "hidden after the fight")
 InCombatLockdown = function() return true end
-SlashCmdList.FACTORUIDE("show")
-SlashCmdList.FACTORUIDE("hide")
+Press("hide")
+Press("hide")
 InCombatLockdown = function() return false end
 fire("PLAYER_REGEN_ENABLED")
-assert(not root:IsShown(), "the last command wins")
+assert(not root:IsShown(), "the last click wins")
 InCombatLockdown = function() return true end
-SlashCmdList.FACTORUIDE("show")
+Press("hide")
 assert(not root:IsShown(), "show waits during combat")
 InCombatLockdown = function() return false end
 fire("PLAYER_REGEN_ENABLED")
@@ -2481,7 +2545,7 @@ WorldMapFrame = {
 }
 FG.MapPins:Refresh()
 assert(pins > 0 and waypoint, "map pins and waypoint shown")
-SlashCmdList.FACTORUIDE("hide")
+Press("hide")
 assert(not waypoint, "the waypoint cleared on hide")
 FG.Guide:Refresh()
 assert(not waypoint, "a refresh does not set the waypoint again while hidden")
@@ -2498,7 +2562,7 @@ UnitHealthMax = function() return 100 end
 UnitIsDeadOrGhost = function() return false end
 fire("UNIT_HEALTH", "player")
 assert(alerts == 0, "no low health alert while hidden")
-SlashCmdList.FACTORUIDE("show")
+Press("hide")
 assert(pins > 0 and waypoint, "map pins and waypoint back on show")
 health = 100
 fire("UNIT_HEALTH", "player")
@@ -2954,7 +3018,7 @@ FG.Guide:Advance()
 local steps = rowsSince("step", mark)
 assert(#steps == 1 and steps[1][4] == 9101, "step done while playing")
 assert(steps[1][11].step == 2 and steps[1][11].planned == 240, "its index and planned time")
-SlashCmdList.FACTORUIDE("skip")
+Press("skip")
 FG.Guide:Advance()
 assert(char.guide.step == 4 and #rowsSince("step", mark) == 1, "a step marked by hand is not recorded")
 onQuest[9101] = nil
@@ -3030,7 +3094,7 @@ assert(#char.events == before - 3 and decodeRow(char.events[1])[1] > FactoruideS
 local output
 local realPrint = print
 print = function(s) output = s end
-SlashCmdList.FACTORUIDE("status")
+Press("status")
 print = realPrint
 assert(output:find(#char.events .. " not sent yet", 1, true), "status: " .. output)
 for i = 1, 20010 do
@@ -3087,14 +3151,14 @@ local function ExportImport()
 
     local deflate = LibStub("LibDeflate")
 
-    -- `/fg export`: a fresh profile, compressed, in a window to copy (no collector rows).
+    -- "Export my character": a fresh profile, compressed, in a window to copy (no collector rows).
     local profile = FactoruideDB.profiles["Brouz-Realm"]
     char.events = { "101|5|kill||npc|6|1426|30|70|1|", "102|6|kill||npc|6|1426|30|70|1|", { 103, 0, "kill" } }
     char.events[4] = '104|7|loot||npc|6|1426|30|70|1|name=Wolf "Meat"%0A'
     FactoruideDB.sent = { ["Brouz-Realm"] = 101 }
     profile.flights = { [12] = true, [2] = true, [7] = false }
     playerLevel = 4
-    SlashCmdList.FACTORUIDE("export")
+    Press("export")
     local window, edit, action, status = FG.TextWindow:Parts()
     assert(window:IsShown() and not action:IsShown(), "export window shown, no second button")
     local exported = edit:GetText()
@@ -3114,7 +3178,7 @@ local function ExportImport()
     assert(parsed ~= false, "export JSON read by Python")
     print("profile export ok" .. (parsed == nil and " (python3 missing: JSON not parsed)" or ""))
 
-    -- `/fg import`: guides pasted from the apps, one text each (or several in one); imports add up.
+    -- "Import a guide…": guides pasted from the apps, one text each (or several in one); imports add up.
     local fixture = assert(io.open("addon/tests/fixtures/Routes.lua")):read("*a")
     -- Without the older apps' assignments.
     local plain = fixture:gsub("%-%- Which guide each character follows.-}\n", "")
@@ -3137,7 +3201,7 @@ local function ExportImport()
             .. 'FactoruideSent = { ["Brouz-Realm"] = 150, ["Other-Realm"] = 3 }\n'
     )
     local guideString = Encode(guideLua)
-    SlashCmdList.FACTORUIDE("import")
+    Press("import")
     assert(window:IsShown() and action:IsShown() and (edit:GetText() or "") == "", "import window, empty box")
     local function Click(text)
         FG.Import:Open()
@@ -3326,9 +3390,9 @@ local function ExportImport()
     useRoute("solo")
     assert(char.guide.route == "solo", "a choice wins over the assignment")
 
-    -- `/fg import clear`: asked, then every imported guide deleted.
+    -- "Delete the imported guides": asked, then every imported guide deleted.
     calls.StaticPopup_Show = nil
-    SlashCmdList.FACTORUIDE("import clear")
+    Press("clear")
     assert(calls.StaticPopup_Show and calls.StaticPopup_Show[1] == "FACTORUIDE_CLEAR_GUIDES", "asked")
     assert(FactoruideDB.guides.solo, "not before the answer")
     StaticPopupDialogs.FACTORUIDE_CLEAR_GUIDES.OnAccept()
@@ -3353,7 +3417,7 @@ local function ExportImport()
         "no guide: use the web app"
     )
     FG.Guide:Advance()
-    SlashCmdList.FACTORUIDE("next")
+    Press("next")
     print("guide import ok")
 end
 ExportImport()
@@ -3396,15 +3460,93 @@ local function SettingsTest()
     FG:Save("scale", nil)
     FG:Save("compassShown", nil)
 
-    -- In the game's options, and `/fg config` / `/fg settings`.
+    -- In the game's options, and `/fg`: the window on its actions page, closed again by `/fg`.
     assert(addonCategory and addonCategory.name == "Factoruide", "a page in the game's options")
-    SlashCmdList.FACTORUIDE("config")
     local window, pages = FG.SettingsWindow:Parts()
-    assert(window:IsShown(), "/fg config opens the window")
-    SlashCmdList.FACTORUIDE("config")
+    FG.SettingsWindow:Close()
+    FG.SettingsWindow:Show(3)
+    SlashCmdList.FACTORUIDE("")
+    assert(window:IsShown() and FG.SettingsWindow.page == 1, "/fg opens the window on its actions")
+    SlashCmdList.FACTORUIDE("")
     assert(not window:IsShown(), "and closes it")
-    SlashCmdList.FACTORUIDE("settings")
-    assert(window:IsShown(), "/fg settings opens it")
+    -- A button for each action, those of the profile part too.
+    local buttons = FG.SettingsWindow:ActionButtons()
+    for _, id in ipairs({
+        "prev",
+        "next",
+        "skip",
+        "undo",
+        "spot",
+        "restart",
+        "guide",
+        "mode",
+        "macro",
+        "time",
+        "hide",
+        "lock",
+        "compass",
+        "compassReset",
+        "export",
+        "profile",
+        "import",
+        "clear",
+        "status",
+        "debug",
+        "reset",
+    }) do
+        assert(buttons[id], "a button for " .. id)
+    end
+    assert(buttons.export.label:GetText() == "Exporter mon personnage", "labels translated")
+    -- The chat commands of before are gone: each only opens the window, nothing else happens.
+    local function Now()
+        return table.concat({
+            tostring(FG:Get("guideMode")),
+            tostring(FG:Get("uiShown")),
+            tostring(FG:Get("lockFrames")),
+            tostring(FG:Get("compassShown")),
+            tostring(FG:Get("waypoints")),
+            tostring(FG:Get("scale")),
+            tostring(FactoruideDB.debug),
+            tostring(char.guide.step),
+            tostring(#char.events),
+            tostring(FG.TextWindow:Parts() and FG.TextWindow:Parts():IsShown()),
+        }, " ")
+    end
+    local before = Now()
+    reloaded = false
+    for _, old in ipairs({
+        "config",
+        "settings",
+        "guide",
+        "hide",
+        "show",
+        "compass reset",
+        "lock",
+        "next",
+        "prev",
+        "step 3",
+        "skip",
+        "restart",
+        "mode",
+        "route x",
+        "macro",
+        "spot",
+        "waypoint",
+        "scale 2",
+        "time",
+        "status",
+        "reset",
+        "profile",
+        "export",
+        "import clear",
+        "debug",
+    }) do
+        FG.SettingsWindow:Close()
+        SlashCmdList.FACTORUIDE(old)
+        assert(window:IsShown() and FG.SettingsWindow.page == 1, "/fg " .. old .. " opens the window")
+        assert(Now() == before and not reloaded, "/fg " .. old .. " does nothing else: " .. Now())
+    end
+    assert(SLASH_FACTORUIDE2 == "/factoruide", "/factoruide too")
 
     -- Every option of the schema has its row (those of this edition), and the language.
     local rows = {}

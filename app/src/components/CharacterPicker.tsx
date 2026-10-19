@@ -15,7 +15,7 @@ interface Props {
   onImported?: (name: string) => void;
 }
 
-/** Start the guide from a character recorded in game (`/fg profile`, or at each logout): its
+/** Start the guide from a character recorded in game ("Save the profile now", or at each logout): its
  * level, quests done and in the log, position, hearthstone and flight paths. */
 export function CharacterPicker({ characters, start, onPick, onImported }: Props) {
   const t = useT();
@@ -34,9 +34,9 @@ export function CharacterPicker({ characters, start, onPick, onImported }: Props
         <Hint
           text={
             start
-              ? t("Le guide part de ce personnage : ses quêtes faites sont ignorées ; celles de son journal sont reprises si elles servent, sinon abandonnées en première étape. En jeu, /fg profile (ou une déconnexion) met le profil à jour.")
+              ? t("Le guide part de ce personnage : ses quêtes faites sont ignorées ; celles de son journal sont reprises si elles servent, sinon abandonnées en première étape. En jeu, /fg puis « Enregistrer le profil maintenant » (ou une déconnexion) met le profil à jour.")
               : characters?.length === 0
-                ? t("Aucun personnage enregistré : connectez-vous en jeu avec l'addon installé, puis tapez /fg profile.")
+                ? t("Aucun personnage enregistré : connectez-vous en jeu avec l'addon installé, puis /fg et « Enregistrer le profil maintenant » (ou déconnectez-vous).")
                 : t("Choisissez un personnage enregistré en jeu pour reprendre là où il en est.")
           }
         />
@@ -52,7 +52,7 @@ export function CharacterPicker({ characters, start, onPick, onImported }: Props
       </select>
       {IS_WEB && !pasting && (
         <button className="link" onClick={() => setPasting(true)}>
-          {t("Coller l'export d'un personnage (/fg export)…")}
+          {t("Coller l'export d'un personnage (en jeu : /fg, « Exporter mon personnage »)…")}
         </button>
       )}
       {IS_WEB && pasting && (

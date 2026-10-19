@@ -14,8 +14,8 @@
 -- continent it only says so.
 -- Over the minimal guide's strip, else at the top of the screen. Dragged anywhere it moves
 -- (unless the windows are locked), Ctrl + mouse wheel changes its size, its ends dragged its
--- width; kept for the character. `/fg compass` hides or shows it, `/fg compass reset` puts it
--- back at the top, at its first size.
+-- width; kept for the character. The window (`/fg`) hides or shows it, and puts it back at the
+-- top, at its first size.
 
 local FG = Factoruide
 local T = FG.T
@@ -36,12 +36,12 @@ local L = {
     move = T("Drag: move it"),
     size = T("Ctrl + mouse wheel: its size"),
     width = T("Drag an end: its width"),
-    locked = T("Locked: /fg lock to move it"),
-    commands = T("/fg compass: hide it, /fg compass reset: back to the top"),
-    shown = T("compass shown (/fg compass hides it)"),
-    hidden = T("compass hidden (/fg compass shows it again)"),
+    locked = T("Locked: unlock the windows in /fg to move it"),
+    commands = T("/fg: hide it, or put it back at the top"),
+    shown = T("compass shown"),
+    hidden = T("compass hidden"),
     reset = T("compass back at the top of the screen, at its first size"),
-    replaced = T("the wind guides you instead of the compass (set in /fg config)"),
+    replaced = T("the wind guides you instead of the compass (set in /fg, Immersion)"),
 }
 -- Every 45°, counter-clockwise from north (the game's facing).
 local CARDINALS = { T("N"), T("NW"), T("W"), T("SW"), T("S"), T("SE"), T("E"), T("NE") }
@@ -727,27 +727,41 @@ function Compass:Free()
     f:SetPoint(unpack(state and state.compassPoint or { "TOP", UIParent, "TOP", 0, -14 }))
 end
 
---- `/fg compass`: hide or show it (kept over the app's setting until it changes there);
---- `/fg compass reset`: back at the top of the screen, at its first width and size.
-function Compass:Command(arg)
-    if (arg or ""):lower() == "reset" then
-        local state = Saved()
-        if state then
-            state.compassPoint, state.compassWidth, state.compassScale = nil, nil, nil
-        end
-        if frame then
-            Layout(WIDTH_DEFAULT)
-            frame:SetScale(Scale())
-            if attached == false then
-                attached = nil
-                self:Free()
-            end
-        end
-        FG:Print(L.reset)
-        return
+--- Back at the top of the screen, at its first width and size.
+function Compass:ResetPlace()
+    local state = Saved()
+    if state then
+        state.compassPoint, state.compassWidth, state.compassScale = nil, nil, nil
     end
+    if frame then
+        Layout(WIDTH_DEFAULT)
+        frame:SetScale(Scale())
+        if attached == false then
+            attached = nil
+            self:Free()
+        end
+    end
+    FG:Print(L.reset)
+end
+
+--- Hide or show it (the setting, saved).
+function Compass:Toggle()
     local shown = not FG:Get("compassShown")
     FG:Save("compassShown", shown)
     FG:Print(shown and L.shown or L.hidden)
     if shown and FG.Wind and FG.Wind:Active() then FG:Print(L.replaced) end
 end
+
+FG:AddAction({
+    id = "compass",
+    section = "Windows",
+    label = function() return FG:Get("compassShown") and "Hide the compass" or "Show the compass" end,
+    run = function() Compass:Toggle() end,
+})
+FG:AddAction({
+    id = "compassReset",
+    section = "Windows",
+    label = "Compass back to the top",
+    help = "At the top of the screen, at its first width and size.",
+    run = function() Compass:ResetPlace() end,
+})

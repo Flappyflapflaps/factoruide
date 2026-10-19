@@ -1,2 +1,2 @@
 -- Empty in the published addon. Older versions of the Factoruide app wrote the guides here;
--- they now go into the data addon Factoruide_Data, or come with `/fg import`.
+-- they now go into the data addon Factoruide_Data, or are imported in game (`/fg`).

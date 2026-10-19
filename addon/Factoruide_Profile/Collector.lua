@@ -8,7 +8,7 @@
 --   { seq, time, event, questID, entityType, entityID, uiMapID, x, y, level, data }
 -- The rows the app has (`FactoruideSent[character] = last seq sent`) come with the guides written
 -- by the desktop app into Factoruide_Data (FG.DataSent, Data.lua), the Sent.lua older versions of
--- the app wrote, or a guide imported with `/fg import` (`FactoruideDB.sent`): they are dropped at
+-- the app wrote, or a guide imported in game (`FactoruideDB.sent`): they are dropped at
 -- login.
 -- Everything here is event driven (no OnUpdate), throttled and bounded.
 
@@ -776,3 +776,29 @@ function Collector:Reset()
         FG:Print("collected events cleared")
     end
 end
+
+FG:AddAction({
+    id = "status",
+    section = "Advanced",
+    label = "Recorded events",
+    help = "In the chat: how many quest events this character recorded, and how many the app does not have yet.",
+    run = function() Collector:PrintStatus() end,
+})
+FG:AddAction({
+    id = "debug",
+    section = "Advanced",
+    label = function() return FactoruideDB and FactoruideDB.debug and "Debug messages: on" or "Debug messages: off" end,
+    help = "The addon's own messages in the chat, to find what goes wrong.",
+    run = function()
+        FactoruideDB.debug = not FactoruideDB.debug
+        FG:Print("debug %s", FactoruideDB.debug and "on" or "off")
+    end,
+})
+FG:AddAction({
+    id = "reset",
+    section = "Advanced",
+    label = "Clear the recorded events",
+    help = "Deletes the quest events this character recorded for the app.",
+    confirm = true,
+    run = function() Collector:Reset() end,
+})

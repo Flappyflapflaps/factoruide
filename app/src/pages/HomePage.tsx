@@ -54,7 +54,7 @@ const FEATURES: { title: string; items: [string, string][] }[] = [
       ["Boussole et flèche", "Toujours la direction de la prochaine étape, vols et bateaux compris."],
       ["Automatisations", "Quêtes acceptées et rendues, entraîneurs, vols, ventes et réparations."],
       ["Suivi du temps", "Votre temps par niveau comparé à celui du guide."],
-      ["Tout se règle en jeu", "Une fenêtre de réglages : /fg config."],
+      ["Tout se règle en jeu", "Une seule fenêtre pour tout : /fg."],
       ["Polestar", "Sur WoW Forever, vos guides aussi dans Polestar."],
     ],
   },
@@ -70,16 +70,16 @@ export function HomePage({ editionName, onNewGuide, onGuides, onAddon }: Props) 
 
   const steps = IS_WEB
     ? [
-        { title: t("Installez l'addon"), text: t("Depuis CurseForge, comme n'importe quel addon. Il se règle en jeu : /fg config."), action: { label: t("Page de l'addon"), run: onAddon } },
-        { title: t("Calculez votre guide"), text: t("Race, classe, métiers, zones, donjons et façon de jouer, au niveau voulu ou depuis votre personnage (/fg export en jeu, collé dans Nouveau guide) : le guide est calculé dans ce navigateur."), action: { label: t("Nouveau guide"), run: onNewGuide } },
-        { title: t("Exportez-le"), text: t("Page Guides, « Exporter » puis Addon : un texte à coller en jeu avec /fg import. Ou « Export global » : tous vos guides en un dossier à décompresser dans les addons du jeu."), action: { label: t("Guides"), run: onGuides } },
-        { title: t("Suivez-le en jeu"), text: t("Dans /fg config, page Guides, choisissez le guide de votre personnage (d'office s'il est le seul de sa race et de sa classe)."), action: { label: t("Page de l'addon"), run: onAddon } },
+        { title: t("Installez l'addon"), text: t("Depuis CurseForge, comme n'importe quel addon. Tout se fait dans sa fenêtre en jeu : /fg."), action: { label: t("Page de l'addon"), run: onAddon } },
+        { title: t("Calculez votre guide"), text: t("Race, classe, métiers, zones, donjons et façon de jouer, au niveau voulu ou depuis votre personnage (en jeu, /fg puis « Exporter mon personnage », collé dans Nouveau guide) : le guide est calculé dans ce navigateur."), action: { label: t("Nouveau guide"), run: onNewGuide } },
+        { title: t("Exportez-le"), text: t("Page Guides, « Exporter » puis Addon : un texte à coller en jeu (/fg puis « Importer un guide… »). Ou « Export global » : tous vos guides en un dossier à décompresser dans les addons du jeu."), action: { label: t("Guides"), run: onGuides } },
+        { title: t("Suivez-le en jeu"), text: t("En jeu, /fg, page Guides : choisissez le guide de votre personnage (d'office s'il est le seul de sa race et de sa classe)."), action: { label: t("Page de l'addon"), run: onAddon } },
       ]
     : [
-        { title: t("Installez l'addon"), text: t("Depuis CurseForge, comme n'importe quel addon. Il se règle en jeu : /fg config."), action: { label: t("Page de l'addon"), run: onAddon } },
+        { title: t("Installez l'addon"), text: t("Depuis CurseForge, comme n'importe quel addon. Tout se fait dans sa fenêtre en jeu : /fg."), action: { label: t("Page de l'addon"), run: onAddon } },
         { title: t("Calculez votre guide"), text: t("Race, classe, métiers, zones, donjons et façon de jouer, au niveau voulu ou depuis un personnage enregistré par l'addon : le guide est calculé sur cet ordinateur."), action: { label: t("Nouveau guide"), run: onNewGuide } },
-        { title: t("Exportez-le"), text: t("Page Guides, « Export global » : vos guides écrits dans le jeu (dossier Factoruide_Data). Ou « Exporter » sur un guide : le texte de /fg import, un fichier à partager."), action: { label: t("Guides"), run: onGuides } },
-        { title: t("Suivez-le en jeu"), text: t("Dans /fg config, page Guides, choisissez le guide de votre personnage (d'office s'il est le seul de sa race et de sa classe)."), action: { label: t("Page de l'addon"), run: onAddon } },
+        { title: t("Exportez-le"), text: t("Page Guides, « Export global » : vos guides écrits dans le jeu (dossier Factoruide_Data). Ou « Exporter » sur un guide : le texte à importer en jeu, un fichier à partager."), action: { label: t("Guides"), run: onGuides } },
+        { title: t("Suivez-le en jeu"), text: t("En jeu, /fg, page Guides : choisissez le guide de votre personnage (d'office s'il est le seul de sa race et de sa classe)."), action: { label: t("Page de l'addon"), run: onAddon } },
       ];
 
   return (

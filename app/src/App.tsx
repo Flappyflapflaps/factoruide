@@ -29,7 +29,7 @@ const PAGES: { id: Page; label: string }[] = [
   { id: "home", label: "Accueil" },
   { id: "plan", label: "Nouveau guide" },
   { id: "results", label: "Guides" },
-  // The addon is installed, updated and set up in game (CurseForge, /fg config).
+  // The addon is installed, updated and set up in game (CurseForge, its window: /fg).
   // In a browser, nothing is sent anywhere and the settings are in the menu.
   ...(IS_WEB
     ? []

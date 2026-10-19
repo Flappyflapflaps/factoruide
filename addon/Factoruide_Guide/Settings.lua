@@ -1,4 +1,4 @@
--- The addon's settings, chosen in game (`/fg config`, SettingsWindow.lua) and kept in the saved
+-- The addon's settings, chosen in game (`/fg`, SettingsWindow.lua) and kept in the saved
 -- variables, the same for every character: FactoruideDB.settings = { [key] = value }. A setting
 -- never chosen has its default. Their schema is addon/settings.json, written into
 -- SettingsSchema.lua (FG.SettingsSchema). The app's Config.lua (older versions) and the `Config` of
@@ -6,7 +6,7 @@
 
 local FG = Factoruide
 
--- Every frame of the guide hangs on this one: `/fg hide` hides them all at once. Only visual
+-- Every frame of the guide hangs on this one: "Hide the addon's windows" hides them all at once. Only visual
 -- frames: the event handlers keep running while hidden.
 FG.UIRoot = CreateFrame("Frame", "FactoruideUI", UIParent)
 FG.UIRoot:SetAllPoints(UIParent)
@@ -34,7 +34,7 @@ end
 FG.SettingsTexts = nil
 
 -- Settings only changed in game, outside the settings window.
--- The whole addon's UI (`/fg hide`, `/fg show`), for the session only.
+-- The whole addon's UI ("Hide the addon's windows" in `/fg`), for the session only.
 FG.defaults.uiShown = true
 -- The next steps: their tab ("next" steps or quests to "pickup").
 FG.defaults.nextTab = "next"
@@ -121,6 +121,12 @@ FG:On("PLAYER_REGEN_ENABLED", function()
     if pendingUI ~= nil then FG:SetUIShown(pendingUI) end
 end)
 
+--- Whether the addon's windows are shown, or will be after the fight.
+function FG:UIWanted()
+    if pendingUI ~= nil then return pendingUI end
+    return self:Get("uiShown")
+end
+
 --- Keep a setting (nil: back to its default). Applied at once (its listeners run).
 function FG:Save(key, value)
     local saved = Saved()
@@ -131,21 +137,26 @@ end
 
 local SCALE_MIN, SCALE_MAX = FG.bounds.scale[1], FG.bounds.scale[2]
 
---- `/fg scale [size]`: window size (0.6 to 2; nothing: the default).
-function FG:ScaleCommand(arg)
-    local v = tonumber(arg)
-    self:Save("scale", v and math.max(SCALE_MIN, math.min(SCALE_MAX, v)) or nil)
-    self:Print("scale %.2f", self:Get("scale"))
-end
-
---- `/fg lock`: the windows can no longer be dragged, or can again.
-function FG:LockCommand()
+--- The windows can no longer be dragged, or can again (the window's lock button, the setting).
+function FG:ToggleLock()
     local locked = not self:Get("lockFrames")
     self:Save("lockFrames", locked)
-    self:Print(
-        locked and FG.T("windows locked (/fg lock unlocks them)") or FG.T("windows unlocked: drag them to move them")
-    )
+    self:Print(locked and FG.T("windows locked") or FG.T("windows unlocked: drag them to move them"))
 end
+
+FG:AddAction({
+    id = "hide",
+    section = "Windows",
+    label = function() return FG:UIWanted() and "Hide the addon's windows" or "Show the addon's windows" end,
+    help = "Every window and mark of the addon, until you show them again or reload the interface.",
+    run = function() FG:SetUIShown(not FG:UIWanted()) end,
+})
+FG:AddAction({
+    id = "lock",
+    section = "Windows",
+    label = function() return FG:Get("lockFrames") and "Unlock the windows" or "Lock the windows" end,
+    run = function() FG:ToggleLock() end,
+})
 
 -- Ctrl + mouse wheel over a window changes the size of the windows (`zoom(delta)` instead: its
 -- own size). The wheel is only taken while Ctrl is held, so that it still zooms the camera

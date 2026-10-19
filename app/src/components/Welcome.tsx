@@ -132,7 +132,7 @@ export function Welcome({ onEdition, onDone }: Props) {
         )}
         {step === 2 && (
           <>
-            <p>{t("C'est prêt. Installez l'addon Factoruide depuis CurseForge (ses réglages se font en jeu : /fg config), puis créez un guide pour votre personnage.")}</p>
+            <p>{t("C'est prêt. Installez l'addon Factoruide depuis CurseForge (tout se fait dans sa fenêtre en jeu : /fg), puis créez un guide pour votre personnage.")}</p>
           </>
         )}
         {error && <div className="error">{error}</div>}

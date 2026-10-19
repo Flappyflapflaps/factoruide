@@ -61,7 +61,7 @@ interface GuideProps {
   onDone: (result: ExportResult) => void;
 }
 
-/** One guide version: for the app (.fgguide), for the addon (the text of /fg import), for Polestar (WoW Forever). */
+/** One guide version: for the app (.fgguide), for the addon (the text of the guide import), for Polestar (WoW Forever). */
 export function ExportMenu({ guide, version, edition, prominent, onDone }: GuideProps) {
   const t = useT();
   const [text, setText] = useState<string | null>(null);
@@ -72,7 +72,7 @@ export function ExportMenu({ guide, version, edition, prominent, onDone }: Guide
   const items = [
     {
       label: t("Addon"),
-      hint: t("Le texte à coller en jeu avec /fg import : le guide rejoint ceux de l'addon."),
+      hint: t("Le texte à coller en jeu (/fg puis « Importer un guide… ») : le guide rejoint ceux de l'addon."),
       run: () => {
         setText("");
         api
@@ -115,7 +115,7 @@ export function ExportMenu({ guide, version, edition, prominent, onDone }: Guide
   );
 }
 
-/** The text of /fg import of a guide, to copy. */
+/** The text of the guide import of a guide, to copy. */
 function GuideTextDialog({ text, onClose }: { text: string; onClose: () => void }) {
   const t = useT();
   const [copied, setCopied] = useState(false);
@@ -138,8 +138,8 @@ function GuideTextDialog({ text, onClose }: { text: string; onClose: () => void 
           <>
             <ol className="export-steps">
               <li>{t("Copiez le texte ci-dessous.")}</li>
-              <li>{t("En jeu, tapez /fg import et collez-le dans la fenêtre (Ctrl+V), puis Importer.")}</li>
-              <li>{t("Choisissez le guide de votre personnage dans /fg config, page Guides (d'office s'il est le seul de sa race et de sa classe).")}</li>
+              <li>{t("En jeu, tapez /fg, cliquez sur « Importer un guide… », collez-le (Ctrl+V), puis Importer.")}</li>
+              <li>{t("Choisissez le guide de votre personnage dans la fenêtre /fg, page Guides (d'office s'il est le seul de sa race et de sa classe).")}</li>
             </ol>
             <div className="row">
               <button className="primary" onClick={copy}>

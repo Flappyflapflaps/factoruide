@@ -11,7 +11,7 @@ FG.DB_VERSION = 1
 -- FG.Locales[locale] = { [English text] = translation }.
 FG.Locales = {}
 
--- The languages the addon can be set to (`/fg config`), besides the game's.
+-- The languages the addon can be set to (the settings window), besides the game's.
 FG.LANGUAGES = { "enUS", "frFR", "deDE", "esES", "esMX", "ptBR", "ruRU", "koKR", "zhCN", "zhTW" }
 local known = {}
 for _, lang in ipairs(FG.LANGUAGES) do
@@ -355,37 +355,60 @@ FG:On("ADDON_LOADED", function(name)
     FactoruideDB.seen = { time = time(), version = metadata and metadata(addonName, "Version") or "?" }
 end)
 
+-- The addon's actions, done with buttons of its window (`/fg`): each part adds its own. With the
+-- guide part, they are the first page of its settings window (Factoruide_Guide/SettingsWindow.lua);
+-- alone, the profile part shows them in a small window (Menu.lua). An action: { id, section (one
+-- of FG.ACTION_SECTIONS), label (English, or a function returning it), help (optional),
+-- run(), enabled() (optional: greyed out when it returns false), confirm (asks with a second
+-- click) }.
+FG.ACTION_SECTIONS = { "Guide", "Windows", "Character and guides", "Advanced" }
+FG.Actions = {}
+
+function FG:AddAction(action) table.insert(FG.Actions, action) end
+
+--- The action `id`, nil when no part added it.
+function FG.Action(id)
+    for _, action in ipairs(FG.Actions) do
+        if action.id == id then return action end
+    end
+end
+
+--- An action's text in the addon's language.
+function FG.ActionLabel(action)
+    local label = action.label
+    if type(label) == "function" then label = label() end
+    return FG.T(label)
+end
+
+local CONFIRM_SECONDS = 4
+
+--- A click on an action's button (`setText(button, text)` writes its text): runs it; one asking
+--- first says "Sure?" and runs on a second click within a few seconds. Nothing when disabled.
+function FG.ClickAction(action, button, setText)
+    if action.enabled and not action.enabled() then return end
+    if action.confirm and button.armed ~= true then
+        button.armed = true
+        setText(button, FG.T("Sure?"))
+        C_Timer.After(CONFIRM_SECONDS, function()
+            if button.armed ~= true then return end
+            button.armed = false
+            setText(button, FG.ActionLabel(action))
+        end)
+        return
+    end
+    button.armed = false
+    action.run()
+    setText(button, FG.ActionLabel(action))
+end
+
+-- The only chat command: `/fg` (or `/factoruide`), with anything after it, opens the window (or
+-- closes it when open). Everything else is done there.
 SLASH_FACTORUIDE1 = "/fg"
 SLASH_FACTORUIDE2 = "/factoruide"
-SlashCmdList.FACTORUIDE = function(msg)
-    local cmd, arg = strsplit(" ", strtrim(msg or ""), 2)
-    cmd = (cmd or ""):lower()
-    if FG.Guide and FG.Guide:Command(cmd, arg) then
-        return
-    elseif cmd == "debug" then
-        FactoruideDB.debug = not FactoruideDB.debug
-        FG:Print("debug %s", FactoruideDB.debug and "on" or "off")
-    elseif FG.Collector and (cmd == "" or cmd == "status") then
-        FG.Collector:PrintStatus()
-    elseif FG.Collector and cmd == "reset" then
-        FG.Collector:Reset()
-    elseif FG.ScaleCommand and cmd == "scale" then
-        FG:ScaleCommand(arg)
-    elseif FG.Compass and cmd == "compass" then
-        FG.Compass:Command(arg)
-    elseif FG.LockCommand and cmd == "lock" then
-        FG:LockCommand()
-    elseif FG.Profile and (cmd == "profile" or cmd == "profil") then
-        FG.Profile:Save()
-    elseif FG.Profile and cmd == "export" then
-        FG.Profile:Export()
-    elseif FG.Import and cmd == "import" then
-        FG.Import:Command(arg)
-    elseif FG.Guide then
-        FG:Print(
-            "/fg config | guide | hide | show | compass [reset] | lock | next | prev | step <n> | skip [id] | restart | mode | route | macro | spot | waypoint | scale [size] | status | reset | profile | export | import [clear] | debug"
-        )
-    else
-        FG:Print("/fg status | reset | profile | export | debug")
+SlashCmdList.FACTORUIDE = function()
+    if FG.SettingsWindow then
+        FG.SettingsWindow:ToggleHome()
+    elseif FG.Menu then
+        FG.Menu:Toggle()
     end
 end

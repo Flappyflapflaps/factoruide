@@ -1,4 +1,4 @@
--- Guides as Lua text, run in a sandbox: the text of a `/fg import` (Factoruide_Guide/Import.lua)
+-- Guides as Lua text, run in a sandbox: the text of an import (Factoruide_Guide/Import.lua)
 -- and the one the desktop app writes into the data addon Factoruide_Data (never published, so
 -- that an update of the other addons never erases it). Factoruide_Data loads first (an optional
 -- dependency) and sets two globals:

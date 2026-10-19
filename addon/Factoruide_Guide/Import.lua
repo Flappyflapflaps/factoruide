@@ -1,4 +1,4 @@
--- `/fg import`: guides made in the Factoruide apps pasted in game, one text each (or several
+-- "Import a guide…" (the window, `/fg`): guides made in the Factoruide apps pasted in game, one text each (or several
 -- guides in one):
 --   FGG1:<LibDeflate:EncodeForPrint(LibDeflate:CompressDeflate(lua))>
 -- lua = `Factoruide.Routes["name"] = {...}` for each guide, with its `.created` (unix seconds the
@@ -509,13 +509,18 @@ StaticPopupDialogs["FACTORUIDE_CLEAR_GUIDES"] = {
     hideOnEscape = true,
 }
 
---- `/fg import` opens the window; `/fg import clear` deletes the imported guides (asked first).
-function Import:Command(arg)
-    if (arg or ""):lower() ~= "clear" then return self:Open() end
+--- How many guides were imported.
+function Import:ImportedCount()
     local n = 0
     for _ in pairs(DB().guides) do
         n = n + 1
     end
+    return n
+end
+
+--- Delete the imported guides, asked first ("Delete the imported guides").
+function Import:AskClear()
+    local n = self:ImportedCount()
     if n == 0 then return FG:Print(T("no imported guide")) end
     if FG.SettingsWindow and FG.SettingsWindow.Close then FG.SettingsWindow:Close() end
     StaticPopup_Show(
@@ -527,9 +532,28 @@ end
 FG:On("PLAYER_LOGIN", function()
     local fresh = FactoruideDB.guideImportFresh
     if Import.failed then
-        FG:Print(T("the imported guide could not be read (%s): import it again with /fg import"), Import.failed)
+        FG:Print(
+            T("the imported guide could not be read (%s): import it again (/fg, Import a guide…)"),
+            Import.failed
+        )
     elseif fresh then
-        FG:Print(T("%d guides imported: choose the one to follow in /fg config, Guides"), fresh)
+        FG:Print(T("%d guides imported: choose the one to follow in /fg, Guides page"), fresh)
     end
     FactoruideDB.guideImportFresh = nil
 end)
+
+FG:AddAction({
+    id = "import",
+    section = "Character and guides",
+    label = "Import a guide…",
+    help = "Paste a guide copied from the Factoruide web app.",
+    run = function() Import:Open() end,
+})
+FG:AddAction({
+    id = "clear",
+    section = "Character and guides",
+    label = "Delete the imported guides",
+    help = "Those of the Factoruide desktop app stay.",
+    enabled = function() return type(FactoruideDB) == "table" and Import:ImportedCount() > 0 end,
+    run = function() Import:AskClear() end,
+})

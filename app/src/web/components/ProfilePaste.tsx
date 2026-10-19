@@ -3,7 +3,7 @@ import { api } from "../../api";
 import { useT } from "../../i18n";
 
 /**
- * Web build: a character comes from the game as a text: `/fg export` in game, copied, pasted
+ * Web build: a character comes from the game as a text: "Export my character" in game, copied, pasted
  * here. Pasting it again later updates the character (level, quests, position...).
  */
 export function ProfilePaste({ onImported, compact }: { onImported: (name: string) => void; compact?: boolean }) {
@@ -14,7 +14,7 @@ export function ProfilePaste({ onImported, compact }: { onImported: (name: strin
   const [error, setError] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   const reasons: Record<string, string> = {
-    not_a_profile: t("Ce texte n'est pas un export de personnage : en jeu, tapez /fg export et copiez tout le texte affiché."),
+    not_a_profile: t("Ce texte n'est pas un export de personnage : en jeu, tapez /fg, cliquez sur « Exporter mon personnage » et copiez tout le texte affiché."),
     corrupt_profile: t("Ce texte est incomplet ou abîmé : copiez-le de nouveau en entier (Ctrl+A puis Ctrl+C dans la fenêtre de l'addon)."),
   };
   const submit = async (content: string) => {
@@ -38,7 +38,7 @@ export function ProfilePaste({ onImported, compact }: { onImported: (name: strin
     <section className={compact ? "web-paste compact" : "panel web-paste"}>
       {!compact && <h3>{t("Ajouter ou mettre à jour un personnage")}</h3>}
       <ol className="web-steps">
-        <li>{t("En jeu, connecté avec le personnage, tapez /fg export.")}</li>
+        <li>{t("En jeu, connecté avec le personnage, tapez /fg et cliquez sur « Exporter mon personnage ».")}</li>
         <li>{t("Copiez le texte de la fenêtre qui s'ouvre (il est déjà sélectionné : Ctrl+C).")}</li>
         <li>{t("Collez-le ici (Ctrl+V), ou ouvrez un fichier texte qui le contient.")}</li>
       </ol>

@@ -24,8 +24,8 @@ local L = {
     pointHint = T("Left-click: the compass points at this step"),
     level = T("Lvl"),
     planned = T("planned"),
-    noRoute = T("No guide chosen for this character.\nChoose one in the settings: /fg config, Guides."),
-    noGuides = T("No guide yet.\nMake one in the Factoruide web app, then type /fg import."),
+    noRoute = T("No guide chosen for this character.\nType /fg, Guides page, and click Follow."),
+    noGuides = T("No guide yet.\nMake one in the Factoruide web app, then type /fg and click Import a guide…"),
     done = T("Route finished!"),
     yards = T("yd"),
     prevStep = T("Previous step"),
@@ -43,10 +43,11 @@ local L = {
     alongTheWay = T("along the way"),
     elite = T("elite"),
     skipHint = T("Right-click: mark as already done (or undo)"),
-    skipped = T("quest marked as done: %s (/fg skip %d to undo)"),
+    skipped = T("quest marked as done: %s (to undo: /fg, Undo the last mark)"),
     unskipped = T("quest to do again: %s"),
     stepSkipped = T("step marked as done"),
-    spot = T("spot %d/%d (/fg spot: next)"),
+    stepUnskipped = T("step to do again"),
+    spot = T("spot %d/%d (next: /fg)"),
     noSpot = T("this step has no other spot"),
 }
 
@@ -123,6 +124,8 @@ local pointed
 -- Place picked on the compass (a trainer, a flight master...): pointed at until reached.
 local detour
 local DETOUR_ARRIVED = 10
+-- The last step or quest marked as done by hand, for the session: { route, q } or { route, index }.
+local lastMark
 local Distance -- defined below, used by IsDone
 
 -- Progress -------------------------------------------------------------------
@@ -447,7 +450,7 @@ end
 -- Other places ---------------------------------------------------------------
 -- A step whose mobs live in several places (`spots`, the closest first): the compass points at
 -- its own place, then at the closest one not visited yet once the character has stood at the
--- shown one a while without fighting (nothing there), or on `/fg spot`. For the session only.
+-- shown one a while without fighting (nothing there), or on "Next spot" (`/fg`). For the session only.
 -- An NPC who patrols (`pt`): its spots are along its path, and the closest place to the
 -- character is pointed at first.
 
@@ -983,14 +986,14 @@ function Guide:Advance()
     self:Refresh()
 end
 
---- The first step of the next group (`/fg next`, the guide's › button).
+--- The first step of the next group ("Next step" in `/fg`, the guide's › button).
 function Guide:NextGroup()
     if not route then return end
     local _, last = GroupOf(state.step)
     self:Go(last + 1)
 end
 
---- The first step of the group before (`/fg prev`, the guide's ‹ button).
+--- The first step of the group before ("Previous step" in `/fg`, the guide's ‹ button).
 function Guide:PrevGroup()
     if not route then return end
     local first = GroupOf(state.step)
@@ -1436,49 +1439,12 @@ for _, event in ipairs({
 end
 
 --- Slash commands of the guide (called from Core.lua).
-function Guide:Command(cmd, arg)
-    if cmd == "guide" then
-        FG:Set("guideShown", not FG:Get("guideShown"))
-    elseif cmd == "hide" then
-        FG:SetUIShown(false)
-    elseif cmd == "show" then
-        FG:SetUIShown(true)
-    elseif cmd == "next" then
-        self:NextGroup()
-    elseif cmd == "prev" then
-        self:PrevGroup()
-    elseif cmd == "step" then
-        self:Go(tonumber(arg) or state.step)
-    elseif cmd == "skip" then
-        self:SkipCommand(arg)
-    elseif cmd == "restart" then
-        self:Reset()
-    elseif cmd == "mode" then
-        self:ToggleMode()
-    elseif cmd == "time" then
-        FG.Timing:Print()
-    elseif cmd == "macro" then
-        FG.TargetMacro:Pickup()
-    elseif cmd == "spot" then
-        local places = self:SpotPlaces()
-        if places then
-            NextSpot(places)
-            self:Refresh()
-        else
-            FG:Print(L.noSpot)
-        end
-    elseif cmd == "waypoint" then
-        FG:Set("waypoints", not FG:Get("waypoints"))
-        FG:Print("waypoints %s", FG:Get("waypoints") and "on" or "off")
-    elseif cmd == "config" or cmd == "settings" or cmd == "options" then
-        FG:OpenSettings()
-    elseif cmd == "route" then
-        -- Shown only: the guide is chosen in the settings window.
-        FG:Print(T("guide: %s (chosen in /fg config, Guides)"), tostring(state.route))
-    else
-        return false
-    end
-    return true
+--- Point at the next place of the current step's mobs ("Next spot" in the window).
+function Guide:NextSpot()
+    local places = self:SpotPlaces()
+    if not places then return FG:Print(L.noSpot) end
+    NextSpot(places)
+    self:Refresh()
 end
 
 --- Route followed by the character (nil when none).
@@ -1549,10 +1515,12 @@ function Guide:ToggleSkip(index)
             FG:Print(L.unskipped, name)
         else
             state.skippedQuests[step.q] = true
-            FG:Print(L.skipped, name, step.q)
+            lastMark = { route = route, q = step.q }
+            FG:Print(L.skipped, name)
         end
     else
         state.marks[index] = state.marks[index] ~= "skip" and "skip" or nil
+        if state.marks[index] then lastMark = { route = route, index = index } end
         FG:Print(L.stepSkipped)
     end
     -- Back to the first step not done (an undone quest may be behind us).
@@ -1581,16 +1549,95 @@ function Guide:Purchases()
     return out
 end
 
---- `/fg skip [questID]`: mark a quest (or the current step) as done, or undo it.
-function Guide:SkipCommand(arg)
-    local id = tonumber(arg)
-    if not id then return self:ToggleSkip(state.step) end
-    for i, s in ipairs(route and route.steps or {}) do
-        if s.q == id then return self:ToggleSkip(i) end
+--- The last step or quest marked as done by hand, while it still is (nil when none).
+local function LastMark()
+    if not lastMark or lastMark.route ~= route or not state then return nil end
+    if lastMark.q and state.skippedQuests[lastMark.q] then return lastMark end
+    if lastMark.index and state.marks[lastMark.index] == "skip" then return lastMark end
+    return nil
+end
+
+--- Undo the last step or quest marked as done by hand ("Undo the last mark" in `/fg`).
+function Guide:UndoLastMark()
+    local mark = LastMark()
+    lastMark = nil
+    if not mark then return end
+    if mark.q then
+        state.skippedQuests[mark.q] = nil
+        local step
+        for _, s in ipairs(route.steps) do
+            if s.q == mark.q then
+                step = s
+                break
+            end
+        end
+        FG:Print(L.unskipped, step and (QuestTitle(step) or step.n) or tostring(mark.q))
+    else
+        state.marks[mark.index] = nil
+        FG:Print(L.stepUnskipped)
     end
-    state.skippedQuests[id] = not state.skippedQuests[id] or nil
     self:Resync()
 end
+
+-- The window's buttons for the guide (`/fg`).
+local function HasRoute() return route ~= nil and state ~= nil end
+FG:AddAction({
+    id = "prev",
+    section = "Guide",
+    label = "Previous step",
+    enabled = HasRoute,
+    run = function() Guide:PrevGroup() end,
+})
+FG:AddAction({
+    id = "next",
+    section = "Guide",
+    label = "Next step",
+    enabled = HasRoute,
+    run = function() Guide:NextGroup() end,
+})
+FG:AddAction({
+    id = "skip",
+    section = "Guide",
+    label = "Mark this step as done",
+    enabled = function() return HasRoute() and route.steps[state.step] ~= nil end,
+    run = function() Guide:ToggleSkip(state.step) end,
+})
+FG:AddAction({
+    id = "undo",
+    section = "Guide",
+    label = "Undo the last mark",
+    help = "The last step or quest marked as done by hand is to do again.",
+    enabled = function() return LastMark() ~= nil end,
+    run = function() Guide:UndoLastMark() end,
+})
+FG:AddAction({
+    id = "spot",
+    section = "Guide",
+    label = "Next spot",
+    help = "This step's mobs are in several places: the compass points at the next one.",
+    enabled = function() return Guide:SpotPlaces() ~= nil end,
+    run = function() Guide:NextSpot() end,
+})
+FG:AddAction({
+    id = "restart",
+    section = "Guide",
+    label = "Start over",
+    help = "Start over: undo the steps and quests marked done by hand, then go to the first step not done yet",
+    enabled = HasRoute,
+    run = function() Guide:AskReset() end,
+})
+FG:AddAction({
+    id = "guide",
+    section = "Guide",
+    label = function() return FG:Get("guideShown") and "Hide the guide" or "Show the guide" end,
+    run = function() FG:Save("guideShown", not FG:Get("guideShown")) end,
+})
+FG:AddAction({
+    id = "mode",
+    section = "Guide",
+    label = function() return FG:Get("guideMode") == "minimal" and "Full mode" or "Minimal mode" end,
+    run = function() Guide:ToggleMode() end,
+})
 
 --- Index of the step shown (for the tracker).
 function Guide:CurrentStep() return state and state.step or 1 end

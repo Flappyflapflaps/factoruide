@@ -18,7 +18,7 @@ function saved(result: string | WebFile): string {
   return result.file;
 }
 
-/** A character's export (/fg export) pasted in the web app. */
+/** A character's export (Export my character) pasted in the web app. */
 export interface ProfileImported {
   character: string;
   edition: Edition;
@@ -183,7 +183,7 @@ export interface MapPos {
   y: number;
 }
 
-/** A character as the addon recorded it (`/fg profile`, or at each logout); mirror of `fg_route::job::StartState`. */
+/** A character as the addon recorded it ("Save the profile now", or at each logout); mirror of `fg_route::job::StartState`. */
 export interface StartState {
   /** "Name-Realm". */
   name: string;
@@ -568,9 +568,9 @@ export const api = {
   editClose: () => invoke<void>("edit_close"),
   /** A version replayed to be watched (`locale`: language of its names). */
   guideTimeline: (guide: string, version: number, locale: string) => invoke<Timeline>("guide_timeline", { guide, version, locale }),
-  /** Web build: keeps a character's export (the text of /fg export). */
+  /** Web build: keeps a character's export (the text of "Export my character"). */
   importProfile: (content: string) => invoke<ProfileImported>("import_profile", { content }).then((r) => (settingsChanged(), r)),
-  /** The text to paste in game with /fg import: this guide version (the addon adds it to its guides, or replaces the one of its name). */
+  /** The text to paste in game with the guide import: this guide version (the addon adds it to its guides, or replaces the one of its name). */
   guideText: (guide: string, version: number) =>
     invoke<string | { text: string }>("guide_text", { guide, version }).then((r) => (typeof r === "string" ? r : r.text)),
   /** Web build: downloads every guide as the data addon (Factoruide_Data, as the desktop app writes it) in a zip; returns its name. */

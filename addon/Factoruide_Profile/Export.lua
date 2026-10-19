@@ -1,8 +1,8 @@
--- `/fg export`: the character's profile as one text to copy into the Factoruide web app, which
+-- "Export my character" (the window, `/fg`): the character's profile as one text to copy into the Factoruide web app, which
 -- cannot read the game's files:
 --   FGP1:<LibDeflate:EncodeForPrint(LibDeflate:CompressDeflate(json))>
 -- json = { format = "factoruide-profile", version = 1, edition, addon, character, profile }.
--- Built only when the command is used.
+-- Built only when the button is clicked.
 
 local addonName, FG = ...
 local T = FG.T
@@ -133,7 +133,7 @@ function Export:String()
     return self.PREFIX .. deflate:EncodeForPrint(deflate:CompressDeflate(json, { level = 9 }))
 end
 
---- `/fg export`: take the profile now and show it to copy.
+--- "Export my character": take the profile now and show it to copy.
 function Profile:Export()
     self:Snapshot()
     local text, err = Export:String()

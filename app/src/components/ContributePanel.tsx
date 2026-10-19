@@ -113,7 +113,7 @@ export function ContributePanel() {
       {preview?.more && <div className="notice">{t("Plus de nouveautés qu'un envoi ne peut en contenir : ces chiffres sont ceux du premier envoi, la suite partira aux suivants.")}</div>}
       {preview && !preview.found && (
         <div className={IS_WEB ? "notice" : "error"}>
-          {IS_WEB ? t("Aucun personnage pour l'instant : les enregistrements de l'addon viennent avec les exports collés dans la page Personnages (/fg export en jeu).") : t("Dossier du jeu introuvable : vérifiez le dossier World of Warcraft dans les Réglages.")}
+          {IS_WEB ? t("Aucun personnage pour l'instant : les enregistrements de l'addon viennent avec les exports de personnage collés dans Nouveau guide.") : t("Dossier du jeu introuvable : vérifiez le dossier World of Warcraft dans les Réglages.")}
         </div>
       )}
       {preview && !preview.url && <div className="notice">{t("L'envoi n'est pas disponible : aucun serveur de contribution n'est configuré.")}</div>}

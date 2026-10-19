@@ -1,4 +1,4 @@
--- A small window holding a text to copy or to paste (`/fg export`, `/fg import`): a title, a line
+-- A small window holding a text to copy or to paste ("Export my character", "Import a guide…"): a title, a line
 -- of explanation, a multi-line edit box, a status line and two buttons. One window, created the
 -- first time it is used, dark like the app.
 
