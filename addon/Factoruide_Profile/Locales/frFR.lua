@@ -263,4 +263,12 @@ FG.Locales.frFR = {
     ["The addon's own messages in the chat, to find what goes wrong."] = "Les messages internes de l'addon dans la discussion, pour trouver ce qui ne va pas.",
     ["Clear the recorded events"] = "Effacer les événements enregistrés",
     ["Deletes the quest events this character recorded for the app."] = "Supprime les événements de quêtes que ce personnage a enregistrés pour l'application.",
+    ["for %s"] = "pour %s",
+    ["marked done, waiting for %s"] = "marquée faite, en attente de %s",
+    ["%s: step %d"] = "%s : étape %d",
+    ["%s ahead: step %d"] = "%s en avance : étape %d",
+    ["levels %.1f apart: make the guide again in the app"] = "%.1f niveaux d'écart : refaites le guide dans l'application",
+    ["%s follows another version of the guide"] = "%s suit une autre version du guide",
+    ["Train at your class trainer"] = "Entraînez-vous chez votre maître de classe",
+    ["done, waiting for %s"] = "fait, en attente de %s",
 }

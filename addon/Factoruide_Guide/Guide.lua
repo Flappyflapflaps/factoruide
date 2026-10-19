@@ -229,8 +229,17 @@ end
 --- (marked by hand, left behind, alternative taken, accept skipped).
 function IsDone(step, index)
     local q = step.q
+    local group = FG.Group
     if state.marks[index or state.step] == "skip" or (q and state.skippedQuests[q]) then
-        return true, true -- marked as done by hand
+        -- Marked as done by hand; in a group guide, once every player in the party did too.
+        if group:SkipShared(step, index or state.step) then return true, true end
+        return false
+    end
+    if group:Active() and step.mb then
+        -- Players catching up: done once each one is where the guide plans it.
+        if step.k == "grind" then return group:CaughtUp(step) end
+        -- For other players (a quest we did already): done once those in the party are past it.
+        if not group:ForMe(step) then return group:Passed(step, index or state.step), true end
     end
     -- Planned well below our level: left behind (a character resuming the route, a quest
     -- added to the game after we went through that zone), unless the quest is in the log.
@@ -320,6 +329,16 @@ function IsDone(step, index)
         return true, true
     end
     return false
+end
+
+--- In a group guide, a step we did (not an objective: each one fills its own) waits for the
+--- other players in the party it is for, until they did it too.
+local function WaitsForGroup(step, index, passed)
+    return not passed
+        and step.k ~= "objective"
+        and FG.Group:Active()
+        and FG.Group:ForMe(step)
+        and not FG.Group:Passed(step, index)
 end
 
 --- Whether an accept step's quest can be taken now: the quests it needs are done and the
@@ -704,6 +723,7 @@ local function TaskView(step, index, withProgress)
     else
         v.name = step.t
     end
+    FG.Group:Chips(step, index, function(text, color) Chip(v, text, color) end, IsDone(step, index))
     return v
 end
 
@@ -1022,7 +1042,13 @@ end
 --- accepted at once).
 local function SkipDone()
     -- Background objectives (done along the way) do not stop the guide: the tracker shows them.
-    while route.steps[state.step] and (route.steps[state.step].bg or IsDone(route.steps[state.step], state.step)) do
+    while route.steps[state.step] do
+        local step = route.steps[state.step]
+        local done, passed = step.bg, step.bg
+        if not done then
+            done, passed = IsDone(step, state.step)
+        end
+        if not done or WaitsForGroup(step, state.step, passed) then break end
         state.step = state.step + 1
     end
     arrivedDone = false
@@ -1046,7 +1072,10 @@ function Guide:Advance()
             end
             wasDone[i] = done and true or false
             -- The group's checkpoints come last (see Refresh).
-            if not done and (not pending or Checkpoint(route.steps[pending]) and not Checkpoint(step)) then
+            if
+                (not done or WaitsForGroup(step, i, passed))
+                and (not pending or Checkpoint(route.steps[pending]) and not Checkpoint(step))
+            then
                 pending = i
             end
         end
@@ -1244,6 +1273,8 @@ local function UseRoute(name)
     name = route and name or nil
     SwitchProgress(name)
     state.route = name
+    -- A group guide: as this player follows it.
+    route = FG.Group:Use(route, state)
     wipe(acceptIndex)
     wipe(turninIndex)
     wipe(objectiveQuests)
@@ -1343,7 +1374,10 @@ FG:On("PLAYER_LOGIN", function()
         end
     end)
     Guide:Resync()
-    C_Timer.NewTicker(1, function() FG:Try("guide tick", Guide.Advance, Guide) end)
+    C_Timer.NewTicker(1, function()
+        FG:Try("guide tick", Guide.Advance, Guide)
+        FG:Try("group tick", FG.Group.Tick, FG.Group, Guide:OwnStep())
+    end)
 end)
 
 -- Visits are done when the matching window opens while the step is on screen.
@@ -1635,6 +1669,7 @@ function Guide:ToggleSkip(index)
         if state.marks[index] then lastMark = { route = route, index = index } end
         FG:Print(L.stepSkipped)
     end
+    FG.Group:MarksChanged()
     -- Back to the first step not done (an undone quest may be behind us).
     self:Resync()
 end
@@ -1688,6 +1723,7 @@ function Guide:UndoLastMark()
         state.marks[mark.index] = nil
         FG:Print(L.stepUnskipped)
     end
+    FG.Group:MarksChanged()
     self:Resync()
 end
 
@@ -1716,6 +1752,17 @@ BINDING_NAME_FACTORUIDE_OPTIONS = T("Factoruide options")
 
 --- Index of the step shown (for the tracker).
 function Guide:CurrentStep() return state and state.step or 1 end
+
+--- The first step we have not done ourselves, past those the guide waits on for the other
+--- players of a group (what the party is told).
+function Guide:OwnStep()
+    if not route or not state then return nil end
+    local i = state.step
+    while route.steps[i] and (route.steps[i].bg or IsDone(route.steps[i], i)) do
+        i = i + 1
+    end
+    return i
+end
 
 --- The guide's frame shown (full card or minimal strip).
 function Guide:Box()

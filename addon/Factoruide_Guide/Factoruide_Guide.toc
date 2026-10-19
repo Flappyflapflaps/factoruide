@@ -33,6 +33,7 @@ TalentBuilds_forever.lua
 TalentBuilds_classic.lua
 TalentBuilds_tbc.lua
 Automation.lua
+Group.lua
 Guide.lua
 Card.lua
 Mini.lua

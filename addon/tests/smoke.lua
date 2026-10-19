@@ -1045,6 +1045,118 @@ end
 assert(FG.Party:Suffix(7101, 1, 8):find("Pata 3", 1, true), "party progress shown: " .. FG.Party:Suffix(7101, 1, 8))
 print("party ok")
 
+do
+    -- Group guide: the same guide for two players, Pata (the warrior it is planned for) and us.
+    local sentMessages = {}
+    C_ChatInfo = { SendAddonMessage = function(prefix, message) table.insert(sentMessages, message) end }
+    IsInGroup = function() return true end
+    UnitInParty = function(name) return name == "Pata" end
+    local function fromPata(message)
+        for _, f in ipairs(frames) do
+            if f.events.CHAT_MSG_ADDON and f.OnEvent then
+                f:OnEvent("CHAT_MSG_ADDON", "FGGRP1", message, "PARTY", "Pata-Realm")
+            end
+        end
+    end
+    FG.Routes["group-test"] = {
+        race = 7,
+        class = 1,
+        faction = "Alliance",
+        fromLevel = 12,
+        toLevel = 14,
+        time = 7,
+        spells = { 100 },
+        classSpells = { [8] = { 200 } },
+        players = { { n = "Pata-Realm", race = 1, class = 1 }, { n = "Brouz-Realm", race = 7, class = 8 } },
+        syncMax = 1,
+        steps = {
+            {
+                k = "accept",
+                t = "Accept A",
+                q = 901,
+                m = 1426,
+                x = 10,
+                y = 10,
+                lvl = 12,
+                px = 0,
+                gp = { 12, 0, 12, 100 },
+            },
+            {
+                k = "accept",
+                t = "Accept B",
+                q = 902,
+                m = 1426,
+                x = 50,
+                y = 50,
+                lvl = 12,
+                px = 0,
+                mb = 1,
+                gp = { 12, 0, 12, 100 },
+            },
+            {
+                k = "train",
+                t = "Train",
+                m = 1426,
+                x = 30.1,
+                y = 71.3,
+                n = "Thran Khorman",
+                sp = { 100 },
+                lvl = 12,
+                gp = { 12, 0, 12, 100 },
+            },
+            { k = "grind", t = "Pata catches up", lvl = 13, mb = 1, gp = { 13, 50, 13, 100 } },
+            { k = "accept", t = "Accept C", q = 903, m = 1426, x = 90, y = 90, lvl = 13, gp = { 13, 50, 13, 100 } },
+        },
+    }
+    completed[902] = true -- we did quest B already: it is Pata's only
+    playerLevel = 12
+    UnitXP = function() return 100 end
+    useRoute("group-test")
+    local adapted = FG.Guide:Route()
+    assert(adapted.steps[1].lvl == 12 and adapted.steps[1].px == 100, "our own planned XP")
+    assert(#adapted.spells == 1 and adapted.spells[1] == 200, "our class's spells")
+    assert(#adapted.checkpoints == 0, "no skipping ahead alone")
+    assert(
+        adapted.steps[3].n == "Marryk Nurribit" and adapted.steps[3].sp == nil,
+        "our own class trainer: " .. tostring(adapted.steps[3].n)
+    )
+    fromPata("S:7:5:1:12:0:8800")
+    onQuest[901] = true
+    FG.Guide:Advance()
+    assert(char.guide.step == 1, "taken, but Pata has not: we wait for Pata, step " .. char.guide.step)
+    -- The party is told the first step we have not done ourselves, not the one we wait on: two
+    -- players done never wait on each other.
+    FG.Group:Tick(FG.Guide:OwnStep())
+    assert(sentMessages[#sentMessages]:find("^S:7:5:2:12:100:"), "our own step told: " .. sentMessages[#sentMessages])
+    fromPata("S:7:5:2:12:0:8800")
+    assert(char.guide.step == 2, "Pata's quest: we wait for Pata, step " .. char.guide.step)
+    fromPata("S:7:5:3:12:0:8800")
+    assert(char.guide.step == 3, "Pata past it: on, step " .. char.guide.step)
+    char.guide.marks[3] = true
+    FG.Guide:Advance()
+    assert(char.guide.step == 3, "trained, Pata not yet, step " .. char.guide.step)
+    fromPata("S:7:5:4:12:0:8800")
+    assert(char.guide.step == 4, "Pata catching up: we wait, step " .. char.guide.step)
+    fromPata("S:7:5:4:13:60:9400")
+    assert(char.guide.step == 5, "Pata caught up, step " .. char.guide.step)
+    SlashCmdList.FACTORUIDE("skip")
+    assert(char.guide.step == 5, "marked done by us only: still on it, step " .. char.guide.step)
+    local told = false
+    for _, m in ipairs(sentMessages) do
+        if m:find("^Q:7:5:1:.*903") then told = true end
+    end
+    assert(told, "our marks told to the party")
+    fromPata("Q:7:5:1:903")
+    assert(char.guide.step == 6, "marked done by everyone: passed, step " .. char.guide.step)
+    -- Pata gone: our marks are enough.
+    UnitInParty = function() return false end
+    assert(FG.Group:SkipShared(adapted.steps[5], 5), "alone, our marks are enough")
+    sentMessages, IsInGroup, UnitInParty, playerLevel = {}, function() return false end, nil, 1
+    UnitXP = function() return 0 end
+    onQuest[901], completed[902] = nil, nil
+    print("group guide ok")
+end
+
 -- Merchant: grey items are sold.
 local sold = 0
 C_Container = {
