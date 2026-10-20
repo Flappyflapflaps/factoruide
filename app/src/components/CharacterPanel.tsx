@@ -235,5 +235,5 @@ function Played({ clock, total, card, cards }: { clock: Clock; total: number; ca
     clock,
     useCallback((c: Clock) => Math.floor(c.time), []),
   );
-  return <p className="cp-foot muted">{t("Joué {time} sur {total} · étape {n} sur {count}", { time: fmtClock(time), total: fmtClock(total), n: card + 1, count: cards })}</p>;
+  return <p className="cp-foot muted">{t("Joué {time} sur {total} · étape {n} sur {count}", { time: fmtClock(time), total: fmtClock(total), n: Math.min(card + 1, cards), count: cards })}</p>;
 }

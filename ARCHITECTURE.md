@@ -249,6 +249,9 @@ too. The editor's planner (`Planner::explicit`) does nothing the steps do not sa
 that each step did only its own action. `Planner::edit` replays the steps like `simulate_full`, the same route giving the
 same time, but checks each step instead of giving up on the first impossible one: an impossible step is reported with the reason and left out (the
 guide cannot be saved), a step with nothing left to do (done before) is skipped. The edited guide is then written from that replay like any other.
+A guide created by hand (`job::manual`) is the editor's save of no step at all, from the
+character and settings generation would start from (`prepare`): the grind to the target level,
+until steps are added.
 
 A guide's page plays it back (`job/timeline.rs`, `guide_timeline` in the app): its steps are
 replayed as the editor replays them (`Planner::edit`, the character kept after each step), the

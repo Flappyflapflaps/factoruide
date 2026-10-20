@@ -288,9 +288,10 @@ export function xpAt(route: Route, timeline: Timeline | null, i: number, time: n
   const levels = timeline?.xp_levels ?? [];
   const next = (l: number) => levels[l] ?? 0;
   const from = before ? { level: before.level, xp: before.route_xp ?? 0 } : { level: route.from_level, xp: 0 };
-  if (!timeline || !levels.length) return { ...from, next: next(from.level) };
+  const t = timeline?.steps[i];
+  // No step there (a guide being written with none yet): where the character starts.
+  if (!timeline || !levels.length || !after || !t) return { ...from, next: next(from.level) };
   const to = { level: after.level, xp: after.route_xp ?? 0 };
-  const t = timeline.steps[i];
   const begin = Math.max(t.arrive, t.start);
   const f = time >= t.end ? 1 : time <= begin || t.end <= begin ? 0 : (time - begin) / (t.end - begin);
   let total = totalXp(levels, from.level, from.xp) + (totalXp(levels, to.level, to.xp) - totalXp(levels, from.level, from.xp)) * Math.max(0, f);
@@ -327,6 +328,8 @@ export function activityAt(route: Route, timeline: Timeline, quests: Map<number,
     return { verb: "En route vers", what: title };
   }
   const t = timeline.steps[i];
+  // No step there (a guide being written with none yet): only the grind to the target level.
+  if (!s || !t) return { verb: "Farme", what: "" };
   if (time < t.arrive) {
     const next = timeline.legs[leg + 1];
     if (next?.mode === "hearth") return { verb: "Pierre de foyer", what: "" };

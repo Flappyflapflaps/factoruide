@@ -691,6 +691,15 @@ fn plan_route(request: &PlanRequest) -> CmdResult<VersionMeta> {
     add_version(edition, request, &outcome, data_version(&conn), (false, false), now()?)
 }
 
+/// A new guide of no steps from the request's character and settings, saved as a version
+/// edited by hand: its steps are then added in the editor.
+fn manual_route(request: &PlanRequest) -> CmdResult<VersionMeta> {
+    let edition = request_edition(request);
+    let conn = open_db(edition)?;
+    let outcome = job::manual(&conn, &overrides(edition)?, request, Some(&walks(edition))).map_err(err)?;
+    add_version(edition, request, &outcome, data_version(&conn), (false, true), now()?)
+}
+
 struct EditSession {
     edition: Edition,
     request: PlanRequest,
@@ -1125,6 +1134,13 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
                 request: PlanRequest,
             }
             to_json(plan_route(&args::<A>(a)?.request))
+        }
+        "manual_route" => {
+            #[derive(Deserialize)]
+            struct A {
+                request: PlanRequest,
+            }
+            to_json(manual_route(&args::<A>(a)?.request))
         }
         "stop_plan" => {
             PLAN_INTERRUPT.stop();

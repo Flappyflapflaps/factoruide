@@ -157,10 +157,11 @@ export function EditBar({ version, draft, saving, onSave, onDiscard, onReveal }:
   const current = !computing;
   const errors = current ? report.errors : 0;
   const firstError = current ? report.steps.findIndex((r) => r.status === "error") : -1;
-  // Quests left unfinished by the edit (the version's own do not count), the grind added at the end.
+  // Quests left unfinished by the edit (the version's own do not count), the grind added at the end
+  // (all of it for a guide created by hand: its version has no step, only that grind).
   const before = new Set(baseline.unfinished.map((u) => u.id));
   const unfinished = report.unfinished.filter((u) => !before.has(u.id));
-  const shortfall = report.final_grind - baseline.final_grind;
+  const shortfall = report.final_grind - (opened.steps.length ? baseline.final_grind : 0);
   const canSave = current && errors === 0 && draft.changed && !saving;
   return (
     <div className="edit-bar">

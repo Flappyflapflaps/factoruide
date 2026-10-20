@@ -225,10 +225,10 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
               start={wizard.start}
               onBusy={setBusy}
               onDraft={saveDraft}
-              onDone={(meta, notice) => {
+              onDone={(meta, notice, edit) => {
                 // Not over a guide being edited: the new guide waits in "Mes guides".
                 if (unsaved.current) return;
-                setOpened({ guide: meta.guide, version: meta.version, notice });
+                setOpened({ guide: meta.guide, version: meta.version, notice, edit });
                 setPage("results");
               }}
             />

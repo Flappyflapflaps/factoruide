@@ -160,6 +160,20 @@ pub fn plan_interruptible(
     })
 }
 
+/// A guide of no steps, to write by hand in the guide editor: the character starts as `plan`
+/// starts it, with the same settings; until steps are added, its time is the grinding to the
+/// target level. `walks` as for `plan_interruptible`.
+pub fn manual(
+    conn: &Connection,
+    overrides: &Overrides,
+    req: &PlanRequest,
+    walks: Option<&Arc<Walks>>,
+) -> Result<PlanOutcome> {
+    let editor = Editor::open(conn, overrides, req, walks)?;
+    let notes = editor.prepared.notes.clone();
+    editor.save(&[], notes)
+}
+
 /// Everything a route is planned from: the character, the settings, the world and the quests.
 pub fn prepare(
     conn: &Connection,
