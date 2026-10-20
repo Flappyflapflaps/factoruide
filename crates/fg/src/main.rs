@@ -130,6 +130,36 @@ enum Command {
         #[arg(long)]
         effort: Option<f64>,
     },
+    /// Plan a guide as the app does (its default settings, the class quests it lists, a walking
+    /// memory) and write it as a .fgguide file, the file the apps share and import
+    Share {
+        /// Race key from overrides/races.toml (gnome, human, orc...)
+        #[arg(long)]
+        race: String,
+        /// Class (warrior, mage...)
+        #[arg(long)]
+        class: String,
+        #[arg(long, default_value_t = 1)]
+        from_level: i64,
+        /// Default: the edition's level cap
+        #[arg(long)]
+        to_level: Option<i64>,
+        /// How much the optimization tries (see `route --effort`)
+        #[arg(long)]
+        effort: Option<f64>,
+        /// The guide's name (its id in the apps is made from it)
+        #[arg(long)]
+        name: String,
+        /// Planner parameters, as key=value (repeatable)
+        #[arg(long = "param")]
+        params: Vec<String>,
+        /// Language the guide is written in (default enUS)
+        #[arg(long, default_value = "enUS")]
+        locale: String,
+        /// The .fgguide file written
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Walking distance and passages between two points (Zone,x,y)
     Travel {
         from: String,
@@ -265,6 +295,31 @@ fn main() -> Result<()> {
             eprintln!("wrote {} ({n} guides)", out.display());
         }
         Command::Replay { file, effort } => route::replay(&open()?, &overrides, &file, effort, &cli.routes)?,
+        Command::Share {
+            race,
+            class,
+            from_level,
+            to_level,
+            effort,
+            name,
+            params,
+            locale,
+            out,
+        } => route::share(
+            &open()?,
+            &overrides,
+            &route::ShareOptions {
+                race,
+                class,
+                from_level,
+                to_level: to_level.unwrap_or(edition.rules().max_level),
+                effort,
+                name,
+                params,
+                locale,
+            },
+            &out,
+        )?,
         Command::Travel {
             from,
             to,

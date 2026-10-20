@@ -12,6 +12,7 @@ import { ChangelogPage } from "./pages/ChangelogPage";
 import { ContributePage } from "./pages/ContributePage";
 import { HomePage } from "./pages/HomePage";
 import { NeedHelpPage } from "./pages/NeedHelpPage";
+import { exampleGuide, hasExample } from "./example";
 import { IssueForm } from "./components/IssueForm";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { IS_WEB } from "./web/mode";
@@ -98,6 +99,11 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
   // The addon comes from CurseForge: its page there.
   const openAddonSite = () => {
     api.openLink(ADDON_URL).catch(() => {});
+  };
+  // The example guide (WoW Forever): added to the guides the first time, then opened.
+  const openExample = async () => {
+    setOpened(await exampleGuide());
+    setPage("results");
   };
   const openWizard = (start: WizardStart) => {
     if (!busy) setWizard((w) => ({ key: w.key + 1, start }));
@@ -255,6 +261,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
             onClone={(v: GuideVersion) => openWizard({ initial: { ...v.request, name: t("{name} (copie)", { name: v.request.name ?? v.meta.name }) }, rerun: false })}
             onUnsaved={setUnsaved}
             edition={edition}
+            onExample={hasExample(edition) ? openExample : undefined}
           />
         )}
         {page === "home" && (
@@ -263,6 +270,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
             editionName={editions.find((e) => e.key === edition)?.name ?? ""}
             onNewGuide={() => openWizard({ initial: null, rerun: false })}
             onGuides={() => setPage("results")}
+            onExample={hasExample(edition) ? openExample : undefined}
             onAddon={openAddonSite}
           />
         )}
