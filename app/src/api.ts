@@ -96,6 +96,7 @@ export interface Params {
   loot_per_kill: number;
   sell_radius: number;
   sell_time: number;
+  gather_share: number;
   gear_floor: number;
   /** The player's own class power curve, as (level, levels of power) points: empty for the class's. */
   power_curve?: [number, number][];

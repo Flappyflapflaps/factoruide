@@ -564,7 +564,7 @@ fn loot_fills_the_bags_and_what_no_longer_fits_costs() {
     let p = quests_at_start(1);
     let planner = planner(&p);
     let mut s = planner.initial_state();
-    let (room, each) = (crate::params::bag_slots(1), p.params.loot_per_kill);
+    let (room, each) = (planner.growth().bag_room(1), p.params.loot_per_kill);
     planner.growth().fill_bags(&mut s, room / each / 2.0);
     assert!((f64::from(s.bags) - room / 2.0).abs() < 1e-3, "half full: {}", s.bags);
     assert!(s.spent.bag_overflow.abs() < 1e-9, "all of it fits");
@@ -609,7 +609,7 @@ fn a_vendor_on_the_way_empties_half_full_bags() {
     s.bags = 2.0;
     planner.sell(&mut s, &mut |_, e| events.push(e));
     assert!(events.is_empty() && s.bags > 0.0, "not worth a stop yet");
-    s.bags = (crate::params::bag_slots(1) * 0.6) as f32;
+    s.bags = (planner.growth().bag_room(1) * 0.6) as f32;
     let before = s.time;
     planner.sell(&mut s, &mut |_, e| events.push(e));
     assert!(
@@ -617,4 +617,38 @@ fn a_vendor_on_the_way_empties_half_full_bags() {
         "{events:?}"
     );
     assert!(s.bags == 0.0 && s.time >= before + p.params.sell_time);
+}
+
+/// What the bags keep for the class and the gathering professions: a hunter's quiver takes a bag,
+/// a herbalist keeps a share for the herbs from the level it is taken.
+#[test]
+fn the_class_and_gathering_keep_bag_room() {
+    let mut p = quests_at_start(1);
+    let warrior = planner(&p).growth().bag_room(30);
+    assert!(
+        (warrior - (crate::params::bag_slots(30) - 4.0)).abs() < 1e-9,
+        "{warrior}"
+    );
+    p.profile.class_id = 3;
+    let hunter = planner(&p).growth().bag_room(30);
+    assert!(
+        (warrior - hunter - (crate::params::bag_slots(30) - 16.0) / 4.0).abs() < 1e-9,
+        "{hunter}"
+    );
+    p.profile.class_id = 1;
+    p.profile.professions = vec![crate::profession::ProfessionGoal {
+        key: "herbalism".into(),
+        target: 300,
+        start_level: Some(10),
+        milestones: vec![],
+    }];
+    assert!(
+        (planner(&p).growth().bag_room(5) - (crate::params::bag_slots(5) - 4.0)).abs() < 1e-9,
+        "not taken yet"
+    );
+    let herbalist = planner(&p).growth().bag_room(30);
+    assert!(
+        (warrior - herbalist - p.params.gather_share * crate::params::bag_slots(30)).abs() < 1e-9,
+        "{herbalist}"
+    );
 }

@@ -120,7 +120,7 @@ impl Planner<'_> {
         if self.explicit || self.params.bag_weight <= 0.0 || radius <= 0.0 || s.bags <= 0.0 {
             return;
         }
-        let room = crate::params::bag_slots(s.level) - f64::from(s.held);
+        let room = self.growth().bag_room(s.level) - f64::from(s.held);
         if f64::from(s.bags) < 0.5 * room {
             return;
         }

@@ -234,6 +234,8 @@ pub struct Params {
     pub loot_per_kill: f64,
     pub sell_radius: f64,
     pub sell_time: f64,
+    /// Share of the bag slots each gathering profession's materials keep (or the bag holding them).
+    pub gather_share: f64,
     /// Character power (see `power`): the floor gear the character has anyway, as a share of
     /// the typical uncommon item of its level; a scale on the levels gear and spells add or
     /// take (0 = power is the level); the share of a dungeon's loot the character wins; how
@@ -425,6 +427,7 @@ impl Default for Params {
             loot_per_kill: 0.35,
             sell_radius: 150.0,
             sell_time: 15.0,
+            gather_share: 0.1,
             train_max_delay: 1,
             train_time: 30.0,
             train_min_gain: 0.03,
@@ -475,10 +478,10 @@ impl Default for Params {
 /// more, flights are no longer a worry).
 pub const GOLD_WEIGHT_LEVEL: f64 = 30.0;
 
-/// Bag slots at each level (backpack and bags), between these points: few at the start, bags
-/// bought and dropped bigger and more of them later.
+/// Bag slots at each level, between these points: the 16 of the backpack alone at first, then
+/// four bags of 6 (linen), 8, 10, 12 and 14 slots (runecloth) as the levels go.
 const BAG_SLOTS: [(i64, f64); 7] = [
-    (1, 20.0),
+    (1, 16.0),
     (10, 28.0),
     (20, 40.0),
     (30, 48.0),

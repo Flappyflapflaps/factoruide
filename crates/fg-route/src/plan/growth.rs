@@ -29,11 +29,35 @@ impl<'g> Growth<'g> {
         if self.params.bag_weight <= 0.0 || kills <= 0.0 {
             return;
         }
-        let room = (crate::params::bag_slots(s.level) - f64::from(s.held) - f64::from(s.bags)).max(0.0);
+        let room = (self.bag_room(s.level) - f64::from(s.held) - f64::from(s.bags)).max(0.0);
         let loot = kills * self.params.loot_per_kill;
         let kept = loot.min(room);
         s.bags += kept as f32;
         s.spent.bag_overflow += (loot - kept) * self.params.bag_weight;
+    }
+
+    /// Bag slots left for loot and quest items at `level` (`Params::bag_weight`): the bags less
+    /// what is always carried (hearthstone, food, drink, potions), the class's own (a hunter's
+    /// quiver and a warlock's soul pouch take a bag, a shaman's totems a slot each, a rogue's
+    /// poisons two) and the gathering professions' materials (`Params::gather_share` each).
+    pub(crate) fn bag_room(self, level: i64) -> f64 {
+        const CARRIED: f64 = 4.0;
+        let slots = crate::params::bag_slots(level);
+        let bag = (slots - crate::params::bag_slots(1)) / 4.0;
+        let class = match self.profile.class_id {
+            3 => bag,
+            9 if level >= 10 => bag,
+            7 => [4, 10, 20, 30].iter().filter(|&&l| level >= l).count() as f64,
+            4 if level >= 20 => 2.0,
+            _ => 0.0,
+        };
+        let gathering = (self.profile.professions.iter())
+            .filter(|g| {
+                crate::profession::find(&g.key).is_some_and(|d| d.kind == crate::profession::Kind::Gathering)
+                    && level >= g.start_level.unwrap_or(crate::profession::START_LEVEL)
+            })
+            .count() as f64;
+        slots - CARRIED - class - gathering * self.params.gather_share * slots
     }
 
     /// Common loot `kills` normal mobs of `zone` drop (`Model::loot`), into the bags.
