@@ -89,6 +89,7 @@ local KINDS = {
         label = T("Teleport"),
     },
     bind = { icon = "Interface\\GossipFrame\\BinderGossipIcon", color = "40c0ff", label = T("Inn") },
+    sell = { icon = "Interface\\GossipFrame\\VendorGossipIcon", color = "ffffff", label = T("Vendor") },
     dungeon = { icon = "Interface\\Icons\\INV_Misc_Key_10", color = "ff4040", label = T("Dungeon") },
     profession = {
         icon = "Interface\\Icons\\Trade_BlackSmithing",
@@ -101,6 +102,8 @@ local KINDS = {
         label = T("Practice"),
     },
 }
+-- A step of a kind this addon does not know (made by a newer app): its text, done right away.
+local OTHER = { icon = "Interface\\GossipFrame\\GossipGossipIcon", color = "ffffff", label = T("Step") }
 
 local GROUP_MAX = 6
 -- Steps ahead looked at for the quests to pick up.
@@ -312,6 +315,8 @@ function IsDone(step, index)
     elseif step.k == "link" then
         local nextStep = route.steps[(index or state.step) + 1]
         return nextStep and nextStep.m and C_Map.GetBestMapForUnit("player") == nextStep.m or false
+    elseif not KINDS[step.k] then
+        return true, true
     end
     return false
 end
@@ -595,7 +600,7 @@ end
 --- What the guide shows for a step: its name, the line under it (quest, NPC, why), warnings and
 --- the progress when known (`withProgress`).
 local function TaskView(step, index, withProgress)
-    local kind = KINDS[step.k] or { color = "ffffff", label = step.k }
+    local kind = KINDS[step.k] or OTHER
     local title = QuestTitle(step)
     local v = { index = index, step = step, kind = step.k, icon = kind.icon, color = kind.color, chips = {} }
     if step.k == "accept" or step.k == "turnin" then
@@ -661,7 +666,7 @@ end
 
 --- A line of the next steps: { index, kind, color, text, who }.
 local function NextView(step, index)
-    local kind = KINDS[step.k] or { color = "ffffff", label = step.k }
+    local kind = KINDS[step.k] or OTHER
     local title = QuestTitle(step)
     local v = { index = index, step = step, kind = step.k, color = kind.color, icon = kind.icon }
     if title and (step.k == "accept" or step.k == "turnin") then
@@ -1636,6 +1641,7 @@ function Guide:Box()
     return ui and ui:Frame()
 end
 
---- The kinds of steps: { icon, color, label }.
+--- The kinds of steps: { icon, color, label }; OTHER for a kind not among them.
 Guide.KINDS = KINDS
+Guide.OTHER = OTHER
 Guide.L = L

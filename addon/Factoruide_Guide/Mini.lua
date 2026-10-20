@@ -604,7 +604,7 @@ function Mini:Render(view)
     drop:EnableMouse(true)
     tags:Show()
     xpBar:Show()
-    local kind = FG.Guide.KINDS[main.kind] or {}
+    local kind = FG.Guide.KINDS[main.kind] or FG.Guide.OTHER
     local r, g, b = 1, 1, 1
     if main.color then
         local color = Skin.Ink(main.color)

@@ -83,8 +83,10 @@ pub fn write_data_addon(dir: &Path, lua: &str, interface: &str, version: &str, t
 /// refuses a guide of a format above its own, asking to update it. The addon updates on its own
 /// (an addon site), the apps too: a newer addon reads every older guide, never the reverse. Bump
 /// it only when an addon that reads this format can no longer follow the guide correctly (a field
-/// it would misread, steps it would get wrong), not for what older addons can ignore.
-/// 2: steps selling the bags' loot (`sell`).
+/// it would misread, steps it would get wrong), not for what older addons can ignore. From format
+/// 2 on, a step kind the addon does not know is shown by its text and passed: a new kind needs no
+/// bump unless the guide goes wrong when it is not played.
+/// 2: steps selling the bags' loot (`sell`); unknown step kinds passed.
 pub const GUIDE_FORMAT: u32 = 2;
 
 /// The Lua of guides for the addon (what `/fg import` and the data addon run): each route

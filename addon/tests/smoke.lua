@@ -1479,6 +1479,29 @@ FG.Guide:Advance()
 assert(char.guide.step == 2, "sold: step " .. char.guide.step)
 print("sell step ok")
 
+-- A step of a kind made by a newer app is shown by its text and done right away.
+FG.Routes["other-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "accept", t = "Accept C", q = 8003, lvl = 3 },
+        { k = "someday", t = "Do something new", lvl = 3 },
+        { k = "accept", t = "Accept D", q = 8004, lvl = 3 },
+    },
+}
+useRoute("other-test")
+FG.Guide:Advance()
+assert(char.guide.step == 1, "on the accept step")
+onQuest[8003] = true
+FG.Guide:Advance()
+assert(char.guide.step == 3, "the unknown step passed: step " .. char.guide.step)
+onQuest[8003] = nil
+print("unknown step kind ok")
+
 -- Groups the app marked (`gj`: joins the step before), whatever the map distance between them.
 FG.Routes["groups-test"] = {
     race = 7,
