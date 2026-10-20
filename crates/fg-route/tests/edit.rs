@@ -266,3 +266,39 @@ fn flight_needs_known_flight_paths() {
     assert_eq!(report.steps[0].status, "error");
     assert_eq!(report.steps[0].reason, Some("flight path not known"));
 }
+
+/// A guide created by hand starts with no step: the character grinds from its start to the
+/// target level, and the guide is watched, replayed and exported like any other. Its steps added
+/// one by one in the editor, the grinding left at the end shrinks, and the guide saved has them.
+#[test]
+fn manual_guide_starts_empty_and_takes_its_steps() {
+    let conn = database();
+    let names = Names::load(&conn, "enUS").unwrap();
+    let manual = job::manual(&conn, &overrides(), &request(), None).unwrap();
+    assert!(manual.plan.is_empty() && manual.explicit);
+    let route = &manual.route;
+    assert_eq!((route.from_level, route.to_level, route.quests), (1, 10, 0));
+    assert!(route.total_time.is_finite() && route.total_time > 0.0);
+
+    let (editor, _) = editor();
+    let (steps, rebuilt) = editor.steps(&manual);
+    assert!(steps.is_empty() && !rebuilt);
+    let empty = editor.simulate(&steps, &names);
+    assert_eq!((empty.errors, empty.steps.len()), (0, 0));
+    assert_eq!(empty.total_time, route.total_time);
+    assert!(empty.final_grind > 0.0, "the target level reached by grinding");
+    assert!(
+        !editor.timeline(&manual, &names).legs.is_empty(),
+        "the grind on the map"
+    );
+    assert_ne!(fg_route::export::polestar::source("manual", route), "");
+
+    // The computed guide's first steps, added one by one: less grinding at the end.
+    let added = &guide().plan[..6];
+    let report = editor.simulate(added, &names);
+    assert_eq!(report.errors, 0);
+    assert!(report.final_grind < empty.final_grind);
+    let saved = editor.save(added, vec![]).unwrap();
+    assert_eq!(saved.plan, added);
+    assert!(saved.route.quests > 0);
+}

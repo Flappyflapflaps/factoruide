@@ -806,6 +806,22 @@ async fn plan_route(app: AppHandle, request: PlanRequest) -> CmdResult<VersionMe
     .map_err(err)?
 }
 
+/// A new guide of no steps from the request's character and settings, saved as a version
+/// edited by hand: its steps are then added in the editor.
+#[tauri::command]
+async fn manual_route(app: AppHandle, request: PlanRequest) -> CmdResult<VersionMeta> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let edition = request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
+        let conn = open_db(&state.db_path(edition)?)?;
+        let walks = state.walks(edition);
+        let outcome = job::manual(&conn, &overrides(edition)?, &request, Some(&walks)).map_err(err)?;
+        state.add_version(&request, &outcome, data_version(&conn), (false, true), now()?)
+    })
+    .await
+    .map_err(err)?
+}
+
 /// Version of the quest data imported in a database.
 fn data_version(conn: &Connection) -> Option<String> {
     conn.query_row("SELECT detail FROM import_run WHERE source = 'questie'", [], |r| {
@@ -1883,6 +1899,7 @@ fn main() {
             set_settings,
             get_options,
             plan_route,
+            manual_route,
             stop_plan,
             cancel_plan,
             export_request,

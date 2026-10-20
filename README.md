@@ -66,7 +66,8 @@ zones to do, the level to reach before moving on from each, and where the XP is.
   databases.
 - Rework a guide by hand: move, remove or add steps (a quest, the hearthstone, a flight, mobs to
   kill), the guide replayed after each change with its new time and the steps that are no longer
-  possible; saved as a new version once every step holds.
+  possible; saved as a new version once every step holds. Or write one from scratch: "Manual
+  creation" on the New guide page starts a guide with no steps from your character.
 - Share a guide with a friend as a `.fgguide` file; they import it in their app.
 
 ![The characters the addon recorded, each with its level, professions and the guide it follows](docs/characters.png)

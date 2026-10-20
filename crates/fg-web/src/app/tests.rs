@@ -198,6 +198,77 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
     let _ = REPLIES.lock().unwrap().drain(..);
 }
 
+/// A guide created by hand from a character pasted: saved with no step, edited by hand, from the
+/// character as generation starts it; watched, opened in the editor, given its steps, exported.
+#[test]
+fn a_guide_created_by_hand_starts_empty_from_the_character() {
+    let _store = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    serve_classic();
+    store::clear();
+    call("set_edition", &serde_json::json!({ "edition": "classic" })).unwrap();
+    call(
+        "import_profile",
+        &serde_json::json!({ "content": profile_export("Brouz-Realm", 6) }),
+    )
+    .unwrap();
+    let characters = call("list_characters", &serde_json::json!({})).unwrap();
+    let mut request: serde_json::Value = serde_json::from_str(
+        r#"{"race":"dwarf","class":"warrior","from_level":6,"to_level":8,"name":"Brouz by hand"}"#,
+    )
+    .unwrap();
+    request["start"] = characters[0]["profile"].clone();
+    let meta = call("manual_route", &serde_json::json!({ "request": request })).unwrap();
+    assert_eq!(
+        (
+            meta["version"].as_u64(),
+            meta["edited"].as_bool(),
+            meta["character"].as_str()
+        ),
+        (Some(1), Some(true), Some("Brouz-Realm"))
+    );
+    let guide = meta["guide"].as_str().unwrap().to_owned();
+    let version = call("get_version", &serde_json::json!({ "guide": guide, "version": 1 })).unwrap();
+    assert_eq!(version["outcome"]["route"]["quests"], 0);
+    assert_eq!(version["outcome"]["route"]["from_level"], 6);
+    assert!(meta["total_time"].as_f64().unwrap() > 0.0, "the grind to level 8");
+
+    call(
+        "guide_timeline",
+        &serde_json::json!({ "guide": guide, "version": 1, "locale": "enUS" }),
+    )
+    .unwrap();
+    let opened = call(
+        "edit_open",
+        &serde_json::json!({ "guide": guide, "version": 1, "locale": "enUS" }),
+    )
+    .unwrap();
+    assert_eq!(opened["steps"], serde_json::json!([]));
+    assert!(opened["view"]["report"]["final_grind"].as_f64().unwrap() > 0.0);
+    let steps = serde_json::json!([{ "kind": "grind", "mobs": 5 }]);
+    let view = call(
+        "edit_simulate",
+        &serde_json::json!({ "steps": steps, "locale": "enUS" }),
+    )
+    .unwrap();
+    assert_eq!(view["report"]["errors"], 0);
+    let edited = call("edit_save", &serde_json::json!({ "steps": steps })).unwrap();
+    assert_eq!(
+        (edited["version"].as_u64(), edited["edited"].as_bool()),
+        (Some(2), Some(true))
+    );
+    call(
+        "compare_versions",
+        &serde_json::json!({ "guide": guide, "a": 1, "b": 2, "locale": "enUS" }),
+    )
+    .unwrap();
+    for v in [1, 2] {
+        call("guide_text", &serde_json::json!({ "guide": guide, "version": v })).unwrap();
+        call("export_version", &serde_json::json!({ "guide": guide, "version": v })).unwrap();
+    }
+    call("delete_guide", &serde_json::json!({ "guide": guide })).unwrap();
+    let _ = REPLIES.lock().unwrap().drain(..);
+}
+
 /// The exports of the released addons (tests/profiles, one per release whose export changed, see
 /// its README) are still read: the character, its game version, level, race and class.
 #[test]

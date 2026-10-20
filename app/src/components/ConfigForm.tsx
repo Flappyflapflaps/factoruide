@@ -22,6 +22,8 @@ interface Props {
   /** Guide language when the configuration has none (the app language). */
   defaultLocale: string;
   onRun: (request: PlanRequest) => void;
+  /** A guide of no steps from this configuration, its steps added by hand. */
+  onManual?: (request: PlanRequest) => void;
   onExport?: (request: PlanRequest) => void;
   /** The configuration as it is now, after each change. */
   onChange?: (request: PlanRequest) => void;
@@ -104,7 +106,7 @@ function Toggle({ label, help, checked, onChange }: { label: string; help: strin
  * Step 1. The simple view holds the choices that matter (character, pace, dungeons, zones,
  * professions); the advanced view every setting of the planner.
  */
-export function ConfigForm({ options, initial, startCharacter, defaultLocale, onRun, onExport, onChange }: Props) {
+export function ConfigForm({ options, initial, startCharacter, defaultLocale, onRun, onManual, onExport, onChange }: Props) {
   const t = useT();
   const gameName = useGameName();
   const defaults = options.params;
@@ -233,6 +235,15 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
     start,
   });
 
+  /** Generate the guide, or create it by hand: the request, once the guide has a name. */
+  const launch = (action: (request: PlanRequest) => void) => {
+    if (name.trim()) return action(request());
+    // The guide needs a name: show where to type it.
+    setTriedRun(true);
+    setView("simple");
+    setTimeout(() => nameRef.current?.focus(), 0);
+  };
+
   useEffect(() => {
     onChange?.(request());
     // The request is made of these.
@@ -312,16 +323,12 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
             value={params.effort}
             onChange={(effort) => set("effort", effort)}
           />
-          <button
-            className="primary big"
-            onClick={() => {
-              if (name.trim()) return onRun(request());
-              // The guide needs a name: show where to type it.
-              setTriedRun(true);
-              setView("simple");
-              setTimeout(() => nameRef.current?.focus(), 0);
-            }}
-          >
+          {onManual && (
+            <button onClick={() => launch(onManual)} title={t("Un guide sans étape, qui part du même personnage avec les mêmes réglages : vous ajoutez ses étapes une à une dans l'éditeur.")}>
+              {t("Création manuelle")}
+            </button>
+          )}
+          <button className="primary big" onClick={() => launch(onRun)}>
             {t("Lancer la génération →")}
           </button>
         </div>

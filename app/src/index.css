@@ -1759,12 +1759,12 @@ button.big {
   margin: 0;
   min-width: 330px;
 }
-/* The run button as high as the computing time choice beside it. */
+/* The run buttons as high as the computing time choice beside them. */
 .run-box .segmented,
-.run-box button.primary {
+.run-box > button {
   height: 38px;
 }
-.run-box button.primary {
+.run-box > button {
   padding: 0 20px;
   font-size: 13px;
 }

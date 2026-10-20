@@ -500,6 +500,8 @@ export const api = {
   getOptions: () => invoke<Options>("get_options"),
   /** Computes a guide and saves it as a new version of the guide of the request's name. */
   planRoute: (request: PlanRequest) => invoke<VersionMeta>("plan_route", { request }),
+  /** Saves a guide of no steps from the request's character and settings (edited by hand), to fill in the editor. */
+  manualRoute: (request: PlanRequest) => invoke<VersionMeta>("manual_route", { request }),
   /** Ends the optimization under way now: `planRoute` saves and returns the best guide so far. */
   stopPlan: () => invoke<void>("stop_plan"),
   /** Gives the generation under way up: `planRoute` then rejects with "cancelled" (nothing saved). */

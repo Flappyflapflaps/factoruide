@@ -28,11 +28,14 @@ interface Props {
   onBusy?: (busy: boolean) => void;
   /** The configuration as it is now, after each change (kept when switching game versions). */
   onDraft?: (request: PlanRequest) => void;
-  /** The guide is saved: show it (with a notice when the optimization was stopped early). */
-  onDone: (meta: VersionMeta, notice: string | null) => void;
+  /** The guide is saved: show it (with a notice when the optimization was stopped early), in the editor when created by hand. */
+  onDone: (meta: VersionMeta, notice: string | null, edit?: boolean) => void;
 }
 
-/** New route in two steps: configure, then watch the generation live; the saved guide opens at the end. */
+/**
+ * New route in two steps: configure, then watch the generation live; the saved guide opens at the end.
+ * Created by hand instead, the guide is saved with no step and opens in the editor.
+ */
 export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props) {
   const t = useT();
   const lang = useLang();
@@ -140,6 +143,28 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
     }
   };
 
+  // A guide created by hand: saved with no step, it opens in the editor.
+  const [creating, setCreating] = useState(false);
+  const manual = async (request: PlanRequest) => {
+    if (running.current) return;
+    running.current = true;
+    onBusy?.(true);
+    setInitial(request);
+    setCreating(true);
+    setError(null);
+    setMessage(null);
+    setNotice(null);
+    try {
+      onDone(await api.manualRoute(request), null, true);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setCreating(false);
+      running.current = false;
+      onBusy?.(false);
+    }
+  };
+
   const interrupt = (how: "stop" | "cancel") => {
     if (!running.current || interrupted.current === "cancel" || interrupted.current === how) return;
     interrupted.current = how;
@@ -178,6 +203,11 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
       {error && <div className="error">{error}</div>}
       {message && <div className="success">{message}</div>}
       {notice && step !== "run" && <div className="notice">{notice}</div>}
+      {creating && (
+        <div className="notice">
+          <span className="spinner" role="status" aria-hidden /> {t("Création du guide…")}
+        </div>
+      )}
       {step === "config" && (
         <ConfigForm
           key={JSON.stringify(initial)}
@@ -186,6 +216,7 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
           startCharacter={initial ? undefined : start.character}
           defaultLocale={gameLocale(lang)}
           onRun={(r) => run(r)}
+          onManual={(r) => manual(r)}
           onChange={onDraft}
           onExport={async (r) => {
             try {

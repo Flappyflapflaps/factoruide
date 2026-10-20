@@ -12,6 +12,8 @@ export interface OpenGuide {
   guide: string;
   version: number;
   notice: string | null;
+  /** Open with its steps edited (a guide created by hand). */
+  edit?: boolean;
 }
 
 interface Props {
@@ -47,8 +49,8 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
     },
     [onUnsaved],
   );
-  // The guide opens with its steps edited (from the list's button).
-  const [editOnOpen, setEditOnOpen] = useState(false);
+  // The guide opens with its steps edited (from the list's button, or created by hand).
+  const [editOnOpen, setEditOnOpen] = useState(!!start?.edit);
   const leave = () => !unsaved.current || confirm(t("Quitter l'édition sans enregistrer ? Les modifications seront perdues."));
   // Two versions of the open guide compared (from its page, back to it).
   const [comparing, setComparing] = useState<{ a: number; b: number } | null>(null);
