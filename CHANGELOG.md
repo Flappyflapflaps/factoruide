@@ -4,6 +4,8 @@ Each version's tag message (`scripts/release.sh`), shown in the app's update pro
 
 Writing an entry: one short line per change, saying what the player sees or gets (not how it works inside), grouped under App, Guides, Addon and WoW data. Numbers and examples only when they tell the change better than words; details go to the commit.
 
+An addon change also goes, in the same words, under Unreleased in that addon's own `addon/<addon>/CHANGELOG.md`: its changelog on CurseForge and Wago.
+
 ## 0.14.0 (2026-10-19)
 
 Factoruide in your browser, the addon from CurseForge and set up in the game's options, and a home page.

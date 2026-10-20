@@ -3,9 +3,10 @@
 # tag. The CI (.github/workflows/release.yml) builds the Windows installer, the macOS apps and the
 # Linux app and publishes them (installed apps offer the update at startup, showing the notes),
 # deploys the web app, and publishes each addon whose version is the tag's on CurseForge and Wago.
-# An addon changed since the last release gets the new version first (a commit pushed on main):
-# the apps built from the tag then ask for it; an unchanged one keeps its version and is not
-# published again.
+# An addon changed since the last release gets the new version first (a commit pushed on main),
+# its CHANGELOG.md's Unreleased section becoming the version's (its changelog on CurseForge and
+# Wago; the release stops when it is empty): the apps built from the tag then ask for it; an
+# unchanged one keeps its version and is not published again.
 #
 #   scripts/release.sh 0.2.0 "Short notes (shown in the app): a link to CHANGELOG.md"
 #   scripts/release.sh 0.2.0            # writes the notes in $EDITOR
@@ -31,6 +32,19 @@ if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     exit 1
 fi
 
+# The addons changed since the last release, each with what changes for players.
+last=$(git describe --tags --abbrev=0 --match 'v*.*.*' 2>/dev/null || true)
+changed=
+for addon in Factoruide_Profile Factoruide_Guide; do
+    if [ -z "$last" ] || ! git diff --quiet "$last" HEAD -- "addon/$addon"; then
+        if ! scripts/addon-changes.sh "$addon" "$version" >/dev/null && ! scripts/addon-changes.sh "$addon" >/dev/null; then
+            echo "$addon changed since ${last:-the start}: write what changes for players under '## Unreleased' in addon/$addon/CHANGELOG.md" >&2
+            exit 1
+        fi
+        changed="$changed $addon"
+    fi
+done
+
 # The guide this release's apps make, kept for the addon's tests (a newer addon must read it).
 # Not released yet: made again from what is committed now.
 rm -f "addon/tests/guides/$version.lua"
@@ -41,22 +55,17 @@ if [ -n "$(git status --porcelain addon/tests/guides)" ]; then
     git push -q origin main
 fi
 
-# The addons changed since the last release take this version.
-last=$(git describe --tags --abbrev=0 --match 'v*.*.*' 2>/dev/null || true)
-bumped=
-for addon in Factoruide_Profile Factoruide_Guide; do
-    toc="addon/$addon/$addon.toc"
-    if [ -z "$last" ] || ! git diff --quiet "$last" HEAD -- "addon/$addon"; then
-        if ! grep -q "^## Version: $version\$" "$toc"; then
-            sed -i "s/^## Version: .*/## Version: $version/" "$toc"
-            bumped="$bumped $addon"
-        fi
+# The changed addons take this version, their Unreleased changes with it.
+for addon in $changed; do
+    sed -i "s/^## Version: .*/## Version: $version/" "addon/$addon/$addon.toc"
+    if ! scripts/addon-changes.sh "$addon" "$version" >/dev/null; then
+        sed -i "0,/^## Unreleased\$/s//## Unreleased\n\n## $version ($(date -u +%F))/" "addon/$addon/CHANGELOG.md"
     fi
 done
-if [ -n "$bumped" ]; then
-    git commit -q -m "Addons $version:$bumped" -- addon/*/*.toc
+if [ -n "$(git status --porcelain addon/*/*.toc addon/*/CHANGELOG.md)" ]; then
+    git commit -q -m "Addons $version:$changed" -- addon/*/*.toc addon/*/CHANGELOG.md
     git push -q origin main
-    echo "addons $version:$bumped"
+    echo "addons $version:$changed"
 fi
 
 if [ $# -ge 2 ]; then

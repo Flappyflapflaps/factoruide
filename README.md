@@ -161,7 +161,11 @@ guides go to it with **Import a guide…** (the text a guide's Export gives). Se
 publishes everything under that one version: the desktop apps (GitHub release and updates), the
 web app (Cloudflare Pages) and the addons. An addon is published (CurseForge, Wago and a zip in
 the release) only when it changed since the last release: the script gives it the new version
-first, and the apps built from the tag ask for that version at least. A guide made by an older
+first, and the apps built from the tag ask for that version at least. Each addon has its own
+`CHANGELOG.md` (what changes for players, its changelog on CurseForge and Wago): new lines go under
+Unreleased, which the script dates with the version, and it stops when a changed addon has none.
+`scripts/publish-addons.sh X.Y.Z [addon] [beta|alpha|release]` publishes the addons of main
+outside a release, to try them. A guide made by an older
 app stays readable by a newer addon: `addon/tests/guides` keeps one guide per release, and the
 addon's tests follow each of them.
 

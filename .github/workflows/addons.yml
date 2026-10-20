@@ -2,12 +2,14 @@ name: Addons
 
 # Each addon's folder alone, packaged and uploaded by the BigWigs packager to its CurseForge and
 # Wago projects (repository variables for their ids, secrets CF_API_KEY and WAGO_API_TOKEN for the
-# tokens; skipped without them).
+# tokens; skipped without them). Their changelog there is the version's section of the addon's
+# CHANGELOG.md (scripts/addon-changes.sh).
 # - From a release (release.yml, with its tag): the addons whose version is the tag's
 #   (scripts/release.sh gives it to those changed since the last release), their zips added to
 #   the release.
-# - By hand: a branch (main by default) under the version given, to try the addons before a
-#   release; their zips are kept as the run's artifacts.
+# - By hand (scripts/publish-addons.sh): a branch (main by default) under the version given, to
+#   try the addons before a release, with their Unreleased changes; their zips are kept as the
+#   run's artifacts.
 on:
   workflow_call:
     inputs:
@@ -79,8 +81,11 @@ jobs:
               echo "$ADDON: unchanged since its last release, not published"
               exit 0
             fi
-            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
-            git tag -l --format='%(contents)' "$TAG" > "$RUNNER_TEMP/CHANGES.md"
+            # Releases made before the addons had their own changelog: the tag's notes.
+            if ! scripts/addon-changes.sh "$ADDON" "$version" > "$RUNNER_TEMP/CHANGES.md"; then
+              git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+              git tag -l --format='%(contents)' "$TAG" > "$RUNNER_TEMP/CHANGES.md"
+            fi
             label="$TAG"
           else
             case $VERSION in
@@ -95,7 +100,10 @@ jobs:
             # The packager takes the channel from the tag: "-beta" or "-alpha" in it.
             label="v$version"
             [ "$CHANNEL" = release ] || label="$label-$CHANNEL"
-            echo "Built from $(git rev-parse --short HEAD) of $REF, to try before a release." > "$RUNNER_TEMP/CHANGES.md"
+            {
+              scripts/addon-changes.sh "$ADDON" && echo
+              echo "Built from $(git rev-parse --short HEAD) of $REF, to try before a release."
+            } > "$RUNNER_TEMP/CHANGES.md"
           fi
           {
             echo "publish=true"
