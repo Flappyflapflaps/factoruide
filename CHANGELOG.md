@@ -39,7 +39,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - A guide made by a newer app asks you to update the addon instead of going wrong; a new kind of step it does not know yet is shown and passed on its own.
 - The guide's mark on the game's XP bar is gone, and the game's XP tooltip with it back: the guide's own XP bar shows where you should be (GitHub #36).
 - The full and minimal guides each keep their own layout: moving or resizing the quest panel or the compass in one mode no longer changes the other.
-- In the game's addon list, the Factoruide addons are under Quests, with their own icon.
+- In the game's addon list, the Factoruide addons are under Quests, with their own icon, Guide and Data grouped under Profile.
 
 ### Guides
 

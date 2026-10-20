@@ -6,7 +6,7 @@ under Unreleased; `scripts/release.sh` gives them the release's version.
 
 ## Unreleased
 
-- In the game's addon list, the Factoruide addons are under Quests, with their own icon.
+- In the game's addon list, the Factoruide addons are under Quests, with their own icon, Guide and Data grouped under Profile.
 - Translations of Factoruide Guide's new step labels (vendor, and steps of a kind it does not know yet).
 
 ## 0.13.0 (2026-10-19)

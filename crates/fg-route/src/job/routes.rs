@@ -51,7 +51,8 @@ pub fn lua_long_string(text: &str) -> String {
 }
 
 /// Where the game's addon list shows the addons (the guide addon's and the profile's too), with
-/// the profile addon's icon.
+/// the profile addon's icon; the data addon is listed under the profile addon (`## Group`), as
+/// the guide addon is.
 const DATA_ADDON_CATEGORY: &str = "## Category: Quests\n## Category-frFR: Quêtes\n## Category-deDE: Quests\n## Category-esES: Misiones\n## Category-esMX: Misiones\n## Category-ptBR: Missões\n## Category-ruRU: Задания\n## Category-koKR: 퀘스트\n## Category-zhCN: 任务\n## Category-zhTW: 任務\n## IconTexture: Interface\\AddOns\\Factoruide_Profile\\Media\\Logo\n";
 
 /// The data addon's files (name, content): its .toc (`interface`: the "## Interface:" line of
@@ -61,7 +62,7 @@ pub fn data_addon_files(lua: &str, interface: &str, version: &str, time: u64) ->
         (
             format!("{DATA_ADDON}.toc"),
             format!(
-                "{interface}\n## Title: Factoruide Data\n## Notes: The guides of the Factoruide app. Written by the app: do not edit.\n{DATA_ADDON_CATEGORY}## Version: {version}\nData.lua\n"
+                "{interface}\n## Title: Factoruide Data\n## Notes: The guides of the Factoruide app. Written by the app: do not edit.\n{DATA_ADDON_CATEGORY}## Group: Factoruide_Profile\n## Version: {version}\nData.lua\n"
             ),
         ),
         (

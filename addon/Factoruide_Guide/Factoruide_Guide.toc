@@ -16,6 +16,7 @@
 ## IconTexture: Interface\AddOns\Factoruide_Profile\Media\Logo
 ## Version: 0.14.0
 ## Dependencies: Factoruide_Profile
+## Group: Factoruide_Profile
 ## OptionalDeps: Factoruide_Data, ElvUI, EllesmereUI, SpartanUI, Poulpix_UI_Immersive, ShortestPathForever
 
 Libs\LibStub\LibStub.lua
