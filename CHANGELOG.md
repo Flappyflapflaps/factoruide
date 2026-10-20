@@ -18,6 +18,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - The Characters and Addon pages are gone: the addon is installed from CurseForge and set up in game.
 - A bar says when the addon is missing or out of date, with a link to its page.
 - WoW Forever is also found in its new `_forever_` game folder (GitHub #32).
+- The steps list starts a new zone where the hearthstone, a flight or a boat takes you, even for a short stop (GitHub #37).
 
 ### Addon
 
@@ -41,6 +42,10 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - Library books: the book is looted before going to the librarian.
 - The Warsong scouts' updates are planned, and Flight to Auberdine uses the free hippogryph.
 - Polestar guides wait for a quest to be complete before its turn-in.
+- Walks follow the roads, passes and tunnels instead of a straight line over mountains, so guides fly where walking is long (GitHub #37).
+- A trip can fly to a port before a boat, or fly on from where it lands; flight paths are picked up the first time the route passes near them (GitHub #37).
+- Gold spent on flights counts most up to level 30, when the trainers take most of it, and much less after (GitHub #37).
+- Mount Hyjal's flight paths are no longer picked up: the mountain is reached only through Winterspring (GitHub #37).
 
 ## 0.13.0 (2026-10-18)
 

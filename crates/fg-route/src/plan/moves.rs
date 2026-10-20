@@ -161,12 +161,11 @@ impl Planner<'_> {
         Some(Change::edited(first, len))
     }
 
-    /// A detour to a flight master, a dungeon run, or the hearthstone bound (`rebind_nearby`).
+    /// A detour to a flight master (`add_flight_visit`), a dungeon run, or the hearthstone
+    /// bound (`rebind_nearby`).
     fn add_visit(&self, route: &mut Vec<Stop>, rng: &mut SmallRng) -> Option<Change> {
         let (index, kind) = match rng.random_range(0..3) {
-            0 if !self.world.taxi_nodes.is_empty() => {
-                (rng.random_range(0..self.world.taxi_nodes.len()), Kind::LearnFlight)
-            }
+            0 if !self.world.taxi_nodes.is_empty() => return self.add_flight_visit(route, rng),
             1 if !self.model.dungeons.is_empty() => (rng.random_range(0..self.model.dungeons.len()), Kind::Dungeon),
             _ => return self.rebind_nearby(route, rng),
         };
@@ -180,6 +179,46 @@ impl Planner<'_> {
         let at = self.insert_near(route, &self.places().pos(&self.initial_state(), stop), 0);
         route.insert(at, stop);
         Some(Change::edited(at, route.len()))
+    }
+
+    /// A flight path drawn at random learned earlier than the route learns it: a detour to it
+    /// after the stop closest to it before the route visits it, or passes close enough to pick
+    /// it up (`flight_learn_radius`). The first time the route comes near (into its zone, or
+    /// past it) is often much earlier than the stops at the flight master's town, and every
+    /// trip in between may fly. A visit of the route to it later is moved there.
+    fn add_flight_visit(&self, route: &mut Vec<Stop>, rng: &mut SmallRng) -> Option<Change> {
+        let node = rng.random_range(0..self.world.taxi_nodes.len());
+        let s0 = self.initial_state();
+        if s0.known & (1u128 << node) != 0 {
+            return None;
+        }
+        let pos = self.world.taxi_nodes[node].pos;
+        let visit = Stop {
+            index: node as u32,
+            kind: Kind::LearnFlight,
+        };
+        let learned = route
+            .iter()
+            .position(|&st| {
+                st == visit
+                    || (st.kind != Kind::LearnFlight
+                        && self.pos_from_start(&s0, st).dist(&pos) <= self.params.flight_learn_radius)
+            })
+            .unwrap_or(route.len());
+        if learned == 0 {
+            return None;
+        }
+        let at = (0..learned)
+            .map(|i| (i, self.pos_from_start(&s0, route[i]).dist(&pos)))
+            .filter(|(_, d)| d.is_finite())
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(i, _)| i + 1)?;
+        let len = route.len();
+        if route.get(learned) == Some(&visit) {
+            route.remove(learned);
+        }
+        route.insert(at, visit);
+        Some(Change::edited(at, len.max(route.len())))
     }
 
     /// The hearthstone bound at one of the inns closest to a stop drawn at random, after the stop

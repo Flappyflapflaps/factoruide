@@ -133,6 +133,10 @@ enum Command {
         to: String,
         #[arg(long, default_value = "Alliance")]
         faction: String,
+        /// Also compare with the best flights (every flight path known), at this level's speed
+        /// and with the route's weights (gold, flight overhead)
+        #[arg(long)]
+        level: Option<i64>,
     },
     /// Look for each known kind of data problem in all the edition's data, for every race
     /// (accepted findings: overrides/audit.toml); fails when some are left to fix
@@ -256,7 +260,14 @@ fn main() -> Result<()> {
             eprintln!("wrote {} ({n} guides)", out.display());
         }
         Command::Replay { file, effort } => route::replay(&open()?, &overrides, &file, effort, &cli.routes)?,
-        Command::Travel { from, to, faction } => travel::run(&open()?, &overrides, &faction, &from, &to)?,
+        Command::Travel {
+            from,
+            to,
+            faction,
+            level,
+        } => {
+            travel::run(&open()?, &overrides, &faction, &from, &to, level)?;
+        }
         Command::Audit { checks, all } => audit::run(&open()?, &overrides, &checks, all)?,
         Command::Talents { out } => talents::run(
             &open()?,

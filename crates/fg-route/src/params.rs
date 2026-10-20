@@ -288,7 +288,9 @@ pub struct Params {
     /// Same for flights (1 = only their time counts): higher values walk or reorder the route
     /// rather than take a flight that saves little time.
     pub flight_weight: f64,
-    /// Seconds a gold piece spent on flights is worth for the optimizer (0 = flights are free).
+    /// Seconds a gold piece spent on flights is worth for the optimizer up to level
+    /// `GOLD_WEIGHT_LEVEL` (0 = flights are free); less above, as quests pay more
+    /// (`gold_weight_at`).
     pub gold_weight: f64,
     /// Seconds a change of zone costs the optimizer on top of the trip (0 = only the trip): finding
     /// one's way and the NPCs of another zone, which makes a few quests far away not worth it.
@@ -457,7 +459,22 @@ impl Default for Params {
     }
 }
 
+/// The level `Params::gold_weight` is for: up to it, money is short (the trainers take most of
+/// it); above, a gold piece weighs less, as the cube of the level (quests and loot pay more and
+/// more, flights are no longer a worry).
+pub const GOLD_WEIGHT_LEVEL: f64 = 30.0;
+
 impl Params {
+    /// Seconds a gold piece spent on flights weighs at `level` (see `gold_weight`): an hour up to
+    /// level 30 is 25 minutes at 40 and 8 at 60, where a flight costs the minutes of questing
+    /// that pay its price, not the hour a level 20 character needs to earn it. By bands of 5
+    /// levels (their top), so that the trips remembered serve the whole band (`Trips::leg`).
+    pub fn gold_weight_at(&self, level: i64) -> f64 {
+        let band = (level.clamp(1, 250) + 4) / 5 * 5;
+        let level = (band as f64).max(GOLD_WEIGHT_LEVEL);
+        self.gold_weight * (GOLD_WEIGHT_LEVEL / level).powi(3)
+    }
+
     pub fn speed(&self, level: i64) -> f64 {
         if level >= self.mount_level {
             self.run_speed * (1.0 + self.mount_bonus)
@@ -756,5 +773,21 @@ mod tests {
                 assert!(p.reach(level - 1, might) < need, "{need} before {level}");
             }
         }
+    }
+
+    /// Gold weighs its full `gold_weight` up to level 30, then less as the cube of the level:
+    /// an eighth at 60, by bands of 5 levels.
+    #[test]
+    fn gold_weighs_less_the_higher_the_level() {
+        let p = Params {
+            gold_weight: 3600.0,
+            ..Params::default()
+        };
+        assert_eq!(p.gold_weight_at(1), 3600.0);
+        assert_eq!(p.gold_weight_at(30), 3600.0);
+        assert!(p.gold_weight_at(40) < 3600.0);
+        assert!((p.gold_weight_at(60) - 450.0).abs() < 1e-9);
+        assert_eq!(p.gold_weight_at(37), p.gold_weight_at(40));
+        assert!(p.gold_weight_at(60) < p.gold_weight_at(45));
     }
 }

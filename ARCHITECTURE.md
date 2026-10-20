@@ -34,8 +34,8 @@ in, or a visit (learn a flight path, bind the hearthstone at an inn). `Planner::
 level:
 
 - **Travel**: walking in a straight line within a zone, through the passes between zones; flight
-  paths (once learned) and transports when they are faster; the hearthstone when it is the
-  fastest way back.
+  paths (once learned) and transports when they are faster, a flight to a boat or from where
+  it lands included; the hearthstone when it is the fastest way back.
 - **Fights and loot**: kill time grows with the level difference and shrinks with the
   character's **power** (below); elites are slower (or need a group); items to loot take as many
   kills as their drop rate requires.
@@ -163,7 +163,7 @@ stays the real one.
 | Grinding: (`grind_weight` − 1) × its time | 1.5 | Most players prefer quests to grinding: a route grinds only where no quest is nearly as fast. At 1 the route grinds wherever it saves a minute; much higher, it makes long trips for one small quest instead. |
 | Farming on the way: the same weight | 1.5 | Mobs killed while walking are grinding too, only cheaper (no trip): weighed the same so that they never win over a quest. |
 | Grinding beyond the cap: (`grind_over_weight` − `grind_weight`) × its time | 4, cap `grind_cap` 10% of each level's XP | Grinding is allowed but limited: past a tenth of a level, quests first whenever there are any. With the cap and farming on the way (`farm_cap`, its own 10%), a 1-60 route went from about 26 h of pure grinding to under 7 h, and was faster overall. |
-| Gold spent on flights: `gold_weight` × gold | 3600 s per gold | Flights cost money a leveling character lacks: an hour per gold makes the route walk or reorder when a flight saves only minutes. `flight_weight` (1) is left at the flight's real time: raising it only turned flights into walks. |
+| Gold spent on flights: `gold_weight` × gold, divided by (level / 30)³ above level 30 | 3600 s per gold up to level 30, 1520 at 40, 450 at 60 | Flights cost money a leveling character lacks, above all from 10 to 30, when the trainers take most of it: an hour per gold makes such a route walk or reorder when a flight saves only minutes. Above 30, quests and loot pay more and more, so the same gold is fewer minutes of questing: a 10 silver flight weighs 6 minutes up to 30, 2.5 at 40, under 1 at 60. `flight_weight` (1) is left at the flight's real time: raising it only turned flights into walks. |
 | Changing zone: `zone_change_weight` per change | 240 s | Finding one's way and the NPCs of another zone: a few quests far away are not worth a detour. |
 | Quest taken and given up: `abandon_weight` each | 600 s | Taking a quest, killing for one of its objectives and dropping it hours later is grinding in disguise. Finishing it or leaving it out wins unless keeping it saves more than ten minutes. |
 | Time outside the preferred zones: `preferred_zone_weight` × its time | 0.5 | Only with preferred zones: the guide stays in them unless leaving saves a lot. |
@@ -194,7 +194,8 @@ gives to the calculation. At each step a change is tried and the new route is si
 - move a block of consecutive stops, or a whole stay in a zone, earlier or later;
 - drop a quest or a visit (class quests stay);
 - insert a quest not yet in the route next to the stops closest to its places;
-- add a detour to a flight master, or to an inn to bind the hearthstone;
+- add a detour to a flight master (before the route first passes close enough to pick it up), or
+  to an inn to bind the hearthstone;
 - remove a set of quests and put each back where the character has the right level for it
   ("ruin and recreate").
 

@@ -52,8 +52,14 @@ impl Stop {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Leg {
     Walk,
+    /// A flight between two flight paths.
     Fly(usize, usize),
+    /// Boats, zeppelins or portals: boarding the first link, leaving the last.
     Link(usize, usize),
+    /// A flight to a port, then its boats (flight paths, then links).
+    FlyLink(usize, usize, usize, usize),
+    /// Boats, then a flight from near where they land (links, then flight paths).
+    LinkFly(usize, usize, usize, usize),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -345,6 +351,10 @@ pub struct Breakdown {
     /// Copper spent on flights.
     #[serde(default)]
     pub flight_cost: i64,
+    /// What that gold weighs for the optimizer, each flight at the level it is taken
+    /// (`Params::gold_weight_at`), in seconds.
+    #[serde(skip)]
+    pub flight_gold: f64,
     /// Forced dungeons the route does not run.
     #[serde(default)]
     pub missing_dungeons: u32,

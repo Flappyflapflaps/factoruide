@@ -20,7 +20,7 @@ pub(crate) type FlightTables = RefCell<FxHashMap<u128, Rc<FlightTable>>>;
 type PosKey = [u64; 3];
 
 /// Trips already computed (from with mounted or not and the links opened, to, known flight
-/// paths): a replay asks the same trips again and again. 80 bytes a trip; emptied when full.
+/// paths): a replay asks the same trips again and again. 88 bytes a trip; emptied when full.
 pub(crate) type Legs = RefCell<FxHashMap<(PosKey, PosKey, u128), (f64, Hop)>>;
 /// What a table of 2^18 buckets holds (7/8 of them): it never grows past them.
 const LEGS_MAX: usize = (1 << 18) / 8 * 7;
@@ -31,15 +31,23 @@ pub(crate) enum Hop {
     Walk,
     Fly(u16, u16),
     Link(u16, u16),
+    FlyLink([u16; 4]),
+    LinkFly([u16; 4]),
 }
 
 impl Hop {
     fn of(leg: Leg) -> Option<Self> {
         let pair = |a: usize, b: usize| Some((u16::try_from(a).ok()?, u16::try_from(b).ok()?));
+        let four = |a: usize, b: usize, c: usize, d: usize| {
+            let ((a, b), (c, d)) = (pair(a, b)?, pair(c, d)?);
+            Some([a, b, c, d])
+        };
         Some(match leg {
             Leg::Walk => Self::Walk,
             Leg::Fly(a, b) => pair(a, b).map(|(a, b)| Self::Fly(a, b))?,
             Leg::Link(a, b) => pair(a, b).map(|(a, b)| Self::Link(a, b))?,
+            Leg::FlyLink(a, b, c, d) => Self::FlyLink(four(a, b, c, d)?),
+            Leg::LinkFly(a, b, c, d) => Self::LinkFly(four(a, b, c, d)?),
         })
     }
 
@@ -48,6 +56,8 @@ impl Hop {
             Self::Walk => Leg::Walk,
             Self::Fly(a, b) => Leg::Fly(a.into(), b.into()),
             Self::Link(a, b) => Leg::Link(a.into(), b.into()),
+            Self::FlyLink([a, b, c, d]) => Leg::FlyLink(a.into(), b.into(), c.into(), d.into()),
+            Self::LinkFly([a, b, c, d]) => Leg::LinkFly(a.into(), b.into(), c.into(), d.into()),
         }
     }
 }
@@ -108,6 +118,20 @@ impl Trips<'_> {
         }
     }
 
+    /// The level a trip is remembered at (`Legs`): what its time and choice depend on apart
+    /// from the speed, the danger's band (`danger_level`) and the weight of gold
+    /// (`Params::gold_weight_at`, by the same bands, the same up to level 30).
+    fn leg_level(&self, level: i64) -> u8 {
+        let band = ((level.clamp(1, 250) + 4) / 5 * 5) as u8;
+        if self.params.danger_weight > 0.0
+            || (self.params.gold_weight > 0.0 && f64::from(band) > crate::params::GOLD_WEIGHT_LEVEL)
+        {
+            band
+        } else {
+            0
+        }
+    }
+
     /// The links `s` may take (see `World::link_chain`): those a quest opens once it is taken,
     /// or when the character cannot take it; those open only while a quest is in the log, while
     /// it is.
@@ -126,7 +150,7 @@ impl Trips<'_> {
     pub(crate) fn leg(&self, from: &Pos, b: &Pos, level: i64, known: u128, open: u8) -> (f64, Leg) {
         // The level only matters through the speed: mounted or not.
         let mounted = level >= self.params.mount_level;
-        let (Some(mut a), Some(z)) = (pos_key(from, mounted, self.danger_level(level)), pos_key(b, false, 0)) else {
+        let (Some(mut a), Some(z)) = (pos_key(from, mounted, self.leg_level(level)), pos_key(b, false, 0)) else {
             return self.compute_leg(from, b, level, known, open);
         };
         a[0] |= u64::from(open) << 58;
@@ -180,8 +204,13 @@ impl Trips<'_> {
         }
         let flights = self.flight_table(known);
         let (flights, prices) = (&flights.0, &flights.1);
-        // Flights weigh more than their time (flight_weight) and cost gold (gold_weight): the
-        // trip is chosen on that weighted time, its real time is returned.
+        let overhead = self.params.flight_overhead;
+        // Flights weigh more than their time (flight_weight) and cost gold (gold_weight, less
+        // the higher the level): the trip is chosen on that weighted time, its real time is
+        // returned.
+        let gold = self.params.gold_weight_at(level) / 10_000.0;
+        let extra =
+            |i: usize, j: usize| (self.params.flight_weight - 1.0) * (flights[i][j] + overhead) + gold * prices[i][j];
         let mut weighted = best.0;
         // The 3 known flight paths nearest on foot (ties: the first). A walk is never shorter
         // than the straight line: the paths are walked to nearest first as the crow flies, until
@@ -214,19 +243,75 @@ impl Trips<'_> {
             }
             v
         };
+        // The best flight from the paths `takeoffs` (walked to) to `landings` (walked from):
+        // its time and weighted time.
+        let fly = |takeoffs: &[(usize, f64)], landings: &[(usize, f64)]| {
+            let mut best: Option<(f64, f64, usize, usize)> = None;
+            for &(i, wa) in takeoffs {
+                for &(j, wb) in landings {
+                    if i == j || !flights[i][j].is_finite() {
+                        continue;
+                    }
+                    let t = wa + flights[i][j] + overhead + wb;
+                    let w = t + extra(i, j);
+                    if best.is_none_or(|x| w < x.1) {
+                        best = Some((t, w, i, j));
+                    }
+                }
+            }
+            best
+        };
+        let near_from = nearest(from, false);
         let near_b = nearest(b, true);
-        for (i, wa) in nearest(from, false) {
-            for &(j, wb) in &near_b {
-                if i == j {
+        if let Some((t, w, i, j)) = fly(&near_from, &near_b)
+            && w < weighted
+        {
+            weighted = w;
+            best = (t, Leg::Fly(i, j));
+        }
+        if links.is_empty() || (from.continent == b.continent && walk <= 240.0) {
+            return best;
+        }
+        // A flight and a boat (or a zeppelin, a portal): flown to the port, or flown on from
+        // where it lands. Each tried only when the straight lines could make the trip shorter.
+        let line = |p: &Pos, q: &Pos| p.dist(q) * self.params.detour / self.params.speed(level);
+        let least = |v: &[(usize, f64)]| v.iter().map(|x| x.1).fold(f64::INFINITY, f64::min);
+        let (from_least, b_least) = (least(&near_from), least(&near_b));
+        let mut to_b: Vec<Option<f64>> = vec![None; links.len()];
+        let mut from_a: Vec<Option<f64>> = vec![None; links.len()];
+        let mut ports: Vec<Option<Vec<(usize, f64)>>> = vec![None; links.len()];
+        let mut docks: Vec<Option<Vec<(usize, f64)>>> = vec![None; links.len()];
+        for (k, lk) in links.iter().enumerate() {
+            for (l, ll) in links.iter().enumerate() {
+                let ride = chain[k][l];
+                if !ride.is_finite() {
                     continue;
                 }
-                let t = wa + flights[i][j] + wb + self.params.flight_overhead;
-                let w = t
-                    + (self.params.flight_weight - 1.0) * (flights[i][j] + self.params.flight_overhead)
-                    + self.params.gold_weight * prices[i][j] / 10_000.0;
-                if w < weighted {
-                    weighted = w;
-                    best = (t, Leg::Fly(i, j));
+                // Flown to the port of `k`, then by boat to `l`'s landing, walked to `b`.
+                if from_least + overhead + ride + line(&ll.to, b) < weighted {
+                    let wb = *to_b[l].get_or_insert_with(|| self.walk(&ll.to, b, level));
+                    if from_least + overhead + ride + wb < weighted {
+                        let port = ports[k].get_or_insert_with(|| nearest(&lk.from, true));
+                        if let Some((t, w, i, j)) = fly(&near_from, port)
+                            && w + ride + wb < weighted
+                        {
+                            weighted = w + ride + wb;
+                            best = (t + ride + wb, Leg::FlyLink(i, j, k, l));
+                        }
+                    }
+                }
+                // Walked to the port of `k`, by boat to `l`'s landing, flown on to `b`.
+                if line(from, &lk.from) + ride + overhead + b_least < weighted {
+                    let wa = *from_a[k].get_or_insert_with(|| self.walk(from, &lk.from, level));
+                    if wa + ride + overhead + b_least < weighted {
+                        let dock = docks[l].get_or_insert_with(|| nearest(&ll.to, false));
+                        if let Some((t, w, i, j)) = fly(dock, &near_b)
+                            && wa + ride + w < weighted
+                        {
+                            weighted = wa + ride + w;
+                            best = (wa + ride + t, Leg::LinkFly(k, l, i, j));
+                        }
+                    }
                 }
             }
         }
@@ -274,39 +359,59 @@ impl Trips<'_> {
                     .map(|tp| (tp.to.pos, self.params.teleport_cast)),
             );
         }
-        // Where a boat, a portal or a flight lands, and the least time to get there.
-        let mut hubs = Vec::new();
-        let mut reach = |from: &[(Pos, f64)], to: &Pos, ride: &dyn Fn(usize) -> f64| {
-            let t = (from.iter().enumerate())
-                .flat_map(|(i, (p, _))| starts.iter().map(move |(q, cast)| cast + line(q, p) + ride(i)))
-                .fold(f64::INFINITY, f64::min);
-            if t.is_finite() {
-                hubs.push((*to, t));
+        // Where a boat, a portal or a flight lands, and the least time to get there: flights
+        // first, boats from where the trip starts or a flight lands, then flights from where
+        // a boat lands (a trip takes a flight and boats, in either order, `compute_leg`).
+        // The least time to stand at each of `boardings` from `origins` (points and the time
+        // to be there).
+        let arrive = |origins: &[(Pos, f64)], boardings: &[Pos]| -> Vec<f64> {
+            (boardings.iter())
+                .map(|p| {
+                    (origins.iter())
+                        .map(|(q, at)| at + line(q, p))
+                        .fold(f64::INFINITY, f64::min)
+                })
+                .collect()
+        };
+        let flights = (!self.explicit && s.known.count_ones() >= 2).then(|| self.flight_table(s.known));
+        let nodes: Vec<usize> = (0..self.world.taxi_nodes.len())
+            .filter(|i| s.known & (1u128 << i) != 0)
+            .collect();
+        let takeoffs: Vec<Pos> = nodes.iter().map(|&i| self.world.taxi_nodes[i].pos).collect();
+        // Where flights from `origins` land.
+        let fly_from = |origins: &[(Pos, f64)], hubs: &mut Vec<(Pos, f64)>| {
+            let Some(flights) = &flights else {
+                return;
+            };
+            let at = arrive(origins, &takeoffs);
+            for &j in &nodes {
+                let t = (nodes.iter().zip(&at))
+                    .filter(|&(&i, _)| i != j)
+                    .map(|(&i, at)| at + flights.0[i][j] + self.params.flight_overhead)
+                    .fold(f64::INFINITY, f64::min);
+                if t.is_finite() {
+                    hubs.push((self.world.taxi_nodes[j].pos, t));
+                }
             }
         };
+        let mut hubs = Vec::new();
+        fly_from(&starts, &mut hubs);
         if !self.explicit && !self.world.links.is_empty() {
             let chain = self.world.link_chain(self.open_links(s));
-            let boardings: Vec<(Pos, f64)> = self.world.links.iter().map(|l| (l.from, 0.0)).collect();
+            let boardings: Vec<Pos> = self.world.links.iter().map(|l| l.from).collect();
+            let origins: Vec<(Pos, f64)> = starts.iter().chain(&hubs).copied().collect();
+            let at = arrive(&origins, &boardings);
+            let mut landed = Vec::new();
             for (j, lj) in self.world.links.iter().enumerate() {
-                reach(&boardings, &lj.to, &|i| chain[i][j]);
+                let t = (at.iter().enumerate())
+                    .map(|(i, at)| at + chain[i][j])
+                    .fold(f64::INFINITY, f64::min);
+                if t.is_finite() {
+                    landed.push((lj.to, t));
+                }
             }
-        }
-        if !self.explicit && s.known.count_ones() >= 2 {
-            let flights = self.flight_table(s.known);
-            let nodes: Vec<usize> = (0..self.world.taxi_nodes.len())
-                .filter(|i| s.known & (1u128 << i) != 0)
-                .collect();
-            let takeoffs: Vec<(Pos, f64)> = nodes.iter().map(|&i| (self.world.taxi_nodes[i].pos, 0.0)).collect();
-            for &j in &nodes {
-                reach(&takeoffs, &self.world.taxi_nodes[j].pos, &|k| {
-                    let i = nodes[k];
-                    if i == j {
-                        f64::INFINITY
-                    } else {
-                        flights.0[i][j] + self.params.flight_overhead
-                    }
-                });
-            }
+            fly_from(&landed, &mut hubs);
+            hubs.extend(landed);
         }
         starts.extend(hubs);
         TripBound { per_yard, starts }

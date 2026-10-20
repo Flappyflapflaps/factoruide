@@ -302,3 +302,13 @@ reason = "A Light in the Darkness: Aramis Hammerhand (paladin trainer) offers it
 check = "other-class-quests"
 key = "quest 99152"
 reason = "As Above, So Below: Hilda the Breaker (paladin trainer) gives it to every undead class at level 10 (Forever's quest data)"
+
+[[accept]]
+check = "terrain-gaps"
+key = "Arathi Highlands: Witherbark Village"
+reason = "One objective (Witherbark Tusk) on the trolls' hill: no ramp the terrain shows, walked in a straight line"
+
+[[accept]]
+check = "terrain-gaps"
+key = "Loch Modan: Mo'grosh Stronghold"
+reason = "One objective (Chok'sul's Head) in the eastern hills: no ramp the terrain shows, walked in a straight line"

@@ -129,9 +129,7 @@ impl QuestBuilder<'_> {
     fn pre_held(&self, r: &QuestRow) -> Vec<i64> {
         let own = |item: i64| {
             r.source_item.is_some_and(|s| {
-                s == item
-                    || (self.sources.item_origins.get(&item))
-                        .is_some_and(|o| o.contains(&(SourceKind::Item, s)))
+                s == item || (self.sources.item_origins.get(&item)).is_some_and(|o| o.contains(&(SourceKind::Item, s)))
             })
         };
         let mut held: Vec<i64> = Vec::new();

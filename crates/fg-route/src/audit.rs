@@ -265,7 +265,9 @@ pub fn audit(
                 .for_each(&mut add);
         }
         if on("timed-quests") {
-            timed_quests(&prepared.model, &timed_text).into_iter().for_each(&mut add);
+            timed_quests(&prepared.model, &timed_text)
+                .into_iter()
+                .for_each(&mut add);
         }
         if on("source-items") {
             uncovered_source_items(&prepared.model, &source_items)
@@ -541,6 +543,21 @@ fn terrain_gaps(world: &World, model: &Model) -> Vec<Finding> {
                     if let Some(a) = large_area(world, &p).filter(|a| !areas.contains(a)) {
                         areas.push(a);
                     }
+                }
+            }
+            areas
+        })
+        .collect();
+    // As the planner walks between two areas (`World::bridge`): from a passage of one to a
+    // passage of the other, through the passages between them (the two ends of a bridge, of a
+    // ramp).
+    let ends = |i: usize| !world.passes[i].shortcut && !world.passes[i].one_way;
+    let passages: Vec<Vec<Area>> = (0..passages.len())
+        .map(|i| {
+            let mut areas = passages[i].clone();
+            if ends(i) {
+                for j in (0..passages.len()).filter(|&j| ends(j) && world.pass_dist[i][j].is_finite()) {
+                    areas.extend(passages[j].iter().filter(|a| !passages[i].contains(a)));
                 }
             }
             areas
@@ -862,7 +879,10 @@ fn timed_quests(model: &Model, untimed: &HashMap<i64, String>) -> Vec<Finding> {
             Some(Finding {
                 check: "timed-quests",
                 key: format!("quest {}", q.id),
-                detail: format!("{} ({}): no time limit known, its objectives say \"{excerpt}\"", q.name, q.id),
+                detail: format!(
+                    "{} ({}): no time limit known, its objectives say \"{excerpt}\"",
+                    q.name, q.id
+                ),
                 races: Vec::new(),
             })
         })

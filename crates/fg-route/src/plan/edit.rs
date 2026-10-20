@@ -370,6 +370,7 @@ impl Planner<'_> {
         s.spent.flights += seconds;
         if price.is_finite() {
             s.spent.flight_cost += price as i64;
+            s.spent.flight_gold += self.params.gold_weight_at(s.level) * price / 10_000.0;
         }
         s.pos = end;
         s.landed = Landed::Flight;

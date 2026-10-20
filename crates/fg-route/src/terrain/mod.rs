@@ -60,6 +60,17 @@ const CLIMB_STRAIGHT: i32 = CLIMB as i32;
 const CLIMB_DIAGONAL: i32 = (CLIMB * std::f64::consts::SQRT_2) as i32;
 /// Highest drop a step jumps down (yards): about where a fall starts to hurt.
 const DROP: i32 = 15;
+/// Gaps in walkable ground opened (`Grid::carve_gaps`): steep cells at most, between areas of
+/// at least so many cells, and how much higher (yards) than its ends a gap may go.
+const GAP: i32 = 4;
+/// Walks between two areas joined only by the gaps opened are searched up to this many times
+/// their straight line: farther around, the planner prices them as a way it does not know.
+const APART_REACH: f64 = 3.0;
+/// How much longer than the cheapest walk the walk through the tiles' gates may be (measured: at
+/// most 1.17 on a guide).
+const GATES_SLACK: f64 = 1.25;
+const GAP_AREA: u32 = 500;
+const GAP_RIDGE: i32 = 4;
 /// Cost of a step in tenths of a cell: straight and diagonal, walked then swum (a third
 /// slower than running).
 const WALKED: [u32; 2] = [10, 14];
@@ -110,6 +121,8 @@ type MemoKey = (u32, i64, u64, u8);
 type Memo = FxHashMap<MemoKey, f32>;
 thread_local! {
     static MEMO: RefCell<Memo> = RefCell::new(Memo::default());
+    /// `Terrain::disconnected` already answered, by terrain, continent and pair of cells.
+    static APART: RefCell<FxHashMap<(u32, i64, u64), bool>> = RefCell::new(FxHashMap::default());
 }
 /// The turns of the walks already followed (`Terrain::waypoints`), by continent, pair of cells
 /// and level, in shards; a shard is emptied beyond `TURNS_MAX`.
@@ -152,12 +165,18 @@ struct Grid {
     areas: Vec<TileAreas>,
     tile_cols: usize,
     sizes: Vec<u32>,
+    /// The area each area of the labelling belongs to once the gaps opened join them
+    /// (`open_gaps`; empty: each its own), and their sizes as labelled.
+    roots: Vec<u32>,
+    raw_sizes: Vec<u32>,
     /// The strongest hostile mob around each cell (its level, more for an elite; 0: none), by
     /// tile (None: none in the tile), and the strongest of each tile.
     danger: Vec<Option<Box<[u8; 4096]>>>,
     danger_max: Vec<u8>,
     /// The gates of each tile and the walks between them, found when first needed (`gates`).
     graphs: Vec<std::sync::OnceLock<gates::TileGraph>>,
+    /// The same walks with the danger counted, by level and danger costs (`gates`).
+    danger_graphs: Vec<Mutex<gates::DangerGraphs>>,
     /// The walkable areas within each tile, found when first needed (`gates`).
     local_areas: Vec<std::sync::OnceLock<Box<[u16]>>>,
     /// The steps each cell can take (`Grid::moves`), by tile, found when first needed.
@@ -378,6 +397,27 @@ impl Grid {
             .unwrap_or(0)
     }
 
+    /// Extra cost (tenths of a cell) of entering a cell for its danger, at `level` (0: none),
+    /// `costs` that of a mob a few levels above and far above.
+    fn danger_step(&self, (r, c): (i32, i32), (level, costs): gates::Danger) -> u32 {
+        if level == 0 {
+            return 0;
+        }
+        let mob = self.danger(r, c);
+        if mob == 0 {
+            return 0;
+        }
+        // Mobs up to a few levels above are the character's own zones; far above, they kill.
+        let gap = i32::from(mob) - i32::from(level);
+        if gap < i32::from(DANGER_GAP) {
+            0
+        } else if gap < i32::from(DANGER_GAP) + 2 {
+            costs[0]
+        } else {
+            costs[1]
+        }
+    }
+
     /// Whether a mob of `level + DANGER_GAP` or more is in the tiles around the box of `a` and
     /// `b` grown by `margin` cells: danger may count on a walk between them.
     fn danger_near(&self, a: (i32, i32), b: (i32, i32), margin: i32, level: u8) -> bool {
@@ -400,6 +440,26 @@ impl Grid {
     }
 
     fn area(&self, r: i32, c: i32) -> u32 {
+        let raw = self.raw_area(r, c);
+        if self.roots.is_empty() {
+            raw
+        } else {
+            self.roots[raw as usize]
+        }
+    }
+
+    /// Whether two cells stand in two large areas as labelled, joined only by the gaps opened.
+    fn raw_apart(&self, a: (i32, i32), b: (i32, i32)) -> bool {
+        if self.roots.is_empty() {
+            return false;
+        }
+        let (x, y) = (self.raw_area(a.0, a.1), self.raw_area(b.0, b.1));
+        let large = |k: u32| k != 0 && self.raw_sizes[k as usize] >= LARGE_AREA;
+        x != y && large(x) && large(y)
+    }
+
+    /// The area of a cell as the terrain labels it, before the gaps opened join areas.
+    fn raw_area(&self, r: i32, c: i32) -> u32 {
         let (r, c) = (r - self.r0, c - self.c0);
         if r < 0 || c < 0 || r >= self.rows || c >= self.cols {
             return 0;
@@ -409,6 +469,157 @@ impl Grid {
             TileAreas::Uniform(a) => *a,
             TileAreas::Cells(cells) => cells[r % 64 * 64 + c % 64],
         }
+    }
+
+    /// Open the narrow gaps the steep cells cut through walkable ground: a road, a canyon floor
+    /// or a pass broken by a few cells the client marks steep (one of their triangles is), a
+    /// road hardly wider than a cell between rock walls. A run of at most `GAP` steep cells
+    /// joining two walkable areas of `GAP_AREA` cells or more, each step within a 50° slope,
+    /// rising at most half a 50° slope from end to end and nowhere `GAP_RIDGE` yards above its
+    /// ends (not over a ridge), is made walkable and the areas one. Cliffs, mesas and
+    /// mountains are not opened: their ends are far apart in height, or the run is long.
+    fn open_gaps(&mut self) {
+        fn root(parent: &mut [u32], mut a: u32) -> u32 {
+            while parent[a as usize] != a {
+                parent[a as usize] = parent[parent[a as usize] as usize];
+                a = parent[a as usize];
+            }
+            a
+        }
+        let height = |g: &Grid, r: i32, c: i32| i32::from(g.probe(r, c).0);
+        let steep_only = |g: &Grid, r: i32, c: i32| g.probe(r, c).1 & (STEEP | NO_GO) == STEEP;
+        let source = |g: &Grid, a: u32| a != 0 && g.sizes[a as usize] >= GAP_AREA;
+        let mut opened: Vec<(i32, i32)> = Vec::new();
+        let mut joins: Vec<(u32, u32)> = Vec::new();
+        let mut seen: Vec<((i32, i32), usize)> = Vec::new();
+        for t in 0..self.cells.len() {
+            if self.cells[t].is_none() {
+                continue;
+            }
+            // A tile of one area has steep cells next to it only across its border.
+            let border_only = match &self.areas[t] {
+                TileAreas::Uniform(a) if !source(self, *a) => continue,
+                TileAreas::Uniform(_) => true,
+                TileAreas::Cells(_) => false,
+            };
+            let (tr, tc) = (
+                (t / self.tile_cols) as i32 * 64 + self.r0,
+                (t % self.tile_cols) as i32 * 64 + self.c0,
+            );
+            for i in 0..4096i32 {
+                let (dr0, dc0) = (i / 64, i % 64);
+                if border_only && dr0 != 0 && dr0 != 63 && dc0 != 0 && dc0 != 63 {
+                    continue;
+                }
+                let (r, c) = (tr + dr0, tc + dc0);
+                let a = self.area(r, c);
+                if !source(self, a) || !DIRECTIONS[..4].iter().any(|&(dr, dc)| steep_only(self, r + dr, c + dc)) {
+                    continue;
+                }
+                let h0 = height(self, r, c);
+                // Breadth first over the steep cells from it, up to `GAP` of them, to the first
+                // cell of another such area (of a higher number: each gap is seen once).
+                seen.clear();
+                seen.push(((r, c), usize::MAX));
+                let (mut k, mut level_end, mut depth) = (0, 1, 0);
+                let mut found = None;
+                'search: while k < seen.len() {
+                    if k == level_end {
+                        depth += 1;
+                        level_end = seen.len();
+                    }
+                    let ((cr, cc), _) = seen[k];
+                    let hc = height(self, cr, cc);
+                    for &(dr, dc) in &DIRECTIONS[..4] {
+                        let (nr, nc) = (cr + dr, cc + dc);
+                        let hn = height(self, nr, nc);
+                        if (hn - hc).abs() > CLIMB_STRAIGHT || seen.iter().any(|&(q, _)| q == (nr, nc)) {
+                            continue;
+                        }
+                        if steep_only(self, nr, nc) {
+                            if depth < GAP {
+                                seen.push(((nr, nc), k));
+                            }
+                            continue;
+                        }
+                        let b = self.area(nr, nc);
+                        if k > 0 && b > a && source(self, b) {
+                            found = Some((k, hn, b));
+                            break 'search;
+                        }
+                    }
+                    k += 1;
+                }
+                let Some((last, hb, b)) = found else {
+                    continue;
+                };
+                let first = opened.len();
+                let mut j = last;
+                while j != 0 {
+                    opened.push(seen[j].0);
+                    j = seen[j].1;
+                }
+                let run = (opened.len() - first) as i32;
+                let top = h0.max(hb) + GAP_RIDGE;
+                if (h0 - hb).abs() <= CLIMB_STRAIGHT * (run + 1) / 2
+                    && opened[first..].iter().all(|&(pr, pc)| height(self, pr, pc) <= top)
+                {
+                    joins.push((a, b));
+                } else {
+                    opened.truncate(first);
+                }
+            }
+        }
+        if joins.is_empty() {
+            return;
+        }
+        // The areas joined, as one (the lowest number of each set).
+        let mut parent: Vec<u32> = (0..self.sizes.len() as u32).collect();
+        for &(a, b) in &joins {
+            let (ra, rb) = (root(&mut parent, a), root(&mut parent, b));
+            if ra != rb {
+                parent[ra.max(rb) as usize] = ra.min(rb);
+            }
+        }
+        let roots: Vec<u32> = (0..self.sizes.len() as u32).map(|a| root(&mut parent, a)).collect();
+        // The opened cells: walkable, in the area of a walkable neighbour (the gap's cells are
+        // walked in a row).
+        opened.sort_unstable();
+        opened.dedup();
+        let mut raw_sizes = self.sizes.clone();
+        for (r, c) in opened {
+            let Some((t, i)) = self.tile(r, c) else {
+                continue;
+            };
+            let Some(cells) = self.cells[t].as_mut() else {
+                continue;
+            };
+            if cells.flags[i] & STEEP == 0 {
+                continue;
+            }
+            cells.flags[i] &= !STEEP;
+            let (rr, cc) = (r - self.r0, c - self.c0);
+            self.steep[rr as usize * self.words + cc as usize / 64] &= !(1u64 << (cc % 64));
+            let area = DIRECTIONS[..4]
+                .iter()
+                .map(|&(dr, dc)| self.raw_area(r + dr, c + dc))
+                .find(|&a| a != 0 && raw_sizes[a as usize] >= GAP_AREA)
+                .unwrap_or(0);
+            if let TileAreas::Uniform(u) = self.areas[t] {
+                self.areas[t] = TileAreas::Cells(vec![u; 4096].into());
+            }
+            if let TileAreas::Cells(cells) = &mut self.areas[t] {
+                cells[i] = area;
+            }
+            raw_sizes[area as usize] += u32::from(area != 0);
+        }
+        let mut sizes = vec![0u32; raw_sizes.len()];
+        for (a, &n) in raw_sizes.iter().enumerate().skip(1) {
+            sizes[roots[a] as usize] += n;
+        }
+        self.sizes = sizes;
+        self.raw_sizes = raw_sizes;
+        self.roots = roots;
     }
 
     /// Label the walkable areas: cells joined by straight steps taken both ways (as paths do
@@ -659,8 +870,9 @@ pub struct Terrain {
     walks: Arc<Walks>,
     /// Paths this terrain asked its memory (or searched), for the memory of its guide.
     used: Vec<Mutex<HashSet<Key>>>,
-    /// Large areas left only by boat, portal or lift (continent, area): `Terrain::enclose`.
-    enclosed: HashSet<(i64, u32)>,
+    /// Large areas left only by boat, portal, lift or the passages joining them (continent,
+    /// area), and the place each belongs to: `Terrain::enclose`.
+    enclosed: HashMap<(i64, u32), u32>,
     /// How much the danger counts (`add_danger`; 0: not at all).
     danger_weight: f64,
     /// What a dangerous cell costs more, a few levels and far above the character (tenths of a
@@ -707,7 +919,7 @@ impl Terrain {
             grids: FxHashMap::default(),
             walks: Arc::new(Walks::default()),
             used: (0..SHARDS).map(|_| Mutex::new(HashSet::new())).collect(),
-            enclosed: HashSet::new(),
+            enclosed: HashMap::new(),
             danger_weight: 0.0,
             danger_costs: [0; 2],
             turns: (0..SHARDS).map(|_| Mutex::default()).collect(),
@@ -810,14 +1022,19 @@ impl Terrain {
                 areas: Vec::new(),
                 tile_cols,
                 sizes: Vec::new(),
+                roots: Vec::new(),
+                raw_sizes: Vec::new(),
                 danger: Vec::new(),
                 danger_max: Vec::new(),
                 graphs: Vec::new(),
+                danger_graphs: Vec::new(),
                 local_areas: Vec::new(),
                 moves: Vec::new(),
             };
             grid.label();
+            grid.open_gaps();
             grid.graphs = (0..grid.cells.len()).map(|_| std::sync::OnceLock::new()).collect();
+            grid.danger_graphs = (0..grid.cells.len()).map(|_| Mutex::default()).collect();
             grid.local_areas = (0..grid.cells.len()).map(|_| std::sync::OnceLock::new()).collect();
             grid.moves = (0..grid.cells.len()).map(|_| std::sync::OnceLock::new()).collect();
             terrain.grids.insert(map, grid);
@@ -846,6 +1063,11 @@ impl Terrain {
                 }
             }
         }
+        // The walks depend on how the steps are made too (the gaps opened): memories of
+        // another making are not this terrain's.
+        terrain.fingerprint = terrain
+            .fingerprint
+            .wrapping_add(u64::from(GATES_VERSION).wrapping_mul(0x9e37_79b9_7f4a_7c15));
         terrain.walks.bind(terrain.fingerprint);
         Ok(terrain)
     }
@@ -936,23 +1158,8 @@ impl Terrain {
     }
 
     /// Extra cost (tenths of a cell) of entering a cell for its danger, at `level` (0: none).
-    fn danger_cost(&self, grid: &Grid, (r, c): (i32, i32), level: u8) -> u32 {
-        if level == 0 {
-            return 0;
-        }
-        let mob = grid.danger(r, c);
-        if mob == 0 {
-            return 0;
-        }
-        // Mobs up to a few levels above are the character's own zones; far above, they kill.
-        let gap = i32::from(mob) - i32::from(level);
-        if gap < i32::from(DANGER_GAP) {
-            0
-        } else if gap < i32::from(DANGER_GAP) + 2 {
-            self.danger_costs[0]
-        } else {
-            self.danger_costs[1]
-        }
+    fn danger_cost(&self, grid: &Grid, p: (i32, i32), level: u8) -> u32 {
+        grid.danger_step(p, (level, self.danger_costs))
     }
 
     /// The straight line between two cells when each of its steps can be taken on safe ground
@@ -1038,16 +1245,65 @@ impl Terrain {
         Some((area, grid.sizes.get(area as usize).copied().unwrap_or(0)))
     }
 
+    /// The large walkable area a point stands in (after snapping), as the terrain labels it
+    /// and once the gaps opened join areas (`Grid::open_gaps`): None without terrain or in no
+    /// large area.
+    pub fn large_areas_of(&self, p: &Pos) -> Option<(u32, u32)> {
+        let grid = self.grids.get(&p.continent)?;
+        let (r, c) = Self::snap(grid, Self::cell(p));
+        let raw = grid.raw_area(r, c);
+        let sizes = if grid.roots.is_empty() {
+            &grid.sizes
+        } else {
+            &grid.raw_sizes
+        };
+        (raw != 0 && sizes[raw as usize] >= LARGE_AREA).then(|| (raw, grid.area(r, c)))
+    }
+
+    /// Forget every walk worked out, in this thread and shared (benchmarks: each run from cold
+    /// memories).
+    #[doc(hidden)]
+    pub fn forget_walks(&self) {
+        MEMO.with(|m| m.borrow_mut().clear());
+        APART.with(|m| m.borrow_mut().clear());
+        self.walks.shards.iter().for_each(|s| s.lock().unwrap().clear());
+        self.used.iter().for_each(|u| u.lock().unwrap().clear());
+        self.turns.iter().for_each(|t| t.lock().unwrap().clear());
+    }
+
+    /// The walks between the gates of the tile at `p` with the danger counted at `level`, found
+    /// anew (benchmarks): their count.
+    #[doc(hidden)]
+    pub fn tile_danger_walks(&self, p: &Pos, level: u8) -> usize {
+        let Some(grid) = self.grids.get(&p.continent) else {
+            return 0;
+        };
+        let (r, c) = Self::cell(p);
+        grid.tile(r, c)
+            .map_or(0, |(t, _)| grid.danger_costs(t, (level, self.danger_costs)).len())
+    }
+
+    /// The walks from `p` to the gates of its tile with the danger counted, found anew
+    /// (benchmarks): their count.
+    #[doc(hidden)]
+    pub fn tile_end_walks(&self, p: &Pos, level: u8) -> usize {
+        let Some(grid) = self.grids.get(&p.continent) else {
+            return 0;
+        };
+        grid.ends_anew(Self::snap(grid, Self::cell(p)), (level, self.danger_costs))
+            .len()
+    }
+
     /// The large area at `p` is left only by boat, portal or lift (Rut'theran Village, at the
     /// foot of Teldrassil): no walk between it and the other areas. Its area and size, None when
     /// `p` is not in a large area.
-    pub fn enclose(&mut self, p: &Pos) -> Option<(u32, u32)> {
+    pub fn enclose(&mut self, p: &Pos, place: u32) -> Option<(u32, u32)> {
         let (area, size) = self.area_of(p).filter(|&(a, size)| a != 0 && size >= LARGE_AREA)?;
         // Swimming joins the shore to the mainland: enclosing it would enclose the continent.
         if self.main_area(p.continent) == Some(area) {
             return None;
         }
-        self.enclosed.insert((p.continent, area));
+        self.enclosed.insert((p.continent, area), place);
         // Answers given before are kept by terrain: this one is another.
         self.id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
         self.turns.iter_mut().for_each(|t| t.get_mut().unwrap().clear());
@@ -1138,7 +1394,7 @@ impl Terrain {
 
     /// The areas declared enclosed (continent, area).
     pub fn enclosed_areas(&self) -> impl Iterator<Item = (i64, u32)> + '_ {
-        self.enclosed.iter().copied()
+        self.enclosed.keys().copied()
     }
 
     /// The largest walkable area of a continent (its mainland).
@@ -1149,16 +1405,59 @@ impl Terrain {
 
     /// Whether area `a` (of continent `map`) is left only by boat, portal or lift.
     pub fn is_enclosed(&self, map: i64, a: u32) -> bool {
-        self.enclosed.contains(&(map, a))
+        self.enclosed.contains_key(&(map, a))
     }
 
-    /// Two areas the terrain does not connect, large, one of them enclosed: no walk between them.
+    /// Two areas the terrain does not connect, large, one of them enclosed (not both of the
+    /// same place): no walk between them, but through the passages joining them.
     fn apart(&self, grid: &Grid, map: i64, area: u32, other: u32) -> bool {
         let large = |a: u32| a != 0 && grid.sizes[a as usize] >= LARGE_AREA;
-        area != other
-            && large(area)
-            && large(other)
-            && (self.enclosed.contains(&(map, area)) || self.enclosed.contains(&(map, other)))
+        let (pa, po) = (self.enclosed.get(&(map, area)), self.enclosed.get(&(map, other)));
+        area != other && large(area) && large(other) && (pa.is_some() || po.is_some()) && pa != po
+    }
+
+    /// Whether `a` and `b` stand in two large areas as the terrain labels them (whatever is
+    /// enclosed): not joined, or only through the gaps opened (`Grid::open_gaps`), whose way
+    /// may be a long way around a bridge or a tunnel the terrain does not hold.
+    pub fn disconnected(&self, a: &Pos, b: &Pos) -> bool {
+        if a.continent != b.continent {
+            return false;
+        }
+        let Some(grid) = self.grids.get(&a.continent) else {
+            return false;
+        };
+        let (ca, cb) = (Self::cell(a), Self::cell(b));
+        let (id, map, cells, _) = self.memo_key(a.continent, ca, cb, 0);
+        if let Some(known) = APART.with(|m| m.borrow().get(&(id, map, cells)).copied()) {
+            return known;
+        }
+        let (ca, cb) = (Self::snap(grid, ca), Self::snap(grid, cb));
+        let (area, other) = (grid.raw_area(ca.0, ca.1), grid.raw_area(cb.0, cb.1));
+        let sizes = if grid.roots.is_empty() {
+            &grid.sizes
+        } else {
+            &grid.raw_sizes
+        };
+        let large = |a: u32| a != 0 && sizes[a as usize] >= LARGE_AREA;
+        let apart = area != other && large(area) && large(other);
+        APART.with(|m| {
+            let mut m = m.borrow_mut();
+            if m.len() >= 1 << 20 {
+                m.clear();
+            }
+            m.insert((id, map, cells), apart);
+        });
+        apart
+    }
+
+    /// The cell of a world position (row from the north, column from the west).
+    pub fn cell_of(p: &Pos) -> (i32, i32) {
+        Self::cell(p)
+    }
+
+    /// Whether walks count the danger of the mobs (`add_danger`).
+    pub fn counts_danger(&self) -> bool {
+        self.danger_weight > 0.0
     }
 
     /// Whether no walk goes between `a` and `b`: two areas the terrain does not connect, one of
@@ -1231,26 +1530,27 @@ impl Terrain {
         mut trace: Option<&mut Vec<(i32, i32)>>,
     ) -> Option<f64> {
         let far = (ca.0 - cb.0).abs().max((ca.1 - cb.1).abs()) > gates::FAR;
-        // A long walk whose way through the gates goes near no mob too strong costs what it
-        // costs without danger, the least any walk can: the gates are its way.
-        if far && level > 0 {
-            let mut turns = Vec::new();
-            if let Some(d) = grid.through_gates(ca, cb, Some(&mut turns))
-                && !grid.danger_along(&turns, level)
-            {
-                if let Some(t) = trace.as_deref_mut() {
-                    *t = turns;
-                }
-                return Some(d);
+        // Between two areas joined only by the gaps opened, a long way around is no answer: the
+        // planner prices those walks otherwise (`APART_REACH`).
+        let limit = if grid.raw_apart(ca, cb) {
+            let (dr, dc) = ((ca.0 - cb.0).unsigned_abs(), (ca.1 - cb.1).unsigned_abs());
+            (f64::from(10 * dr.max(dc) + 4 * dr.min(dc)) * APART_REACH) as u32
+        } else {
+            u32::MAX
+        };
+        let within = |d: f64| d / CELL * 10.0 <= f64::from(limit);
+        if far {
+            match grid.through_gates(ca, cb, (level, self.danger_costs), trace.as_deref_mut()) {
+                Some(d) if within(d) => Some(d),
+                // The gates' way is never much longer than the cheapest (`GATES_SLACK`): far
+                // beyond the reach through them, no way cell by cell is within it either.
+                Some(d) if !within(d / GATES_SLACK) => None,
+                _ => self.path(grid, ca, cb, MARGINS[MARGINS.len() - 1], level, limit, trace),
             }
-        }
-        if far && level == 0 {
-            grid.through_gates(ca, cb, trace.as_deref_mut())
-                .or_else(|| self.path(grid, ca, cb, MARGINS[MARGINS.len() - 1], level, trace))
         } else {
             MARGINS
                 .iter()
-                .find_map(|&m| self.path(grid, ca, cb, m, level, trace.as_deref_mut()))
+                .find_map(|&m| self.path(grid, ca, cb, m, level, limit, trace.as_deref_mut()))
         }
     }
 
@@ -1327,6 +1627,7 @@ impl Terrain {
 
     /// Cheapest walk between two cells (yards, danger counted as more of them), within their
     /// box grown by `margin` cells, and its cells in `trace` (from `a` to `b`).
+    #[expect(clippy::too_many_arguments)]
     fn path(
         &self,
         grid: &Grid,
@@ -1334,6 +1635,7 @@ impl Terrain {
         b: (i32, i32),
         margin: i32,
         level: u8,
+        limit: u32,
         trace: Option<&mut Vec<(i32, i32)>>,
     ) -> Option<f64> {
         let (r0, c0) = (a.0.min(b.0) - margin, a.1.min(b.1) - margin);
@@ -1353,7 +1655,7 @@ impl Terrain {
             for bucket in &mut scratch.open {
                 bucket.clear();
             }
-            let found = self.search(grid, a, b, (r0, c0, rows, cols), level, scratch, &index)?;
+            let found = self.search(grid, a, b, (r0, c0, rows, cols), level, limit, scratch, &index)?;
             if let Some(trace) = trace {
                 trace.clear();
                 trace.push(b);
@@ -1402,6 +1704,7 @@ impl Terrain {
         b: (i32, i32),
         (r0, c0, rows, cols): (i32, i32, i32, i32),
         level: u8,
+        limit: u32,
         scratch: &mut Scratch,
         index: &impl Fn(i32, i32) -> usize,
     ) -> Option<f64> {
@@ -1426,6 +1729,9 @@ impl Terrain {
         while queued > 0 {
             let Some((g, r, c)) = open[f as usize % BUCKETS].pop() else {
                 f += 1;
+                if f > limit {
+                    return None;
+                }
                 continue;
             };
             queued -= 1;
@@ -1476,7 +1782,8 @@ impl Terrain {
 mod tests {
     use super::*;
 
-    /// A tile with a wall of steep cells on column 32, open at the rows given.
+    /// A tile with a wall of steep cells on columns 30 to 35, open at the rows given: thicker than
+    /// the gaps the terrain opens (`GAP`).
     fn terrain(open: &[usize]) -> Terrain {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(
@@ -1485,7 +1792,7 @@ mod tests {
         .unwrap();
         let mut blob = Vec::new();
         for r in 0..64 {
-            let row: u64 = if open.contains(&r) { 0 } else { 1 << 32 };
+            let row: u64 = if open.contains(&r) { 0 } else { 0x3f << 30 };
             blob.extend(row.to_le_bytes());
         }
         conn.execute("INSERT INTO client_terrain VALUES (1, 32, 32, ?1)", [blob])
@@ -1571,8 +1878,8 @@ mod tests {
             "CREATE TABLE client_terrain (map_id INTEGER, tile_x INTEGER, tile_y INTEGER, blocked BLOB)",
         )
         .unwrap();
-        // Tile (33, 32), east of (32, 32), has its first column steep: a cliff between them.
-        for (x, row) in [(32, 0u64), (33, 1)] {
+        // Tile (33, 32), east of (32, 32), has its first 6 columns steep: a cliff between them.
+        for (x, row) in [(32, 0u64), (33, 0x3f)] {
             let blob: Vec<u8> = (0..64).flat_map(|_| row.to_le_bytes()).collect();
             conn.execute(
                 "INSERT INTO client_terrain VALUES (1, ?1, 32, ?2)",
@@ -1584,7 +1891,7 @@ mod tests {
         let (west, east) = (at(10.0, 20.0), at(10.0, 64.0 + 20.0));
         assert_eq!(t.distance(&west, &east, 0), None, "way unknown: straight line");
         assert!(!t.separated(&west, &east));
-        assert!(t.enclose(&east).is_some());
+        assert!(t.enclose(&east, 0).is_some());
         assert_eq!(t.distance(&west, &east, 0), Some(f64::INFINITY));
         assert!(t.separated(&west, &east));
         assert!(
@@ -1614,7 +1921,7 @@ mod tests {
         )
         .unwrap();
         let wall: Vec<u8> = (0..64)
-            .flat_map(|r: u64| (if r >= 60 { 0u64 } else { 1 << 32 }).to_le_bytes())
+            .flat_map(|r: u64| (if r >= 60 { 0u64 } else { 0x3f << 30 }).to_le_bytes())
             .collect();
         let open = vec![0u8; 512];
         conn.execute("INSERT INTO client_terrain VALUES (1, 32, 32, ?1)", [wall])

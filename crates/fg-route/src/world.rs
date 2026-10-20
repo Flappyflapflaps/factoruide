@@ -4,7 +4,9 @@ use crate::faction::Faction;
 use anyhow::Result;
 use rusqlite::Connection;
 use rustc_hash::FxHashMap;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 /// A point in world space (yards) on a continent.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -53,6 +55,50 @@ pub struct TaxiNode {
 
 /// Points of different zones closer than this (yards) may be walked between directly.
 const ACROSS_MAX: f64 = 1500.0;
+/// Yards around a passage where the terrain areas it joins are looked for: both ends of a
+/// tunnel, of a bridge, the foot and the top of a lift, a road the terrain breaks.
+pub const PASS_REACH: f64 = 150.0;
+/// A walk between two large areas the terrain does not connect, with no passage between them:
+/// the straight line, this much longer. Whatever the way is (a tunnel, a road the terrain
+/// misses, around a mountain), it is not shorter, and a walk priced as the crow flies over
+/// mountains makes flights look useless.
+pub const UNKNOWN_DETOUR: f64 = 1.5;
+/// The level of a leg of `World::walk_path` drawn straight (to or through a passage).
+const STRAIGHT: u8 = u8::MAX;
+/// The most a walk through the passages joining two areas the terrain does not connect may
+/// cost, times the straight line: farther around, a shorter way the terrain and the passages
+/// do not know (a ramp, a path up a cliff) is likelier.
+pub const BRIDGED_DETOUR: f64 = 3.0;
+
+/// How a walk over the ground goes (`World::ground_way`).
+#[derive(Debug, Clone, Copy)]
+enum Way {
+    /// Over the terrain (around the steep ground, or straight when it does not know).
+    Terrain,
+    /// Through passages.
+    Bridge(Bridge),
+    /// A way unknown, priced longer than the straight line.
+    Straight,
+}
+
+/// A walk between two areas through the passages (`World::bridge`): its length, the passage
+/// left `a`'s area by and the one entering `b`'s, with the index of the area of each
+/// (`Pass::areas`).
+#[derive(Debug, Clone, Copy)]
+pub struct Bridge {
+    pub dist: f64,
+    pub from: (usize, usize),
+    pub to: (usize, usize),
+}
+
+/// Walks through the passages already worked out in this thread, by world (`World::bridge_id`),
+/// continent, pair of cells and level.
+type BridgeKey = (u32, i64, (i32, i32), (i32, i32), u8);
+thread_local! {
+    static BRIDGES: RefCell<FxHashMap<BridgeKey, Option<Bridge>>> = RefCell::new(FxHashMap::default());
+}
+const BRIDGES_MAX: usize = 1 << 18;
+static NEXT_BRIDGE_ID: AtomicU32 = AtomicU32::new(1);
 
 pub struct World {
     zones: HashMap<i64, ZoneRect>,
@@ -79,6 +125,12 @@ pub struct World {
     /// Whether the shortest walk from passage i to passage j takes a shortcut (them included).
     pass_shortcut: Vec<Vec<bool>>,
     pub zone_passes: FxHashMap<i64, Vec<usize>>,
+    /// The passages joining each large terrain area (continent, area) to others: passage and
+    /// index in its `areas`. Not the shortcuts nor the one-way passages (taken only on a walk
+    /// between their zones).
+    area_passes: FxHashMap<(i64, u32), Vec<(usize, usize)>>,
+    /// Tells this world's walks through the passages from another's in the thread memo.
+    bridge_id: u32,
     /// Flight master nodes by x (`taxi_near`).
     taxi_by_x: Vec<(f64, usize)>,
     /// Terrain too steep to walk: walks go around it.
@@ -267,6 +319,8 @@ impl World {
             terrain: crate::terrain::Terrain::load(conn)?,
             landmarks: Vec::new(),
             raised: Vec::new(),
+            area_passes: FxHashMap::default(),
+            bridge_id: 0,
         };
         world.landmarks = world.load_landmarks(conn)?;
         for i in 0..world.taxi_nodes.len() {
@@ -761,6 +815,12 @@ pub struct Pass {
     pub zones: [i64; 2],
     pub shortcut: bool,
     pub one_way: bool,
+    /// Its sides: the large terrain areas within `PASS_REACH` (the two ends of a tunnel, of a
+    /// bridge, of a gap in a road), each area and its point nearest to the passage, and the
+    /// points of an area the terrain walks to only by a long way around. Walked between freely.
+    pub areas: Vec<(u32, Pos)>,
+    /// The area of each side as the terrain labels it, before the gaps opened join areas.
+    raw_areas: Vec<Option<u32>>,
 }
 
 impl Pass {
@@ -817,10 +877,16 @@ impl World {
     /// (their walks depend on it).
     pub fn enclose(&mut self, defs: &[EnclosedDef]) -> Vec<String> {
         let mut warnings = Vec::new();
+        // The entries of one name are one place: walks between its areas are not cut.
+        let mut groups: Vec<&str> = Vec::new();
         for d in defs {
+            let group = groups.iter().position(|&g| g == d.name).unwrap_or_else(|| {
+                groups.push(&d.name);
+                groups.len() - 1
+            }) as u32;
             let enclosed = self
                 .to_world(d.at.zone, d.at.x, d.at.y)
-                .and_then(|p| self.terrain.enclose(&p));
+                .and_then(|p| self.terrain.enclose(&p, group));
             if enclosed.is_none() && !self.terrain.is_empty() {
                 warnings.push(format!("enclosed area {}: not in a large area of the terrain", d.name));
             }
@@ -886,6 +952,8 @@ impl World {
                     zones: d.zones,
                     shortcut: d.shortcut,
                     one_way: d.one_way,
+                    areas: Vec::new(),
+                    raw_areas: Vec::new(),
                 }),
                 None => warnings.push(format!("pass {}: zone {zone} has no map", d.name)),
             }
@@ -893,11 +961,35 @@ impl World {
         self.zone_passes.clear();
         for (i, p) in self.passes.iter().enumerate() {
             for z in p.zones {
-                self.zone_passes.entry(z).or_default().push(i);
+                if !self.zone_passes.get(&z).is_some_and(|l| l.contains(&i)) {
+                    self.zone_passes.entry(z).or_default().push(i);
+                }
             }
         }
+        self.area_passes.clear();
+        for i in 0..self.passes.len() {
+            let areas = self.pass_areas(&self.passes[i].pos);
+            let pass = &mut self.passes[i];
+            pass.raw_areas = areas
+                .iter()
+                .map(|(_, p)| self.terrain.large_areas_of(p).map(|(raw, _)| raw))
+                .collect();
+            pass.areas = areas;
+            if pass.shortcut || pass.one_way {
+                continue;
+            }
+            for (k, (area, _)) in pass.areas.iter().enumerate() {
+                self.area_passes
+                    .entry((pass.pos.continent, *area))
+                    .or_default()
+                    .push((i, k));
+            }
+        }
+        self.bridge_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
         // Walking from a passage to another taken from the zone it leads into, then all-pairs
-        // shortest walks (one-way passages: not the same both ways).
+        // shortest walks (one-way passages: not the same both ways). Between two passages of
+        // the same terrain area, over the terrain from their points in it (a passage may stand
+        // on the other side of a gap the terrain does not cross).
         let n = self.passes.len();
         let mut d = vec![vec![f64::INFINITY; n]; n];
         let mut next: Vec<Vec<usize>> = (0..n).map(|_| (0..n).collect()).collect();
@@ -905,7 +997,7 @@ impl World {
             row[i] = 0.0;
             for (j, (cell, b)) in row.iter_mut().zip(&self.passes).enumerate() {
                 if i != j && a.zones.iter().any(|&z| a.leads_to(z) && b.taken_from(z)) {
-                    *cell = self.ground(&a.pos, &b.pos, 0);
+                    *cell = self.between_passes(a, b);
                 }
             }
         }
@@ -930,6 +1022,128 @@ impl World {
             })
             .collect();
         Ok(warnings)
+    }
+
+    /// The sides of a passage (`Pass::areas`): the large terrain areas around it, its own
+    /// first, each with its point nearest to it; and in an area, the points the terrain walks
+    /// to only by a long way around (the other end of a bridge, of a tunnel, of a gate the
+    /// terrain joins elsewhere).
+    fn pass_areas(&self, at: &Pos) -> Vec<(u32, Pos)> {
+        let mut sides: Vec<(u32, Pos)> = Vec::new();
+        for r in [0.0, 50.0, 100.0, PASS_REACH] {
+            for k in 0..16 {
+                let angle = f64::from(k) * std::f64::consts::PI / 8.0;
+                let p = Pos {
+                    x: at.x + r * angle.cos(),
+                    y: at.y + r * angle.sin(),
+                    ..*at
+                };
+                if let Some((area, size)) = self.terrain.area_of(&p)
+                    && area != 0
+                    && size >= crate::terrain::LARGE_AREA
+                    && sides.iter().filter(|&&(a, _)| a == area).all(|(_, q)| {
+                        let near = 2.0 * q.dist(&p) + 50.0;
+                        !self.terrain.distance(q, &p, 0).is_some_and(|d| d <= near)
+                            || !self.terrain.distance(&p, q, 0).is_some_and(|d| d <= near)
+                    })
+                {
+                    sides.push((area, p));
+                }
+                if r == 0.0 {
+                    break;
+                }
+            }
+        }
+        sides
+    }
+
+    /// The sides of passage `i` a walk from or to `p` goes through (`Pass::areas`), nearest
+    /// first, each with its distance to the passage: those in `p`'s terrain area as labelled,
+    /// else those in its area once the gaps are opened, else all (`p` in no large area, or in
+    /// one the passage does not stand in: walked to through other passages, `bridge`).
+    fn sides_near(&self, p: &Pos, i: usize) -> Vec<(f64, usize, f64)> {
+        let pass = &self.passes[i];
+        let mut keep: Vec<usize> = Vec::new();
+        if let Some((raw, area)) = self.terrain.large_areas_of(p) {
+            keep.extend((0..pass.areas.len()).filter(|&k| pass.raw_areas[k] == Some(raw)));
+            if keep.is_empty() {
+                keep.extend((0..pass.areas.len()).filter(|&k| pass.areas[k].0 == area));
+            }
+        }
+        // In an area no side is in (a valley left by a tunnel): walked to through the passages
+        // joining them (`ground`, `bridge`).
+        if keep.is_empty() {
+            keep.extend(0..pass.areas.len());
+        }
+        let mut sides: Vec<(f64, usize, f64)> = keep
+            .into_iter()
+            .map(|k| {
+                let off = pass.areas[k].1.dist(&pass.pos);
+                (p.dist(&pass.areas[k].1) + off, k, off)
+            })
+            .collect();
+        sides.sort_by(|x, y| x.0.total_cmp(&y.0).then(x.1.cmp(&y.1)));
+        sides
+    }
+
+    /// Walk from `a` to passage `i`, to the nearest of its sides (`sides_near`), and the side
+    /// (None: to its point, when it has no side: no large area around).
+    fn walk_to_pass(&self, a: &Pos, i: usize, level: u8) -> (f64, Option<usize>) {
+        let pass = &self.passes[i];
+        if pass.areas.is_empty() {
+            return (self.ground(a, &pass.pos, level), None);
+        }
+        let mut best = (f64::INFINITY, None);
+        for (least, k, off) in self.sides_near(a, i) {
+            if least >= best.0 {
+                break;
+            }
+            let d = self.ground(a, &pass.areas[k].1, level) + off;
+            if d < best.0 {
+                best = (d, Some(k));
+            }
+        }
+        best
+    }
+
+    /// Walk from passage `j` to `b`, the same way.
+    fn walk_from_pass(&self, j: usize, b: &Pos, level: u8) -> (f64, Option<usize>) {
+        let pass = &self.passes[j];
+        if pass.areas.is_empty() {
+            return (self.ground(&pass.pos, b, level), None);
+        }
+        let mut best = (f64::INFINITY, None);
+        for (least, k, off) in self.sides_near(b, j) {
+            if least >= best.0 {
+                break;
+            }
+            let d = self.ground(&pass.areas[k].1, b, level) + off;
+            if d < best.0 {
+                best = (d, Some(k));
+            }
+        }
+        best
+    }
+
+    /// Walk between two passages of a zone: over the terrain from their points in an area they
+    /// share, else around the steep terrain, else in a straight line (a road the terrain
+    /// breaks). Never more than `UNKNOWN_DETOUR` times the straight line: the passages of a
+    /// zone are joined by its roads, which the terrain may break into pieces it joins by a long
+    /// way around (Deadwind Pass's road between Duskwood and the Swamp of Sorrows).
+    fn between_passes(&self, a: &Pass, b: &Pass) -> f64 {
+        let straight = a.pos.dist(&b.pos);
+        let mut best = self.terrain.distance(&a.pos, &b.pos, 0).unwrap_or(straight);
+        for (area, pa) in &a.areas {
+            for (other, pb) in &b.areas {
+                if area == other
+                    && let Some(d) = self.terrain.distance(pa, pb, 0)
+                    && d.is_finite()
+                {
+                    best = best.min(a.pos.dist(pa) + d + pb.dist(&b.pos));
+                }
+            }
+        }
+        best.min(straight * UNKNOWN_DETOUR) + self.climb(&a.pos, &b.pos)
     }
 
     /// The passages of the shortest walk from passage `i` to passage `j`, both included (none
@@ -998,7 +1212,7 @@ impl World {
             return self.ground(a, b, level);
         }
         let (Some(pa), Some(pb)) = (self.zone_passes.get(&a.zone), self.zone_passes.get(&b.zone)) else {
-            return self.unknown_walk(a, b);
+            return self.ground(a, b, level);
         };
         let best = self.through_passes(a, b, pa, pb, level).0;
         let passes = &self.passes;
@@ -1011,7 +1225,7 @@ impl World {
         }) {
             f64::INFINITY
         } else {
-            self.unknown_walk(a, b)
+            self.ground(a, b, level)
         }
     }
 
@@ -1019,25 +1233,90 @@ impl World {
     /// passages it takes between zones, the turns around the steep terrain
     /// (`Terrain::waypoints`). Only the ends when it goes straight, or when no walk goes there.
     pub fn walk_path(&self, a: &Pos, b: &Pos, level: u8) -> Vec<Pos> {
-        let mut stops = vec![*a];
+        // The legs walked over the terrain, and the level each counts the danger at.
+        let mut legs: Vec<(Pos, Pos, u8)> = Vec::new();
         if a.zone != b.zone
             && a.continent == b.continent
             && let (Some(pa), Some(pb)) = (self.zone_passes.get(&a.zone), self.zone_passes.get(&b.zone))
             && let (t, Some((i, j))) = self.through_passes(a, b, pa, pb, level)
             && t.is_finite()
         {
-            stops.extend(self.pass_path(i, j).into_iter().map(|k| self.passes[k].pos));
-        }
-        stops.push(*b);
-        let mut path = vec![*a];
-        let last = stops.len() - 2;
-        for (k, leg) in stops.windows(2).enumerate() {
+            let chain = self.pass_path(i, j);
+            let side = |k: usize, s: Option<usize>| s.map_or(self.passes[k].pos, |s| self.passes[k].areas[s].1);
+            let first = side(i, self.walk_to_pass(a, i, level).1);
+            self.ground_legs(a, &first, level, &mut legs);
+            legs.push((first, self.passes[i].pos, STRAIGHT));
             // Between passages the walks are known at no danger (`add_passes`).
-            let at = if k == 0 || k == last { level } else { 0 };
-            path.extend(self.terrain.waypoints(&leg[0], &leg[1], at));
-            path.push(leg[1]);
+            self.chain_legs(&chain, &mut legs);
+            let last = side(j, self.walk_from_pass(j, b, level).1);
+            legs.push((self.passes[j].pos, last, STRAIGHT));
+            self.ground_legs(&last, b, level, &mut legs);
+        } else {
+            self.ground_legs(a, b, level, &mut legs);
         }
+        let mut path = vec![*a];
+        for (from, to, at) in legs {
+            if at != STRAIGHT {
+                path.extend(self.terrain.waypoints(&from, &to, at));
+            }
+            path.push(to);
+        }
+        path.dedup_by(|p, q| p.dist(q) < 1e-6);
         path
+    }
+
+    /// The legs of a walk over the ground (`ground`): straight or around the steep terrain, or
+    /// through the passages joining two areas the terrain does not connect.
+    fn ground_legs(&self, a: &Pos, b: &Pos, level: u8, legs: &mut Vec<(Pos, Pos, u8)>) {
+        match self.ground_way(a, b, level).1 {
+            Way::Bridge(bridge) => {
+                let (i, ka) = bridge.from;
+                let (j, kb) = bridge.to;
+                let (near_a, near_b) = (self.passes[i].areas[ka].1, self.passes[j].areas[kb].1);
+                legs.push((*a, near_a, level));
+                legs.push((near_a, self.passes[i].pos, STRAIGHT));
+                self.chain_legs(&self.pass_path(i, j), legs);
+                legs.push((self.passes[j].pos, near_b, STRAIGHT));
+                legs.push((near_b, *b, level));
+            }
+            Way::Terrain => legs.push((*a, *b, level)),
+            Way::Straight => legs.push((*a, *b, STRAIGHT)),
+        }
+    }
+
+    /// The legs from passage to passage of a chain (`pass_path`): through their points in an
+    /// area they share (`between_passes`), else straight.
+    fn chain_legs(&self, chain: &[usize], legs: &mut Vec<(Pos, Pos, u8)>) {
+        for w in chain.windows(2) {
+            let (a, b) = (&self.passes[w[0]], &self.passes[w[1]]);
+            let straight = a.pos.dist(&b.pos) * UNKNOWN_DETOUR;
+            let direct = self
+                .terrain
+                .distance(&a.pos, &b.pos, 0)
+                .filter(|d| d.is_finite() && *d <= straight)
+                .map(|d| (d, a.pos, b.pos));
+            let shared = (a.areas.iter())
+                .flat_map(|(area, pa)| {
+                    (b.areas.iter())
+                        .filter(move |(o, _)| o == area)
+                        .map(move |(_, pb)| (pa, pb))
+                })
+                .filter_map(|(pa, pb)| {
+                    let d = self.terrain.distance(pa, pb, 0).filter(|d| d.is_finite())?;
+                    Some((a.pos.dist(pa) + d + pb.dist(&b.pos), *pa, *pb))
+                })
+                .chain(direct)
+                .filter(|w| w.0 <= straight)
+                .min_by(|x, y| x.0.total_cmp(&y.0));
+            match shared {
+                Some((_, pa, pb)) => {
+                    legs.push((a.pos, pa, STRAIGHT));
+                    legs.push((pa, pb, 0));
+                    legs.push((pb, b.pos, STRAIGHT));
+                }
+                None => legs.push((a.pos, b.pos, STRAIGHT)),
+            }
+        }
     }
 
     /// Shortest walk from `a` to `b` through the passages of their zones (`pa`, `pb`), or across
@@ -1073,8 +1352,8 @@ impl World {
                 break;
             }
             let (i, j) = (pa[ki], pb[kj]);
-            let da = *from_a[ki].get_or_insert_with(|| self.ground(a, &self.passes[i].pos, level));
-            let db = *to_b[kj].get_or_insert_with(|| self.ground(&self.passes[j].pos, b, level));
+            let da = *from_a[ki].get_or_insert_with(|| self.walk_to_pass(a, i, level).0);
+            let db = *to_b[kj].get_or_insert_with(|| self.walk_from_pass(j, b, level).0);
             let t = da + self.pass_dist[i][j] + db;
             let better = match t.partial_cmp(&best.0) {
                 Some(std::cmp::Ordering::Less) => true,
@@ -1089,20 +1368,143 @@ impl World {
         best
     }
 
-    /// A walk the passages do not know: the straight line, unless no walk goes between the two
-    /// places (one in an enclosed area: an island, the top of a cliff).
-    fn unknown_walk(&self, a: &Pos, b: &Pos) -> f64 {
-        if self.terrain.separated(a, b) {
-            f64::INFINITY
+    /// Walk over the ground: around the steep terrain. Between two large areas the terrain
+    /// labels apart (`Terrain::disconnected`), the shortest of its way through the gaps it
+    /// opened and the way through the passages joining them (`bridge`), but no more than
+    /// `UNKNOWN_DETOUR` times the straight line when no passage joins them, `BRIDGED_DETOUR`
+    /// times when one does (farther around, an unknown shorter way is likelier). To or from an
+    /// enclosed area, only through the passages (infinite without). The straight line when an
+    /// end is in no large area (a building, a cave, a ledge).
+    fn ground(&self, a: &Pos, b: &Pos, level: u8) -> f64 {
+        self.ground_way(a, b, level).0
+    }
+
+    /// `ground` and the way it goes.
+    fn ground_way(&self, a: &Pos, b: &Pos, level: u8) -> (f64, Way) {
+        let climb = self.climb(a, b);
+        let straight = a.dist(b);
+        let known = self.terrain.distance(a, b, level);
+        if known.is_some_and(f64::is_infinite) {
+            // Another continent, or an enclosed area and another.
+            return match self.bridge(a, b, level) {
+                Some(bridge) if a.continent == b.continent => (bridge.dist + climb, Way::Bridge(bridge)),
+                _ => (f64::INFINITY, Way::Terrain),
+            };
+        }
+        if !self.terrain.disconnected(a, b) {
+            return (known.unwrap_or(straight) + climb, Way::Terrain);
+        }
+        let walk = known.unwrap_or(f64::INFINITY);
+        // Through the gaps opened, about as straight as can be: no passage beats it by much.
+        if walk <= straight * UNKNOWN_DETOUR {
+            return (walk + climb, Way::Terrain);
+        }
+        let bridge = self.bridge(a, b, level);
+        let cap = straight
+            * if bridge.is_some() {
+                BRIDGED_DETOUR
+            } else {
+                UNKNOWN_DETOUR
+            };
+        let via = bridge.map_or(f64::INFINITY, |b| b.dist);
+        if walk <= via && walk <= cap {
+            (walk + climb, Way::Terrain)
+        } else if let Some(bridge) = bridge.filter(|_| via <= cap) {
+            (via + climb, Way::Bridge(bridge))
         } else {
-            a.dist(b)
+            (cap + climb, Way::Straight)
         }
     }
 
-    /// Walk within a zone: around the steep terrain, straight when it does not know the way,
-    /// infinite to or from an enclosed area.
-    fn ground(&self, a: &Pos, b: &Pos, level: u8) -> f64 {
-        self.terrain.distance(a, b, level).unwrap_or_else(|| a.dist(b)) + self.climb(a, b)
+    /// Forget every walk worked out (`Terrain::forget_walks`), through the passages too.
+    #[doc(hidden)]
+    pub fn forget_walks(&self) {
+        self.terrain.forget_walks();
+        BRIDGES.with(|m| m.borrow_mut().clear());
+    }
+
+    /// The walk from `a` to `b`, in two large areas the terrain does not connect, through the
+    /// passages joining them: over the terrain to a side of a passage in `a`'s area, from
+    /// passage to passage (`pass_dist`), and from a side of a passage in `b`'s area. None when
+    /// no passage joins the areas.
+    pub fn bridge(&self, a: &Pos, b: &Pos, level: u8) -> Option<Bridge> {
+        if a.continent != b.continent || self.area_passes.is_empty() {
+            return None;
+        }
+        let level = if self.terrain.counts_danger() { level } else { 0 };
+        let key = (
+            self.bridge_id,
+            a.continent,
+            crate::terrain::Terrain::cell_of(a),
+            crate::terrain::Terrain::cell_of(b),
+            level,
+        );
+        if let Some(known) = BRIDGES.with(|m| m.borrow().get(&key).copied()) {
+            return known;
+        }
+        let found = self.find_bridge(a, b, level);
+        BRIDGES.with(|m| {
+            let mut m = m.borrow_mut();
+            if m.len() >= BRIDGES_MAX {
+                m.clear();
+            }
+            m.insert(key, found);
+        });
+        found
+    }
+
+    fn find_bridge(&self, a: &Pos, b: &Pos, level: u8) -> Option<Bridge> {
+        let large = |p: &Pos| {
+            self.terrain
+                .area_of(p)
+                .filter(|&(area, size)| area != 0 && size >= crate::terrain::LARGE_AREA)
+                .map(|(area, _)| area)
+        };
+        let (area_a, area_b) = (large(a)?, large(b)?);
+        let from = self.area_passes.get(&(a.continent, area_a))?;
+        let to = self.area_passes.get(&(b.continent, area_b))?;
+        let point = |(i, k): (usize, usize)| (&self.passes[i].pos, &self.passes[i].areas[k].1);
+        // Weighed from the least straight trip up, walked to while that could beat the best.
+        let mut pairs: Vec<(f64, usize, usize)> = Vec::new();
+        for (ka, &(i, _)) in from.iter().enumerate() {
+            let (pass_a, near_a) = point(from[ka]);
+            for (kb, &(j, _)) in to.iter().enumerate() {
+                let (pass_b, near_b) = point(to[kb]);
+                let least =
+                    a.dist(near_a) + near_a.dist(pass_a) + self.pass_dist[i][j] + pass_b.dist(near_b) + near_b.dist(b);
+                if least.is_finite() {
+                    pairs.push((least, ka, kb));
+                }
+            }
+        }
+        pairs.sort_by(|x, y| x.0.total_cmp(&y.0).then((x.1, x.2).cmp(&(y.1, y.2))));
+        let mut from_a: Vec<Option<f64>> = vec![None; from.len()];
+        let mut to_b: Vec<Option<f64>> = vec![None; to.len()];
+        let mut best: Option<Bridge> = None;
+        for (least, ka, kb) in pairs {
+            if best.is_some_and(|b| least >= b.dist) {
+                break;
+            }
+            let (pass_a, near_a) = point(from[ka]);
+            let (pass_b, near_b) = point(to[kb]);
+            // Over the terrain; straight from or to a place in no large area (a building).
+            let known = |p: &Pos, q: &Pos| match self.terrain.distance(p, q, level) {
+                Some(d) => d,
+                None if self.terrain.disconnected(p, q) => f64::INFINITY,
+                None => p.dist(q),
+            };
+            let da = *from_a[ka].get_or_insert_with(|| known(a, near_a));
+            let db = *to_b[kb].get_or_insert_with(|| known(near_b, b));
+            let t = da + near_a.dist(pass_a) + self.pass_dist[from[ka].0][to[kb].0] + pass_b.dist(near_b) + db;
+            if t.is_finite() && best.is_none_or(|b| t < b.dist) {
+                best = Some(Bridge {
+                    dist: t,
+                    from: from[ka],
+                    to: to[kb],
+                });
+            }
+        }
+        best
     }
 
     /// Direct walk between close points of different zones when the terrain knows the way

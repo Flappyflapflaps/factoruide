@@ -24,7 +24,14 @@ fn point(world: &World, spec: &str) -> Result<fg_route::world::Pos> {
         .with_context(|| format!("no map for zone {zone}"))
 }
 
-pub fn run(conn: &Connection, overrides_dir: &Path, faction: &str, from: &str, to: &str) -> Result<()> {
+pub fn run(
+    conn: &Connection,
+    overrides_dir: &Path,
+    faction: &str,
+    from: &str,
+    to: &str,
+    level: Option<i64>,
+) -> Result<()> {
     let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
     let params = &overrides.params;
     let faction =
@@ -51,6 +58,8 @@ pub fn run(conn: &Connection, overrides_dir: &Path, faction: &str, from: &str, t
     }
     if let (Some(ta), Some(tb)) = (world.terrain.area_of(&a), world.terrain.area_of(&b)) {
         let how = match world.terrain.distance(&a, &b, 0) {
+            None | Some(f64::INFINITY) if world.bridge(&a, &b, 0).is_some() => "areas joined by passages",
+            None if world.terrain.disconnected(&a, &b) => "way unknown (straight line, longer)",
             None => "way unknown (straight line assumed)",
             Some(w) if w.is_infinite() => "an enclosed area and another (no walk)",
             Some(w) if (w - a.dist(&b)).abs() < 1e-6 => "straight line clear",
@@ -76,5 +85,70 @@ pub fn run(conn: &Connection, overrides_dir: &Path, faction: &str, from: &str, t
             p(j)
         );
     }
+    // The way the planner draws it: the passages and the turns around the steep terrain.
+    let path = world.walk_path(&a, &b, 0);
+    if path.len() > 2 {
+        let stops: Vec<String> = path[1..path.len() - 1]
+            .iter()
+            .map(|p| {
+                let pass = world.passes.iter().find(|q| q.pos.dist(p) < 1.0);
+                let zone = world.zone_at(p).unwrap_or(p.zone);
+                let at = world.to_map(zone, p).map_or_else(
+                    || format!("{:.0},{:.0}", p.x, p.y),
+                    |m| format!("{} {:.1},{:.1}", world.zone_name(zone), m.x, m.y),
+                );
+                match pass {
+                    Some(q) => format!("[{}] {at}", q.name),
+                    None => at,
+                }
+            })
+            .collect();
+        println!("way: {}", stops.join(" > "));
+    }
+    if let Some(level) = level {
+        flights(&world, params, &a, &b, level);
+    }
     Ok(())
+}
+
+/// The walk at `level`'s speed against the 3 best flights with every flight path known: its real
+/// time and the weighted time the planner compares (flight weight, gold).
+fn flights(
+    world: &World,
+    params: &fg_route::params::Params,
+    a: &fg_route::world::Pos,
+    b: &fg_route::world::Pos,
+    level: i64,
+) {
+    let speed = params.speed(level);
+    let walk = |p: &fg_route::world::Pos, q: &fg_route::world::Pos| world.walk_distance(p, q) * params.detour / speed;
+    let n = world.taxi_nodes.len();
+    let all = if n >= 128 { u128::MAX } else { (1u128 << n) - 1 };
+    let (time, price) = world.flights(all);
+    let direct = walk(a, b);
+    println!("level {level}: walking {direct:.0} s");
+    let mut found: Vec<(f64, f64, usize, usize, f64)> = Vec::new();
+    for i in 0..n {
+        let wa = walk(a, &world.taxi_nodes[i].pos);
+        if !wa.is_finite() || wa >= direct {
+            continue;
+        }
+        for j in (0..n).filter(|&j| j != i && time[i][j].is_finite()) {
+            let wb = walk(&world.taxi_nodes[j].pos, b);
+            let t = wa + time[i][j] + params.flight_overhead + wb;
+            let w = t
+                + (params.flight_weight - 1.0) * (time[i][j] + params.flight_overhead)
+                + params.gold_weight_at(level) * price[i][j] / 10_000.0;
+            found.push((t, w, i, j, price[i][j]));
+        }
+    }
+    found.sort_by(|x, y| x.1.total_cmp(&y.1));
+    for &(t, w, i, j, price) in found.iter().take(3) {
+        println!(
+            "flight {} -> {}: {t:.0} s ({:.0} s walking to and from), {price:.0} copper, weighted {w:.0} s",
+            world.taxi_nodes[i].name,
+            world.taxi_nodes[j].name,
+            t - time[i][j] - params.flight_overhead,
+        );
+    }
 }

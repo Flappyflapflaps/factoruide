@@ -9,51 +9,56 @@
 //! (A* over a few dozen gates a tile), and from the gates of the last tile to its end. Steps are
 //! the cells' (drops one way only): the walks are not the same both ways.
 //!
-//! The walk is a little longer than the cheapest cell by cell (it goes through the gates); the
-//! danger is not counted (`Terrain::walk_cells` searches cell by cell when it counts).
+//! The walk is a little longer than the cheapest cell by cell (it goes through the gates). Where
+//! the danger counts, the walks between the gates of a tile near mobs strong enough are found
+//! again with it, once a level (`Grid::danger_graph`).
 
-use super::{CELL, DIRECTIONS, Grid};
+use super::{CELL, DIRECTIONS, Grid, MOVE, MOVE_NO_GO, MOVE_SWUM, SWUM, WALKED};
 use rustc_hash::FxHashMap;
 use std::cell::RefCell;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 /// Walks farther than this (cells, one way or the other) go through the gates.
 pub(super) const FAR: i32 = 96;
 /// A run of crossings longer than this has a gate at each end too, not only its middle.
 const LONG_RUN: usize = 8;
 const NONE: u32 = u32::MAX;
+/// Index in `DIRECTIONS` of the step the other way.
+const OPPOSITE: [usize; 8] = [1, 0, 3, 2, 7, 6, 5, 4];
 /// A walkable area within a tile smaller than this (cells: a ledge between steep slopes) has
 /// no gate of its own.
-const SMALL_AREA: u32 = 16;
+const SMALL_AREA: u32 = 4;
 /// Ends of walks whose costs to the gates of their tile are remembered, beyond which the memo
 /// starts over.
 const ENDS_MAX: usize = 1 << 16;
 
-/// The walks from a cell to the gates of its tile (or back), by grid, cell and way.
-type Ends = FxHashMap<(u32, i32, i32, bool), Rc<[u32]>>;
+/// The walks from a cell to the gates of its tile (or back), by grid, cell, way and danger.
+type Ends = FxHashMap<(u32, i32, i32, bool, Danger), Rc<[u32]>>;
+
+/// The danger a walk counts: the character's level (0: none) and what entering a cell near a
+/// mob a few levels above, or far above, costs more (`Grid::danger_step`).
+pub(super) type Danger = (u8, [u32; 2]);
+const SAFE: Danger = (0, [0; 2]);
+/// The walks between the gates of a tile with the danger counted (`TileGraph::cost`), by danger.
+pub(super) type DangerGraphs = Vec<(Danger, Arc<[u32]>)>;
 
 thread_local! {
     /// The planner walks from and to the same places again and again.
     static ENDS: RefCell<Ends> = RefCell::new(Ends::default());
-    /// The strongest mob near the walk within a tile between two of its cells (gates), by grid
-    /// and cells: the same at every level.
-    static STRONGEST: RefCell<Strongest> = RefCell::new(Strongest::default());
 }
-/// The strongest mob near walks within a tile, by grid and ends (`STRONGEST`).
-type Strongest = FxHashMap<(u32, (i32, i32), (i32, i32)), u8>;
-/// Walks whose strongest mob is remembered, beyond which the memo starts over.
-const STRONGEST_MAX: usize = 1 << 16;
 
 /// Cheapest cost found to each gate (tile, index) of a walk, and the gate it came from
 /// (`FROM_A`: the walk's start).
 type Best = FxHashMap<(usize, usize), (u32, (usize, usize))>;
 const FROM_A: (usize, usize) = (usize::MAX, usize::MAX);
 
-/// Version of the making of the tiles' graphs: graphs stored by another (`Terrain::gate_graphs`)
-/// are made again.
-pub const GATES_VERSION: u32 = 1;
+/// Version of the making of the tiles' graphs and of the steps (the gaps `Grid::open_gaps`
+/// opens): graphs stored by another (`Terrain::gate_graphs`) are made again, walking memories
+/// of another are dropped.
+pub const GATES_VERSION: u32 = 3;
 
 /// A tile's gates and the walks between them within it.
 pub(super) struct TileGraph {
@@ -146,8 +151,18 @@ impl Grid {
     }
 
     /// Cheapest walks (tenths of a cell) within tile `t` from cell `from` to each of its cells
-    /// (row by row in the tile), or from each of them to `from` when `back`.
-    fn local(&self, t: usize, from: (i32, i32), back: bool) -> Vec<u32> {
+    /// (row by row in the tile), or from each of them to `from` when `back`; the danger counted
+    /// but around `from` when `free` (an end of the walk, as cell by cell). Only the cells of
+    /// `wanted` are sure to be found: the search ends once they are.
+    fn local(
+        &self,
+        t: usize,
+        from: (i32, i32),
+        back: bool,
+        danger: Danger,
+        free: bool,
+        wanted: &[(i32, i32)],
+    ) -> Vec<u32> {
         let (tr, tc) = self.origin(t);
         let inside = |(r, c): (i32, i32)| r >= tr && r < tr + 64 && c >= tc && c < tc + 64;
         let index = |(r, c): (i32, i32)| ((r - tr) * 64 + (c - tc)) as usize;
@@ -155,150 +170,67 @@ impl Grid {
         if !inside(from) {
             return cost;
         }
+        let mut left = [false; 4096];
+        let mut count = 0;
+        for &p in wanted.iter().filter(|&&p| inside(p)) {
+            count += usize::from(!std::mem::replace(&mut left[index(p)], true));
+        }
+        // Cost and cell in one word: the heap compares integers.
         let mut open = BinaryHeap::new();
         cost[index(from)] = 0;
-        open.push(Reverse((0u32, from)));
-        while let Some(Reverse((g, cell))) = open.pop() {
-            if g > cost[index(cell)] {
+        open.push(Reverse(index(from) as u64));
+        while let Some(Reverse(word)) = open.pop() {
+            let (g, k) = ((word >> 12) as u32, (word & 4095) as usize);
+            if g > cost[k] {
                 continue;
             }
-            for (dr, dc) in DIRECTIONS {
+            if std::mem::take(&mut left[k]) {
+                count -= 1;
+                if count == 0 {
+                    break;
+                }
+            }
+            let cell = (tr + (k >> 6) as i32, tc + (k & 63) as i32);
+            let here = self.moves(cell.0, cell.1);
+            for (d, (dr, dc)) in DIRECTIONS.into_iter().enumerate() {
                 let next = (cell.0 + dr, cell.1 + dc);
                 if !inside(next) {
                     continue;
                 }
                 // The step taken: from `cell` to `next`, or back from `next` to `cell`.
-                let (x, y) = if back { (next, cell) } else { (cell, next) };
-                let Some(step) = self.step(x, y) else {
-                    continue;
+                let (moves, d) = if back {
+                    (self.moves(next.0, next.1), OPPOSITE[d])
+                } else {
+                    (here, d)
                 };
-                // No corner cutting, as cell by cell.
-                if dr != 0 && dc != 0 && (self.step(x, (y.0, x.1)).is_none() || self.step(x, (x.0, y.1)).is_none()) {
+                if moves & MOVE_NO_GO != 0 || moves >> d & MOVE == 0 {
                     continue;
                 }
+                // No corner cutting, as cell by cell.
+                let (sr, sc) = DIRECTIONS[d];
+                if d >= 4 && (moves >> usize::from(sr > 0) & moves >> (2 + usize::from(sc > 0))) & MOVE == 0 {
+                    continue;
+                }
+                let diagonal = usize::from(d >= 4);
+                let step = if moves >> d & MOVE_SWUM != 0 {
+                    SWUM[diagonal]
+                } else {
+                    WALKED[diagonal]
+                };
+                let y = if back { cell } else { next };
+                let step = if free && super::Terrain::near_end(y, from, from) {
+                    step
+                } else {
+                    step + self.danger_step(y, danger)
+                };
                 let k = index(next);
                 if g + step < cost[k] {
                     cost[k] = g + step;
-                    open.push(Reverse((g + step, next)));
+                    open.push(Reverse(u64::from(g + step) << 12 | k as u64));
                 }
             }
         }
         cost
-    }
-
-    /// The cells of a cheapest walk within tile `t` from `from` to `to` (both in it), in order,
-    /// None when it does not join them: A* over the tile, ended at `to`.
-    fn local_walk(&self, t: usize, from: (i32, i32), to: (i32, i32)) -> Option<Vec<(i32, i32)>> {
-        let (tr, tc) = self.origin(t);
-        let inside = |(r, c): (i32, i32)| r >= tr && r < tr + 64 && c >= tc && c < tc + 64;
-        let index = |(r, c): (i32, i32)| ((r - tr) * 64 + (c - tc)) as usize;
-        let cell = |k: usize| (tr + (k / 64) as i32, tc + (k % 64) as i32);
-        if !inside(from) || !inside(to) {
-            return None;
-        }
-        let h = |(r, c): (i32, i32)| {
-            let (dr, dc) = ((r - to.0).unsigned_abs(), (c - to.1).unsigned_abs());
-            10 * dr.max(dc) + 4 * dr.min(dc)
-        };
-        let mut cost = vec![NONE; 4096];
-        let mut parent = vec![u16::MAX; 4096];
-        let mut open = BinaryHeap::new();
-        cost[index(from)] = 0;
-        open.push(Reverse((h(from), 0u32, index(from) as u16)));
-        while let Some(Reverse((_, g, k))) = open.pop() {
-            let k = usize::from(k);
-            if g > cost[k] {
-                continue;
-            }
-            let here = cell(k);
-            if here == to {
-                let mut cells = vec![to];
-                let mut k = k;
-                while parent[k] != u16::MAX {
-                    k = usize::from(parent[k]);
-                    cells.push(cell(k));
-                }
-                cells.reverse();
-                return Some(cells);
-            }
-            for (dr, dc) in DIRECTIONS {
-                let next = (here.0 + dr, here.1 + dc);
-                if !inside(next) {
-                    continue;
-                }
-                let Some(step) = self.step(here, next) else {
-                    continue;
-                };
-                // No corner cutting, as cell by cell.
-                if dr != 0
-                    && dc != 0
-                    && (self.step(here, (next.0, here.1)).is_none() || self.step(here, (here.0, next.1)).is_none())
-                {
-                    continue;
-                }
-                let n = index(next);
-                if g + step < cost[n] {
-                    cost[n] = g + step;
-                    parent[n] = k as u16;
-                    open.push(Reverse((g + step + h(next), g + step, n as u16)));
-                }
-            }
-        }
-        None
-    }
-
-    /// Whether a walk through the gates (`through_gates`' trace, its ends first and last) goes
-    /// near a mob of `level + DANGER_GAP` or more, the cells of its ends' surroundings left out
-    /// (`DANGER_FREE`, as cell by cell): its own cells, not the tiles it crosses (a single strong
-    /// mob in a tile would make every walk through it search cell by cell).
-    pub(super) fn danger_along(&self, trace: &[(i32, i32)], level: u8) -> bool {
-        if self.danger_max.is_empty() || trace.len() < 2 {
-            return false;
-        }
-        let at_least = level.saturating_add(super::DANGER_GAP);
-        let (a, b) = (trace[0], trace[trace.len() - 1]);
-        let strongest = |cells: &[(i32, i32)], ends: bool| {
-            (cells.iter())
-                .filter(|&&p| !ends || !super::Terrain::near_end(p, a, b))
-                .map(|&(r, c)| self.danger(r, c))
-                .max()
-                .unwrap_or(0)
-        };
-        trace.windows(2).any(|w| {
-            let (p, q) = (w[0], w[1]);
-            let (Some((t, _)), Some((u, _))) = (self.tile(p.0, p.1), self.tile(q.0, q.1)) else {
-                return true;
-            };
-            if t != u {
-                return strongest(&[p, q], true) >= at_least;
-            }
-            if self.danger_max[t] < at_least {
-                return false;
-            }
-            let ends = p == a || q == b;
-            let key = (self.id, p, q);
-            let known = if ends {
-                None
-            } else {
-                STRONGEST.with(|m| m.borrow().get(&key).copied())
-            };
-            let level = known.unwrap_or_else(|| {
-                let level = self
-                    .local_walk(t, p, q)
-                    .map_or(u8::MAX, |cells| strongest(&cells, ends));
-                if !ends {
-                    STRONGEST.with(|m| {
-                        let mut m = m.borrow_mut();
-                        if m.len() >= STRONGEST_MAX {
-                            m.clear();
-                        }
-                        m.insert(key, level);
-                    });
-                }
-                level
-            });
-            level >= at_least
-        })
     }
 
     /// The walkable areas within tile `t` (cells joined by straight steps taken both ways, as
@@ -410,7 +342,7 @@ impl Grid {
             let n = gates.len();
             let mut cost = vec![NONE; n * n];
             for (i, &from) in gates.iter().enumerate() {
-                let walks = self.local(t, from, false);
+                let walks = self.local(t, from, false, SAFE, false, &gates);
                 for (j, &(r, c)) in gates.iter().enumerate() {
                     cost[i * n + j] = walks[((r - tr) * 64 + (c - tc)) as usize];
                 }
@@ -419,15 +351,64 @@ impl Grid {
         })
     }
 
+    /// The walks between the gates of tile `t` (`TileGraph::cost`) with the danger counted,
+    /// found once for all the threads; None when no mob there counts at its level.
+    fn danger_graph(&self, t: usize, danger: Danger) -> Option<Arc<[u32]>> {
+        let (level, _) = danger;
+        if level == 0
+            || self
+                .danger_max
+                .get(t)
+                .is_none_or(|&m| m < level.saturating_add(super::DANGER_GAP))
+        {
+            return None;
+        }
+        let mut graphs = self.danger_graphs[t].lock().unwrap();
+        if let Some((_, cost)) = graphs.iter().find(|(d, _)| *d == danger) {
+            return Some(Arc::clone(cost));
+        }
+        let cost = self.danger_costs(t, danger);
+        let cost: Arc<[u32]> = cost.into();
+        graphs.push((danger, Arc::clone(&cost)));
+        Some(cost)
+    }
+
+    /// The walks between the gates of tile `t` with the danger counted, found anew.
+    pub(super) fn danger_costs(&self, t: usize, danger: Danger) -> Vec<u32> {
+        let (tr, tc) = self.origin(t);
+        let gates = &self.graph(t).gates;
+        let n = gates.len();
+        let mut cost = vec![NONE; n * n];
+        for (i, &from) in gates.iter().enumerate() {
+            let walks = self.local(t, from, false, danger, false, gates);
+            for (j, &(r, c)) in gates.iter().enumerate() {
+                cost[i * n + j] = walks[((r - tr) * 64 + (c - tc)) as usize];
+            }
+        }
+        cost
+    }
+
+    /// The walks from cell `p` to the gates of its tile with the danger counted, found anew.
+    pub(super) fn ends_anew(&self, p: (i32, i32), danger: Danger) -> Vec<u32> {
+        self.tile(p.0, p.1).map_or_else(Vec::new, |(t, _)| {
+            self.local(t, p, false, danger, true, &self.graph(t).gates)
+        })
+    }
+
     /// Cheapest walks from cell `p` of tile `t` to each of its gates (or from each of them to
-    /// `p`, `back`), remembered.
-    fn ends(&self, t: usize, p: (i32, i32), back: bool) -> Rc<[u32]> {
-        let key = (self.id, p.0, p.1, back);
+    /// `p`, `back`), the danger counted away from `p`, remembered.
+    fn ends(&self, t: usize, p: (i32, i32), back: bool, danger: Danger) -> Rc<[u32]> {
+        let danger = if self.danger_graph(t, danger).is_some() {
+            danger
+        } else {
+            SAFE
+        };
+        let key = (self.id, p.0, p.1, back, danger);
         if let Some(known) = ENDS.with(|m| m.borrow().get(&key).cloned()) {
             return known;
         }
         let (tr, tc) = self.origin(t);
-        let walks = self.local(t, p, back);
+        let walks = self.local(t, p, back, danger, true, &self.graph(t).gates);
         let costs: Rc<[u32]> = (self.graph(t).gates.iter())
             .map(|&(r, c)| walks[((r - tr) * 64 + (c - tc)) as usize])
             .collect();
@@ -441,16 +422,18 @@ impl Grid {
         costs
     }
 
-    /// Walk (yards) from cell `a` to cell `b` through the gates, None when they do not lead
-    /// there; its cells in `trace`: `a`, the gates it goes through, `b`.
+    /// Walk (yards) from cell `a` to cell `b` through the gates, the danger counted, None when
+    /// they do not lead there; its cells in `trace`: `a`, the gates it goes through, `b`.
     pub(super) fn through_gates(
         &self,
         a: (i32, i32),
         b: (i32, i32),
+        danger: Danger,
         trace: Option<&mut Vec<(i32, i32)>>,
     ) -> Option<f64> {
         let ((ta, _), (tb, _)) = (self.tile(a.0, a.1)?, self.tile(b.0, b.1)?);
-        let (start, goal) = (self.ends(ta, a, false), self.ends(tb, b, true));
+        let (start, goal) = (self.ends(ta, a, false, danger), self.ends(tb, b, true, danger));
+        let mut dangers: FxHashMap<usize, Option<Arc<[u32]>>> = FxHashMap::default();
         // Estimate: the length to `b`, as cell by cell.
         let h = |(r, c): (i32, i32)| {
             let (dr, dc) = ((r - b.0).unsigned_abs(), (c - b.1).unsigned_abs());
@@ -484,6 +467,8 @@ impl Grid {
                 continue;
             }
             let graph = self.graph(t);
+            let cost = dangers.entry(t).or_insert_with(|| self.danger_graph(t, danger));
+            let cost = cost.as_deref().unwrap_or(&graph.cost);
             let gate = graph.gates[i];
             if t == tb {
                 let rest = goal[i];
@@ -493,7 +478,7 @@ impl Grid {
             }
             let n = graph.gates.len();
             for (j, &other) in graph.gates.iter().enumerate() {
-                let c = graph.cost[i * n + j];
+                let c = cost[i * n + j];
                 if j != i && c != NONE {
                     reach(&mut best, &mut open, (t, j), g + c, other, (t, i));
                 }
@@ -508,6 +493,11 @@ impl Grid {
                 }
                 let Some(step) = self.step(gate, next) else {
                     continue;
+                };
+                let step = if super::Terrain::near_end(next, a, b) {
+                    step
+                } else {
+                    step + self.danger_step(next, danger)
                 };
                 if let Ok(j) = self.graph(u).gates.binary_search(&next) {
                     reach(&mut best, &mut open, (u, j), g + step, next, (t, i));

@@ -119,7 +119,12 @@ impl QuestBuilder<'_> {
             }
             // An item a child hands over (the Warsong scouts' updates): got at its hand-in, one
             // of this quest's objectives.
-            let rewarded = |item: i64| self.sources.reward_of.get(&item).is_some_and(|q| q.iter().any(|q| children.contains(q)));
+            let rewarded = |item: i64| {
+                self.sources
+                    .reward_of
+                    .get(&item)
+                    .is_some_and(|q| q.iter().any(|q| children.contains(q)))
+            };
             if kind == ObjectiveKind::Item && row.1.is_some_and(rewarded) {
                 continue;
             }

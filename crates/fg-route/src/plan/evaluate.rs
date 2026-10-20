@@ -29,7 +29,7 @@ impl Planner<'_> {
             + (self.params.grind_over_weight() - self.params.grind_weight()) * spent.grind_over
             + (self.params.grind_weight - 1.0).max(0.0) * spent.farming
             + (self.params.flight_weight - 1.0) * spent.flights
-            + self.params.gold_weight * spent.flight_cost as f64 / 10_000.0
+            + spent.flight_gold
             + self.params.zone_change_weight * f64::from(spent.zone_changes)
             + self.params.preferred_zone_weight * spent.outside_preferred
             + self.params.abandon_weight * f64::from(spent.abandoned)

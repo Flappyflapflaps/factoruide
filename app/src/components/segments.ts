@@ -47,6 +47,11 @@ export interface Segment {
 
 export const steps = (s: Segment) => s.last - s.first + 1;
 
+/** Steps that take the character elsewhere: the hearthstone and teleports land in their step's
+ * zone, flights and boats leave from it (the next step is where they land). */
+const ARRIVING = new Set(["hearth", "teleport"]);
+const LEAVING = new Set(["fly", "link"]);
+
 /** Consecutive steps in the same zone; a dungeon run is a segment of its own. */
 export function segments(list: SegmentStep[]): Segment[] {
   const out: Segment[] = [];
@@ -74,11 +79,13 @@ export function segments(list: SegmentStep[]): Segment[] {
     }
     previousTime = s.time;
   });
-  // Fold short passages (a couple of steps, a few minutes) into the previous segment.
+  // Fold short passages (a couple of steps, a few minutes) into the previous segment, unless
+  // the character travelled there (the hearthstone, a flight, a boat): a new zone starts.
   const merged: Segment[] = [];
   for (const s of out) {
     const last = merged[merged.length - 1];
-    const short = steps(s) <= 2 && s.end - s.start < 300;
+    const travelled = ARRIVING.has(list[s.first].kind) || (s.first > 0 && LEAVING.has(list[s.first - 1].kind));
+    const short = steps(s) <= 2 && s.end - s.start < 300 && !travelled;
     if (last && !last.dungeon && !s.dungeon && (short || last.zone === s.zone)) {
       last.end = s.end;
       last.toLevel = s.toLevel;

@@ -99,11 +99,13 @@ impl<'a> QuestBuilder<'a> {
     /// Warsong Reports, holds the Warsong Report each scout's update asks for).
     pub(super) fn bag_quest(&self, quest: i64, item: i64) -> Option<i64> {
         let bags = self.sources.item_origins.get(&item)?;
-        bags.iter().filter(|(t, _)| *t == SourceKind::Item).find_map(|(_, bag)| {
-            (self.sources.rows.iter())
-                .find(|r| r.id != quest && r.source_item == Some(*bag))
-                .map(|r| r.id)
-        })
+        bags.iter()
+            .filter(|(t, _)| *t == SourceKind::Item)
+            .find_map(|(_, bag)| {
+                (self.sources.rows.iter())
+                    .find(|r| r.id != quest && r.source_item == Some(*bag))
+                    .map(|r| r.id)
+            })
     }
 
     /// Where to meet an NPC or an object: its main spawn cluster nearest to `near`, or the

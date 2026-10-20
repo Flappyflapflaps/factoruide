@@ -60,7 +60,9 @@ impl Availability<'_> {
         };
         // In the log: taken, not turned in nor given up.
         let held = |id: &i64| self.model.index.get(id).is_some_and(|&i| s.accepted[i] && !s.turned[i]);
-        q.pre_all.iter().all(done) && (q.pre_any.is_empty() || q.pre_any.iter().any(done)) && q.pre_held.iter().all(held)
+        q.pre_all.iter().all(done)
+            && (q.pre_any.is_empty() || q.pre_any.iter().any(done))
+            && q.pre_held.iter().all(held)
     }
 
     pub(crate) fn blocked(&self, s: &State, q: &Quest) -> bool {

@@ -5,6 +5,15 @@
 # Position: `subzone` = name of the explorable map area (position read from the game's
 # map exploration data), or `at` = zone percent coordinates. Entries marked "approx" are
 # estimates to refine (the collector records real zone crossings).
+#
+# A passage also joins the terrain areas within 150 yards of it (its sides: both ends of a short
+# tunnel, a gap in a road the terrain breaks): walks between two areas the terrain does not
+# connect go through the passages joining them. Put a passage on the road where the terrain
+# breaks (`fg travel` tells the areas, `fg audit --check terrain-gaps` lists those quests stand
+# in). A bridge, a tunnel or a building longer than that is two passages of the same zones, one
+# at each end: walked between in a straight line (Thandol Span, Blackrock Mountain, Timbermaw
+# Hold). Two passages of a zone are walked between around the steep terrain, or straight when
+# the terrain breaks the road (at most 1.5 times the straight line).
 
 # --- Eastern Kingdoms -----------------------------------------------------------
 
@@ -69,6 +78,11 @@ zones = [46, 51] # Burning Steppes, Searing Gorge
 subzone = "Blackrock Mountain"
 
 [[pass]]
+name = "Blackrock Mountain, Searing Gorge end"
+zones = [46, 51]
+at = { zone = 51, x = 35.0, y = 84.0 } # approx: the chain down into the mountain
+
+[[pass]]
 name = "Gates of Ironforge"
 zones = [1, 1537]
 at = { zone = 1, x = 53.5, y = 35.0 } # approx
@@ -99,6 +113,11 @@ zones = [11, 45] # Wetlands, Arathi
 subzone = "Thandol Span"
 
 [[pass]]
+name = "Thandol Span, Wetlands end"
+zones = [11, 45]
+at = { zone = 11, x = 51.5, y = 10.5 } # approx: the bridge's south end, north of Dun Modr
+
+[[pass]]
 name = "Thoradin's Wall"
 zones = [45, 267] # Arathi, Hillsbrad
 subzone = "Thoradin's Wall"
@@ -114,9 +133,16 @@ zones = [267, 130]
 subzone = "Southpoint Tower"
 
 [[pass]]
+# The path up from Durnholde Keep enters the Hinterlands west of Aerie Peak.
 name = "Hillsbrad - Hinterlands path"
 zones = [267, 47]
-subzone = "Aerie Peak"
+at = { zone = 47, x = 9.2, y = 56.5 }
+
+# The path down from the hills to Revantusk Village's coast (the terrain breaks it into steps).
+[[pass]]
+name = "Revantusk path"
+zones = [47, 47]
+at = { zone = 47, x = 74.6, y = 63.5 }
 
 [[pass]]
 name = "Silverpine - Tirisfal road"
@@ -175,15 +201,27 @@ name = "Ashenvale - Felwood road"
 zones = [331, 361]
 subzone = "Deadwood Village"
 
+# Timbermaw Hold's tunnel, from Felwood's north to Winterspring, with a branch down to
+# Moonglade.
 [[pass]]
-name = "Timbermaw Hold"
+name = "Timbermaw Hold, Felwood end"
 zones = [361, 618] # Felwood, Winterspring
-subzone = "Timbermaw Hold"
+at = { zone = 361, x = 65.2, y = 7.8 }
 
 [[pass]]
-name = "Felwood - Moonglade path"
+name = "Timbermaw Hold, Winterspring end"
+zones = [361, 618]
+at = { zone = 618, x = 27.6, y = 34.4 }
+
+[[pass]]
+name = "Timbermaw Hold, Felwood end (to Moonglade)"
 zones = [361, 493]
-at = { zone = 361, x = 62.5, y = 2.0 } # approx
+at = { zone = 361, x = 65.2, y = 7.8 }
+
+[[pass]]
+name = "Timbermaw Hold, Moonglade end"
+zones = [361, 493]
+at = { zone = 493, x = 36.4, y = 70.1 } # approx
 
 [[pass]]
 name = "Stonetalon - Barrens road"
@@ -265,10 +303,12 @@ shortcut = true
 one_way = true
 
 # --- Enclosed areas ------------------------------------------------------------------
-# Large walkable areas left only by boat, portal or lift (overrides/travel.toml): no walk to or
-# from them. The area is the terrain's, around `at`. Elsewhere, places the terrain does not
-# connect are still walked between (tunnels, bridges and gates are buildings, not terrain):
-# `fg audit --check terrain-gaps` lists them, to declare here or to accept in audit.toml.
+# Large walkable areas left only by boat, portal or lift (overrides/travel.toml), or through the
+# passages joining them: no other walk to or from them. The area is the terrain's, around `at`;
+# the entries of one name are one place (walks between its areas are not cut). Elsewhere, places
+# the terrain does not connect are still walked between, priced longer than the straight line
+# (tunnels, bridges and gates are buildings, not terrain): `fg audit --check terrain-gaps` lists
+# them, to declare here or to accept in audit.toml.
 
 [[enclosed]]
 name = "Rut'theran Village"         # the boat to Auberdine, the portal up to Darnassus

@@ -1097,7 +1097,11 @@ fn raised_place_takes_its_climb() {
     let before = (p.world.walk_distance(&up, &below), p.world.walk_distance(&up, &beside));
     p.world.raise(&[fg_route::world::RaisedDef {
         name: "Watchtower".into(),
-        at: fg_route::world::ZonePoint { zone: 12, x: 48.17, y: 42.94 },
+        at: fg_route::world::ZonePoint {
+            zone: 12,
+            x: 48.17,
+            y: 42.94,
+        },
         radius: 5.0,
         climb: 60.0,
     }]);
@@ -1145,9 +1149,9 @@ fn link_open_while_a_quest_is_held() {
         }
         let mut trace = Vec::new();
         planner(p).simulate_full(&route, Some(&mut trace)).unwrap();
-        trace
-            .iter()
-            .any(|t| matches!(t.event, Event::Link { first, .. } if p.world.links[first].name == "While quest 1 is held"))
+        trace.iter().any(
+            |t| matches!(t.event, Event::Link { first, .. } if p.world.links[first].name == "While quest 1 is held"),
+        )
     };
     assert!(!takes_it(&mut p, vec![0], vec![]), "quest 1 not taken: closed");
     assert!(takes_it(&mut p, vec![0, 1], vec![]), "quest 1 in the log: open");
@@ -1655,8 +1659,10 @@ fn hearthstone_follows_the_route() {
     assert!(inns.len() >= 2, "bound at {inns:?}");
     let without: Vec<Stop> = route.iter().filter(|s| s.kind != Kind::Bind).copied().collect();
     let (with, without) = (planner.simulate(&route, None), planner.simulate(&without, None));
+    // Without them the same stops take longer, or are no longer possible in that order (the
+    // hearthstone's trips changed what was picked up on the way).
     assert!(
-        with < without,
+        with.is_some() && without.is_none_or(|w| with.unwrap() < w),
         "{with:?} with the binds, {without:?} without ({inns:?})"
     );
 }
@@ -2439,7 +2445,12 @@ fn campfire_beside_the_giver_needs_no_power() {
         ("skyborne", "mage", 96101),
     ] {
         let request = PlanRequest {
-            params: Some(overrides.params.with_overrides(&["progression=cautious".into()]).unwrap()),
+            params: Some(
+                overrides
+                    .params
+                    .with_overrides(&["progression=cautious".into()])
+                    .unwrap(),
+            ),
             ..request(race, class, 20, &[])
         };
         let p = job::prepare(&database_of("forever"), &overrides, &request, &|_| {}).unwrap();
@@ -2466,7 +2477,12 @@ fn campfire_beside_the_giver_needs_no_power() {
     let p = prepare("human", "warrior", 30, &["progression=cautious"]);
     for q in &p.model.quests {
         for o in q.objectives.iter().filter(|o| o.beside_giver) {
-            assert!(o.kills <= 0.0 && o.loc.kind == EntityKind::Object, "{}: {}", q.name, o.text);
+            assert!(
+                o.kills <= 0.0 && o.loc.kind == EntityKind::Object,
+                "{}: {}",
+                q.name,
+                o.text
+            );
             assert!(!o.guard.elite, "{}: no elite around", q.name);
         }
     }

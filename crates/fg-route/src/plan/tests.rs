@@ -513,3 +513,40 @@ fn greedy_grinds_to_the_mobs_of_a_quest_in_reach() {
     let route = planner(&p).greedy();
     assert!(route.contains(&Stop::quest(0, Kind::TurnIn)), "{route:?}");
 }
+
+/// A trip flies to a port before its boat, and flies on from where a boat lands, when that is
+/// faster: Ironforge to Theramore by the flight to Menethil Harbor and the boat, and back.
+#[test]
+fn trips_fly_to_a_boat_and_from_it() {
+    use super::state::Leg;
+    let mut p = quests_at_start(0);
+    p.params.gold_weight = 0.0;
+    let planner = planner(&p);
+    let trips = planner.trips();
+    let node = |name: &str| {
+        (p.world.taxi_nodes.iter())
+            .position(|n| n.name.starts_with(name))
+            .unwrap()
+    };
+    let (ironforge, menethil, theramore) = (node("Ironforge"), node("Menethil"), node("Theramore"));
+    let boat = (p.world.links.iter())
+        .position(|l| l.name == "Boat Menethil Harbor - Theramore")
+        .unwrap();
+    let back = (p.world.links.iter())
+        .rposition(|l| l.name == "Boat Menethil Harbor - Theramore")
+        .unwrap();
+    let known = (1u128 << ironforge) | (1u128 << menethil);
+    let (a, b) = (p.world.taxi_nodes[ironforge].pos, p.world.taxi_nodes[theramore].pos);
+    let (with_flights, leg) = trips.leg(&a, &b, 30, known, 0);
+    assert!(
+        matches!(leg, Leg::FlyLink(f, t, k, l) if (f, t, k, l) == (ironforge, menethil, boat, boat)),
+        "{leg:?}"
+    );
+    let (by_boat, _) = trips.leg(&a, &b, 30, 1u128 << ironforge, 0);
+    assert!(with_flights < by_boat, "{with_flights} vs {by_boat}");
+    let (_, leg) = trips.leg(&b, &a, 30, known, 0);
+    assert!(
+        matches!(leg, Leg::LinkFly(k, l, f, t) if (k, l, f, t) == (back, back, menethil, ironforge)),
+        "{leg:?}"
+    );
+}
