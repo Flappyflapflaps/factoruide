@@ -224,7 +224,7 @@ pub struct Step {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reward_xp: Option<i64>,
     /// XP the route has in `level` once the step is done: where the player should be, for the
-    /// addon's XP bar marker.
+    /// addon's XP bars.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub route_xp: Option<i64>,
     /// Class spells to learn (spell IDs) on a training step.

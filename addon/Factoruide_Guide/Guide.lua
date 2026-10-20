@@ -734,7 +734,6 @@ function Guide:Refresh()
             hidden = not shown,
             message = route and L.done or (next(FG.Routes or {}) and L.noRoute or L.noGuides),
         })
-        if FG.XpMarker then FG.XpMarker:Refresh() end
         return
     end
 
@@ -940,7 +939,6 @@ function Guide:Refresh()
     end
     self.view = view
     ui:Render(view)
-    if FG.XpMarker then FG.XpMarker:Refresh() end
 end
 
 -- Navigation -------------------------------------------------------------------

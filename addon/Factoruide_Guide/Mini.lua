@@ -446,8 +446,8 @@ end
 
 local function DrawXp(y)
     local xp, from = 0, nil
-    if FG.XpMarker then
-        xp, from = FG.XpMarker:Shares()
+    if FG.XpPlan then
+        xp, from = FG.XpPlan:Shares()
     end
     xpBar:ClearAllPoints()
     xpBar:SetPoint("TOP", strip, "BOTTOM", 0, y)

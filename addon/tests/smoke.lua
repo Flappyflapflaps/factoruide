@@ -1435,23 +1435,20 @@ useRoute("xp-test")
 onQuest[8001] = true
 FG.Guide:Advance()
 assert(char.guide.step == 2, "step " .. char.guide.step)
-local level, xp = FG.XpMarker:Planned()
+local level, xp = FG.XpPlan:Planned()
 assert(level == 3 and xp == 150, "planned before step 2: " .. tostring(level) .. " " .. tostring(xp))
-local unitXP = UnitXP
-UnitXP = function() return 100 end
-assert(FG.XpMarker:Line():find("50"), "50 xp behind: " .. FG.XpMarker:Line())
-UnitXP = function() return 350 end
-assert(FG.XpMarker:Line():find("200"), "200 xp ahead: " .. FG.XpMarker:Line())
-local span = FG.XpMarker:SpanLine()
+local unitXP, unitXPMax = UnitXP, UnitXPMax
+UnitXP, UnitXPMax = function() return 100 end, function() return 1000 end
+local share, from, to = FG.XpPlan:Shares()
 assert(
-    span and span:find("150", 1, true) and span:find("250", 1, true),
-    "current tasks from 150 to 250: " .. tostring(span)
+    share == 0.1 and from == 0.15 and to == 0.25,
+    "shares: " .. share .. " " .. tostring(from) .. " " .. tostring(to)
 )
 playerLevel = 1
-assert(FG.XpMarker:Line():find("3"), "two levels behind: the planned level")
-FG.XpMarker:Refresh()
-UnitXP, playerLevel = unitXP, 3
-print("xp marker ok")
+share, from = FG.XpPlan:Shares()
+assert(from == 1, "two levels behind: the planned mark at the bar's end")
+UnitXP, UnitXPMax, playerLevel = unitXP, unitXPMax, 3
+print("xp plan ok")
 
 -- A dungeon run followed by its quests is done on entering the dungeon, then each quest step as
 -- the quest progresses; without them (guides made before), once back out of the dungeon.
@@ -2630,65 +2627,6 @@ GetQuestLogIndexByID = function() return 1 end
 GetQuestLogSpecialItemInfo = function() return "item:123", 123 end
 FG.ItemButton:SetSteps({ { q = 7101 } })
 GetQuestLogSpecialItemInfo, GetQuestLogIndexByID = oldItemInfo, oldQuestIndex
--- The XP bar mark sits on the game's XP bar, not on the addon's parent.
-MainMenuExpBar = CreateFrame("Frame", "MainMenuExpBar")
-MainMenuExpBar.GetWidth = function() return 500 end
-MainMenuExpBar.GetFrameLevel = function() return 1 end
-FG.XpMarker:Refresh()
-local xpMark
-for _, f in ipairs(frames) do
-    if f:GetParent() == MainMenuExpBar then xpMark = f end
-end
-assert(xpMark and xpMark:IsShown(), "the XP bar mark shown")
--- The status bar containers of every current client: the mark and the tooltip lines go on the
--- XP bar inside, never on a container (one given an OnEnter takes the mouse from the bars).
-do
-    local container = CreateFrame("Frame", "MainStatusTrackingBarContainer")
-    container.GetWidth = function() return 1192 end
-    local hookedOn = {}
-    local function Bar(xp)
-        local bar = CreateFrame("Frame", nil, container)
-        bar.GetWidth = function() return 1189 end
-        bar.isExpBar = xp
-        bar:SetScript("OnEnter", function() end)
-        bar.HookScript = function(self, script, fn) hookedOn[self] = { script = script, fn = fn } end
-        return bar
-    end
-    local reputation, experience = Bar(nil), Bar(true)
-    reputation:Hide()
-    container.bars = { reputation, experience }
-    container.HookScript = function() error("the container hooked") end
-    container.SetScript = function() error("a script set on the container") end
-    container.EnableMouse = function() error("the container takes the mouse") end
-    StatusTrackingBarManager = { barContainers = { container } }
-    FG.XpMarker:Refresh()
-    assert(xpMark:GetParent() == experience and xpMark:IsShown(), "the mark on the XP bar inside the container")
-    assert(hookedOn[experience] and hookedOn[experience].script == "OnEnter", "the XP bar's OnEnter hooked")
-    assert(not hookedOn[reputation], "not the reputation bar")
-    -- The guide's lines are added to the game's tooltip, after the bar's own text.
-    local added = {}
-    local tooltip = GameTooltip
-    GameTooltip = {
-        IsShown = function() return true end,
-        AddLine = function(_, text) table.insert(added, text) end,
-        Show = function() end,
-    }
-    hookedOn[experience].fn(experience)
-    GameTooltip = tooltip
-    assert(#added >= 1 and added[1]:find("Guide", 1, true), "the guide's line in the tooltip: " .. tostring(added[1]))
-    -- A bar without an OnEnter of its own is not given one.
-    local plain = CreateFrame("Frame", nil, container)
-    plain.GetWidth = function() return 1189 end
-    plain.isExpBar = true
-    plain.HookScript = function() error("a bar without OnEnter hooked") end
-    experience:Hide()
-    container.bars = { reputation, experience, plain }
-    FG.XpMarker:Refresh()
-    assert(xpMark:GetParent() == plain, "the mark on the bar shown")
-    StatusTrackingBarManager = nil
-    FG.XpMarker:Refresh()
-    assert(xpMark:GetParent() == MainMenuExpBar, "back on MainMenuExpBar")
-end
 local owned = {}
 for _, f in ipairs(frames) do
     if f:GetParent() == root and f:GetName() then owned[f:GetName()] = f end
@@ -2713,17 +2651,15 @@ assert(popupHidden == "FACTORUIDE_RESET", "the guide's reset dialog closed")
 FG.Guide:Refresh()
 FG.Tracker:Refresh()
 FG.Talents:Refresh()
-FG.XpMarker:Refresh()
 for _, f in pairs(owned) do
     assert(not f:IsVisible(), "a refresh does not bring back " .. f:GetName())
 end
-assert(not xpMark:IsShown(), "no XP bar mark while hidden")
 assert(FG:Get("guideShown") and FG:Get("questPanel") and FG:Get("guideMode") == "full", "settings kept")
 assert(char.guide.step == stepBeforeHide, "progress kept")
 assert(FactoruideDB.settings.uiShown == nil, "hidden for the session only")
 Press("hide")
 assert(root:IsShown() and FG:Get("uiShown"), "shown again")
-assert(FG.Card:Frame():IsVisible() and xpMark:IsShown(), "the guide and the XP bar mark back")
+assert(FG.Card:Frame():IsVisible(), "the guide back")
 -- "Hide the guide" stays the guide's own switch: shown again with the rest, it stays hidden.
 Press("guide")
 Press("hide")
@@ -2804,9 +2740,8 @@ health = 10
 fire("UNIT_HEALTH", "player")
 assert(alerts == 1, "the low health alert back on show")
 WorldMapFrame.IsShown = function() return false end
-UIErrorsFrame, UnitHealth, UnitHealthMax, UnitIsDeadOrGhost, MainMenuExpBar = nil, nil, nil, nil, nil
+UIErrorsFrame, UnitHealth, UnitHealthMax, UnitIsDeadOrGhost = nil, nil, nil, nil
 StaticPopup_Hide = nil
-FG.XpMarker:Refresh()
 print("whole addon hide and show ok")
 
 -- Classic Era (1.15) has no C_QuestLog log functions: the quest log is read through the older

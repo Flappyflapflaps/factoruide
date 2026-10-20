@@ -39,7 +39,7 @@ Talents.lua
 Safety.lua
 Party.lua
 Timing.lua
-XpMarker.lua
+XpPlan.lua
 Bank.lua
 MapPins.lua
 PathLines.lua

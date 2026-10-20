@@ -548,8 +548,8 @@ function Card:Render(view)
     local y = -42
     -- XP against the guide's.
     local xp, from = 0, nil
-    if FG.XpMarker then
-        xp, from = FG.XpMarker:Shares()
+    if FG.XpPlan then
+        xp, from = FG.XpPlan:Shares()
     end
     local w = WIDTH - 2 * PAD
     frame.xp:ClearAllPoints()

@@ -196,7 +196,7 @@ planned routes.
   map shows them all.
 - **Show or hide the guide** (a key binding, or the setting) shows or hides the guide only;
   **Show or hide all the addon's windows** (a key binding) hides all of its windows and marks
-  (guide, compass or wind, quest panel, quest item button, XP bar mark, map pins and waypoint, the
+  (guide, compass or wind, quest panel, quest item button, map pins and waypoint, the
   upgrade line of item tooltips, safety alerts) and the same key brings them back as they were.
   For the session only: progress is kept and the automation goes on; pressed in combat, it
   applies when the fight ends.
