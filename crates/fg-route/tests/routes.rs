@@ -821,6 +821,7 @@ fn gathering_next_to_kills_overlaps_them() {
             child_name: None,
             vendors: vec![],
             auction: vec![],
+            slot: None,
             stock: None,
         }];
     }
@@ -1905,6 +1906,7 @@ fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Obj
         child_name: None,
         vendors: vec![],
         auction: vec![],
+        slot: None,
         stock: None,
     }
 }

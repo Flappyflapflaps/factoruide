@@ -160,6 +160,10 @@ pub struct Step {
     pub held: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub objective: Option<u8>,
+    /// The quest's own objective it is, from 1 in the game's order; 0 for what the quest only
+    /// needs (an item it uses). None in guides made before it was written.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slot: Option<u8>,
     /// Objective steps handing in a child quest on the way to its parent's turn-in (Distracting
     /// Jarven for Bitter Rivals): done once that quest is turned in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -279,6 +283,7 @@ impl Step {
             inside: false,
             held: false,
             objective: None,
+            slot: None,
             child: None,
             child_name: None,
             text: String::new(),

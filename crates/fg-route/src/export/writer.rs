@@ -146,6 +146,7 @@ impl StepWriter<'_> {
             inside: false,
             held: false,
             objective: None,
+            slot: None,
             child: None,
             child_name: None,
             text: String::new(),
@@ -251,6 +252,7 @@ impl StepWriter<'_> {
             inside: false,
             held: false,
             objective: None,
+            slot: None,
             child: None,
             child_name: None,
             text: String::new(),
@@ -369,6 +371,7 @@ impl StepWriter<'_> {
     fn objective(step: &mut Step, o: &Objective, k: u8) {
         step.kind = StepKind::Objective;
         step.objective = Some(k);
+        step.slot = Some(o.slot.unwrap_or(0));
         step.child = o.child;
         step.child_name.clone_from(&o.child_name);
         step.elite = o.elite;
@@ -712,6 +715,7 @@ impl StepWriter<'_> {
                 // Several objectives: done when the quest is.
                 if ks.len() > 1 {
                     step.objective = None;
+                    step.slot = None;
                 }
                 // "The Stockade: Defias Prisoner" (the database's text) as "Defias Prisoner x10".
                 let prefix = format!("{}: ", model.dungeons[d].name);

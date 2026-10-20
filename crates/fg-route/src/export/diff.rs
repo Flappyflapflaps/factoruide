@@ -815,6 +815,7 @@ mod tests {
             inside: false,
             held: false,
             objective: (kind == StepKind::Objective).then_some(0),
+            slot: None,
             child: None,
             child_name: None,
             text: format!("{} {id}", kind.as_str()),

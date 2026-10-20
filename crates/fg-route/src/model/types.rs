@@ -159,6 +159,9 @@ pub struct Objective {
     pub vendors: Vec<Vendor>,
     /// A place to buy it at an auction house: its auctioneers (ID, English name). Empty elsewhere.
     pub auction: Vec<(i64, String)>,
+    /// Which of the quest's own objectives it is, from 1 in the game's order; None for what
+    /// the quest only needs (an item it uses, a child quest).
+    pub slot: Option<u8>,
 }
 
 /// A vendor selling an objective's item: where it stands, and its supply when limited (how many

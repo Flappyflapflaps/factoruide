@@ -97,6 +97,7 @@ pub(super) fn add_tries(writer: &StepWriter<'_>, steps: &mut Vec<Step>, xps: &mu
             offer.quest = Some(q);
             offer.quest_name.clone_from(&step.quest_name);
             offer.objective = Some(k);
+            offer.slot = step.slot;
             offer.target.clone_from(&step.target);
             (offer.bg, offer.try_buy, offer.buy) = (true, true, true);
             for (id, name) in shop.who.iter().take(4) {

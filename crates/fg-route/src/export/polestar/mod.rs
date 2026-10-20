@@ -484,7 +484,12 @@ fn objective(step: &Step, target: Option<&super::Target>, quest: impl Fn(Goal) -
         Some(n) if n > 1 => goal.num("count", n),
         _ => goal,
     };
-    let mut goal = quest(goal).num("oi", u32::from(k) + 1);
+    let mut goal = match step.slot.map_or(u32::from(k) + 1, u32::from) {
+        // An item the quest only uses: binding it to an objective would count it there.
+        0 if target.is_some_and(|t| t.kind == TargetKind::Item) => goal,
+        0 => quest(goal),
+        oi => quest(goal).num("oi", oi),
+    };
     // Done along the way while doing other quests: never holds the guide.
     if step.bg {
         goal = goal.num("optional", true);
@@ -928,6 +933,37 @@ mod tests {
         assert!(steps[0][0].contains("oi = 2, optional = true"));
         assert!(steps[1][0].contains("t = \"kill\", target = \"Explore the mine\", quest = 6"));
         assert!(steps[2][0].starts_with("{ t = \"complete\", quest = 7, title = \"S\""));
+    }
+
+    /// The Angry Scytheclaws: the Sunscale Feather it uses is got first, then the nests are
+    /// visited, the game's objectives 1 and 2 whatever the planner's order.
+    #[test]
+    fn items_only_used_are_collected_without_the_quest() {
+        let feather = json!({ "kind": "item", "id": 5165, "name": "Sunscale Feather" });
+        let nest = json!({ "kind": "object", "id": 6908, "name": "Yellow Raptor Nest" });
+        let r = route(
+            &[
+                step(
+                    json!({ "kind": "objective", "quest": 905, "quest_name": "Q", "objective": 0, "slot": 0,
+                    "target": feather, "say": [{ "k": "objective.get" }], "text": "Sunscale Feather" }),
+                ),
+                step(
+                    json!({ "kind": "objective", "quest": 905, "quest_name": "Q", "objective": 2, "slot": 2,
+                    "target": nest, "say": [{ "k": "objective.use" }], "text": "Visit Yellow Raptor Nest" }),
+                ),
+            ],
+            "enUS",
+        );
+        let steps = steps(&guide("g", &r));
+        let goals = steps.concat();
+        assert!(
+            goals[0].contains("t = \"collect\", item = 5165") && !goals[0].contains("quest"),
+            "{goals:?}"
+        );
+        assert!(
+            goals[1].contains("quest = 905") && goals[1].contains("oi = 2"),
+            "{goals:?}"
+        );
     }
 
     /// Objectives done along the way are optional: the turn-in waits behind a step holding the

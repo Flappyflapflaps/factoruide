@@ -81,6 +81,7 @@ impl Objective {
             child_name: None,
             vendors: vec![],
             auction: vec![],
+            slot: None,
         }
     }
 }
@@ -112,7 +113,7 @@ impl QuestBuilder<'_> {
         }
         let mut objs = self.source_items(&quest, &rows);
         let first = (1u8 << objs.len().min(8)) - 1;
-        for row in rows {
+        for (slot, row) in rows.into_iter().enumerate() {
             let kind = row.0;
             // The item the quest is offered for: in the bags from the accept on.
             if kind == ObjectiveKind::Item && row.1.is_some() && row.1 == givers.held {
@@ -133,6 +134,11 @@ impl QuestBuilder<'_> {
                 // Mobs are killed and items got without the item; the rest uses it.
                 if !(kind == ObjectiveKind::Item || kind == ObjectiveKind::Creature && o.kills > 0.0) {
                     o.after = first;
+                }
+                let slot = u8::try_from(slot + 1).ok();
+                o.slot = slot;
+                for alt in &mut o.alts {
+                    alt.slot = slot;
                 }
                 objs.push(o);
             }
