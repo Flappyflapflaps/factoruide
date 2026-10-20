@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import { api, type GuideSummary } from "../api";
 import { useT } from "../i18n";
 import { IS_WEB } from "../web/mode";
-import guideShot from "../../../docs/guide.png";
+import { Carousel } from "../components/Carousel";
+import appMap from "../assets/home/app-map.webp";
+import appSummary from "../assets/home/app-summary.webp";
+import appNew from "../assets/home/app-new.webp";
+import gameFull from "../assets/home/game-full-mode.webp";
+import gameMinimal from "../assets/home/game-minimal-mode-next.webp";
+import gameOptions from "../assets/home/game-options.webp";
 import logo from "../assets/logo.svg";
 import "./home.css";
 
@@ -140,7 +146,16 @@ export function HomePage({ editionName, onNewGuide, onGuides, onExample, onAddon
             </div>
           )}
         </div>
-        <img className="home-shot" src={guideShot} alt={t("Un guide sur la carte, avec ses étapes et le personnage étape par étape")} />
+        <Carousel
+          slides={[
+            { src: appMap, caption: t("Le guide sur la carte, rejoué étape par étape avec le personnage.") },
+            { src: gameFull, caption: t("En jeu, le mode complet : les étapes, la boussole et les quêtes.") },
+            { src: gameMinimal, caption: t("En jeu, le mode minimal : l'étape en cours et les suivantes, rien de plus.") },
+            { src: appSummary, caption: t("Le résumé : temps de jeu, quêtes, donjons et où passe le temps.") },
+            { src: appNew, caption: t("Un nouveau guide : votre personnage, vos métiers, votre style de jeu.") },
+            { src: gameOptions, caption: t("L'addon se règle dans les options du jeu.") },
+          ]}
+        />
       </section>
 
       <section className="home-steps">

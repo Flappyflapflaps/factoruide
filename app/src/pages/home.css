@@ -55,11 +55,82 @@
   padding-left: 1.2rem;
   line-height: 1.8;
 }
-.home-shot {
-  width: 100%;
+/* Screenshots of the app and the addon, one at a time (Carousel). */
+.carousel {
+  min-width: 0;
+}
+.carousel-frame {
+  position: relative;
+  aspect-ratio: 16 / 10;
   border-radius: 10px;
   border: 1px solid var(--border-strong);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  background: #05080f;
+  overflow: hidden;
+}
+.carousel-frame img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.carousel-frame img.shown {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .carousel-frame img {
+    transition: none;
+  }
+}
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: #fff;
+  background: rgba(5, 8, 15, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.carousel-arrow.prev {
+  left: 0.6rem;
+}
+.carousel-arrow.next {
+  right: 0.6rem;
+}
+.carousel:hover .carousel-arrow,
+.carousel-arrow:focus-visible {
+  opacity: 1;
+}
+.carousel-caption {
+  margin: 0.7rem 0 0.4rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+.carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.45rem;
+}
+.carousel-dots button {
+  width: 0.6rem;
+  height: 0.6rem;
+  padding: 0;
+  border-radius: 999px;
+  border: none;
+  background: color-mix(in srgb, var(--text-muted) 45%, transparent);
+}
+.carousel-dots button.active {
+  background: var(--accent-text);
 }
 .home-steps ol {
   list-style: none;
