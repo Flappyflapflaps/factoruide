@@ -53,6 +53,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - Guides keep room in your bags: they count the loot and quest items you carry, with more room as you level, and sell at a vendor on the way when the bags fill up (a step that ticks when the merchant opens).
 - Polestar guides collect an item a quest only uses (Sunscale Feather) without counting it as one of its objectives, and count the others in the game's order.
 - Hunters' Taming the Beast quests say to tame the beast, once, instead of killing eight.
+- Quests started by an item a rare creature drops (The Collector) are no longer planned as killing that rare: its common droppers at their own chance, or the quest is left out.
 
 ## 0.13.0 (2026-10-18)
 

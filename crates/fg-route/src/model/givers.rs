@@ -167,18 +167,20 @@ impl QuestBuilder<'_> {
                 spots: None,
             };
         }
+        let rank = |n: &i64| entities.npc.get(n).map_or(0, |e| e.3);
         let droppers: Vec<Dropper> = sources
             .iter()
             .filter(|(t, _)| *t == SourceKind::Npc)
             .map(|(_, n)| Dropper {
-                rank: entities.npc.get(n).map_or(0, |e| e.3),
+                rank: rank(n),
                 spawns: entities.spawns.get(&(EntityKind::Npc, *n)).map_or(0, Vec::len),
             })
             .collect();
         let unknown = assumed_start_chance(&droppers);
         let mobs: Vec<(i64, f64)> = sources
             .iter()
-            .filter(|(t, n)| *t == SourceKind::Npc && (params.allow_elite || !entities.is_elite(*n)))
+            .filter(|(t, n)| *t == SourceKind::Npc && reliable_dropper(rank(n)))
+            .filter(|(_, n)| params.allow_elite || !entities.is_elite(*n))
             .map(|(_, n)| {
                 (
                     *n,
@@ -187,7 +189,7 @@ impl QuestBuilder<'_> {
             })
             .collect();
         let rare = objects.is_empty()
-            && !mobs.is_empty()
+            && (!mobs.is_empty() || droppers.iter().any(|d| !reliable_dropper(d.rank)))
             && mobs.iter().all(|(_, c)| *c < params.min_start_chance)
             && !self.sources.reward_of.contains_key(&item);
         if rare {
@@ -266,18 +268,29 @@ pub struct Dropper {
 }
 
 /// The chance per kill assumed for an item starting a quest when no source knows its rate.
-/// Dropped by one creature, or only by unique ones (a rare, a boss, an NPC standing at one to
+/// Dropped by one creature, or only by unique ones (a rare elite, a boss, an NPC standing at one to
 /// three places: the rogues' Elegant Letter on each trainer), it is that creature's item, looted
 /// on the kill or nearly: a modest 10%. Dropped by several kinds of common mobs, it is a rare
 /// find on all of them (Precessive Autocognition Assembly: about one in 900 Harvest Golems):
 /// 0, below `min_start_chance`, so the quest is not planned (looted anyway when it drops).
+/// Rares are not counted (`reliable_dropper`): dropped only by them, it is not planned either.
 pub fn assumed_start_chance(droppers: &[Dropper]) -> f64 {
-    let unique = |d: &Dropper| matches!(d.rank, 2..=4) || (1..=3).contains(&d.spawns);
-    if droppers.len() <= 1 || droppers.iter().all(unique) {
+    let droppers: Vec<&Dropper> = droppers.iter().filter(|d| reliable_dropper(d.rank)).collect();
+    let unique = |d: &&Dropper| matches!(d.rank, 2..=3) || (1..=3).contains(&d.spawns);
+    if droppers.is_empty() {
+        0.0
+    } else if droppers.len() == 1 || droppers.iter().all(unique) {
         UNKNOWN_START_CHANCE
     } else {
         0.0
     }
+}
+
+/// Whether a creature of this rank is a source of an item starting a quest. Not a rare (4): one
+/// spawn, a long respawn, often camped or dead (Gruff Swiftbite's Gold Pickup Schedule): its
+/// common droppers are farmed instead at their own chance, if any.
+pub fn reliable_dropper(rank: i64) -> bool {
+    rank != 4
 }
 
 /// The chance assumed for an item starting a quest that its own creature drops (rate unknown).
@@ -308,5 +321,14 @@ mod tests {
         // The rogues' Elegant Letter: one trainer at each place.
         assert_eq!(assumed_start_chance(&[d(0, 1); 14]), UNKNOWN_START_CHANCE);
         assert_eq!(assumed_start_chance(&[d(4, 3), d(2, 40)]), UNKNOWN_START_CHANCE);
+    }
+
+    /// Ghost Howl's Demon Dust, Blackmoss the Fetid's Fetid Skull: a rare's item is luck.
+    #[test]
+    fn an_item_of_rares_only_is_rare() {
+        assert_eq!(assumed_start_chance(&[d(4, 57)]), 0.0);
+        assert_eq!(assumed_start_chance(&[d(4, 7), d(4, 1)]), 0.0);
+        // A common creature beside the rare: its own item.
+        assert_eq!(assumed_start_chance(&[d(4, 7), d(0, 26)]), UNKNOWN_START_CHANCE);
     }
 }
