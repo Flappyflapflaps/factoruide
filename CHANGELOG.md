@@ -24,6 +24,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - WoW Forever: a guide's Export gives the text to paste on Polestar's Import page (`/polestar import`); for now Polestar takes only short guides (60 steps), and the app says when a guide is too long.
 - Factoruide's own icon in the menu and on the home page.
 - WoW Forever: an example guide to look around (human paladin, levels 1 to 30), from the home page or the empty Guides page.
+- Manual creation next to Generate: a new guide that starts from your character and the form's settings, built step by step in the editor.
 
 ### Addon
 
