@@ -6,7 +6,7 @@ use super::entities::{alternatives, best_cluster};
 use super::givers::Givers;
 use super::sources::{
     LinkKind, ObjectiveKind, QuestRow, Role, SourceKind, asks_for_work, count_for, on_reachable, one_place,
-    parse_requirements, talks_to,
+    parse_requirements, talks_to, tames,
 };
 use super::types::{EntityKind, Guard, Loc, Objective, Spots};
 use crate::world::Pos;
@@ -454,6 +454,10 @@ impl QuestBuilder<'_> {
                 params.default_kill_count
             },
         );
+        // The credit comes from taming the beast (the hunters' Taming the Beast): one, not killed.
+        if text.is_none() && tames(&quest.requirements, &name) {
+            return self.use_at(quest, EntityKind::Npc, target, Some(format!("Tame {name}")), Some(1.0));
+        }
         let friendly = entities.friendly.contains(&target) || talks_to(&quest.requirements, &name);
         // An NPC of the character's side is acted on, not killed ("Kill Sentinel Shaya"): the
         // quest's own wording says how ("Heal and fortify Sentinel Shaya", "Peons Awoken x 5").

@@ -581,6 +581,18 @@ pub(super) fn talks_to(reqs: &[(String, f64)], name: &str) -> bool {
     })
 }
 
+/// Whether a requirement asks to tame `name` ("Tame a Vuldren" for the Vuldren Alpha).
+pub(super) fn tames(reqs: &[(String, f64)], name: &str) -> bool {
+    let name = name.to_lowercase();
+    reqs.iter().any(|(r, _)| {
+        let Some(beast) = r.strip_prefix("tame ") else {
+            return false;
+        };
+        let beast = (beast.strip_prefix("a ").or_else(|| beast.strip_prefix("an "))).unwrap_or(beast);
+        !beast.is_empty() && (name.contains(beast) || beast.contains(&name))
+    })
+}
+
 pub(super) fn count_for(reqs: &[(String, f64)], name: &str) -> Option<f64> {
     let name = name.to_lowercase();
     reqs.iter()
@@ -601,7 +613,7 @@ pub(super) fn one_place(points: &[(Pos, i64)]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{QuestRow, asks_for_work, parse_requirements, talks_to};
+    use super::{QuestRow, asks_for_work, parse_requirements, talks_to, tames};
 
     /// A class quest is filed under its class, or given to that class only: Forever's dwarf
     /// Call of Earth is filed under Dun Morogh.
@@ -661,5 +673,16 @@ mod tests {
         assert!(asks_for_work(Some(
             r#"["Dragonmaw Saboteur x 2","Dragonmaw Warder x 4"]"#
         )));
+    }
+
+    /// Taming the Beast: the creature credit comes from taming one.
+    #[test]
+    fn requirements_taming() {
+        let reqs = |json: &str| parse_requirements(Some(json.to_owned()));
+        assert!(tames(&reqs(r#"["Tame a Large Crag Boar"]"#), "Large Crag Boar"));
+        assert!(tames(&reqs(r#"["Tame an Adult Plainstrider"]"#), "Adult Plainstrider"));
+        assert!(tames(&reqs(r#"["Tame a Vuldren"]"#), "Vuldren Alpha"));
+        assert!(!tames(&reqs(r#"["Large Crag Boar x 8"]"#), "Large Crag Boar"));
+        assert!(!tames(&reqs(r#"["Tame a Snow Leopard"]"#), "Ice Claw Bear"));
     }
 }

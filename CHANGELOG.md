@@ -52,6 +52,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - The steps done around the same place (a town's NPCs, a keep's mobs, within 200 yards, up to 10) are one group, the same in the guide and in Polestar guides, where they make one step (GitHub #39).
 - Guides keep room in your bags: they count the loot and quest items you carry, with more room as you level, and sell at a vendor on the way when the bags fill up (a step that ticks when the merchant opens).
 - Polestar guides collect an item a quest only uses (Sunscale Feather) without counting it as one of its objectives, and count the others in the game's order.
+- Hunters' Taming the Beast quests say to tame the beast, once, instead of killing eight.
 
 ## 0.13.0 (2026-10-18)
 
