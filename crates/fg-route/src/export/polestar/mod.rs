@@ -89,11 +89,6 @@ fn lua(text: &str) -> String {
     out
 }
 
-fn list<T: std::fmt::Display>(items: &[T]) -> String {
-    let items: Vec<String> = items.iter().map(ToString::to_string).collect();
-    format!("{{ {} }}", items.join(", "))
-}
-
 /// The race's file name in the game (Polestar's `races`).
 fn race_file(id: i64) -> Option<&'static str> {
     Some(match id {
@@ -144,8 +139,39 @@ enum Val {
     Str(String),
     /// A number or `true`, as written.
     Num(String),
-    /// A Lua table, as written.
-    Table(String),
+    List(Vec<Val>),
+    /// Its fields in their order.
+    Obj(Vec<(&'static str, Val)>),
+}
+
+impl Val {
+    fn lua(&self) -> String {
+        match self {
+            Val::Str(s) => lua(s),
+            Val::Num(s) => s.clone(),
+            Val::List(items) => {
+                let items: Vec<String> = items.iter().map(Val::lua).collect();
+                format!("{{ {} }}", items.join(", "))
+            }
+            Val::Obj(fields) => {
+                let fields: Vec<String> = fields.iter().map(|(k, v)| format!("{k} = {}", v.lua())).collect();
+                format!("{{ {} }}", fields.join(", "))
+            }
+        }
+    }
+
+    fn json(&self) -> serde_json::Value {
+        match self {
+            Val::Str(s) => s.as_str().into(),
+            Val::Num(s) => serde_json::from_str(s).unwrap_or_else(|_| s.as_str().into()),
+            Val::List(items) => items.iter().map(Val::json).collect(),
+            Val::Obj(fields) => fields.iter().map(|(k, v)| ((*k).to_owned(), v.json())).collect(),
+        }
+    }
+}
+
+fn num(value: impl std::fmt::Display) -> Val {
+    Val::Num(value.to_string())
 }
 
 /// A goal of Polestar's (`t` its verb), its fields in their order: written as a Lua table in the
@@ -180,7 +206,7 @@ impl Goal {
 
     fn ids(mut self, key: &'static str, ids: &[i64]) -> Self {
         if !ids.is_empty() {
-            self.fields.push((key, Val::Table(list(ids))));
+            self.fields.push((key, Val::List(ids.iter().map(num).collect())));
         }
         self
     }
@@ -192,21 +218,26 @@ impl Goal {
         }
     }
 
-    /// A field's value as written (a string unquoted).
+    /// A field's value as written (a string unquoted; none for a table).
     fn get(&self, key: &str) -> Option<&str> {
-        self.fields.iter().find(|(k, _)| *k == key).map(|(_, v)| match v {
-            Val::Str(s) | Val::Num(s) | Val::Table(s) => s.as_str(),
+        self.fields.iter().find(|(k, _)| *k == key).and_then(|(_, v)| match v {
+            Val::Str(s) | Val::Num(s) => Some(s.as_str()),
+            Val::List(_) | Val::Obj(_) => None,
         })
     }
 
     /// The Lua table's fields, `t` first.
     fn lua_fields(&self) -> Vec<String> {
         std::iter::once(format!("t = {}", lua(self.verb)))
-            .chain(self.fields.iter().map(|(k, v)| match v {
-                Val::Str(s) => format!("{k} = {}", lua(s)),
-                Val::Num(s) | Val::Table(s) => format!("{k} = {s}"),
-            }))
+            .chain(self.fields.iter().map(|(k, v)| format!("{k} = {}", v.lua())))
             .collect()
+    }
+
+    fn json(&self) -> serde_json::Value {
+        std::iter::once(("t".to_owned(), self.verb.into()))
+            .chain(self.fields.iter().map(|(k, v)| ((*k).to_owned(), v.json())))
+            .collect::<serde_json::Map<_, _>>()
+            .into()
     }
 
     /// Where its mobs are when they live in several places: its own place, then the others on
@@ -218,16 +249,17 @@ impl Goal {
         let Some(m) = &step.map else { return self };
         let others: Vec<_> = step.spots.iter().filter(|p| p.ui_map == m.ui_map).collect();
         if !others.is_empty() {
-            let alt = if step.patrol { "" } else { ", alt = true" };
-            let spots: Vec<String> = std::iter::once(format!("{{ x = {}, y = {}, r = {RADIUS} }}", pct(m.x), pct(m.y)))
-                .chain(
-                    others
-                        .iter()
-                        .map(|p| format!("{{ x = {}, y = {}, r = {RADIUS}{alt} }}", pct(p.x), pct(p.y))),
-                )
+            let spot = |x: f64, y: f64, alt: bool| {
+                let mut fields = vec![("x", num(pct(x))), ("y", num(pct(y))), ("r", num(RADIUS))];
+                if alt {
+                    fields.push(("alt", num(true)));
+                }
+                Val::Obj(fields)
+            };
+            let spots = std::iter::once(spot(m.x, m.y, false))
+                .chain(others.iter().map(|p| spot(p.x, p.y, !step.patrol)))
                 .collect();
-            self.fields
-                .push(("spots", Val::Table(format!("{{ {} }}", spots.join(", ")))));
+            self.fields.push(("spots", Val::List(spots)));
         }
         self
     }
@@ -405,8 +437,10 @@ fn goals(step: &Step) -> Vec<Goal> {
         }
         // Elite mobs: Polestar says a group is advised.
         if step.elite && step.kind == StepKind::Objective {
-            goal.fields
-                .push(("group", Val::Table("{ kind = \"elite\", rank = 1 }".to_owned())));
+            goal.fields.push((
+                "group",
+                Val::Obj(vec![("kind", Val::Str("elite".to_owned())), ("rank", num(1))]),
+            ));
         }
         goal.title = target
             .filter(|t| matches!(t.kind, TargetKind::Npc | TargetKind::Object))
@@ -556,31 +590,38 @@ fn plan(route: &Route) -> Vec<(Option<String>, Vec<Goal>)> {
     steps
 }
 
+/// A guide's definition as `RegisterGuide` takes it, but its steps.
+fn definition(id: &str, route: &Route, version: u32) -> Vec<(&'static str, Val)> {
+    let mut def = vec![
+        ("id", Val::Str(format!("{PACK_ID}/{id}"))),
+        ("title", Val::Str(route.name.clone())),
+        ("faction", Val::Str(route.faction.name().to_owned())),
+    ];
+    if let Some(race) = race_file(route.race_id) {
+        def.push(("races", Val::List(vec![Val::Str(race.to_owned())])));
+    }
+    if let Some(class) = class_file(route.class_id) {
+        def.push(("classes", Val::List(vec![Val::Str(class.to_owned())])));
+    }
+    def.extend([
+        ("minLevel", num(route.from_level)),
+        ("maxLevel", num(route.to_level)),
+        ("category", Val::Str("Leveling".to_owned())),
+        ("author", Val::Str("Factoruide".to_owned())),
+        ("version", num(version)),
+    ]);
+    def
+}
+
 /// One guide's `RegisterGuide`, in a function of its own.
 fn guide(id: &str, route: &Route) -> String {
     let steps = plan(route);
     if steps.is_empty() {
         return String::new();
     }
-    let mut def = vec![
-        format!("id = {}", lua(&format!("{PACK_ID}/{id}"))),
-        format!("pack = {}", lua(PACK_ID)),
-        format!("title = {}", lua(&route.name)),
-        format!("faction = {}", lua(route.faction.name())),
-    ];
-    if let Some(race) = race_file(route.race_id) {
-        def.push(format!("races = {{ {} }}", lua(race)));
-    }
-    if let Some(class) = class_file(route.class_id) {
-        def.push(format!("classes = {{ {} }}", lua(class)));
-    }
-    def.extend([
-        format!("minLevel = {}", route.from_level),
-        format!("maxLevel = {}", route.to_level),
-        "category = \"Leveling\"".to_owned(),
-        "author = \"Factoruide\"".to_owned(),
-        "version = 1".to_owned(),
-    ]);
+    let mut def = definition(id, route, 1);
+    def.insert(1, ("pack", Val::Str(PACK_ID.to_owned())));
+    let def: Vec<String> = def.iter().map(|(k, v)| format!("{k} = {}", v.lua())).collect();
     let mut out = format!(
         "\ndo\n\tlocal function register()\n\t\tPolestar.RegisterGuide({{ {}, steps = {{\n",
         def.join(", ")
@@ -598,6 +639,73 @@ fn guide(id: &str, route: &Route) -> String {
     }
     out.push_str("\t\t} })\n\tend\n\tregister()\nend\n");
     out
+}
+
+/// What Polestar's Import page takes today: more and it refuses the string.
+pub const IMPORT_MAX_STEPS: usize = 60;
+pub const IMPORT_MAX_CHARS: usize = 50_000;
+pub const IMPORT_MAX_BYTES: usize = 262_144;
+
+/// A guide as an import string for Polestar's Import page (`/polestar import`).
+#[derive(Debug, serde::Serialize)]
+pub struct ImportString {
+    pub text: String,
+    pub steps: usize,
+    /// The guide data, decompressed (bytes).
+    pub bytes: usize,
+    /// Within what Polestar takes today.
+    pub fits: bool,
+}
+
+/// `!PS1!<Adler-32 of the JSON>!<base64 of the JSON compressed with zlib>`, the JSON holding the
+/// guide as `RegisterGuide` takes it (without its pack). The guide's version decides whether
+/// Polestar offers Import or Update.
+pub fn import_string(id: &str, route: &Route, version: u32) -> ImportString {
+    use base64::Engine as _;
+    let plan = plan(route);
+    let mut guide: serde_json::Map<String, serde_json::Value> = definition(id, route, version)
+        .iter()
+        .map(|(k, v)| ((*k).to_owned(), v.json()))
+        .collect();
+    let steps: Vec<serde_json::Value> = plan
+        .iter()
+        .map(|(title, goals)| {
+            let mut step = serde_json::Map::new();
+            if let Some(title) = title.as_deref().filter(|t| !t.trim().is_empty()) {
+                step.insert("title".into(), title.into());
+            }
+            step.insert("goals".into(), goals.iter().map(Goal::json).collect());
+            step.into()
+        })
+        .collect();
+    guide.insert("steps".into(), steps.into());
+    let payload = serde_json::json!({ "format": FORMAT, "license": "MIT", "guide": guide }).to_string();
+    let packed = miniz_oxide::deflate::compress_to_vec_zlib(payload.as_bytes(), 9);
+    let text = format!(
+        "!PS1!{:08x}!{}",
+        adler32(payload.as_bytes()),
+        base64::engine::general_purpose::STANDARD.encode(packed)
+    );
+    let fits = plan.len() <= IMPORT_MAX_STEPS && text.len() <= IMPORT_MAX_CHARS && payload.len() <= IMPORT_MAX_BYTES;
+    ImportString {
+        text,
+        steps: plan.len(),
+        bytes: payload.len(),
+        fits,
+    }
+}
+
+fn adler32(data: &[u8]) -> u32 {
+    let (mut a, mut b) = (1u32, 0u32);
+    for chunk in data.chunks(5552) {
+        for &byte in chunk {
+            a += u32::from(byte);
+            b += a;
+        }
+        a %= 65521;
+        b %= 65521;
+    }
+    b << 16 | a
 }
 
 #[cfg(test)]
@@ -1017,5 +1125,43 @@ mod tests {
         assert!(files[1].1.contains("id = \"factoruide\", format = 3") && files[1].1.contains("version = \"1.2.0\""));
         assert!(files[2].1.contains("{ t = \"train\", npc = 1, npcName = \"Trainer\""));
         assert_eq!(lua("a\"b\\c\u{1}"), "\"a\\\"b\\\\c\\001\"");
+    }
+
+    #[test]
+    fn import_string_holds_the_guide_as_json_compressed_with_zlib() {
+        use base64::Engine as _;
+        let elite = step(
+            json!({ "kind": "objective", "quest": 5, "quest_name": "Q", "objective": 0, "elite": true,
+            "target": npc(299, "Ogre"), "say": [{ "k": "objective.kill" }], "map": at(20.0),
+            "spots": [{ "ui_map": 1426, "x": 40.0, "y": 60.0 }], "text": "Ogre x10" }),
+        );
+        let trainer = step(json!({ "kind": "train", "target": npc(1, "Trainer"), "text": "Train" }));
+        let s = import_string("mon-nain", &route(&[trainer, elite], "enUS"), 4);
+        let (sum, body) = s.text.strip_prefix("!PS1!").unwrap().split_once('!').unwrap();
+        let packed = base64::engine::general_purpose::STANDARD.decode(body).unwrap();
+        let payload = miniz_oxide::inflate::decompress_to_vec_zlib(&packed).unwrap();
+        assert_eq!(sum, format!("{:08x}", adler32(&payload)));
+        let json: serde_json::Value = serde_json::from_slice(&payload).unwrap();
+        let guide = &json["guide"];
+        assert_eq!(
+            (json["format"].as_u64(), json["license"].as_str()),
+            (Some(3), Some("MIT"))
+        );
+        assert_eq!(guide["id"], "factoruide/mon-nain");
+        assert_eq!(guide["version"], 4);
+        assert_eq!(guide["races"], json!(["Dwarf"]));
+        assert!(guide.get("pack").is_none());
+        let goals: Vec<&serde_json::Value> = guide["steps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|s| s["goals"].as_array().unwrap())
+            .collect();
+        assert_eq!(goals[0]["t"], "train");
+        assert_eq!(goals[0]["npc"], 1);
+        assert_eq!(goals[1]["group"], json!({ "kind": "elite", "rank": 1 }));
+        assert_eq!(goals[1]["spots"][1], json!({ "x": 40, "y": 60, "r": 40, "alt": true }));
+        assert_eq!((s.steps, s.bytes, s.fits), (2, payload.len(), true));
+        assert_eq!(adler32(b"Wikipedia"), 0x11E6_0398);
     }
 }

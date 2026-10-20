@@ -1296,6 +1296,29 @@ fn guide_text(state: State<'_, AppState>, guide: String, version: u32) -> CmdRes
     ))
 }
 
+/// What the player pastes on Polestar's Import page (`/polestar import`): one guide version, in
+/// the game's language. Polestar exists on WoW Forever only.
+#[tauri::command(async)]
+#[expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+fn polestar_string(
+    state: State<'_, AppState>,
+    guide: String,
+    version: u32,
+) -> CmdResult<fg_route::export::polestar::ImportString> {
+    if state.edition() != Edition::Forever {
+        return Err("Polestar is for WoW Forever only".into());
+    }
+    let route = state.render(&state.version(&guide, version)?.outcome.route, None)?;
+    Ok(fg_route::export::polestar::import_string(
+        &job::slug(&route.name),
+        &route,
+        version,
+    ))
+}
+
 /// Whether Polestar is installed in WoW Forever (it shows guides there only).
 #[tauri::command]
 #[expect(
@@ -1867,6 +1890,7 @@ fn main() {
             addon_synced,
             polestar_installed,
             export_polestar,
+            polestar_string,
             open_link,
             wow_status,
             detect_wow,

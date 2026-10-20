@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { api, type Edition } from "../api";
+import { api, type Edition, type PolestarString } from "../api";
 import { useT } from "../i18n";
 import { IS_WEB } from "../web/mode";
 import { Icon } from "./Icons";
@@ -65,6 +65,7 @@ interface GuideProps {
 export function ExportMenu({ guide, version, edition, prominent, onDone }: GuideProps) {
   const t = useT();
   const [text, setText] = useState<string | null>(null);
+  const [polestar, setPolestar] = useState<PolestarString | "loading" | null>(null);
   const run = (action: () => Promise<string>) =>
     action()
       .then((message) => onDone({ message }))
@@ -92,6 +93,20 @@ export function ExportMenu({ guide, version, edition, prominent, onDone }: Guide
     ...(edition === "forever"
       ? [
           {
+            label: t("Polestar : texte à importer"),
+            hint: t("Le texte à coller en jeu sur la page Import de Polestar (/polestar import), sans rien installer."),
+            run: () => {
+              setPolestar("loading");
+              api
+                .polestarString(guide, version)
+                .then(setPolestar)
+                .catch((e) => {
+                  setPolestar(null);
+                  onDone({ error: String(e) });
+                });
+            },
+          },
+          {
             label: "Polestar",
             hint: t("Le guide au format .guide de Polestar (en anglais), pour ses outils Planner et Play."),
             run: () =>
@@ -110,13 +125,44 @@ export function ExportMenu({ guide, version, edition, prominent, onDone }: Guide
   return (
     <>
       <Menu label={t("Exporter")} title={t("Exporter ce guide : pour l'addon, pour l'application, pour Polestar")} className={prominent ? "primary export-prominent" : undefined} items={items} />
-      {text !== null && <GuideTextDialog text={text} onClose={() => setText(null)} />}
+      {text !== null && (
+        <TextDialog
+          title={t("Exporter pour l'addon")}
+          text={text}
+          steps={[
+            t("Copiez le texte ci-dessous."),
+            t("En jeu, tapez /fg, cliquez sur « Importer un guide… », collez-le (Ctrl+V), puis Importer."),
+            t("Choisissez le guide de votre personnage en jeu avec /fg (d'office s'il est le seul de sa race et de sa classe)."),
+          ]}
+          onClose={() => setText(null)}
+        />
+      )}
+      {polestar !== null && (
+        <TextDialog
+          title={t("Exporter pour Polestar")}
+          text={polestar === "loading" ? "" : polestar.text}
+          steps={[
+            t("Copiez le texte ci-dessous."),
+            t("En jeu, tapez /polestar import, collez-le (Ctrl+V), puis Import."),
+            t("Le guide est dans le menu des guides de Polestar, sous Community guides puis Imported."),
+          ]}
+          warning={
+            polestar !== "loading" && !polestar.fits
+              ? t(
+                  "Trop long pour Polestar : son import n'accepte pour l'instant que 60 étapes et 50 000 caractères, et ce guide fait {steps} étapes et {chars} caractères. Utilisez plutôt « Polestar : tous les guides » dans l'export global.",
+                  { steps: polestar.steps, chars: polestar.text.length.toLocaleString() },
+                )
+              : undefined
+          }
+          onClose={() => setPolestar(null)}
+        />
+      )}
     </>
   );
 }
 
-/** The text of the guide import of a guide, to copy. */
-function GuideTextDialog({ text, onClose }: { text: string; onClose: () => void }) {
+/** A text to copy and paste in game (empty while it is made), with how to. */
+function TextDialog({ title, text, steps, warning, onClose }: { title: string; text: string; steps: string[]; warning?: string; onClose: () => void }) {
   const t = useT();
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,15 +177,16 @@ function GuideTextDialog({ text, onClose }: { text: string; onClose: () => void 
   return (
     <div className="welcome-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="panel export-dialog" role="dialog" aria-modal="true" aria-labelledby="export-dialog-title">
-        <h2 id="export-dialog-title">{t("Exporter pour l'addon")}</h2>
+        <h2 id="export-dialog-title">{title}</h2>
         {!text ? (
           <p className="muted">{t("Préparation…")}</p>
         ) : (
           <>
+            {warning && <div className="error">{warning}</div>}
             <ol className="export-steps">
-              <li>{t("Copiez le texte ci-dessous.")}</li>
-              <li>{t("En jeu, tapez /fg, cliquez sur « Importer un guide… », collez-le (Ctrl+V), puis Importer.")}</li>
-              <li>{t("Choisissez le guide de votre personnage en jeu avec /fg (d'office s'il est le seul de sa race et de sa classe).")}</li>
+              {steps.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
             </ol>
             <div className="row">
               <button className="primary" onClick={copy}>

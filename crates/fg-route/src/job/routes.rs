@@ -180,6 +180,21 @@ pub fn write_polestar_pack(conn: &Connection, routes_dir: &Path, dir: &Path, ver
     Ok(guides.len())
 }
 
+/// Write every saved route as an import string for Polestar's Import page
+/// (`export::polestar::import_string`), `<guide>.txt` each in `dir`, each in its own language.
+pub fn write_polestar_strings(conn: &Connection, routes_dir: &Path, dir: &Path, _version: &str) -> Result<usize> {
+    let routes = render_routes(conn, &load_routes(routes_dir)?, None)?;
+    std::fs::create_dir_all(dir)?;
+    for r in &routes {
+        let name = slug(&r.name);
+        std::fs::write(
+            dir.join(format!("{name}.txt")),
+            export::polestar::import_string(&name, r, 1).text,
+        )?;
+    }
+    Ok(routes.len())
+}
+
 /// Write a pack's folder for Polestar's own tools (`export::polestar::source`) into `dir` from
 /// every saved route: its `pack.json` and a `.guide` file each, in English.
 pub fn write_polestar_source(conn: &Connection, routes_dir: &Path, dir: &Path, version: &str) -> Result<usize> {

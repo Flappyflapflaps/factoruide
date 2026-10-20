@@ -578,6 +578,21 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
+/// What the player pastes on Polestar's Import page (`/polestar import`): one guide version, in
+/// the game's language. Polestar exists on WoW Forever only.
+fn polestar_string(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
+    if edition() != Edition::Forever {
+        return Err("Polestar is for WoW Forever only".into());
+    }
+    let route = render(
+        Edition::Forever,
+        &version(Edition::Forever, guide, v)?.outcome.route,
+        None,
+    )?;
+    let s = fg_route::export::polestar::import_string(&job::slug(&route.name), &route, v);
+    serde_json::to_value(s).map_err(err)
+}
+
 /// A guide version written for Polestar's own tools: a zip of a pack folder holding its
 /// `.guide` file (in English). Polestar exists on WoW Forever only.
 fn export_polestar(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
@@ -1196,6 +1211,10 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         "addon_health" => to_json(Ok(addon_health())),
         // Polestar is installed in the game: the browser cannot tell, the player says.
         "polestar_installed" => Ok(Value::Bool(true)),
+        "polestar_string" => {
+            let g = args::<GuideArgs>(a)?;
+            polestar_string(&g.guide, version_of(&g)?)
+        }
         "export_polestar" => {
             let g = args::<GuideArgs>(a)?;
             export_polestar(&g.guide, version_of(&g)?)

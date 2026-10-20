@@ -30,7 +30,7 @@ pub use request::{PlanOutcome, PlanRequest, Prepared};
 pub use routes::{
     DATA_ADDON, GUIDE_FORMAT, POLESTAR_SOURCE_FOLDER, add_polestar_source, addon_walks, data_addon_files, guides_lua,
     load_routes, lua_long_string, polestar_source_dir, render_routes, save_route, slug, write_addon_routes,
-    write_data_addon, write_polestar_pack, write_polestar_source,
+    write_data_addon, write_polestar_pack, write_polestar_source, write_polestar_strings,
 };
 pub use services::{Place, Service, places, services_lua};
 pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};

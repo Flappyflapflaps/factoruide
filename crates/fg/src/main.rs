@@ -117,8 +117,11 @@ enum Command {
         out: PathBuf,
         /// Write the guides' sources instead (pack.json and a .guide file each, in English), for
         /// Polestar's own tools (route planner, playground, compiler)
-        #[arg(long)]
+        #[arg(long, conflicts_with = "strings")]
         source: bool,
+        /// Write the guides as import strings for Polestar's Import page instead, a <guide>.txt each
+        #[arg(long)]
+        strings: bool,
     },
     /// Replay a request exported by the app (debug/request-*.json)
     Replay {
@@ -250,9 +253,11 @@ fn main() -> Result<()> {
         Command::Diff { a, b, json } => diff::run(&cli.routes, &a, b.as_deref(), json)?,
         Command::Addon { lua: None } => route::write_addon_routes(&open()?, &overrides, &cli.routes, &cli.addon_dir)?,
         Command::Addon { lua: Some(out) } => route::write_guides_lua(&open()?, &overrides, &cli.routes, &out)?,
-        Command::Polestar { out, source } => {
+        Command::Polestar { out, source, strings } => {
             let write = if source {
                 fg_route::job::write_polestar_source
+            } else if strings {
+                fg_route::job::write_polestar_strings
             } else {
                 fg_route::job::write_polestar_pack
             };

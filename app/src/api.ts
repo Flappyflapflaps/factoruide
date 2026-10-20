@@ -18,6 +18,16 @@ function saved(result: string | WebFile): string {
   return result.file;
 }
 
+/** A guide as the text to paste on Polestar's Import page, mirror of `fg_route::export::polestar::ImportString`. */
+export interface PolestarString {
+  text: string;
+  steps: number;
+  /** The guide data, decompressed (bytes). */
+  bytes: number;
+  /** Within what Polestar takes today (60 steps, 50,000 characters). */
+  fits: boolean;
+}
+
 /** A character's export (Export my character) pasted in the web app. */
 export interface ProfileImported {
   character: string;
@@ -578,6 +588,8 @@ export const api = {
   /** The text to paste in game with the guide import: this guide version (the addon adds it to its guides, or replaces the one of its name). */
   guideText: (guide: string, version: number) =>
     invoke<string | { text: string }>("guide_text", { guide, version }).then((r) => (typeof r === "string" ? r : r.text)),
+  /** WoW Forever: the text to paste on Polestar's Import page (/polestar import), this guide version; `fits`: within what Polestar takes today. */
+  polestarString: (guide: string, version: number) => invoke<PolestarString>("polestar_string", { guide, version }),
   /** Web build: downloads every guide as the data addon (Factoruide_Data, as the desktop app writes it) in a zip; returns its name. */
   dataZip: () => invoke<WebFile>("data_zip").then(saved),
   /** Web build, WoW Forever: downloads every guide as a Polestar guide pack (a zip of its addon folder); returns its name. */
