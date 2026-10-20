@@ -79,7 +79,7 @@ pub fn to_lua(routes: &[Route]) -> String {
         );
         // Steps carry the time they are planned to take (`d`, seconds): `time` is when each is done.
         let mut previous = 0.0;
-        for s in &r.steps {
+        for (s, joins) in r.steps.iter().zip(super::groups::joins(&r.steps)) {
             let duration = (s.time - previous).max(0.0).round();
             previous = s.time;
             let mut fields = vec![
@@ -91,6 +91,10 @@ pub fn to_lua(routes: &[Route]) -> String {
             }
             if s.bg {
                 fields.push("bg = true".into());
+            }
+            // In the group of the step before (`groups`): shown and passed with it.
+            if joins {
+                fields.push("gj = true".into());
             }
             if s.try_buy {
                 fields.push("tr = true".into());

@@ -1479,6 +1479,26 @@ FG.Guide:Advance()
 assert(char.guide.step == 2, "sold: step " .. char.guide.step)
 print("sell step ok")
 
+-- Groups the app marked (`gj`: joins the step before), whatever the map distance between them.
+FG.Routes["groups-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "accept", t = "Accept D", q = 8004, lvl = 3, m = 1429, x = 10, y = 10 },
+        { k = "accept", t = "Accept E", q = 8005, lvl = 3, m = 1429, x = 40, y = 40, gj = true },
+        { k = "accept", t = "Accept F", q = 8006, lvl = 3, m = 1429, x = 10, y = 11, gj = true },
+        { k = "accept", t = "Accept G", q = 8007, lvl = 3, m = 1429, x = 10, y = 10 },
+    },
+}
+useRoute("groups-test")
+local group = FG.Guide:CurrentSteps()
+assert(#group == 3 and group[1] == 1 and group[3] == 3, "the marked group: " .. table.concat(group, ","))
+print("marked groups ok")
+
 -- A dungeon run followed by its quests is done on entering the dungeon, then each quest step as
 -- the quest progresses; without them (guides made before), once back out of the dungeon.
 local inside = false

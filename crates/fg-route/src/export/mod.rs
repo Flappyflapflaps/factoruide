@@ -5,6 +5,7 @@ pub mod diff;
 pub mod fgstring;
 pub mod format;
 mod grind_spots;
+pub mod groups;
 mod lua;
 mod phrase;
 pub mod polestar;

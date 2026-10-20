@@ -391,14 +391,33 @@ end
 
 -- Groups: steps done around the same place, shown together and passed together. Cut once for the
 -- route, so that a step is never on two pages: `groupStart[i]` is the first step of step i's
--- group, `groupEnd[first]` its last.
+-- group, `groupEnd[first]` its last. The app marks the steps joining the group before (`gj`, the
+-- groups of its Polestar guides too); guides made before are cut here, by map distance.
 local groupStart, groupEnd = {}, {}
 
 local function BuildGroups()
     wipe(groupStart)
     wipe(groupEnd)
     local steps = route and route.steps or {}
+    local marked = false
+    for _, s in ipairs(steps) do
+        if s.gj then
+            marked = true
+            break
+        end
+    end
     local i = 1
+    while marked and i <= #steps do
+        local last = i
+        while steps[last + 1] and steps[last + 1].gj do
+            last = last + 1
+        end
+        for k = i, last do
+            groupStart[k] = i
+        end
+        groupEnd[i] = last
+        i = last + 1
+    end
     while i <= #steps do
         local first, last = steps[i], i
         if first.m then
