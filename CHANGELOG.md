@@ -6,7 +6,7 @@ Writing an entry: one short line per change, saying what the player sees or gets
 
 An addon change also goes, in the same words, under Unreleased in that addon's own `addon/<addon>/CHANGELOG.md`: its changelog on CurseForge and Wago.
 
-## 0.14.0 (2026-10-20)
+## 0.14.0 (2026-10-21)
 
 > **Important: install the addons from CurseForge (or Wago) now.** The app no longer installs or updates them. Install [Factoruide Guide](https://www.curseforge.com/wow/addons/factoruide-guide) (it brings [Factoruide Profile](https://www.curseforge.com/wow/addons/factoruide-profile) with it) with the CurseForge app, then restart the game. The copy an older app installed stays at its old version: replace it, your settings and progress are kept.
 
