@@ -6,6 +6,7 @@ under Unreleased; `scripts/release.sh` gives them the release's version.
 
 ## Unreleased
 
+- In the game's addon list, the Factoruide addons are under Quests, with their own icon.
 - The full and minimal guides each keep their own layout: moving or resizing the quest panel or the compass in one mode no longer changes the other.
 - No mark on the game's XP bar any more, and the game's XP tooltip is back: the guide's own XP bar shows where you should be (GitHub #36).
 - A step to sell your loot at a vendor on the way, ticked when the merchant's window opens.

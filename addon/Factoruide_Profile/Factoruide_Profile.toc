@@ -3,6 +3,17 @@
 ## Notes: Records your character (level, quests, professions, reputations) for the Factoruide app, and the quest data you choose to share.
 ## Notes-frFR: Enregistre votre personnage (niveau, quêtes, métiers, réputations) pour l'application Factoruide, et les données de quêtes que vous choisissez de partager.
 ## Author: Joel Wurtz
+## Category: Quests
+## Category-frFR: Quêtes
+## Category-deDE: Quests
+## Category-esES: Misiones
+## Category-esMX: Misiones
+## Category-ptBR: Missões
+## Category-ruRU: Задания
+## Category-koKR: 퀘스트
+## Category-zhCN: 任务
+## Category-zhTW: 任務
+## IconTexture: Interface\AddOns\Factoruide_Profile\Media\Logo
 ## Version: 0.14.0
 ## SavedVariables: FactoruideDB
 ## OptionalDeps: Factoruide_Data

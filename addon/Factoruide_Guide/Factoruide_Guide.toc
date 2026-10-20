@@ -3,6 +3,17 @@
 ## Notes: Leveling route guide made in the Factoruide app, quest automation and fast loot.
 ## Notes-frFR: Guide de pexing fait dans l'application Factoruide, quêtes automatiques et loot rapide.
 ## Author: Joel Wurtz
+## Category: Quests
+## Category-frFR: Quêtes
+## Category-deDE: Quests
+## Category-esES: Misiones
+## Category-esMX: Misiones
+## Category-ptBR: Missões
+## Category-ruRU: Задания
+## Category-koKR: 퀘스트
+## Category-zhCN: 任务
+## Category-zhTW: 任務
+## IconTexture: Interface\AddOns\Factoruide_Profile\Media\Logo
 ## Version: 0.14.0
 ## Dependencies: Factoruide_Profile
 ## OptionalDeps: Factoruide_Data, ElvUI, EllesmereUI, SpartanUI, Poulpix_UI_Immersive, ShortestPathForever
