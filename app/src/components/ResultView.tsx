@@ -61,9 +61,7 @@ export function ResultView({ version, edition, onRerun, onEdit, onClone, onSaved
   // Read only, or its steps edited on the page (a draft, saved as a new version).
   const [readOnly, setReadOnly] = useState(!editing);
   // The guide played back: its replay comes a little after it (straight lines meanwhile). Asked
-  // for once shown read only, not while the editor opens: the editor replays the draft itself,
-  // and in the web app two calls reading the game data at once break each other (its SQLite is
-  // built single-threaded).
+  // for once shown read only, not while the editor opens: the editor replays the draft itself.
   const [timeline, setTimeline] = useState<Timeline | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   useEffect(() => {

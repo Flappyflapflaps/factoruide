@@ -112,7 +112,23 @@ fn database(edition: Edition) -> CmdResult<&'static [u8]> {
     Ok(bytes)
 }
 
+/// Whether SQLite was built for threads. The calls run on threads of their own, at the same time,
+/// each with its own connection: SQLite's shared state (page cache, memory) must then be guarded,
+/// which a single-threaded build does not do (two calls reading the game data at once corrupt
+/// each other: "database disk image is malformed", crashes). libsqlite3-sys builds it
+/// single-threaded on WASI unless told otherwise (scripts/build-web.sh does).
+fn sqlite_threadsafe() -> bool {
+    #[expect(unsafe_code, reason = "a constant of SQLite's build")]
+    // SAFETY: takes nothing, reads a value fixed when SQLite was compiled.
+    unsafe {
+        rusqlite::ffi::sqlite3_threadsafe() != 0
+    }
+}
+
 fn open_db(edition: Edition) -> CmdResult<Connection> {
+    if !sqlite_threadsafe() {
+        return Err("SQLite was built single-threaded: build the web app with scripts/build-web.sh".into());
+    }
     let bytes = database(edition)?;
     let mut conn = Connection::open_in_memory().map_err(err)?;
     conn.deserialize_bytes("main", bytes).map_err(err)?;

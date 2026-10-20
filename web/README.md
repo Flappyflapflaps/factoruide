@@ -35,7 +35,10 @@ addon's `Export.lua` / `Import.lua`).
 
 - `crates/fg-web`: the app's backend (what `app/src-tauri` does) for the browser, built for
   `wasm32-wasip1-threads`. Its files live in memory and the page saves them in IndexedDB; the
-  game databases are fetched from `data/` and read in place by SQLite.
+  game databases are fetched from `data/` and read in place by SQLite. Calls run on threads of
+  their own, at the same time, each with its own connection: SQLite is built thread-safe
+  (`scripts/build-web.sh`; libsqlite3-sys makes it single-threaded on WASI otherwise, and the
+  backend then refuses to open the data).
 - `app/src/web`: the page's side. `host.ts` starts the backend in a Web Worker, `worker.ts`
   gives it what it needs of WASI (clocks, randomness, sleeping) and starts its threads in Web
   Workers sharing its memory: the planner's threads are real threads. The `@tauri-apps/*`

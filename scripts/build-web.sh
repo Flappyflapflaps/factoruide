@@ -20,6 +20,10 @@ export FG_VERSION="${version:-0.0.0}"
 export CC_wasm32_wasip1_threads="$sdk/bin/clang"
 export AR_wasm32_wasip1_threads="$sdk/bin/llvm-ar"
 export CFLAGS_wasm32_wasip1_threads="--target=wasm32-wasip1-threads -pthread"
+# SQLite thread-safe (pthreads mutexes), as on desktop: calls run on several threads at once,
+# each with its own connection, and libsqlite3-sys builds it single-threaded on WASI otherwise
+# (the backend refuses to open the game data then).
+export LIBSQLITE3_FLAGS="-USQLITE_THREADSAFE -DSQLITE_THREADSAFE=1"
 crt="$(rustc --print sysroot)/lib/rustlib/wasm32-wasip1-threads/lib/self-contained/crt1-reactor.o"
 RUSTFLAGS="-C link-arg=--max-memory=4294967296 -C link-arg=-zstack-size=8388608 -C link-arg=$crt -C link-arg=--export=_initialize" \
     cargo build --release --target wasm32-wasip1-threads -p fg-web

@@ -366,3 +366,64 @@ fn the_example_guide_opens_in_every_view() {
     call("delete_guide", &serde_json::json!({ "guide": guide })).unwrap();
     let _ = REPLIES.lock().unwrap().drain(..);
 }
+
+/// The page's calls run on threads of their own: several reading the game data at the same time
+/// (the replay in a few languages, the editor, the export to the game) all answer, as each one
+/// alone does.
+#[test]
+fn calls_reading_the_game_data_at_the_same_time_all_answer() {
+    let _store = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    serve("forever");
+    store::clear();
+    call("set_edition", &serde_json::json!({ "edition": "forever" })).unwrap();
+    let file = include_str!("../../../../app/src/assets/example-guide.fgguide");
+    let meta = call("import_guide", &serde_json::json!({ "content": file })).unwrap();
+    let guide = meta["guide"].as_str().unwrap().to_owned();
+    let _ = REPLIES.lock().unwrap().drain(..);
+
+    let calls = [
+        ("guide_timeline", serde_json::json!({ "guide": guide, "version": 1, "locale": "enUS" })),
+        ("guide_timeline", serde_json::json!({ "guide": guide, "version": 1, "locale": "frFR" })),
+        ("guide_timeline", serde_json::json!({ "guide": guide, "version": 1, "locale": "deDE" })),
+        ("edit_open", serde_json::json!({ "guide": guide, "version": 1, "locale": "esES" })),
+        ("guide_text", serde_json::json!({ "guide": guide, "version": 1 })),
+        ("guide_timeline", serde_json::json!({ "guide": guide, "version": 1, "locale": "ruRU" })),
+    ];
+    let first_id = 9000;
+    for (i, (cmd, args)) in calls.iter().enumerate() {
+        let request = serde_json::json!({ "cmd": cmd, "args": args }).to_string();
+        crate::call(first_id + i as u32, request.into_bytes());
+    }
+    let ids = first_id..first_id + calls.len() as u32;
+    let started = std::time::Instant::now();
+    let answers = loop {
+        let answers: Vec<(u32, String)> = (REPLIES.lock().unwrap().iter())
+            .filter(|(id, _)| ids.contains(id))
+            .cloned()
+            .collect();
+        if answers.len() == calls.len() {
+            break answers;
+        }
+        assert!(
+            started.elapsed().as_secs() < 600,
+            "{} of {} calls answered",
+            answers.len(),
+            calls.len()
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    for (id, answer) in answers {
+        let (cmd, _) = &calls[(id - first_id) as usize];
+        let answer: serde_json::Value = serde_json::from_str(&answer).unwrap();
+        assert!(answer.get("err").is_none(), "{cmd}: {}", answer["err"]);
+        if *cmd == "guide_text" {
+            assert_ne!(answer["ok"]["text"].as_str().unwrap(), "");
+        } else {
+            assert_ne!(answer["ok"]["steps"].as_array().unwrap().len(), 0, "{cmd}");
+        }
+    }
+
+    call("edit_close", &serde_json::json!({})).unwrap();
+    call("delete_guide", &serde_json::json!({ "guide": guide })).unwrap();
+    let _ = REPLIES.lock().unwrap().drain(..);
+}
