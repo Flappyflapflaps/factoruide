@@ -382,12 +382,27 @@ fn calls_reading_the_game_data_at_the_same_time_all_answer() {
     let _ = REPLIES.lock().unwrap().drain(..);
 
     let calls = [
-        ("guide_timeline", serde_json::json!({ "guide": guide, "version": 1, "locale": "enUS" })),
-        ("guide_timeline", serde_json::json!({ "guide": guide, "version": 1, "locale": "frFR" })),
-        ("guide_timeline", serde_json::json!({ "guide": guide, "version": 1, "locale": "deDE" })),
-        ("edit_open", serde_json::json!({ "guide": guide, "version": 1, "locale": "esES" })),
+        (
+            "guide_timeline",
+            serde_json::json!({ "guide": guide, "version": 1, "locale": "enUS" }),
+        ),
+        (
+            "guide_timeline",
+            serde_json::json!({ "guide": guide, "version": 1, "locale": "frFR" }),
+        ),
+        (
+            "guide_timeline",
+            serde_json::json!({ "guide": guide, "version": 1, "locale": "deDE" }),
+        ),
+        (
+            "edit_open",
+            serde_json::json!({ "guide": guide, "version": 1, "locale": "esES" }),
+        ),
         ("guide_text", serde_json::json!({ "guide": guide, "version": 1 })),
-        ("guide_timeline", serde_json::json!({ "guide": guide, "version": 1, "locale": "ruRU" })),
+        (
+            "guide_timeline",
+            serde_json::json!({ "guide": guide, "version": 1, "locale": "ruRU" }),
+        ),
     ];
     let first_id = 9000;
     for (i, (cmd, args)) in calls.iter().enumerate() {
