@@ -362,7 +362,8 @@ local function Header()
     tools:Hide()
     frame.tools = tools
 
-    -- XP of the character (purple) and the guide's at the step shown (gold mark).
+    -- XP of the character (purple), the guide's before the current tasks (gold mark) and what
+    -- they give (hollow gold box).
     frame.xp = Skin:Fill(frame, "ARTWORK", "xpTrack", 1)
     frame.xp:SetHeight(4)
     frame.xpFill = Skin:Fill(frame, "ARTWORK", "xp", 1)
@@ -370,6 +371,7 @@ local function Header()
     frame.xpFill:SetPoint("BOTTOMLEFT", frame.xp)
     frame.xpMark = Skin:Fill(frame, "OVERLAY", "gold", 1)
     frame.xpMark:SetSize(2, 8)
+    frame.xpBar = { track = frame.xp, fill = frame.xpFill, mark = frame.xpMark, box = FG.XpPlan:Box(frame) }
 end
 
 local function Sections()
@@ -547,20 +549,10 @@ function Card:Render(view)
 
     local y = -42
     -- XP against the guide's.
-    local xp, from = 0, nil
-    if FG.XpPlan then
-        xp, from = FG.XpPlan:Shares()
-    end
-    local w = WIDTH - 2 * PAD
     frame.xp:ClearAllPoints()
     frame.xp:SetPoint("TOPLEFT", PAD, y)
     frame.xp:SetPoint("TOPRIGHT", -PAD, y)
-    frame.xpFill:SetWidth(math.max(1, w * (xp or 0)))
-    frame.xpMark:SetShown(from ~= nil)
-    if from then
-        frame.xpMark:ClearAllPoints()
-        frame.xpMark:SetPoint("CENTER", frame.xp, "LEFT", w * from, 0)
-    end
+    if FG.XpPlan then FG.XpPlan:Draw(frame.xpBar, WIDTH - 2 * PAD) end
     y = y - 12
 
     frame.ahead:SetShown(view.ahead ~= nil)

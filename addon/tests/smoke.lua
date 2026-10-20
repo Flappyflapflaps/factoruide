@@ -1444,6 +1444,30 @@ assert(
     share == 0.1 and from == 0.15 and to == 0.25,
     "shares: " .. share .. " " .. tostring(from) .. " " .. tostring(to)
 )
+-- On the bar: a hollow box from the XP expected before the current tasks to after them, the
+-- character's XP showing inside; the mark alone without an end.
+do
+    local function texture()
+        local t = { points = {} }
+        function t:SetShown(shown) self.shown = shown end
+        function t:ClearAllPoints() self.points = {} end
+        function t:SetPoint(_, _, _, x) table.insert(self.points, x) end
+        function t:SetWidth(w) self.width = w end
+        function t:SetHeight() end
+        return t
+    end
+    local bar = { track = {}, fill = texture(), mark = texture() }
+    bar.box = { top = texture(), bottom = texture(), left = texture(), right = texture() }
+    FG.XpPlan:Draw(bar, 200)
+    assert(bar.fill.width == 20, "the character's XP: " .. tostring(bar.fill.width))
+    assert(bar.box.top.shown and bar.box.left.shown and not bar.mark.shown, "a box, no mark")
+    assert(bar.box.top.points[1] == 29 and bar.box.top.points[2] == 51, "the box from 15% to 25% of the bar")
+    local realAfter = FG.XpPlan.PlannedAfter
+    FG.XpPlan.PlannedAfter = function() return nil end
+    FG.XpPlan:Draw(bar, 200)
+    assert(bar.mark.shown and not bar.box.top.shown, "no end planned: the mark alone")
+    FG.XpPlan.PlannedAfter = realAfter
+end
 playerLevel = 1
 share, from = FG.XpPlan:Shares()
 assert(from == 1, "two levels behind: the planned mark at the bar's end")

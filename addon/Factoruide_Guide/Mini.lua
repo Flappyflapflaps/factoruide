@@ -154,6 +154,8 @@ local function CreateTags()
     xpBar.fill:SetPoint("BOTTOMLEFT")
     xpBar.mark = Skin:Fill(xpBar, "OVERLAY", "gold", 1)
     xpBar.mark:SetSize(2, 7)
+    xpBar.track = xpBar
+    xpBar.box = FG.XpPlan:Box(xpBar)
 end
 
 -- The next steps and the tools, unfolded when the mouse is over the guide -------------------
@@ -445,19 +447,9 @@ local function DrawTags(view, main)
 end
 
 local function DrawXp(y)
-    local xp, from = 0, nil
-    if FG.XpPlan then
-        xp, from = FG.XpPlan:Shares()
-    end
     xpBar:ClearAllPoints()
     xpBar:SetPoint("TOP", strip, "BOTTOM", 0, y)
-    local w = 300
-    xpBar.fill:SetWidth(math.max(1, w * (xp or 0)))
-    xpBar.mark:SetShown(from ~= nil)
-    if from then
-        xpBar.mark:ClearAllPoints()
-        xpBar.mark:SetPoint("CENTER", xpBar, "LEFT", w * from, 0)
-    end
+    if FG.XpPlan then FG.XpPlan:Draw(xpBar, 300) end
 end
 
 local function DrawDrop(view, y)

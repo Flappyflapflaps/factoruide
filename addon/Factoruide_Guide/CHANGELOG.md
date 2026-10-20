@@ -6,6 +6,7 @@ under Unreleased; `scripts/release.sh` gives them the release's version.
 
 ## Unreleased
 
+- The guide's XP bars show a hollow gold box over the XP the current steps give, from where the guide expects you before them to after them.
 - In the game's addon list, the Factoruide addons are under Quests, with their own icon, Guide and Data grouped under Profile.
 - The full and minimal guides each keep their own layout: moving or resizing the quest panel or the compass in one mode no longer changes the other.
 - No mark on the game's XP bar any more, and the game's XP tooltip is back: the guide's own XP bar shows where you should be (GitHub #36).
