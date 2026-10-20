@@ -19,6 +19,20 @@ The Factoruide app simulates the whole climb with your choices: travel, fights, 
 
 The guide shows the current step and the next ones, and advances by itself as you play. Everything is set in the game's options: type `/fg`, or open AddOns → Factoruide.
 
+## Screenshots
+
+![The full mode: the current steps, the next ones, the compass and the quest panel](https://raw.githubusercontent.com/brouznouf/factoruide/main/app/src/assets/home/game-full-mode.webp)
+*The full mode: the current steps, the next ones, the compass and the quest panel.*
+
+![The minimal mode: the current step and the next ones, under the compass](https://raw.githubusercontent.com/brouznouf/factoruide/main/app/src/assets/home/game-minimal-mode-next.webp)
+*The minimal mode: the current step and the next ones, nothing more.*
+
+![The addon's page in the game's options](https://raw.githubusercontent.com/brouznouf/factoruide/main/app/src/assets/home/game-options.webp)
+*Everything is set in the game's options (AddOns → Factoruide).*
+
+![The guide on the map in the Factoruide app](https://raw.githubusercontent.com/brouznouf/factoruide/main/app/src/assets/home/app-map.webp)
+*In the app: the guide on the map, replayed step by step with the character.*
+
 ## Features
 
 Each feature can be turned on or off in the options, so the addon does only what you want.

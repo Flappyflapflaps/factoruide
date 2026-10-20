@@ -19,6 +19,11 @@ Factoruide computes a leveling guide for your character: your class, professions
 - **Web app**: **Export my character** gives a text. Copy it and paste it in **New guide**.
 - **Advanced** page: what was recorded, debug messages, clear the recordings.
 
+## Screenshot
+
+![The addon's page in the game's options: export your character, the guides](https://raw.githubusercontent.com/brouznouf/factoruide/main/app/src/assets/home/game-options.webp)
+*In the game's options (AddOns → Factoruide): export your character for the app.*
+
 ## Good to know
 
 - Problems and ideas: https://github.com/brouznouf/factoruide/issues
