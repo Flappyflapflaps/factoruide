@@ -82,13 +82,13 @@ function XpPlan:Draw(bar, width)
         t:ClearAllPoints()
     end
     if not boxed then return end
-    -- 1 px lines, 2 px around the bar.
+    -- 1 px lines right around the bar.
     local track = bar.track
-    box.top:SetPoint("BOTTOMLEFT", track, "TOPLEFT", left - 1, 1)
-    box.top:SetPoint("BOTTOMRIGHT", track, "TOPLEFT", right + 1, 1)
+    box.top:SetPoint("BOTTOMLEFT", track, "TOPLEFT", left - 1, 0)
+    box.top:SetPoint("BOTTOMRIGHT", track, "TOPLEFT", right + 1, 0)
     box.top:SetHeight(1)
-    box.bottom:SetPoint("TOPLEFT", track, "BOTTOMLEFT", left - 1, -1)
-    box.bottom:SetPoint("TOPRIGHT", track, "BOTTOMLEFT", right + 1, -1)
+    box.bottom:SetPoint("TOPLEFT", track, "BOTTOMLEFT", left - 1, 0)
+    box.bottom:SetPoint("TOPRIGHT", track, "BOTTOMLEFT", right + 1, 0)
     box.bottom:SetHeight(1)
     box.left:SetPoint("TOPRIGHT", box.top, "TOPLEFT", 1, 0)
     box.left:SetPoint("BOTTOMRIGHT", box.bottom, "BOTTOMLEFT", 1, 0)
