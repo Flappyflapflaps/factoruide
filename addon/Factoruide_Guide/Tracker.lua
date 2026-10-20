@@ -284,8 +284,9 @@ end
 
 --- Where it was dragged; else under the full guide, or on the right with the minimal one.
 local function Place()
-    local point = FG.Guide and FG.Guide:State().trackerPoint
-    local key = point and "saved" or (Minimal() and "minimal" or "full")
+    local point = FG.Guide and FG.Guide:Layout().trackerPoint
+    local mode = Minimal() and "minimal" or "full"
+    local key = point and "saved " .. mode or mode
     if frame.placed == key then return end
     frame.placed = key
     frame:ClearAllPoints()
@@ -300,7 +301,7 @@ end
 
 --- Dropped near the bottom of the full guide's card: stuck to it again; else where it was dropped.
 local function Dropped(self)
-    local state = FG.Guide:State()
+    local state = FG.Guide:Layout()
     local card = FactoruideTodo
     local left, top = self:GetLeft(), self:GetTop()
     if not Minimal() and card and card:IsShown() and left and top and card:GetLeft() and card:GetBottom() then
@@ -313,7 +314,7 @@ local function Dropped(self)
         end
     end
     state.trackerPoint = FG.PinTopLeft(self) or state.trackerPoint
-    self.placed = "saved"
+    self.placed = "saved " .. (Minimal() and "minimal" or "full")
 end
 
 local function Create()

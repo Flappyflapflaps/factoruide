@@ -1482,6 +1482,26 @@ function Guide:Route() return route end
 --- Saved per-character guide state (also holds the tracker position).
 function Guide:State() return state end
 
+-- Kept apart for each mode (the card and the strip have their own places already).
+local LAYOUT = { "trackerPoint", "compassWidth", "compassScale" }
+
+--- The places and sizes of the windows shown in the current mode: moving one in a mode leaves
+--- the other mode as it was. Nil before the login.
+function Guide:Layout()
+    if not state then return nil end
+    local mode = FG:Get("guideMode") == "minimal" and "minimal" or "full"
+    if not state.layout then
+        -- Kept for both modes by older versions: they stay with the mode shown, the compass's place
+        -- (only used by the full guide) with the full one.
+        state.layout = { full = { compassPoint = state.compassPoint }, minimal = {} }
+        state.compassPoint = nil
+        for _, k in ipairs(LAYOUT) do
+            state.layout[mode][k], state[k] = state[k], nil
+        end
+    end
+    return state.layout[mode]
+end
+
 --- The steps of the current tasks (indexes in the route), none without a route.
 function Guide:CurrentSteps()
     if not route or not state or not route.steps[state.step] then return nil end

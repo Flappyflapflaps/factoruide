@@ -216,8 +216,8 @@ local function MakeWay()
     return m
 end
 
--- Its place, width and size, kept for the character (nil before the login).
-local function Saved() return FG.Guide and FG.Guide:State() end
+-- Its place, width and size, kept for the character and the guide's mode (nil before the login).
+local function Saved() return FG.Guide and FG.Guide:Layout() end
 
 local function SavePoint(self)
     local state = Saved()
@@ -712,6 +712,7 @@ function Compass:Attach(strip)
     attached = strip
     f:ClearAllPoints()
     f:SetPoint("BOTTOM", strip, "TOP", 0, 4)
+    Compass:Resize()
 end
 
 --- At its own place (the full guide): where it was dragged, else the top of the screen.
@@ -722,6 +723,14 @@ function Compass:Free()
     f:ClearAllPoints()
     local state = Saved()
     f:SetPoint(unpack(state and state.compassPoint or { "TOP", UIParent, "TOP", 0, -14 }))
+    Compass:Resize()
+end
+
+--- At the width and size kept for the guide's mode.
+function Compass:Resize()
+    local state = Saved()
+    Layout(state and state.compassWidth or WIDTH_DEFAULT)
+    frame:SetScale(Scale())
 end
 
 --- Back at the top of the screen, at its first width and size.

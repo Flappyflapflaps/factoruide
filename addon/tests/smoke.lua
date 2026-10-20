@@ -2537,10 +2537,10 @@ local trackerLine = childOf(tracker, function(f) return rawget(f, "track") ~= ni
 assert(trackerLine, "the quest panel's lines pass drags on")
 local secureItem = named("FactoruideItemButton1")
 assert(not secureItem or not rawget(secureItem, "OnDragStart"), "secure quest item buttons left alone")
-FG.Guide:State().trackerPoint = nil
+FG.Guide:Layout().trackerPoint = nil
 drag(trackerLine)
 assert(trackerMoves.moves == 1, "dragging a quest line moves the quest panel")
-assert(FG.Guide:State().trackerPoint and FG.Guide:State().trackerPoint[4] == 120, "the quest panel's place saved")
+assert(FG.Guide:Layout().trackerPoint and FG.Guide:Layout().trackerPoint[4] == 120, "the quest panel's place saved")
 tracker.IsProtected = function() return true end
 InCombatLockdown = function() return true end
 drag(trackerLine)
@@ -2549,7 +2549,7 @@ InCombatLockdown = function() return false end
 drag(trackerLine)
 assert(trackerMoves.moves == 2, "it moves again after the fight")
 tracker.IsProtected = nil
-FG.Guide:State().trackerPoint = nil
+FG.Guide:Layout().trackerPoint = nil
 tracker.placed = nil
 FG.Tracker:Refresh()
 
@@ -2577,9 +2577,9 @@ assert(stripMoves.moves == 2 and compassMoves.moves == 0, "the compass over the 
 Press("mode")
 drag(compass)
 assert(compassMoves.moves == 1, "on its own, the compass moves itself")
-local compassPoint = FG.Guide:State().compassPoint
+local compassPoint = FG.Guide:Layout().compassPoint
 assert(compassPoint and compassPoint[4] == 120, "the compass's place saved")
-FG.Guide:State().compassPoint, FG.Guide:State().miniPoint = nil, nil
+FG.Guide:Layout().compassPoint, FG.Guide:State().miniPoint = nil, nil
 FG.Guide.PointToStep = realPointToStep
 GetTime = realDragTime
 print("drag anywhere ok")
@@ -2588,7 +2588,7 @@ print("drag anywhere ok")
 -- kept for the character; a hint on the bar says how; "Compass back to the top" puts it
 -- back; "Lock the windows" locks the windows.
 do
-    local state = FG.Guide:State()
+    local state = FG.Guide:Layout()
     compass.GetEffectiveScale = function() return 1 end
     compass.GetCenter = function() return 500, 700 end
     compass.SetWidth = function(self, w) self.width = w end
@@ -2665,9 +2665,39 @@ do
     assert(compass.width == 420 and math.abs(compass.scale - windows) < 1e-9, "reset: its first width and size")
     p = compass.points[1]
     assert(p and p[1] == "TOP" and p[5] == -14, "reset: at the top of the screen")
+
+    -- Each mode keeps its own: widened in the full guide, the compass over the strip is not.
+    widen(right, 50)
+    assert(compass.width == 520, "full guide: widened")
+    Press("mode")
+    assert(compass.width == 420 and FG.Guide:Layout().compassWidth == nil, "minimal guide: its own width")
+    widen(right, -50)
+    assert(compass.width == 320 and FG.Guide:Layout().compassWidth == 320, "minimal guide: narrowed")
+    Press("mode")
+    assert(compass.width == 520 and state.compassWidth == 520, "full guide: its width back")
+    Press("compassReset")
     GetCursorPosition = realCursor
 end
 print("compass layout ok")
+
+-- Places kept for both modes by older versions: the compass's with the full guide, the others with
+-- the mode shown.
+do
+    local guide = FG.Guide:State()
+    local saved = guide.layout
+    guide.layout = nil
+    guide.trackerPoint = { "TOPLEFT", "UIParent", "TOPLEFT", 10, -10 }
+    guide.compassWidth, guide.compassPoint = 300, { "TOP", "UIParent", "TOP", 0, -30 }
+    FG:Save("guideMode", "minimal")
+    local minimal = FG.Guide:Layout()
+    assert(minimal.trackerPoint[4] == 10 and minimal.compassWidth == 300, "old places: the mode shown")
+    assert(guide.layout.full.compassPoint[5] == -30, "old compass place: the full guide's")
+    assert(guide.trackerPoint == nil and guide.compassWidth == nil and guide.compassPoint == nil, "moved once")
+    FG:Save("guideMode", nil)
+    assert(FG.Guide:Layout().trackerPoint == nil, "the full guide's panel at its first place")
+    guide.layout = saved
+end
+print("layout per mode ok")
 
 -- "Hide the addon's windows" (`/fg`) hides every window and mark of the addon at once (one parent
 -- frame), for the session; clicked again it brings them back as they were. Progress and settings
