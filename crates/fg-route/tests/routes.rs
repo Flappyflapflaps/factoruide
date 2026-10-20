@@ -1415,6 +1415,22 @@ fn outleveled_dungeon_gives_no_mob_xp() {
     assert_eq!(spent.mob_xp, 0);
 }
 
+/// A run for none of the guide's quests past the dungeon's levels is not asked for (Ragefire
+/// Chasm at level 27, its quests gone), unless the player asked for that dungeon.
+#[test]
+fn outleveled_dungeon_run_without_quests_is_dropped() {
+    let mut p = prepare("human", "warrior", 30, &["progression=cautious"]);
+    (p.profile.from_level, p.profile.to_level) = (32, 40);
+    let deadmines = p.model.dungeons.iter().position(|d| d.name == "The Deadmines").unwrap();
+    let run = Stop {
+        index: deadmines as u32,
+        kind: Kind::Dungeon,
+    };
+    assert_eq!(planner(&p).drop_idle_runs(&[run]), Some(vec![]));
+    p.params.forced_dungeons = vec![p.model.dungeons[deadmines].area];
+    assert_eq!(planner(&p).drop_idle_runs(&[run]), None);
+}
+
 /// Where an entity of the model stands, as the addon records it.
 fn map_pos(p: &Prepared, pos: &fg_route::world::Pos, zone: i64) -> MapPos {
     let m = p.world.to_map(zone, pos).unwrap();

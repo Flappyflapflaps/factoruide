@@ -54,6 +54,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - Polestar guides collect an item a quest only uses (Sunscale Feather) without counting it as one of its objectives, and count the others in the game's order.
 - Hunters' Taming the Beast quests say to tame the beast, once, instead of killing eight.
 - Quests started by an item a rare creature drops (The Collector) are no longer planned as killing that rare: its common droppers at their own chance, or the quest is left out.
+- A dungeon is no longer run for none of the guide's quests once you are past its levels (Ragefire Chasm at level 27).
 
 ## 0.13.0 (2026-10-18)
 
