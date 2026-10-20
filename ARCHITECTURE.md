@@ -42,7 +42,8 @@ level:
 - **XP**: quest XP with the level penalty, mob XP with the classic formula (`5 × level + 45`,
   adjusted by the level difference). Level-ups change everything that follows: which quests are
   worth it, how fast mobs die, how much XP they give.
-- **On the way**: class training when the new spells are worth it, flight paths picked up nearby,
+- **On the way**: class training when the new spells are worth it, the loot sold at a vendor nearby
+  once the bags are half full, flight paths picked up nearby,
   dungeon runs, the normal mobs met on foot (`farm_on_way`, mobs near the character's level, up to
   `farm_cap` of each level: 20% on Classic and TBC, 10% on Forever, which has more quests).
   `farm_share` (80%) of the mobs met are killed, fewer on a crowded server (the other players
@@ -164,6 +165,7 @@ stays the real one.
 | Farming on the way: the same weight | 1.5 | Mobs killed while walking are grinding too, only cheaper (no trip): weighed the same so that they never win over a quest. |
 | Grinding beyond the cap: (`grind_over_weight` − `grind_weight`) × its time | 4, cap `grind_cap` 10% of each level's XP | Grinding is allowed but limited: past a tenth of a level, quests first whenever there are any. With the cap and farming on the way (`farm_cap`, its own 10%), a 1-60 route went from about 26 h of pure grinding to under 7 h, and was faster overall. |
 | Gold spent on flights: `gold_weight` × gold, divided by (level / 30)³ above level 30 | 3600 s per gold up to level 30, 1520 at 40, 450 at 60 | Flights cost money a leveling character lacks, above all from 10 to 30, when the trainers take most of it: an hour per gold makes such a route walk or reorder when a flight saves only minutes. Above 30, quests and loot pay more and more, so the same gold is fewer minutes of questing: a 10 silver flight weighs 6 minutes up to 30, 2.5 at 40, under 1 at 60. `flight_weight` (1) is left at the flight's real time: raising it only turned flights into walks. |
+| Loot left behind with full bags: `bag_weight` per item | 20 s | The bags hold few slots at first, more as bags get bigger (`bag_slots`: 20 at level 1, 72 at 60); a kill's loot takes `loot_per_kill` (0.35) slots and each quest item one until its turn-in. Loot that no longer fits is money and time lost: routes by vendors, where it is sold once the bags are half full (`sell_radius`), keep room without any visit forced. |
 | Changing zone: `zone_change_weight` per change | 240 s | Finding one's way and the NPCs of another zone: a few quests far away are not worth a detour. |
 | Quest taken and given up: `abandon_weight` each | 600 s | Taking a quest, killing for one of its objectives and dropping it hours later is grinding in disguise. Finishing it or leaving it out wins unless keeping it saves more than ten minutes. |
 | Time outside the preferred zones: `preferred_zone_weight` × its time | 0.5 | Only with preferred zones: the guide stays in them unless leaving saves a lot. |

@@ -227,6 +227,13 @@ pub struct Params {
     /// `train_trip_gain`.
     pub train_min_gain: f64,
     pub train_trip_gain: f64,
+    /// Bags (`bag_slots`): a kill's loot takes `loot_per_kill` slots until sold, each item that
+    /// no longer fits costs `bag_weight` seconds (0 = the bags are not counted). A vendor within
+    /// `sell_radius` is visited on the way once the loot fills half the room, `sell_time` there.
+    pub bag_weight: f64,
+    pub loot_per_kill: f64,
+    pub sell_radius: f64,
+    pub sell_time: f64,
     /// Character power (see `power`): the floor gear the character has anyway, as a share of
     /// the typical uncommon item of its level; a scale on the levels gear and spells add or
     /// take (0 = power is the level); the share of a dungeon's loot the character wins; how
@@ -414,6 +421,10 @@ impl Default for Params {
             teleport_cast: 10.0,
             train_every: 2,
             train_radius: 300.0,
+            bag_weight: 20.0,
+            loot_per_kill: 0.35,
+            sell_radius: 150.0,
+            sell_time: 15.0,
             train_max_delay: 1,
             train_time: 30.0,
             train_min_gain: 0.03,
@@ -463,6 +474,28 @@ impl Default for Params {
 /// it); above, a gold piece weighs less, as the cube of the level (quests and loot pay more and
 /// more, flights are no longer a worry).
 pub const GOLD_WEIGHT_LEVEL: f64 = 30.0;
+
+/// Bag slots at each level (backpack and bags), between these points: few at the start, bags
+/// bought and dropped bigger and more of them later.
+const BAG_SLOTS: [(i64, f64); 7] = [
+    (1, 20.0),
+    (10, 28.0),
+    (20, 40.0),
+    (30, 48.0),
+    (40, 56.0),
+    (50, 64.0),
+    (60, 72.0),
+];
+
+/// The bag slots a character of `level` has (`BAG_SLOTS`).
+pub fn bag_slots(level: i64) -> f64 {
+    let at = BAG_SLOTS.partition_point(|&(l, _)| l <= level);
+    match (at.checked_sub(1).map(|k| BAG_SLOTS[k]), BAG_SLOTS.get(at)) {
+        (Some((l0, s0)), Some(&(l1, s1))) => s0 + (s1 - s0) * (level - l0) as f64 / (l1 - l0) as f64,
+        (Some((_, s)), None) | (None, Some(&(_, s))) => s,
+        (None, None) => 0.0,
+    }
+}
 
 impl Params {
     /// Seconds a gold piece spent on flights weighs at `level` (see `gold_weight`): an hour up to

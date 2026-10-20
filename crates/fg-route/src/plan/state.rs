@@ -102,6 +102,10 @@ pub enum Event {
         trainer: usize,
         since: i64,
     },
+    /// The bags' loot sold at a vendor (`Model::vendors`).
+    Sell {
+        vendor: usize,
+    },
     /// Quest reward picked among the choices (item ID).
     Reward {
         quest: usize,
@@ -221,6 +225,9 @@ pub(crate) struct State {
     /// Common loot in the bags (`Model::loot`), gathered by the kills so far, less what
     /// objectives took.
     pub(crate) stock: Vec<f32>,
+    /// Bag slots the loot to sell takes, and those the quests' items take (`Params::bag_weight`).
+    pub(crate) bags: f32,
+    pub(crate) held: u16,
     pub(crate) known: u128,
     pub(crate) bind: usize,
     pub(crate) hearth_ready: f64,
@@ -355,6 +362,10 @@ pub struct Breakdown {
     /// (`Params::gold_weight_at`), in seconds.
     #[serde(skip)]
     pub flight_gold: f64,
+    /// What the loot left behind with full bags weighs for the optimizer
+    /// (`Params::bag_weight`), in seconds.
+    #[serde(skip)]
+    pub bag_overflow: f64,
     /// Forced dungeons the route does not run.
     #[serde(default)]
     pub missing_dungeons: u32,

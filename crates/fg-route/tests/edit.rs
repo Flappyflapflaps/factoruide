@@ -131,6 +131,7 @@ fn every_thing_done_is_a_step_of_its_own() {
             RouteStep::Link { .. } => StepKind::Link,
             RouteStep::Teleport { .. } => StepKind::Teleport,
             RouteStep::Train { .. } => StepKind::Train,
+            RouteStep::Sell { .. } => StepKind::Sell,
             RouteStep::Dungeon { .. } => StepKind::Dungeon,
             RouteStep::Abandon { .. } => StepKind::Abandon,
             RouteStep::Grind { .. } | RouteStep::GrindTo { .. } => StepKind::Grind,

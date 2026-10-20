@@ -356,7 +356,7 @@ impl Planner<'_> {
             self.go(s, &loc.pos, loc.zone, record);
             s.time += self.params.stop_overhead;
             s.spent.overhead += self.params.stop_overhead;
-            if Self::timed(stop.kind) && Self::failed_in_time(s, stop.index, record) {
+            if Self::timed(stop.kind) && self.failed_in_time(s, stop.index, record) {
                 continue;
             }
             let picked = if stop.kind == Kind::Accept {

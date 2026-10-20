@@ -338,7 +338,7 @@ fn goals(step: &Step) -> Vec<Goal> {
                 .num("direct", true),
         ),
         StepKind::Objective if step.quest.is_some() => objective(step, target, quest),
-        StepKind::Bind => match target {
+        StepKind::Bind | StepKind::Sell => match target {
             Some(t) if t.kind == TargetKind::Npc => Goal::new("talk", at)
                 .num("npc", t.id)
                 .str("npcName", name_or(&t.name, step)),

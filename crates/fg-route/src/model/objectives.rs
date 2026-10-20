@@ -72,6 +72,7 @@ impl Objective {
             spots: None,
             guard: Guard::default(),
             beside_giver: false,
+            item: false,
             alts: vec![],
             after: 0,
             handed_by: vec![],
@@ -317,7 +318,9 @@ impl QuestBuilder<'_> {
                 .map(Some),
             ObjectiveKind::Object => self.use_at(quest, EntityKind::Object, target, text, amount).map(Some),
             ObjectiveKind::Talk => self.use_at(quest, EntityKind::Npc, target, text, amount).map(Some),
-            ObjectiveKind::Item => self.get_item(quest, target, text, amount),
+            ObjectiveKind::Item => Ok(self
+                .get_item(quest, target, text, amount)?
+                .map(|o| Objective { item: true, ..o })),
             ObjectiveKind::Trigger => self.explore(quest, text, extra.as_deref()).map(Some),
             ObjectiveKind::Other => Err("reputation/spell objective"),
         }

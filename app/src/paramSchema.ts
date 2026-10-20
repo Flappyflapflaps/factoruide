@@ -123,6 +123,15 @@ export const sections: Section[] = [
     ],
   },
   {
+    title: "Sacs",
+    fields: [
+      { key: "bag_weight", kind: "number", label: "Coût d'un objet perdu, sacs pleins", help: "Temps que coûte chaque objet laissé faute de place dans les sacs (0 = les sacs ne comptent pas) : le guide passe par les vendeurs pour garder de la place.", unit: "s", min: 0, max: 120, step: 5 },
+      { key: "loot_per_kill", kind: "number", label: "Place prise par le butin d'un mob", help: "Cases de sac que prend en moyenne le butin d'un mob tué, jusqu'à la vente. Les sacs grandissent avec le niveau, les objets de quête y prennent aussi leur place.", min: 0, max: 2, step: 0.05 },
+      { key: "sell_radius", kind: "number", label: "Vendeur pris au passage s'il est à moins de", help: "Un vendeur plus proche que cette distance de la route est visité quand le butin remplit la moitié de la place.", unit: "m", min: 0, max: 1000, step: 25 },
+      { key: "sell_time", kind: "number", label: "Temps chez le vendeur", help: "Temps passé à vendre le butin.", unit: "s", min: 0, max: 120, step: 5 },
+    ],
+  },
+  {
     title: "Modèle",
     expert: true,
     help: "Valeurs utilisées quand les données du jeu ne disent rien.",

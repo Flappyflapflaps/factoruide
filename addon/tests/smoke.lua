@@ -1416,7 +1416,7 @@ C_QuestLog.IsComplete = isComplete
 onQuest[9301] = nil
 print("objectives loading ok")
 
--- XP bar mark: where the guide expects the character before the step shown, and the gap.
+-- XP plan: where the guide expects the character before the step shown and after its tasks.
 FG.Routes["xp-test"] = {
     race = 7,
     class = 8,
@@ -1449,6 +1449,35 @@ share, from = FG.XpPlan:Shares()
 assert(from == 1, "two levels behind: the planned mark at the bar's end")
 UnitXP, UnitXPMax, playerLevel = unitXP, unitXPMax, 3
 print("xp plan ok")
+
+-- A sell step is done once a merchant's window opens while it is shown.
+FG.Routes["sell-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        {
+            k = "sell",
+            t = "Sell your loot to Tharynn Bouden",
+            e = "npc",
+            id = 66,
+            m = 1429,
+            x = 41.9,
+            y = 67.1,
+            lvl = 3,
+        },
+        { k = "accept", t = "Accept C", q = 8003, lvl = 3 },
+    },
+}
+useRoute("sell-test")
+assert(char.guide.step == 1, "on the sell step")
+fire("MERCHANT_SHOW")
+FG.Guide:Advance()
+assert(char.guide.step == 2, "sold: step " .. char.guide.step)
+print("sell step ok")
 
 -- A dungeon run followed by its quests is done on entering the dungeon, then each quest step as
 -- the quest progresses; without them (guides made before), once back out of the dungeon.

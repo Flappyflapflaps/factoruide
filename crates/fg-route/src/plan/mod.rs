@@ -72,7 +72,7 @@ pub(crate) use state::State;
 use state::{Flags, Landed, Planned};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use step::{CampIndex, camp_index};
+use step::{CampIndex, VendorIndex, camp_index, vendor_index};
 use travel::{FlightTables, Legs, Trips};
 use worth::Worth;
 
@@ -111,6 +111,8 @@ pub struct Planner<'a> {
     /// Quest givers and turn-in NPCs by cell of `camp_radius` (continent, x, y): (quest,
     /// index in its starts or ends, giver?).
     camp: CampIndex,
+    /// Vendors by cell of `sell_radius` (continent, x, y).
+    vendors: VendorIndex,
     /// Quests each quest blocks once taken: those exclusive with it, the breadcrumbs to it.
     blocks: Vec<Vec<u32>>,
     /// The reverse: quests whose taking blocks each quest.
@@ -167,6 +169,7 @@ impl<'a> Planner<'a> {
             zone_changes: RefCell::new(Vec::new()),
             mode: Mode::Plan,
             camp: camp_index(model, params.camp_radius),
+            vendors: vendor_index(model, params.sell_radius),
             blocks,
             blocked_by,
             followers: followers(model),
@@ -268,6 +271,8 @@ impl<'a> Planner<'a> {
             xp: init.xp.min(self.rules().to_next_level(level) - 1).max(0),
             rested: init.rested,
             stock: vec![0.0; self.model.loot.items.len()],
+            bags: 0.0,
+            held: 0,
             known: init.known,
             bind: init.bind.unwrap_or(self.model.start_inn),
             hearth_ready: 0.0,
@@ -311,8 +316,9 @@ impl<'a> Planner<'a> {
             if !s.turned[i] {
                 s.accepted.set(i, true);
                 s.log += 1;
+                s.held += u16::from(self.model.quests[i].carried);
                 for &(_, k, _) in init.progress.iter().filter(|p| p.0 == i && p.2 >= 1.0) {
-                    s.objectives[i] |= 1 << k;
+                    self.hold(&mut s, i, k);
                 }
             }
         }
@@ -343,7 +349,7 @@ impl<'a> Planner<'a> {
     pub(crate) fn start_state(&self, planned: Rc<Planned>) -> State {
         let mut s = self.initial_state();
         for i in self.left_at_start(&planned) {
-            Self::abandon(&mut s, i as u32, &mut |_, _| {});
+            self.abandon(&mut s, i as u32, &mut |_, _| {});
         }
         s.planned = planned;
         s

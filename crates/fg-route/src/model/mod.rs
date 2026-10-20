@@ -48,7 +48,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
     chains::drop_unhanded(&mut quests, &mut skipped);
     report_skipped_class_quests(&sources, &skipped);
     let loot = CommonLoot::load(conn, &mut quests)?;
-    let places = Places::load(conn, world, &sources.entities, profile, &sources.start)?;
+    let places = Places::load(conn, world, &sources.entities, profile, &sources.start, params.edition)?;
     chains::narrow_class_quests_to_spells(&mut quests);
     chains::require_prerequisites(&mut quests);
     chains::release_impossible_class_quests(&mut quests);
@@ -89,6 +89,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         chain_top,
         trainers: places.trainers,
         inns: places.inns,
+        vendors: places.vendors,
         start_inn: places.start_inn,
         teleports,
         recall: places.recall,

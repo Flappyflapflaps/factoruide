@@ -46,6 +46,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - A trip can fly to a port before a boat, or fly on from where it lands; flight paths are picked up the first time the route passes near them (GitHub #37).
 - Gold spent on flights counts most up to level 30, when the trainers take most of it, and much less after (GitHub #37).
 - Mount Hyjal's flight paths are no longer picked up: the mountain is reached only through Winterspring (GitHub #37).
+- Guides keep room in your bags: they count the loot and quest items you carry, with more room as you level, and sell at a vendor on the way when the bags fill up (a step that ticks when the merchant opens).
 
 ## 0.13.0 (2026-10-18)
 

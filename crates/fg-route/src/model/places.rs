@@ -10,6 +10,7 @@ use rusqlite::Connection;
 pub(super) struct Places {
     pub(super) trainers: Vec<Loc>,
     pub(super) inns: Vec<Loc>,
+    pub(super) vendors: Vec<Loc>,
     /// Where the hearthstone of a new character takes it: its starting place (not an inn, it
     /// cannot be bound there).
     pub(super) start_inn: usize,
@@ -24,6 +25,7 @@ impl Places {
         entities: &Entities,
         profile: &Profile,
         start: &Loc,
+        edition: crate::xp::Edition,
     ) -> Result<Self> {
         let finder = NpcFinder {
             conn,
@@ -37,6 +39,8 @@ impl Places {
         inns.push(start.clone());
         let start_inn = inns.len() - 1;
         let trainers = finder.with_subname(&format!("{} Trainer", profile.class_name))?;
+        // The vendor flag of the client the data was read from (1.12 for Classic and Forever).
+        let vendors = finder.with_flag(if edition == crate::xp::Edition::Tbc { 128 } else { 4 })?;
         let spells = class_spells(conn, profile.class_id)?;
         // Where a teleport lands: the class trainer of that city, else its inn (the character's
         // capitals only: the others have none friendly to it).
@@ -68,6 +72,7 @@ impl Places {
         Ok(Self {
             trainers,
             inns,
+            vendors,
             start_inn,
             teleports,
             recall,
@@ -148,6 +153,25 @@ impl NpcFinder<'_> {
         )?;
         let ids: Vec<i64> = stmt
             .query_map(rusqlite::params![subname, self.faction], |r| r.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(ids.into_iter().filter_map(|id| self.place(id)).collect())
+    }
+
+    /// NPCs with an NPC flag (`npc_flags`) friendly to the character; none without the column.
+    fn with_flag(&self, flag: i64) -> Result<Vec<Loc>> {
+        let known: bool = self.conn.query_row(
+            "SELECT count(*) > 0 FROM pragma_table_info('m_npc') WHERE name = 'npc_flags'",
+            [],
+            |r| r.get(0),
+        )?;
+        if !known {
+            return Ok(Vec::new());
+        }
+        let mut stmt = self.conn.prepare(
+            "SELECT id FROM m_npc WHERE (npc_flags & ?1) != 0 AND (friendly_to IS NULL OR instr(friendly_to, ?2) > 0)",
+        )?;
+        let ids: Vec<i64> = stmt
+            .query_map(rusqlite::params![flag, self.faction], |r| r.get(0))?
             .collect::<rusqlite::Result<_>>()?;
         Ok(ids.into_iter().filter_map(|id| self.place(id)).collect())
     }

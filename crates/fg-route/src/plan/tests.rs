@@ -68,6 +68,7 @@ pub(crate) fn quests_at_start(n: usize) -> Prepared {
     p.model.initial = Initial::default();
     p.model.power = None;
     p.model.trainers.clear();
+    p.model.vendors.clear();
     p.model.explore.clear();
     p.model.explore_by_zone.clear();
     (p.params.camp_radius, p.params.farm_on_way, p.params.flight_learn_radius) = (0.0, false, 0.0);
@@ -133,6 +134,7 @@ fn quests_at_hand_are_looked_for_where_the_stop_went() {
         spots: None,
         guard: Guard::default(),
         beside_giver: false,
+        item: false,
         alts: vec![],
         after: 0,
         handed_by: vec![],
@@ -193,6 +195,7 @@ fn objective_started_counts_its_share_at_another_place() {
         spots: None,
         guard: Guard::default(),
         beside_giver: false,
+        item: false,
         alts: vec![],
         after: 0,
         handed_by: vec![],
@@ -263,6 +266,7 @@ fn camp_of_two_objectives() -> Prepared {
         spots: None,
         guard: Guard::default(),
         beside_giver: false,
+        item: false,
         alts: vec![],
         after: 0,
         handed_by: vec![],
@@ -394,6 +398,7 @@ fn road_of_mobs() -> (Prepared, crate::world::Pos, crate::world::Pos) {
         spots: None,
         guard: Guard::default(),
         beside_giver: false,
+        item: false,
         alts: vec![],
         after: 0,
         handed_by: vec![],
@@ -501,6 +506,7 @@ fn greedy_grinds_to_the_mobs_of_a_quest_in_reach() {
         spots: None,
         guard: Guard::default(),
         beside_giver: false,
+        item: false,
         alts: vec![],
         after: 0,
         handed_by: vec![],
@@ -549,4 +555,66 @@ fn trips_fly_to_a_boat_and_from_it() {
         matches!(leg, Leg::LinkFly(k, l, f, t) if (k, l, f, t) == (back, back, menethil, ironforge)),
         "{leg:?}"
     );
+}
+
+/// A kill's loot fills the bags (`Params::loot_per_kill`) up to the room a level 1 character
+/// has; what no longer fits costs `bag_weight` a slot, and quest items take room too.
+#[test]
+fn loot_fills_the_bags_and_what_no_longer_fits_costs() {
+    let p = quests_at_start(1);
+    let planner = planner(&p);
+    let mut s = planner.initial_state();
+    let (room, each) = (crate::params::bag_slots(1), p.params.loot_per_kill);
+    planner.growth().fill_bags(&mut s, room / each / 2.0);
+    assert!((f64::from(s.bags) - room / 2.0).abs() < 1e-3, "half full: {}", s.bags);
+    assert!(s.spent.bag_overflow.abs() < 1e-9, "all of it fits");
+    s.held = 2;
+    planner.growth().fill_bags(&mut s, room / each);
+    assert!(
+        (f64::from(s.bags) - (room - 2.0)).abs() < 1e-3,
+        "full but the quest items: {}",
+        s.bags
+    );
+    let lost = room / 2.0 + 2.0;
+    assert!(
+        (s.spent.bag_overflow - lost * p.params.bag_weight).abs() < 1e-3,
+        "{}",
+        s.spent.bag_overflow
+    );
+}
+
+/// An item given on accepting takes a slot until the turn-in.
+#[test]
+fn quest_items_take_a_slot_until_the_turn_in() {
+    let mut p = quests_at_start(1);
+    p.model.quests[0].carried = true;
+    let planner = planner(&p);
+    let mut s = planner.initial_state();
+    planner.accept(&mut s, 0);
+    assert_eq!(s.held, 1);
+    planner.turn_in(&mut s, 0);
+    assert_eq!(s.held, 0);
+}
+
+/// Bags half full by a vendor: the loot is sold there, a step of the guide; nearly empty, no.
+#[test]
+fn a_vendor_on_the_way_empties_half_full_bags() {
+    let mut p = quests_at_start(1);
+    let mut vendor = p.model.start.clone();
+    vendor.pos.x += 30.0;
+    p.model.vendors = vec![vendor];
+    let planner = planner(&p);
+    let mut s = planner.initial_state();
+    let mut events = Vec::new();
+    s.bags = 2.0;
+    planner.sell(&mut s, &mut |_, e| events.push(e));
+    assert!(events.is_empty() && s.bags > 0.0, "not worth a stop yet");
+    s.bags = (crate::params::bag_slots(1) * 0.6) as f32;
+    let before = s.time;
+    planner.sell(&mut s, &mut |_, e| events.push(e));
+    assert!(
+        matches!(events[..], [super::state::Event::Sell { vendor: 0 }]),
+        "{events:?}"
+    );
+    assert!(s.bags == 0.0 && s.time >= before + p.params.sell_time);
 }

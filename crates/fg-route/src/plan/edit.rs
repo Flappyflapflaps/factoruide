@@ -21,6 +21,8 @@ pub enum Edit {
     Teleport { to: usize },
     /// Learn the class spells at a trainer (`Model::trainers`).
     Train { trainer: usize },
+    /// Sell the bags' loot at a vendor (`Model::vendors`).
+    Sell { vendor: usize },
     /// Give up a quest of the log.
     Abandon { quest: u32 },
     /// Kill this many mobs of the character's level where it stands.
@@ -162,10 +164,11 @@ impl Planner<'_> {
                     Edit::Link { first, last } => self.edit_link(&mut s, first, last, &mut trace),
                     Edit::Teleport { to } => self.edit_teleport(&mut s, to, &mut trace),
                     Edit::Train { trainer } => self.edit_train(&mut s, trainer, &mut trace),
+                    Edit::Sell { vendor } => self.edit_sell(&mut s, vendor, &mut trace),
                     Edit::Abandon { quest } => {
                         let i = quest as usize;
                         if s.accepted[i] && !s.turned[i] {
-                            Self::abandon(&mut s, quest, &mut recorder(&mut Some(&mut trace)));
+                            self.abandon(&mut s, quest, &mut recorder(&mut Some(&mut trace)));
                             Outcome::Done
                         } else {
                             Outcome::Invalid("quest not in the log")
@@ -427,6 +430,20 @@ impl Planner<'_> {
         Outcome::Done
     }
 
+    fn edit_sell(&self, s: &mut State, vendor: usize, trace: &mut Vec<Timed>) -> Outcome {
+        if vendor >= self.model.vendors.len() {
+            return Outcome::Invalid("unknown vendor");
+        }
+        let (saved, mark) = (s.clone(), trace.len());
+        self.sell_at(s, vendor, &mut recorder(&mut Some(&mut *trace)));
+        if !s.time.is_finite() {
+            *s = saved;
+            trace.truncate(mark);
+            return Outcome::Invalid("unreachable");
+        }
+        Outcome::Done
+    }
+
     /// The same route with each thing the simulation did by itself (a trip's flights, boats and
     /// teleports, training, flight paths learned in passing, quests given up, grinding) as a step
     /// of its own: what the explicit planner replays the same.
@@ -473,6 +490,7 @@ impl Planner<'_> {
                     Event::Link { first, last } => Edit::Link { first, last },
                     Event::Teleport { to } => Edit::Teleport { to },
                     Event::Train { trainer, .. } => Edit::Train { trainer },
+                    Event::Sell { vendor } => Edit::Sell { vendor },
                     Event::Abandon { quest } => Edit::Abandon { quest: quest as u32 },
                     Event::Grind { to_level, .. } => Edit::GrindTo { level: to_level },
                     Event::GrindMobs { mobs, .. } => Edit::Grind { mobs },
@@ -522,6 +540,7 @@ fn is_own(edit: Edit, event: &Event) -> bool {
         (Edit::Link { first, last }, Event::Link { first: a, last: b }) => (first, last) == (*a, *b),
         (Edit::Teleport { to }, Event::Teleport { to: done }) => to == *done,
         (Edit::Train { trainer }, Event::Train { trainer: done, .. }) => trainer == *done,
+        (Edit::Sell { vendor }, Event::Sell { vendor: done }) => vendor == *done,
         (Edit::Abandon { quest }, Event::Abandon { quest: done }) => quest as usize == *done,
         (Edit::Grind { .. }, Event::GrindMobs { .. }) | (Edit::GrindTo { .. }, Event::Grind { .. }) => true,
         _ => false,

@@ -69,6 +69,10 @@ pub enum RouteStep {
     Train {
         trainer: i64,
     },
+    /// Sell the bags' loot at a vendor (its NPC ID).
+    Sell {
+        vendor: i64,
+    },
     /// Give up a quest of the log.
     Abandon {
         quest: i64,
@@ -153,6 +157,9 @@ impl RouteStep {
             },
             Edit::Train { trainer } => Self::Train {
                 trainer: model.trainers[trainer].id,
+            },
+            Edit::Sell { vendor } => Self::Sell {
+                vendor: model.vendors[vendor].id,
             },
             Edit::Abandon { quest } => Self::Abandon {
                 quest: model.quests[quest as usize].id,
@@ -247,6 +254,13 @@ impl RouteStep {
                     .iter()
                     .position(|t| t.id == trainer)
                     .ok_or("unknown trainer")?,
+            },
+            Self::Sell { vendor } => Edit::Sell {
+                vendor: model
+                    .vendors
+                    .iter()
+                    .position(|v| v.id == vendor)
+                    .ok_or("unknown vendor")?,
             },
             Self::Abandon { quest: id } => Edit::Abandon { quest: quest(id)? },
             Self::Grind { mobs } => Edit::Grind { mobs },

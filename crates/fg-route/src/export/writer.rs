@@ -85,6 +85,7 @@ impl StepWriter<'_> {
             Event::Hearth { inn, recall } => self.hearth(&mut step, *inn, *recall),
             Event::Teleport { to } => self.teleport(&mut step, *to),
             Event::Train { trainer, since } => self.train(&mut step, *trainer, *since, t.level),
+            Event::Sell { vendor } => self.sell(&mut step, *vendor),
             Event::Stop { stop, loc } if !stop.is_quest() => self.visit(&mut step, *stop, loc),
             Event::Stop { stop, loc } => self.quest_stop(&mut step, *stop, loc),
         };
@@ -585,6 +586,20 @@ impl StepWriter<'_> {
         step.say
             .push(Phrase::new("teleport").arg("zone", self.zone(tp.to.zone)));
         self.place(&tp.to.pos, Some(tp.to.zone))
+    }
+
+    /// The bags' loot sold at a vendor.
+    fn sell(&self, step: &mut Step, vendor: usize) -> Place {
+        let npc = &self.planner.model.vendors[vendor];
+        step.kind = StepKind::Sell;
+        step.say
+            .push(Phrase::new("sell").arg("who", Arg::Npc(npc.id, npc.name.clone())));
+        step.target = Some(Target {
+            kind: TargetKind::Npc,
+            id: npc.id,
+            name: npc.name.clone(),
+        });
+        self.place(&npc.pos, Some(npc.zone))
     }
 
     /// Class training: the spells learned since the last visit.

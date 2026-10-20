@@ -60,6 +60,7 @@ export const KINDS: Record<RouteStep["kind"], { css: string; label: string }> = 
   link: { css: "link", label: "Transport" },
   teleport: { css: "teleport", label: "Téléportation" },
   train: { css: "train", label: "Entraîneur" },
+  sell: { css: "train", label: "Vendeur" },
   abandon: { css: "abandon", label: "Abandonner" },
   grind: { css: "grind", label: "Farmer" },
   grind_to: { css: "grind", label: "Farmer" },
@@ -110,6 +111,8 @@ export function useNames(catalog: EditCatalog | undefined) {
           const trainer = trainers.get(s.trainer);
           return t("S'entraîner auprès de {name} ({zone})", { name: trainer?.name ?? `#${s.trainer}`, zone: trainer?.zone ?? "?" });
         }
+        case "sell":
+          return t("Vendre le butin");
         case "abandon":
           return t("Abandonner {quest}", { quest: quest(s.quest) });
         case "grind":

@@ -25,7 +25,7 @@ impl Planner<'_> {
         // replay does it too, `start_state`): `keep_log_quests` puts back those on the way.
         for &i in &self.model.initial.accepted {
             if s.accepted[i] && !self.worth().finish_worth_it(&s, i as u32) {
-                Self::abandon(&mut s, i as u32, &mut |_, _| {});
+                self.abandon(&mut s, i as u32, &mut |_, _| {});
             }
         }
         let mut route = Vec::new();

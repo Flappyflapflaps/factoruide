@@ -892,9 +892,13 @@ impl<'r> Replay<'r> {
                         push(out, e.time - t, &mut t, [0.0, 0.0, 1.0, 0.0], None);
                     }
                 }
-                Event::Train { trainer, .. } => {
-                    let p = model.trainers[*trainer].pos;
-                    let train = d(|b| b.training).min(e.time - t);
+                Event::Train { .. } | Event::Sell { .. } => {
+                    let (p, train) = match e.event {
+                        Event::Train { trainer, .. } => (model.trainers[trainer].pos, d(|b| b.training)),
+                        Event::Sell { vendor } => (model.vendors[vendor].pos, d(|b| b.overhead)),
+                        _ => unreachable!(),
+                    };
+                    let train = train.min(e.time - t);
                     let walk = (e.time - t - train).max(0.0);
                     if !apart(&at, &p) {
                         push(out, e.time - t, &mut t, [0.0, 0.0, 1.0, 0.0], None);

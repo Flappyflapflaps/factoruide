@@ -10,6 +10,23 @@ use rustc_hash::FxHashMap;
 /// Quest NPCs by cell (continent, x, y): (quest, index in its starts or ends, giver?, and the
 /// NPC's x, y, to tell the ones at hand without reading the quest).
 pub(crate) type CampIndex = FxHashMap<(i64, i64, i64), Vec<(u32, u8, bool, f64, f64)>>;
+/// Vendors (index in `Model::vendors`) by cell of `Params::sell_radius`: (continent, x, y).
+pub(crate) type VendorIndex = FxHashMap<(i64, i64, i64), Vec<u32>>;
+
+pub(crate) fn vendor_index(model: &Model, radius: f64) -> VendorIndex {
+    let mut index = VendorIndex::default();
+    if radius > 0.0 {
+        for (i, v) in model.vendors.iter().enumerate() {
+            let cell = (
+                v.pos.continent,
+                (v.pos.x / radius).floor() as i64,
+                (v.pos.y / radius).floor() as i64,
+            );
+            index.entry(cell).or_default().push(i as u32);
+        }
+    }
+    index
+}
 
 /// Quest givers (NPCs and objects, not items) and turn-in NPCs by cell of `radius`.
 pub(crate) fn camp_index(model: &Model, radius: f64) -> CampIndex {
@@ -96,6 +113,58 @@ impl Planner<'_> {
         self.train_at(s, i, record);
     }
 
+    /// Sell the bags' loot at a vendor within `sell_radius` once it fills half the room left
+    /// (`Params::bag_weight`): routes by vendors keep room for the loot.
+    pub(crate) fn sell(&self, s: &mut State, record: &mut impl FnMut(&State, Event)) {
+        let radius = self.params.sell_radius;
+        if self.explicit || self.params.bag_weight <= 0.0 || radius <= 0.0 || s.bags <= 0.0 {
+            return;
+        }
+        let room = crate::params::bag_slots(s.level) - f64::from(s.held);
+        if f64::from(s.bags) < 0.5 * room {
+            return;
+        }
+        let (cx, cy) = ((s.pos.x / radius).floor() as i64, (s.pos.y / radius).floor() as i64);
+        let mut best: Option<(f64, usize)> = None;
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                for &i in self
+                    .vendors
+                    .get(&(s.pos.continent, cx + dx, cy + dy))
+                    .into_iter()
+                    .flatten()
+                {
+                    let d = s.pos.dist(&self.model.vendors[i as usize].pos);
+                    if d <= radius && best.is_none_or(|b| d < b.0) {
+                        best = Some((d, i as usize));
+                    }
+                }
+            }
+        }
+        if let Some((_, i)) = best {
+            self.sell_at(s, i, record);
+        }
+    }
+
+    /// Sell at vendor `i`: a detour there and back when it is close, else a trip there.
+    pub(crate) fn sell_at(&self, s: &mut State, i: usize, record: &mut impl FnMut(&State, Event)) {
+        let vendor = &self.model.vendors[i];
+        let detour = (s.landed == Landed::No && s.pos.dist(&vendor.pos) <= self.params.sell_radius)
+            .then(|| 2.0 * self.trips().walk(&s.pos, &vendor.pos, s.level))
+            .filter(|d| d.is_finite());
+        if let Some(detour) = detour {
+            s.time += detour;
+            s.spent.travel += detour;
+        } else {
+            let (pos, zone) = (vendor.pos, vendor.zone);
+            self.go(s, &pos, zone, record);
+        }
+        s.time += self.params.sell_time;
+        s.spent.overhead += self.params.sell_time;
+        s.bags = 0.0;
+        record(s, Event::Sell { vendor: i });
+    }
+
     /// Train at trainer `i`: a detour when it is close (`train_radius`), else a trip there (the
     /// end of the trip just off a flight, boat or teleport step).
     pub(crate) fn train_at(&self, s: &mut State, i: usize, record: &mut impl FnMut(&State, Event)) {
@@ -145,13 +214,14 @@ impl Planner<'_> {
                 if s.planned.flags.get(i).is_some_and(|f| f & 1 != 0) {
                     s.spent.abandoned += 1;
                 }
-                Self::abandon(s, i as u32, record);
+                self.abandon(s, i as u32, record);
             }
         }
     }
 
     /// Give up quest `i` of the log.
-    pub(crate) fn abandon(s: &mut State, i: u32, record: &mut impl FnMut(&State, Event)) {
+    pub(crate) fn abandon(&self, s: &mut State, i: u32, record: &mut impl FnMut(&State, Event)) {
+        self.release(s, i);
         s.started.retain(|&(q, _, _)| q != i);
         s.timers.retain(|&(q, _)| q != i);
         s.accepted.set(i as usize, false);
@@ -160,6 +230,26 @@ impl Planner<'_> {
         s.log = s.log.saturating_sub(1);
         s.time += 2.0;
         record(s, Event::Abandon { quest: i as usize });
+    }
+
+    /// Objective `k` of quest `i` done; an item to bring back takes a bag slot from now on.
+    pub(crate) fn hold(&self, s: &mut State, i: usize, k: u8) {
+        if s.objectives[i] & 1 << k == 0 && self.model.quests[i].objectives[usize::from(k)].item {
+            s.held += 1;
+        }
+        s.objectives[i] |= 1 << k;
+    }
+
+    /// The bag slots quest `i`'s items took, freed (turned in or given up).
+    fn release(&self, s: &mut State, i: u32) {
+        let q = self.quest(i);
+        let done = s.objectives[i as usize];
+        let items = (q.objectives.iter().enumerate())
+            .filter(|&(k, o)| o.item && done & 1 << k != 0)
+            .count() as u16;
+        s.held = s
+            .held
+            .saturating_sub(items + u16::from(q.carried && s.accepted[i as usize]));
     }
 
     /// Accept quest `i` (looting first the item that starts it, if any).
@@ -180,6 +270,7 @@ impl Planner<'_> {
         }
         s.accepted.set(i as usize, true);
         s.log += 1;
+        s.held += u16::from(q.carried);
         if let Some(limit) = q.time_limit {
             s.timers.push((i, s.time + limit * TIMED_SHARE));
         }
@@ -189,6 +280,7 @@ impl Planner<'_> {
     /// picked among the choices.
     pub(crate) fn turn_in(&self, s: &mut State, i: u32) -> Option<i64> {
         let q = self.quest(i);
+        self.release(s, i);
         s.timers.retain(|&(q, _)| q != i);
         s.turned.set(i as usize, true);
         s.log -= 1;
@@ -235,11 +327,11 @@ impl Planner<'_> {
     /// A timed quest reached after its time (see `TIMED_SHARE`) has failed: given up instead of
     /// turned in or worked on (no reward, no follow-up, nor a child handed in late), which the
     /// optimizer avoids. Returns whether it did.
-    pub(crate) fn failed_in_time(s: &mut State, i: u32, record: &mut impl FnMut(&State, Event)) -> bool {
+    pub(crate) fn failed_in_time(&self, s: &mut State, i: u32, record: &mut impl FnMut(&State, Event)) -> bool {
         if !s.timers.iter().any(|&(q, deadline)| q == i && s.time > deadline) {
             return false;
         }
-        Self::abandon(s, i, record);
+        self.abandon(s, i, record);
         true
     }
 
@@ -271,19 +363,20 @@ impl Planner<'_> {
             s.landed = Landed::No;
             if self.hearth(s, stop.index == 1, record) {
                 self.while_here(s, record);
+                self.sell(s, record);
                 self.train(s, record);
             }
             return;
         }
         // Failed already: given up where the character stands, no trip to the turn-in.
-        if Self::timed(stop.kind) && Self::failed_in_time(s, stop.index, record) {
+        if Self::timed(stop.kind) && self.failed_in_time(s, stop.index, record) {
             return;
         }
         // Chosen once, before grinding to it: the place the stop is gated by is the one gone to.
         let spot = self.spot_of(s, stop);
         self.grind_to_gate(s, stop, spot, record);
         let loc = self.arrive(s, stop, spot, record);
-        if !(Self::timed(stop.kind) && Self::failed_in_time(s, stop.index, record)) {
+        if !(Self::timed(stop.kind) && self.failed_in_time(s, stop.index, record)) {
             let picked = self.do_stop(s, stop, spot);
             record(s, Event::Stop { stop, loc });
             if let Some(item) = picked {
@@ -297,6 +390,7 @@ impl Planner<'_> {
             }
         }
         self.while_here(s, record);
+        self.sell(s, record);
         self.train(s, record);
     }
 
@@ -519,7 +613,7 @@ impl Planner<'_> {
         s.spent.waiting += extra;
         let mob_xp = (kills * self.combat().mob_xp(s.level, o)) as i64;
         s.spent.mob_xp += self.growth().gain_kills(s, mob_xp);
-        s.objectives[i] |= 1 << k;
+        self.hold(s, i, k);
         (kill_work, uses * self.params.object_time)
     }
 
@@ -536,6 +630,7 @@ impl Planner<'_> {
             * self.rules().dungeon_kill_xp
             * self.params.dungeon_xp_share) as i64;
         s.spent.mob_xp += self.growth().gain_kills(s, gained);
+        self.growth().fill_bags(s, d.kills);
         s.dungeons |= 1u128 << i;
         if let Some(p) = &self.model.power {
             let mut changed = false;
@@ -549,7 +644,7 @@ impl Planner<'_> {
         for &(qi, k) in &self.in_dungeon[i] {
             let qi = qi as usize;
             if s.accepted[qi] && !s.turned[qi] {
-                s.objectives[qi] |= 1 << k;
+                self.hold(s, qi, k);
             }
         }
     }

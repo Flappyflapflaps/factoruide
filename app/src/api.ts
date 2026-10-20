@@ -92,6 +92,10 @@ export interface Params {
   train_time: number;
   train_min_gain: number;
   train_trip_gain: number;
+  bag_weight: number;
+  loot_per_kill: number;
+  sell_radius: number;
+  sell_time: number;
   gear_floor: number;
   /** The player's own class power curve, as (level, levels of power) points: empty for the class's. */
   power_curve?: [number, number][];
@@ -796,6 +800,8 @@ export type RouteStep =
   | { kind: "teleport"; spell: string }
   /** Learn the class spells at a trainer (NPC ID). */
   | { kind: "train"; trainer: number }
+  /** Sell the bags' loot at a vendor (NPC ID). */
+  | { kind: "sell"; vendor: number }
   | { kind: "abandon"; quest: number }
   /** Kill mobs of the character's level where it stands: a number, or up to a level. */
   | { kind: "grind"; mobs: number }

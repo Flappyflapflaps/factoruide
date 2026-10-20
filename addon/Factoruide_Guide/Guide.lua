@@ -287,7 +287,13 @@ function IsDone(step, index)
         and (select(2, FG.ProfessionSkill(ProfessionLine(step))) or 0) >= step.sk
     then
         return true -- rank already learned
-    elseif step.k == "flight_master" or step.k == "train" or step.k == "bind" or step.k == "profession" then
+    elseif
+        step.k == "flight_master"
+        or step.k == "train"
+        or step.k == "sell"
+        or step.k == "bind"
+        or step.k == "profession"
+    then
         return state.marks[index or state.step] or false
     elseif step.k == "dungeon" then
         -- Followed by the quests done inside (steps of their own): done on entering the dungeon.
@@ -1263,6 +1269,7 @@ end
 FG:On("TAXIMAP_OPENED", function() Mark("flight_master") end)
 FG:On("TRAINER_SHOW", function() Mark(IsTradeskillTrainer() and "profession" or "train") end)
 FG:On("HEARTHSTONE_BOUND", function() Mark("bind") end)
+FG:On("MERCHANT_SHOW", function() Mark("sell") end)
 FG:On("QUEST_TURNED_IN", function(questID)
     if state and childQuests[questID] then state.handedIn[questID] = true end
 end)

@@ -134,6 +134,8 @@ pub struct Objective {
     /// An object used right beside the quest's giver or turn-in, no elite around (the campfire
     /// to sit at next to Kaga Wildhoof): it requires no power, as talking to them.
     pub beside_giver: bool,
+    /// An item to bring back: it takes a bag slot until the turn-in.
+    pub item: bool,
     /// The other places it can be done (other groups of its mobs or objects), each with what
     /// changes there: the mobs, their level and packs, the guards, the wait for respawns. The
     /// planner goes to the best one from where the character is (`Planner::spot`).
@@ -366,6 +368,8 @@ pub struct Quest {
     /// The item its giver offers it for (a book for the library): its accept is looting the
     /// item, taken and turned in together at the giver.
     pub held: Option<i64>,
+    /// An item given on accepting, carried in the bags until the turn-in.
+    pub carried: bool,
     /// Class quests: always planned, the optimizer cannot drop them.
     pub mandatory: bool,
     /// Required because its zone is forced (`Params::forced_zones`), or as a prerequisite of
@@ -400,6 +404,8 @@ pub struct Model {
     /// Class trainers and innkeepers the character can use.
     pub trainers: Vec<Loc>,
     pub inns: Vec<Loc>,
+    /// Vendors friendly to the character: the bags' loot is sold there.
+    pub vendors: Vec<Loc>,
     /// Where the hearthstone takes a new character: its starting place (not an inn to bind).
     pub start_inn: usize,
     /// Class spells taking the character to a capital (mage teleports).

@@ -30,6 +30,7 @@ impl Planner<'_> {
             + (self.params.grind_weight - 1.0).max(0.0) * spent.farming
             + (self.params.flight_weight - 1.0) * spent.flights
             + spent.flight_gold
+            + spent.bag_overflow
             + self.params.zone_change_weight * f64::from(spent.zone_changes)
             + self.params.preferred_zone_weight * spent.outside_preferred
             + self.params.abandon_weight * f64::from(spent.abandoned)
@@ -269,6 +270,8 @@ impl Planner<'_> {
                     && s.xp == old.xp
                     && s.rested == old.rested
                     && s.stock == old.stock
+                    && s.bags.to_bits() == old.bags.to_bits()
+                    && s.held == old.held
                     && s.known == old.known
                     && s.log == old.log
                     && s.pos == old.pos

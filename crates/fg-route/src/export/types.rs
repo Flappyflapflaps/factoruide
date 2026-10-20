@@ -41,6 +41,8 @@ pub enum StepKind {
     Teleport,
     #[serde(rename = "train")]
     Train,
+    #[serde(rename = "sell")]
+    Sell,
     #[serde(rename = "profession")]
     Profession,
     #[serde(rename = "dungeon")]
@@ -66,6 +68,7 @@ impl StepKind {
             Self::Hearth => "hearth",
             Self::Teleport => "teleport",
             Self::Train => "train",
+            Self::Sell => "sell",
             Self::Profession => "profession",
             Self::Dungeon => "dungeon",
             Self::Bind => "bind",

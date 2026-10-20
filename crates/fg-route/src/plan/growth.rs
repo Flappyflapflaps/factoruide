@@ -23,8 +23,22 @@ impl<'g> Growth<'g> {
         &self.model.quests[i as usize]
     }
 
+    /// The loot of `kills` mobs into the bags (`Params::bag_weight`): what no longer fits is
+    /// left behind, at a cost.
+    pub(crate) fn fill_bags(self, s: &mut State, kills: f64) {
+        if self.params.bag_weight <= 0.0 || kills <= 0.0 {
+            return;
+        }
+        let room = (crate::params::bag_slots(s.level) - f64::from(s.held) - f64::from(s.bags)).max(0.0);
+        let loot = kills * self.params.loot_per_kill;
+        let kept = loot.min(room);
+        s.bags += kept as f32;
+        s.spent.bag_overflow += (loot - kept) * self.params.bag_weight;
+    }
+
     /// Common loot `kills` normal mobs of `zone` drop (`Model::loot`), into the bags.
     pub(crate) fn gather(self, s: &mut State, zone: i64, kills: f64) {
+        self.fill_bags(s, kills);
         if let Some(items) = self.model.loot.by_zone.get(&zone) {
             for &(i, each) in items {
                 s.stock[usize::from(i)] += kills as f32 * each;
