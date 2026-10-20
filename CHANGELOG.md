@@ -28,6 +28,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - The home page shows screenshots of the app and of the addon in game, one after the other.
 - WoW Forever: an example guide to look around (human paladin, levels 1 to 30), from the home page or the empty Guides page.
 - Manual creation next to Generate: a new guide that starts from your character and the form's settings, built step by step in the editor.
+- WoW Forever: the guide map shows Zephras Isle, where the Skyborne start, with the guide's route and steps on it.
 - Web app: opening a guide, its replay and the editor at the same time no longer stops the app or says "database disk image is malformed".
 
 ### Addon

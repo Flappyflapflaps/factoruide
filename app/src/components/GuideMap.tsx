@@ -105,9 +105,19 @@ interface Panel {
   project: (x: number, y: number) => [number, number];
 }
 
-/** The game version's continents side by side, west to east, the same scale, centred on a line. */
-function layout(index: MapInfo[]): { panels: Map<number, Panel>; width: number; height: number; unit: number } {
-  const infos = CONTINENTS.map((c) => index.filter((m) => m.kind === 2 && m.bounds?.map === c).sort((a, b) => b.width - a.width)[0]).filter(Boolean);
+/**
+ * The game version's continents side by side, west to east, the same scale, centred on a line;
+ * after them, the zones on a game map of their own that the guide goes to (`used`: game maps),
+ * WoW Forever's starting islands (Zephras Isle, the Darkspear Islands).
+ */
+function layout(index: MapInfo[], used: number[]): { panels: Map<number, Panel>; width: number; height: number; unit: number } {
+  const biggest = (maps: MapInfo[]) => maps.sort((a, b) => b.width - a.width)[0];
+  const infos = CONTINENTS.map((c) => biggest(index.filter((m) => m.kind === 2 && m.bounds?.map === c))).filter(Boolean);
+  const islands = used
+    .filter((map) => !CONTINENTS.includes(map))
+    .map((map) => biggest(index.filter((m) => (m.kind === 3 || m.kind === 6) && m.bounds?.map === map)))
+    .filter(Boolean);
+  infos.push(...islands);
   // Yards per pixel of the first one, for all.
   const ypp = (m: MapInfo) => (m.bounds!.max_y - m.bounds!.min_y) / m.width;
   const ref = infos.length ? ypp(infos[0]) : 1;
@@ -188,7 +198,8 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
   }, []);
 
   // The game version's continents side by side (the boats between them drawn too).
-  const world = useMemo(() => (index ? layout(index) : null), [index]);
+  const used = useMemo(() => [...new Set(steps.flatMap((s) => (s.world ? [s.world[0]] : [])))].sort((a, b) => a - b).join(), [steps]);
+  const world = useMemo(() => (index ? layout(index, used ? used.split(",").map(Number) : []) : null), [index, used]);
   const panels = world?.panels;
   const project = useMemo<Project | null>(() => (panels ? (p) => panels.get(p[0])?.project(p[1], p[2]) ?? null : null), [panels]);
   // The zones' maps, and where a city is (a map mostly over a bigger zone's: Stormwind,
@@ -263,8 +274,10 @@ export function GuideMap({ steps, moves, cards, titles, current, currentEnd, zon
     const v = view.current;
     setScale(2 ** (Math.round(Math.log2(v.k) * 4) / 4));
     const [x0, y0, x1, y1] = [-v.x / v.k, -v.y / v.k, (size.w - v.x) / v.k, (size.h - v.y) / v.k];
-    const close = !!(size.w && panels && minimap?.size && v.k >= unitK * MINIMAP_DETAIL);
-    const tiles = close ? [...panels!.values()].flatMap((p) => minimapTiles(p, minimap!, v.k, [x0, y0, x1, y1])) : [];
+    const near = !!(size.w && panels && minimap?.size && v.k >= unitK * MINIMAP_DETAIL);
+    const tiles = near ? [...panels!.values()].flatMap((p) => minimapTiles(p, minimap!, v.k, [x0, y0, x1, y1])) : [];
+    // Where the game has no minimap (Zephras Isle), the maps stay.
+    const close = near && tiles.length > 0;
     setCloseUp(close);
     setShownTiles((old) => (old.map((o) => o.key).join() === tiles.map((o) => o.key).join() ? old : tiles));
     if (!size.w || v.k < unitK * ZONE_DETAIL || close) return setShownZones((z) => (z.length ? [] : z));
