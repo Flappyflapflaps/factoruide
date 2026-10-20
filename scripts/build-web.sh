@@ -27,7 +27,7 @@ target=${CARGO_TARGET_DIR:-target}
 cp "$target/wasm32-wasip1-threads/release/fg_web.wasm" app/src/web/fg_web.wasm
 
 # The pages.
-(cd app && [ -d node_modules ] || npm ci)
+[ -d app/node_modules ] || (cd app && npm ci)
 (cd app && npx tsc -b && FG_WEB_OUT="$out" npx vite build --mode web)
 
 # The game data, the maps and the minimap tiles.
