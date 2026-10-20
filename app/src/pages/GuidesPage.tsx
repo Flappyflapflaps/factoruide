@@ -29,13 +29,15 @@ interface Props {
   onUnsaved?: (unsaved: boolean) => void;
   /** The game version the app works on. */
   edition: Edition | null;
+  /** Open the example guide (added first); only on the game versions that have one. */
+  onExample?: () => Promise<void>;
 }
 
 /** The version a box shows and the global export sends: the one chosen (the latest unless one is chosen). */
 const shownVersion = (g: GuideSummary): VersionMeta => g.versions.find((v) => v.version === g.installed) ?? g.versions[0];
 
 /** Every guide with its versions, who follows it, and the actions of its page on each row. */
-export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved, edition }: Props) {
+export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved, edition, onExample }: Props) {
   const t = useT();
   const date = useDate();
   const [guides, setGuides] = useState<GuideSummary[] | null>(null);
@@ -202,7 +204,26 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
       <div className="results">
         {bar}
         {notices}
-        <div className="empty">{t("Aucun résultat pour l'instant : lancez une génération depuis « Nouveau guide ».")}</div>
+        <div className="empty">
+          {t("Aucun résultat pour l'instant : lancez une génération depuis « Nouveau guide ».")}
+          {onExample && (
+            <p>
+              <button
+                onClick={() => {
+                  setPending(true);
+                  setError(null);
+                  onExample().catch((e) => {
+                    setPending(false);
+                    setError(String(e));
+                  });
+                }}
+                title={t("Un guide déjà calculé (humain paladin, niveaux 1 à 30) pour découvrir la carte, les étapes et l'éditeur.")}
+              >
+                {t("Voir un guide d'exemple")}
+              </button>
+            </p>
+          )}
+        </div>
       </div>
     );
 

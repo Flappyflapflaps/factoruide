@@ -11,6 +11,8 @@ interface Props {
   editionName: string;
   onNewGuide: () => void;
   onGuides: () => void;
+  /** Open the example guide (added first if needed); only on the game versions that have one. */
+  onExample?: () => Promise<void>;
   /** Open the addon's page (CurseForge). */
   onAddon: () => void;
 }
@@ -62,12 +64,22 @@ const FEATURES: { title: string; items: [string, string][] }[] = [
 ];
 
 /** The first page: what the app is for, everything it does, and the ways in. */
-export function HomePage({ editionName, onNewGuide, onGuides, onAddon }: Props) {
+export function HomePage({ editionName, onNewGuide, onGuides, onExample, onAddon }: Props) {
   const t = useT();
   const [guides, setGuides] = useState<GuideSummary[] | null>(null);
   useEffect(() => {
     api.listGuides().then(setGuides).catch(() => setGuides([]));
   }, []);
+  const [exampleBusy, setExampleBusy] = useState(false);
+  const [exampleError, setExampleError] = useState<string | null>(null);
+  const openExample = () => {
+    if (!onExample) return;
+    setExampleBusy(true);
+    setExampleError(null);
+    onExample()
+      .catch((e) => setExampleError(String(e)))
+      .finally(() => setExampleBusy(false));
+  };
 
   const steps = IS_WEB
     ? [
@@ -102,7 +114,13 @@ export function HomePage({ editionName, onNewGuide, onGuides, onAddon }: Props) 
               {t("Guides")}
               {guides !== null && <span className="home-count">{guides.length}</span>}
             </button>
+            {onExample && (
+              <button onClick={openExample} disabled={exampleBusy} title={t("Un guide déjà calculé (humain paladin, niveaux 1 à 30) pour découvrir la carte, les étapes et l'éditeur.")}>
+                {t("Voir un guide d'exemple")}
+              </button>
+            )}
           </div>
+          {exampleError && <div className="error">{exampleError}</div>}
           <p className="muted home-edition">{t("Version du jeu : {edition} (à changer en haut du menu).", { edition: editionName })}</p>
           {guides && guides.length > 0 && (
             <div className="home-recent">

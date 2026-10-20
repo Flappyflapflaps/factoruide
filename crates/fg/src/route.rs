@@ -189,6 +189,116 @@ pub fn show(routes_dir: &Path, name: &str, full: bool) -> Result<()> {
     Ok(())
 }
 
+/// What `fg share` plans: a character from a level to another, the app's settings otherwise.
+pub struct ShareOptions {
+    pub race: String,
+    pub class: String,
+    pub from_level: i64,
+    pub to_level: i64,
+    pub effort: Option<f64>,
+    pub name: String,
+    /// Planner parameter overrides (key=value).
+    pub params: Vec<String>,
+    pub locale: String,
+}
+
+/// Plan a guide the way the app's "New guide" page does (the settings it starts from, the class
+/// quests it lists for the class, no professions, no character, a walking memory saved with the
+/// guide) and write it as the .fgguide file the apps share: one version with its configuration
+/// and computed guide (its plan too, for the guide editor), which either app imports.
+pub fn share(conn: &Connection, overrides_dir: &Path, opts: &ShareOptions, out: &Path) -> Result<()> {
+    let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
+    let mut params = overrides.params.with_overrides(&opts.params)?;
+    if let Some(e) = opts.effort {
+        params.effort = e;
+    }
+    // The class quests the page lists for the class (by its name in lower case).
+    let options = job::options(conn, &overrides)?;
+    let class_name = options
+        .classes
+        .iter()
+        .find(|c| c.key == opts.class)
+        .map_or_else(|| opts.class.to_lowercase(), |c| c.name.to_lowercase());
+    let request = PlanRequest {
+        race: opts.race.clone(),
+        class: opts.class.clone(),
+        from_level: opts.from_level,
+        to_level: opts.to_level,
+        name: Some(opts.name.clone()),
+        params: Some(params),
+        required_class_quests: Some(options.class_quests.get(&class_name).cloned().unwrap_or_default()),
+        professions: vec![],
+        locale: Some(opts.locale.clone()),
+        group: vec![],
+        start: None,
+    };
+    let walks = std::sync::Arc::new(fg_route::terrain::Walks::default());
+    let outcome = job::plan_interruptible(
+        conn,
+        &overrides,
+        &request,
+        &|m| {
+            if !m.starts_with('@') {
+                eprintln!("{m}");
+            }
+        },
+        &job::Interrupt::default(),
+        Some(&walks),
+    )?;
+    for note in &outcome.notes {
+        eprintln!("  {note}");
+    }
+    let route = &outcome.route;
+    let created = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    // The version's summary as the apps write it (they keep its data version).
+    let data: Option<String> = conn
+        .query_row("SELECT detail FROM import_run WHERE source = 'questie'", [], |r| {
+            r.get(0)
+        })
+        .ok()
+        .flatten();
+    let meta = serde_json::json!({
+        "guide": job::slug(&route.name),
+        "version": 1,
+        "name": route.name,
+        "created": created,
+        "race": request.race,
+        "class": request.class,
+        "group": request.group,
+        "from_level": route.from_level,
+        "to_level": route.to_level,
+        "total_time": route.total_time,
+        "total_time_text": route.total_time_text,
+        "quests": route.quests,
+        "data": data,
+        "imported": false,
+        "edited": false,
+        "character": null,
+    });
+    // The apps' share format (`SharedGuide` in app/src-tauri and crates/fg-web).
+    let shared = serde_json::json!({
+        "format": "factoruide-guide",
+        "version": 2,
+        "meta": meta,
+        "request": request,
+        "outcome": outcome,
+    });
+    std::fs::write(out, serde_json::to_string(&shared)?).with_context(|| format!("writing {}", out.display()))?;
+    eprintln!(
+        "wrote {} ({}: level {} -> {} in {}, {} quests, {} bytes)",
+        out.display(),
+        route.name,
+        route.from_level,
+        route.to_level,
+        route.total_time_text,
+        route.quests,
+        std::fs::metadata(out)?.len()
+    );
+    Ok(())
+}
+
 /// Replay a request exported by the app (debug/request-*.json).
 pub fn replay(
     conn: &Connection,
