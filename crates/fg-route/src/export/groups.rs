@@ -1,5 +1,5 @@
-//! Steps done around the same place, one group in every addon: shown and passed together by
-//! the guide's own addon, one step of Polestar's (open together, done in any order).
+//! Steps done around the same place: one step of Polestar's guides (open together, done in any
+//! order). The guide's own addon keeps smaller groups of its own (the same spot or NPC).
 
 use super::types::{Step, StepKind};
 

@@ -1502,7 +1502,7 @@ assert(char.guide.step == 3, "the unknown step passed: step " .. char.guide.step
 onQuest[8003] = nil
 print("unknown step kind ok")
 
--- Groups the app marked (`gj`: joins the step before), whatever the map distance between them.
+-- Wide groups the app once marked (`gj`) are not followed: only the same spot or NPC groups.
 FG.Routes["groups-test"] = {
     race = 7,
     class = 8,
@@ -1514,13 +1514,12 @@ FG.Routes["groups-test"] = {
         { k = "accept", t = "Accept D", q = 8004, lvl = 3, m = 1429, x = 10, y = 10 },
         { k = "accept", t = "Accept E", q = 8005, lvl = 3, m = 1429, x = 40, y = 40, gj = true },
         { k = "accept", t = "Accept F", q = 8006, lvl = 3, m = 1429, x = 10, y = 11, gj = true },
-        { k = "accept", t = "Accept G", q = 8007, lvl = 3, m = 1429, x = 10, y = 10 },
     },
 }
 useRoute("groups-test")
 local group = FG.Guide:CurrentSteps()
-assert(#group == 3 and group[1] == 1 and group[3] == 3, "the marked group: " .. table.concat(group, ","))
-print("marked groups ok")
+assert(#group == 1 and group[1] == 1, "the far step is not grouped: " .. table.concat(group, ","))
+print("marked groups ignored ok")
 
 -- A dungeon run followed by its quests is done on entering the dungeon, then each quest step as
 -- the quest progresses; without them (guides made before), once back out of the dungeon.
