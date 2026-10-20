@@ -22,6 +22,7 @@ Factoruide in your browser, the addon from CurseForge and set up in the game's o
 - WoW Forever is also found in its new `_forever_` game folder (GitHub #32).
 - The steps list starts a new zone where the hearthstone, a flight or a boat takes you, even for a short stop (GitHub #37).
 - WoW Forever: a guide's Export gives the text to paste on Polestar's Import page (`/polestar import`); for now Polestar takes only short guides (60 steps), and the app says when a guide is too long.
+- Factoruide's own icon in the menu and on the home page.
 
 ### Addon
 

@@ -3,6 +3,7 @@ import { api, type GuideSummary } from "../api";
 import { useT } from "../i18n";
 import { IS_WEB } from "../web/mode";
 import guideShot from "../../../docs/guide.png";
+import logo from "../assets/logo.svg";
 import "./home.css";
 
 interface Props {
@@ -87,7 +88,7 @@ export function HomePage({ editionName, onNewGuide, onGuides, onAddon }: Props) 
       <section className="home-hero">
         <div className="home-hero-text">
           <h1>
-            <span className="logo">★</span> Factoruide
+            <img className="logo" src={logo} alt="" /> Factoruide
           </h1>
           <p className="home-tagline">{t("Un guide de pexing calculé pour votre personnage.")}</p>
           <p className="home-intro">

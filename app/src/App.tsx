@@ -17,6 +17,7 @@ import { UpdateBanner } from "./components/UpdateBanner";
 import { IS_WEB } from "./web/mode";
 import { WebSidebarTools } from "./web/components/Sidebar";
 import { ADDON_URL } from "./web/components/AddonInstall";
+import logo from "./assets/logo.svg";
 
 /** Where problems are reported from the web app (it sends nothing anywhere itself). */
 const ISSUES_URL = "https://github.com/brouznouf/factoruide/issues";
@@ -158,7 +159,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
       )}
       <nav className="sidebar" aria-label={t("Menu")}>
         <div className="brand">
-          <span className="logo">★</span> Factoruide
+          <img className="logo" src={logo} alt="" /> Factoruide
         </div>
         <div className="sidebar-label" aria-hidden>
           {t("Version du jeu")}

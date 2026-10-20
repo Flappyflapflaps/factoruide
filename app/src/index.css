@@ -54,7 +54,6 @@
   --on-accent: #ffffff;
   --warn: #c98500;
   --warn-text: #e0b050;
-  --logo: #fbbf24;
   --shadow-menu: 0 12px 32px rgba(0, 0, 0, 0.5);
   --shadow-tip: 0 8px 24px rgba(0, 0, 0, 0.45);
   --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.6);
@@ -110,7 +109,6 @@
   --wash: #1b2a4a;
   --warn: #a36b00;
   --warn-text: #875300;
-  --logo: #a06c00;
   --shadow-menu: 0 12px 32px color-mix(in srgb, #1b2a4a 18%, transparent);
   --shadow-tip: 0 8px 24px color-mix(in srgb, #1b2a4a 16%, transparent);
   --shadow-pop: 0 16px 48px color-mix(in srgb, #1b2a4a 24%, transparent);
@@ -168,7 +166,6 @@
   --wash: #3b2a14;
   --warn: #9c6500;
   --warn-text: #7f4f00;
-  --logo: #8a5300;
   --shadow-menu: 0 12px 32px color-mix(in srgb, #3b2a14 18%, transparent);
   --shadow-tip: 0 8px 24px color-mix(in srgb, #3b2a14 16%, transparent);
   --shadow-pop: 0 16px 48px color-mix(in srgb, #3b2a14 24%, transparent);
@@ -443,12 +440,16 @@ input[type="checkbox"]:not(.toggle input, .switch input):checked {
   }
 }
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 18px;
   font-weight: 700;
   padding: 0 10px 16px;
 }
 .logo {
-  color: var(--logo);
+  width: 1.4em;
+  height: 1.4em;
 }
 .sidebar-label {
   color: var(--text-muted);
