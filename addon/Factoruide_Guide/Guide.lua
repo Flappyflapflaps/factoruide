@@ -105,6 +105,7 @@ local KINDS = {
 -- A step of a kind this addon does not know (made by a newer app): its text, done right away.
 local OTHER = { icon = "Interface\\GossipFrame\\GossipGossipIcon", color = "ffffff", label = T("Step") }
 
+-- Steps of a group at most (checkpoints apart).
 local GROUP_MAX = 6
 -- Steps ahead looked at for the quests to pick up.
 local PICKUP_AHEAD = 300
@@ -397,8 +398,57 @@ end
 -- Groups: steps done around the same place, shown together and passed together. Cut once for the
 -- route, so that a step is never on two pages: `groupStart[i]` is the first step of step i's
 -- group, `groupEnd[first]` its last. Small on purpose: the same spot or the same NPC, a few
--- steps (the app's guides once marked wider groups, `gj`: not followed).
+-- steps (the app's guides once marked wider groups, `gj`: not followed). Objectives (kills,
+-- items, uses) whose mobs or places are next to the group's other objectives join it too: they
+-- are done together, as what comes along. A checkpoint ("be level 2 and 53% to go on") does
+-- not cut a group nor count in its size: it is shown after the group's other steps.
 local groupStart, groupEnd = {}, {}
+
+-- Map percents: within `GROUP_NEAR` of the group's first step; an objective within
+-- `OBJECTIVE_NEAR` of one of the group's objectives (their spots too) and within
+-- `OBJECTIVE_SPREAD` of the first; the first objective after visits within `SPOT_NEAR`.
+local GROUP_NEAR, OBJECTIVE_NEAR, OBJECTIVE_SPREAD, SPOT_NEAR = 2.5, 4, 8, 2
+
+--- A level or XP checkpoint: done when the character has the XP, whatever it did meanwhile.
+local function Checkpoint(step) return step.k == "grind" and step.kp == true end
+
+local function Within(a, b, d)
+    return a.m == b.m and a.x and b.x and math.abs(a.x - b.x) < d and math.abs(a.y - b.y) < d or false
+end
+
+--- Whether objective `s` is done along with objective `o`: one of their places next to the other's.
+local function Together(s, o)
+    if Within(s, o, OBJECTIVE_NEAR) then return true end
+    for _, p in ipairs(s.spots or {}) do
+        if Within(p, o, OBJECTIVE_NEAR) then return true end
+        for _, q in ipairs(o.spots or {}) do
+            if Within(p, q, OBJECTIVE_NEAR) then return true end
+        end
+    end
+    for _, q in ipairs(o.spots or {}) do
+        if Within(s, q, OBJECTIVE_NEAR) then return true end
+    end
+    return false
+end
+
+--- Whether step `s` can be in a group with other steps: not a trip, nor a grind held until a level.
+local function Opens(s) return s.k ~= "fly" and s.k ~= "link" and s.k ~= "grind" end
+
+--- Whether step `s` joins the group of `first` holding the objectives `objectives`.
+local function Joins(s, first, objectives)
+    if not s.m or not s.x or s.m ~= first.m or not Opens(s) then return false end
+    -- The same NPC (or mob, object) elsewhere.
+    if s.id ~= nil and s.id == first.id then return true end
+    -- The first objective after visits (a town): on the spot only, else it opens the page of the
+    -- objectives done around it.
+    if s.k == "objective" and #objectives == 0 then return Within(s, first, SPOT_NEAR) end
+    if Within(s, first, GROUP_NEAR) then return true end
+    if s.k ~= "objective" or not Within(s, first, OBJECTIVE_SPREAD) then return false end
+    for _, o in ipairs(objectives) do
+        if Together(s, o) then return true end
+    end
+    return false
+end
 
 local function BuildGroups()
     wipe(groupStart)
@@ -406,14 +456,25 @@ local function BuildGroups()
     local steps = route and route.steps or {}
     local i = 1
     while i <= #steps do
-        local first, last = steps[i], i
-        if first.m then
-            for j = i + 1, math.min(#steps, i + GROUP_MAX - 1) do
+        local start, last = steps[i], i
+        -- A group opened by a checkpoint (placed where the step before it was): the step after it,
+        -- when close, says where the group is.
+        local first = not Checkpoint(start) and start or nil
+        local size, objectives = first and 1 or 0, {}
+        if first and first.k == "objective" then table.insert(objectives, first) end
+        if start.m then
+            for j = i + 1, #steps do
                 local s = steps[j]
-                if not s.m or s.m ~= first.m or s.k == "fly" or s.k == "link" or s.k == "grind" then break end
-                local close = math.abs(s.x - first.x) < 2.5 and math.abs(s.y - first.y) < 2.5
-                -- Or the same NPC (or mob, object) elsewhere.
-                if not close and (s.id == nil or s.id ~= first.id) then break end
+                if Checkpoint(s) then
+                    if s.m ~= start.m then break end
+                elseif not first then
+                    if not Joins(s, start, objectives) then break end
+                    first, size = s, 1
+                else
+                    if size >= GROUP_MAX or not Joins(s, first, objectives) then break end
+                    size = size + 1
+                end
+                if s.k == "objective" and s.x then table.insert(objectives, s) end
                 last = j
             end
         end
@@ -824,8 +885,12 @@ function Guide:Refresh()
         end
     end
     AlongTheWay(true)
-    for _, index in ipairs(group) do
-        Add(index, IsDone(route.steps[index], index))
+    -- The group's checkpoints after its other steps: what is done there gets the XP.
+    for pass = 1, 2 do
+        for _, index in ipairs(group) do
+            local step = route.steps[index]
+            if Checkpoint(step) == (pass == 2) then Add(index, IsDone(step, index)) end
+        end
     end
     AlongTheWay(false)
     if FG.TargetMacro then FG.TargetMacro:SetSteps(todo) end
@@ -983,7 +1048,10 @@ function Guide:Advance()
                 FG:Try("step", FG.Collector.RecordStep, FG.Collector, i, step)
             end
             wasDone[i] = done and true or false
-            if not done and not pending then pending = i end
+            -- The group's checkpoints come last (see Refresh).
+            if not done and (not pending or Checkpoint(route.steps[pending]) and not Checkpoint(step)) then
+                pending = i
+            end
         end
         if pending then
             arrivedDone = false

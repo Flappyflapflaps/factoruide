@@ -1545,6 +1545,155 @@ local group = FG.Guide:CurrentSteps()
 assert(#group == 1 and group[1] == 1, "the far step is not grouped: " .. table.concat(group, ","))
 print("marked groups ignored ok")
 
+-- Objectives done in the same place are one page (GitHub #41, Deathknell): the bats' wings, the
+-- heals, the skeletons and the paws, their mobs next to each other; the checkpoint between them
+-- does not cut the page and comes last; the town's visits before them are a page of their own
+-- (the wings are not on the spot), a far camp is the next page.
+do
+    local level = playerLevel
+    playerLevel = 2
+    local spotsOf = function(...)
+        local out = {}
+        for i = 1, select("#", ...), 2 do
+            table.insert(out, { m = 1420, x = select(i, ...), y = select(i + 1, ...) })
+        end
+        return out
+    end
+    FG.Routes["area-test"] = {
+        race = 5,
+        class = 2,
+        faction = "Horde",
+        fromLevel = 1,
+        toLevel = 10,
+        time = 1,
+        steps = {
+            {
+                k = "accept",
+                t = "Accept The Damned from Novice Elreth",
+                q = 8101,
+                m = 1420,
+                x = 30.86,
+                y = 66.05,
+                e = "npc",
+                id = 1661,
+                lvl = 2,
+            },
+            {
+                k = "objective",
+                t = "Duskbat Wing x6",
+                q = 8101,
+                o = 1,
+                m = 1420,
+                x = 33.31,
+                y = 67.39,
+                spots = spotsOf(35.75, 71.09, 29.74, 70.72, 29.12, 63.8),
+                e = "item",
+                id = 3264,
+                n = "Duskbat Wing",
+                c = 6,
+                lvl = 2,
+            },
+            {
+                k = "sell",
+                t = "Sell your loot to Harold Raims",
+                m = 1420,
+                x = 32.4,
+                y = 66.43,
+                e = "npc",
+                id = 2117,
+                lvl = 2,
+            },
+            {
+                k = "grind",
+                t = "Before level 3: be level 2 and 87% to go on (grind here if behind)",
+                m = 1420,
+                x = 32.4,
+                y = 66.43,
+                kp = true,
+                lvl = 2,
+                xp = 348,
+            },
+            {
+                k = "objective",
+                t = "Heal Injured Deathguard with Holy Light",
+                q = 8102,
+                o = 1,
+                m = 1420,
+                x = 31.99,
+                y = 63.95,
+                lvl = 3,
+            },
+            {
+                k = "objective",
+                t = "Kill Rattlecage Skeleton x12",
+                q = 8103,
+                o = 1,
+                m = 1420,
+                x = 33,
+                y = 61.63,
+                lvl = 3,
+            },
+            {
+                k = "objective",
+                t = "Scavenger Paw x6",
+                q = 8104,
+                o = 1,
+                m = 1420,
+                x = 34.87,
+                y = 61.16,
+                spots = spotsOf(36.79, 56.29, 33.61, 67.71, 29.95, 63.15),
+                lvl = 3,
+            },
+            { k = "turnin", t = "Turn in Rattling the Rattlecages", q = 8103, m = 1420, x = 30.89, y = 66.2, lvl = 3 },
+            {
+                k = "objective",
+                t = "Kill Young Night Web Spider x10",
+                q = 8105,
+                o = 1,
+                m = 1420,
+                x = 24.82,
+                y = 59.63,
+                lvl = 4,
+            },
+        },
+    }
+    useRoute("area-test")
+    local town = FG.Guide:CurrentSteps()
+    assert(#town == 1, "the town's visit alone: " .. table.concat(town, ","))
+    onQuest[8101] = true
+    FG.Guide:Advance()
+    local group = FG.Guide:CurrentSteps()
+    assert(
+        #group == 7 and group[1] == 2 and group[7] == 8,
+        "the objectives of the place are one page: " .. table.concat(group, ",")
+    )
+    local order = {}
+    for _, v in ipairs(FG.Guide.view.tasks) do
+        table.insert(order, v.index)
+    end
+    assert(order[#order] == 4, "the checkpoint last: " .. table.concat(order, ","))
+    completed[8101] = true
+    onQuest[8101] = nil
+    FG.Guide:Advance()
+    assert(char.guide.step == 3, "on to the vendor: step " .. char.guide.step)
+    fire("MERCHANT_SHOW")
+    FG.Guide:Advance()
+    assert(char.guide.step == 5, "the heals before the checkpoint: step " .. char.guide.step)
+    for q = 8102, 8104 do
+        completed[q] = true
+    end
+    FG.Guide:Advance()
+    assert(char.guide.step == 4, "the page stays on the checkpoint not reached: step " .. char.guide.step)
+    playerLevel = 3
+    FG.Guide:Advance()
+    assert(char.guide.step == 9, "the far camp is the next page: step " .. char.guide.step)
+    for q = 8101, 8104 do
+        completed[q] = nil
+    end
+    playerLevel = level
+end
+print("objectives of a place grouped ok")
+
 -- A dungeon run followed by its quests is done on entering the dungeon, then each quest step as
 -- the quest progresses; without them (guides made before), once back out of the dungeon.
 local inside = false
@@ -2431,7 +2580,11 @@ for _, texts in ipairs({
     useRoute("spider-test")
     FG.Guide:Resync()
     assert(char.guide.step == 2, "the older spiders still to kill (" .. texts[1] .. "), step " .. char.guide.step)
-    local task = FG.Guide.view.tasks[1]
+    -- On one page with the young ones (the same hollow).
+    local task
+    for _, v in ipairs(FG.Guide.view.tasks) do
+        if v.index == 2 then task = v end
+    end
     assert(task.have == 2 and task.need == 8, "their own count: " .. tostring(task.have) .. "/" .. tostring(task.need))
 end
 C_QuestLog.GetQuestObjectives = pageObjectives
