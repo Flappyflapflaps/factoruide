@@ -48,10 +48,35 @@ pub(super) type DangerKey = (u16, u16, [u32; 2]);
 /// The walks between the gates of a tile with the danger counted (`TileGraph::cost`), by danger.
 pub(super) type DangerGraphs = Vec<(DangerKey, Arc<[u32]>)>;
 
-/// Cheapest cost found to each gate (tile, index) of a walk, and the gate it came from
-/// (`FROM_A`: the walk's start).
-type Best = FxHashMap<(usize, usize), (u32, (usize, usize))>;
 const FROM_A: (usize, usize) = (usize::MAX, usize::MAX);
+
+/// Cheapest cost found to each gate (tile, index) of a walk (`NONE`: none yet), and the gate it
+/// came from (`FROM_A`: the walk's start): the gates of a tile side by side, found by one lookup
+/// of the tile.
+#[derive(Default)]
+struct Best {
+    tiles: FxHashMap<usize, usize>,
+    gates: Vec<(u32, (usize, usize))>,
+}
+
+impl Best {
+    /// Where the gates of tile `t` (`n` of them) start in `gates`.
+    fn row(&mut self, t: usize, n: usize) -> usize {
+        let gates = &mut self.gates;
+        *self
+            .tiles
+            .entry(t)
+            .or_insert_with(|| {
+                gates.resize(gates.len() + n, (NONE, FROM_A));
+                gates.len() - n
+            })
+    }
+
+    /// What is known of gate `i` of tile `t`.
+    fn get(&self, (t, i): (usize, usize)) -> (u32, (usize, usize)) {
+        self.tiles.get(&t).map_or((NONE, FROM_A), |&at| self.gates[at + i])
+    }
+}
 
 /// Version of the making of the tiles' graphs and of the steps (the gaps `Grid::open_gaps`
 /// opens): graphs stored by another (`Terrain::gate_graphs`) are made again, walking memories
@@ -443,23 +468,27 @@ impl Grid {
             let (dr, dc) = ((r - b.0).unsigned_abs(), (c - b.1).unsigned_abs());
             10 * dr.max(dc) + 4 * dr.min(dc)
         };
-        let mut best: Best = FxHashMap::default();
+        let mut best = Best::default();
         let mut open = BinaryHeap::new();
+        // Gate `j` of the tile whose gates start at `row` in `best` reached at cost `g`.
         let reach = |best: &mut Best,
                      open: &mut BinaryHeap<Reverse<(u32, u32, usize, usize)>>,
-                     node: (usize, usize),
+                     (t, j, row): (usize, usize, usize),
                      g: u32,
                      at: (i32, i32),
                      from: (usize, usize)| {
-            if best.get(&node).is_none_or(|&(known, _)| g < known) {
-                best.insert(node, (g, from));
-                open.push(Reverse((g + h(at), g, node.0, node.1)));
+            let known = &mut best.gates[row + j];
+            if g < known.0 {
+                *known = (g, from);
+                open.push(Reverse((g + h(at), g, t, j)));
             }
         };
-        for (i, &gate) in self.graph(ta).gates.iter().enumerate() {
+        let gates = &self.graph(ta).gates;
+        let row = best.row(ta, gates.len());
+        for (i, &gate) in gates.iter().enumerate() {
             let g = start[i];
             if g != NONE {
-                reach(&mut best, &mut open, (ta, i), g, gate, FROM_A);
+                reach(&mut best, &mut open, (ta, i, row), g, gate, FROM_A);
             }
         }
         let (mut found, mut last) = (NONE, FROM_A);
@@ -467,10 +496,13 @@ impl Grid {
             if f >= found {
                 break;
             }
-            if best.get(&(t, i)).is_some_and(|&(known, _)| g > known) {
+            let graph = self.graph(t);
+            let Some(&row) = best.tiles.get(&t) else {
+                continue;
+            };
+            if g > best.gates[row + i].0 {
                 continue;
             }
-            let graph = self.graph(t);
             let cost = dangers.entry(t).or_insert_with(|| self.danger_graph(t, danger));
             let cost = cost.as_deref().unwrap_or(&graph.cost);
             let gate = graph.gates[i];
@@ -484,7 +516,7 @@ impl Grid {
             for (j, &other) in graph.gates.iter().enumerate() {
                 let c = cost[i * n + j];
                 if j != i && c != NONE {
-                    reach(&mut best, &mut open, (t, j), g + c, other, (t, i));
+                    reach(&mut best, &mut open, (t, j, row), g + c, other, (t, i));
                 }
             }
             for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
@@ -503,8 +535,10 @@ impl Grid {
                 } else {
                     step + self.danger_step(next, danger)
                 };
-                if let Ok(j) = self.graph(u).gates.binary_search(&next) {
-                    reach(&mut best, &mut open, (u, j), g + step, next, (t, i));
+                let gates = &self.graph(u).gates;
+                if let Ok(j) = gates.binary_search(&next) {
+                    let row = best.row(u, gates.len());
+                    reach(&mut best, &mut open, (u, j, row), g + step, next, (t, i));
                 }
             }
         }
@@ -517,7 +551,7 @@ impl Grid {
             let mut node = last;
             while node != FROM_A {
                 trace.push(self.graph(node.0).gates[node.1]);
-                node = best[&node].1;
+                node = best.get(node).1;
             }
             trace.push(a);
             trace.reverse();
