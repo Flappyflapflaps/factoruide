@@ -40,6 +40,9 @@ pub fn run(
     for w in world.enclose(&overrides.enclosed) {
         eprintln!("{w}");
     }
+    for w in world.add_caves(&overrides.caves) {
+        eprintln!("{w}");
+    }
     world.raise(&overrides.raised);
     for w in world.add_passes(conn, &overrides.passes)? {
         eprintln!("{w}");

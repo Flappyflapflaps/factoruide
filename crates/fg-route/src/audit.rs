@@ -26,8 +26,8 @@ pub struct Check {
 pub const CHECKS: &[Check] = &[
     Check {
         name: "islands",
-        what: "places of quests in an area left only by boat, portal or lift ([[enclosed]] of \
-               passes.toml) that none takes to: the planner cannot get there",
+        what: "places of quests in an area left only by boat, portal, lift or its passages \
+               ([[enclosed]] of passes.toml) that none takes to: the planner cannot get there",
         error: true,
     },
     Check {
@@ -506,15 +506,15 @@ fn large_area(world: &World, p: &Pos) -> Option<Area> {
         .map(|(a, _)| (p.continent, a))
 }
 
-/// Places of quests the planner cannot get to: in an area left only by boat, portal or lift
-/// (`[[enclosed]]`) that none takes to, or from one.
+/// Places of quests the planner cannot get to: in an area left only by boat, portal, lift or
+/// the passages joining it (`[[enclosed]]`) that none takes to, or from one.
 fn islands(world: &World, model: &Model) -> Vec<Finding> {
     let enclosed = |a: Area| world.terrain.is_enclosed(a.0, a.1);
     let walk = |a: Area, b: Area| a.0 == b.0 && !enclosed(a) && !enclosed(b);
     let Some(start) = large_area(world, &model.start.pos) else {
         return Vec::new();
     };
-    out_of_reach("islands", world, model, &[start], walk, &[], true)
+    out_of_reach("islands", world, model, &[start], walk, &passage_areas(world), true)
 }
 
 /// Yards around a passage where the areas it joins are looked for (the two ends of a tunnel).
@@ -527,6 +527,28 @@ const PASSAGE_REACH: f64 = 150.0;
 /// `[[enclosed]]`, with its ways out in `travel.toml`. A boat does not count: it lands on
 /// islands.
 fn terrain_gaps(world: &World, model: &Model) -> Vec<Finding> {
+    let mut mainlands: Vec<Area> = world
+        .terrain
+        .continents()
+        .into_iter()
+        .filter_map(|c| world.terrain.main_area(c).map(|a| (c, a)))
+        .collect();
+    mainlands.extend(world.terrain.enclosed_areas());
+    out_of_reach(
+        "terrain-gaps",
+        world,
+        model,
+        &mainlands,
+        |a, b| a == b,
+        &passage_areas(world),
+        false,
+    )
+}
+
+/// The areas each passage joins, as the planner walks between two areas (`World::bridge`): those
+/// around it, and those around the passages it is walked to and from (the two ends of a bridge,
+/// of a ramp).
+fn passage_areas(world: &World) -> Vec<Vec<Area>> {
     let passages: Vec<Vec<Area>> = world
         .passes
         .iter()
@@ -548,11 +570,9 @@ fn terrain_gaps(world: &World, model: &Model) -> Vec<Finding> {
             areas
         })
         .collect();
-    // As the planner walks between two areas (`World::bridge`): from a passage of one to a
-    // passage of the other, through the passages between them (the two ends of a bridge, of a
-    // ramp).
+    // From a passage of one to a passage of the other, through the passages between them.
     let ends = |i: usize| !world.passes[i].shortcut && !world.passes[i].one_way;
-    let passages: Vec<Vec<Area>> = (0..passages.len())
+    (0..passages.len())
         .map(|i| {
             let mut areas = passages[i].clone();
             if ends(i) {
@@ -562,23 +582,7 @@ fn terrain_gaps(world: &World, model: &Model) -> Vec<Finding> {
             }
             areas
         })
-        .collect();
-    let mut mainlands: Vec<Area> = world
-        .terrain
-        .continents()
-        .into_iter()
-        .filter_map(|c| world.terrain.main_area(c).map(|a| (c, a)))
-        .collect();
-    mainlands.extend(world.terrain.enclosed_areas());
-    out_of_reach(
-        "terrain-gaps",
-        world,
-        model,
-        &mainlands,
-        |a, b| a == b,
-        &passages,
-        false,
-    )
+        .collect()
 }
 
 /// What each quest needs on top of its objectives: the items used on them (required source

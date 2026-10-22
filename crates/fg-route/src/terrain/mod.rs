@@ -11,8 +11,10 @@
 //! A straight line of plain steps (dry, safe) is the walk; otherwise the cheapest path (A* on
 //! the cells, cached). Points it does not connect keep the straight line: tunnels, bridges and
 //! city gates are buildings, not terrain. Except the large areas declared enclosed
-//! (`[[enclosed]]` of `overrides/passes.toml`: an island, the top of a cliff), which only a boat,
-//! a portal or a lift (`overrides/travel.toml`) leaves.
+//! (`[[enclosed]]` of `overrides/passes.toml`: an island, the top of a cliff, a valley walled by
+//! mountains), which only a boat, a portal or a lift (`overrides/travel.toml`) or their passages
+//! leave. Caves are not terrain either: places inside one (`[[cave]]`) are walked to through its
+//! mouth.
 //!
 //! The paths searched are slow to find (the first route of a long guide asks for thousands):
 //! they are kept in a walking memory (`Walks`) that the app shares between generations, and
@@ -169,6 +171,8 @@ struct Grid {
     /// (`open_gaps`; empty: each its own), and their sizes as labelled.
     roots: Vec<u32>,
     raw_sizes: Vec<u32>,
+    /// The pairs of areas (as labelled) a gap opened joins.
+    joins: Vec<(u32, u32)>,
     /// The strongest hostile mob around each cell (its level, more for an elite; 0: none), by
     /// tile (None: none in the tile), and the strongest of each tile.
     danger: Vec<Option<Box<[u8; 4096]>>>,
@@ -181,6 +185,19 @@ struct Grid {
     local_areas: Vec<std::sync::OnceLock<Box<[u16]>>>,
     /// The steps each cell can take (`Grid::moves`), by tile, found when first needed.
     moves: Vec<std::sync::OnceLock<Box<[u32; 4096]>>>,
+    /// The caves the terrain does not hold (`Terrain::add_cave`).
+    caves: Vec<Cave>,
+}
+
+/// A cave (`[[cave]]` of `overrides/passes.toml`): the terrain holds the ground above it, so the
+/// places inside stand on steep ground, nearer the other side of a ridge than the cave's mouth,
+/// maybe. The places on no large walkable area within `reach` cells of `inside` are walked to
+/// through the mouth, a cell of a large area.
+struct Cave {
+    inside: (i32, i32),
+    reach: i32,
+    mouth: (i32, i32),
+    mouth_pos: Pos,
 }
 
 /// What a cell is for walking (`Terrain::view`), to look at the terrain.
@@ -448,6 +465,18 @@ impl Grid {
         }
     }
 
+    /// The cave a cell is in: on no large walkable area, within a cave's reach.
+    fn cave_at(&self, (r, c): (i32, i32)) -> Option<&Cave> {
+        if self.caves.is_empty() {
+            return None;
+        }
+        let a = self.area(r, c);
+        if a != 0 && self.sizes[a as usize] >= LARGE_AREA {
+            return None;
+        }
+        (self.caves.iter()).find(|k| (r - k.inside.0).pow(2) + (c - k.inside.1).pow(2) <= k.reach.pow(2))
+    }
+
     /// Whether two cells stand in two large areas as labelled, joined only by the gaps opened.
     fn raw_apart(&self, a: (i32, i32), b: (i32, i32)) -> bool {
         if self.roots.is_empty() {
@@ -479,13 +508,6 @@ impl Grid {
     /// ends (not over a ridge), is made walkable and the areas one. Cliffs, mesas and
     /// mountains are not opened: their ends are far apart in height, or the run is long.
     fn open_gaps(&mut self) {
-        fn root(parent: &mut [u32], mut a: u32) -> u32 {
-            while parent[a as usize] != a {
-                parent[a as usize] = parent[parent[a as usize] as usize];
-                a = parent[a as usize];
-            }
-            a
-        }
         let height = |g: &Grid, r: i32, c: i32| i32::from(g.probe(r, c).0);
         let steep_only = |g: &Grid, r: i32, c: i32| g.probe(r, c).1 & (STEEP | NO_GO) == STEEP;
         let source = |g: &Grid, a: u32| a != 0 && g.sizes[a as usize] >= GAP_AREA;
@@ -573,15 +595,6 @@ impl Grid {
         if joins.is_empty() {
             return;
         }
-        // The areas joined, as one (the lowest number of each set).
-        let mut parent: Vec<u32> = (0..self.sizes.len() as u32).collect();
-        for &(a, b) in &joins {
-            let (ra, rb) = (root(&mut parent, a), root(&mut parent, b));
-            if ra != rb {
-                parent[ra.max(rb) as usize] = ra.min(rb);
-            }
-        }
-        let roots: Vec<u32> = (0..self.sizes.len() as u32).map(|a| root(&mut parent, a)).collect();
         // The opened cells: walkable, in the area of a walkable neighbour (the gap's cells are
         // walked in a row).
         opened.sort_unstable();
@@ -613,13 +626,34 @@ impl Grid {
             }
             raw_sizes[area as usize] += u32::from(area != 0);
         }
-        let mut sizes = vec![0u32; raw_sizes.len()];
-        for (a, &n) in raw_sizes.iter().enumerate().skip(1) {
-            sizes[roots[a] as usize] += n;
+        self.raw_sizes = raw_sizes;
+        self.joins = joins;
+        self.unite();
+    }
+
+    /// The areas the gaps opened join, as one (`joins`; the lowest number of each set), and their
+    /// sizes.
+    fn unite(&mut self) {
+        fn root(parent: &mut [u32], mut a: u32) -> u32 {
+            while parent[a as usize] != a {
+                parent[a as usize] = parent[parent[a as usize] as usize];
+                a = parent[a as usize];
+            }
+            a
+        }
+        let mut parent: Vec<u32> = (0..self.raw_sizes.len() as u32).collect();
+        for &(a, b) in &self.joins {
+            let (ra, rb) = (root(&mut parent, a), root(&mut parent, b));
+            if ra != rb {
+                parent[ra.max(rb) as usize] = ra.min(rb);
+            }
+        }
+        self.roots = (0..self.raw_sizes.len() as u32).map(|a| root(&mut parent, a)).collect();
+        let mut sizes = vec![0u32; self.raw_sizes.len()];
+        for (a, &n) in self.raw_sizes.iter().enumerate().skip(1) {
+            sizes[self.roots[a] as usize] += n;
         }
         self.sizes = sizes;
-        self.raw_sizes = raw_sizes;
-        self.roots = roots;
     }
 
     /// Label the walkable areas: cells joined by straight steps taken both ways (as paths do
@@ -1024,12 +1058,14 @@ impl Terrain {
                 sizes: Vec::new(),
                 roots: Vec::new(),
                 raw_sizes: Vec::new(),
+                joins: Vec::new(),
                 danger: Vec::new(),
                 danger_max: Vec::new(),
                 graphs: Vec::new(),
                 danger_graphs: Vec::new(),
                 local_areas: Vec::new(),
                 moves: Vec::new(),
+                caves: Vec::new(),
             };
             grid.label();
             grid.open_gaps();
@@ -1134,6 +1170,9 @@ impl Terrain {
         if large(r, c) {
             return (r, c);
         }
+        if let Some(cave) = grid.cave_at((r, c)) {
+            return cave.mouth;
+        }
         let mut walkable = None;
         for d in 1..=SNAP {
             for dr in -d..=d {
@@ -1227,6 +1266,22 @@ impl Terrain {
             MEMO.with(|m| m.borrow_mut().insert(key, w));
             w
         });
+        // From or to a cave: through its mouth (two places of the same cave: straight).
+        let (mouth_a, mouth_b) = (Self::mouth_of(grid, a), Self::mouth_of(grid, b));
+        if mouth_a.is_some() || mouth_b.is_some() {
+            let (ea, eb) = (mouth_a.unwrap_or(*a), mouth_b.unwrap_or(*b));
+            if mouth_a.is_some() && ea.dist(&eb) < 1e-6 {
+                return Some(straight);
+            }
+            let (between, legs) = (ea.dist(&eb), a.dist(&ea) + eb.dist(b));
+            return if walk.is_nan() {
+                None
+            } else if walk < 0.0 {
+                Some(between + legs)
+            } else {
+                Some(f64::from(walk).max(between) + legs)
+            };
+        }
         if walk.is_nan() {
             None
         } else if walk < 0.0 {
@@ -1234,6 +1289,35 @@ impl Terrain {
         } else {
             Some(f64::from(walk).max(straight))
         }
+    }
+
+    /// The mouth of the cave `p` stands in (`add_cave`), None outside the caves.
+    fn mouth_of(grid: &Grid, p: &Pos) -> Option<Pos> {
+        grid.cave_at(Self::cell(p)).map(|k| k.mouth_pos)
+    }
+
+    /// A cave the terrain does not hold, opening at `mouth`: the places on no large walkable area
+    /// within `reach` yards of `inside` are walked to through it. False when the mouth is in no
+    /// large area of the terrain.
+    pub fn add_cave(&mut self, mouth: &Pos, inside: &Pos, reach: f64) -> bool {
+        let Some(grid) = self.grids.get_mut(&mouth.continent) else {
+            return false;
+        };
+        let cell = Self::snap(grid, Self::cell(mouth));
+        let area = grid.area(cell.0, cell.1);
+        if area == 0 || grid.sizes[area as usize] < LARGE_AREA || inside.continent != mouth.continent {
+            return false;
+        }
+        grid.caves.push(Cave {
+            inside: Self::cell(inside),
+            reach: (reach / CELL).round() as i32,
+            mouth: cell,
+            mouth_pos: *mouth,
+        });
+        // Answers given before are kept by terrain: this one is another.
+        self.id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        self.turns.iter_mut().for_each(|t| t.get_mut().unwrap().clear());
+        true
     }
 
     /// The walkable area a point stands in (after snapping to the nearest large one) and its
@@ -1292,6 +1376,33 @@ impl Terrain {
         };
         grid.ends_anew(Self::snap(grid, Self::cell(p)), (level, self.danger_costs))
             .len()
+    }
+
+    /// Take the large area at `p`, as the terrain labels it, out of the mainland the gaps opened
+    /// join it to (`Grid::open_gaps`): a valley whose way out the terrain breaks, walled by
+    /// mountains it does not tell from the slopes a path goes up. The gaps stay open; walks
+    /// between it and the rest go through the passages joining them once it is enclosed. Before
+    /// `enclose` (it numbers the areas anew). Whether it was taken out.
+    pub fn detach(&mut self, p: &Pos) -> bool {
+        let main = self.main_area(p.continent);
+        let Some(grid) = self.grids.get_mut(&p.continent) else {
+            return false;
+        };
+        let (r, c) = Self::snap(grid, Self::cell(p));
+        let raw = grid.raw_area(r, c);
+        if grid.roots.is_empty() || raw == 0 || grid.raw_sizes[raw as usize] < LARGE_AREA {
+            return false;
+        }
+        let root = grid.roots[raw as usize];
+        // Not joined to the mainland, or the mainland itself.
+        if Some(root) != main || grid.raw_sizes[raw as usize] * 2 > grid.sizes[root as usize] {
+            return false;
+        }
+        grid.joins.retain(|&(a, b)| a != raw && b != raw);
+        grid.unite();
+        self.id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        self.turns.iter_mut().for_each(|t| t.get_mut().unwrap().clear());
+        true
     }
 
     /// The large area at `p` is left only by boat, portal or lift (Rut'theran Village, at the
@@ -1567,6 +1678,23 @@ impl Terrain {
         if a.continent != b.continent {
             return Vec::new();
         }
+        // From or to a cave: through its mouth.
+        let (mouth_a, mouth_b) = (Self::mouth_of(grid, a), Self::mouth_of(grid, b));
+        if mouth_a.is_some() || mouth_b.is_some() {
+            let (ea, eb) = (mouth_a.unwrap_or(*a), mouth_b.unwrap_or(*b));
+            if mouth_a.is_some() && ea.dist(&eb) < 1e-6 {
+                return Vec::new();
+            }
+            let mut points: Vec<Pos> = mouth_a.into_iter().collect();
+            points.extend(self.waypoints_between(grid, a, b, level));
+            points.extend(mouth_b);
+            return points;
+        }
+        self.waypoints_between(grid, a, b, level)
+    }
+
+    /// `waypoints` from a cell to another (as snapped).
+    fn waypoints_between(&self, grid: &Grid, a: &Pos, b: &Pos, level: u8) -> Vec<Pos> {
         let level = if self.danger_weight > 0.0 { level } else { 0 };
         let (ca, cb) = (Self::cell(a), Self::cell(b));
         // Most walks go straight, or the terrain does not know the way: the distance asked
@@ -1898,6 +2026,79 @@ mod tests {
             t.distance(&east, &at(30.0, 64.0 + 40.0), 0).unwrap().is_finite(),
             "walked within"
         );
+    }
+
+    /// A valley the terrain joins to the mainland only through a gap it opened (a road broken
+    /// into steep steps), walled elsewhere: walked out of through the gap, until it is taken out
+    /// of the mainland and enclosed (its passages then are its only ways out). The mainland
+    /// itself is never taken out.
+    #[test]
+    fn valley_joined_by_a_gap_is_detached_to_be_enclosed() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE client_terrain (map_id INTEGER, tile_x INTEGER, tile_y INTEGER, blocked BLOB)",
+        )
+        .unwrap();
+        // Tile (33, 32), east of (32, 32): a wall on columns 0 to 9, but 0 to 3 on the last rows
+        // (a gap the terrain opens), and columns 48 to 63 steep (the valley's far side).
+        for x in [32, 33] {
+            let row = |r: u64| match (x, r >= 60) {
+                (32, _) => 0u64,
+                (_, false) => 0x3ff | !0u64 << 48,
+                (_, true) => 0xf | !0u64 << 48,
+            };
+            let blob: Vec<u8> = (0..64).flat_map(|r| row(r).to_le_bytes()).collect();
+            conn.execute(
+                "INSERT INTO client_terrain VALUES (1, ?1, 32, ?2)",
+                rusqlite::params![x, blob],
+            )
+            .unwrap();
+        }
+        let mut t = Terrain::load(&conn).unwrap();
+        let (plain, valley) = (at(10.0, 20.0), at(10.0, 64.0 + 20.0));
+        assert!(t.distance(&plain, &valley, 0).unwrap().is_finite(), "through the gap");
+        assert!(t.enclose(&valley, 0).is_none(), "one area with the mainland");
+        assert!(!t.detach(&plain), "the mainland stays");
+        assert!(t.detach(&valley));
+        assert!(t.enclose(&valley, 0).is_some());
+        assert_eq!(t.distance(&plain, &valley, 0), Some(f64::INFINITY));
+        assert!(t.separated(&plain, &valley));
+        assert!(
+            t.distance(&valley, &at(40.0, 64.0 + 30.0), 0).unwrap().is_finite(),
+            "walked within"
+        );
+    }
+
+    /// A place in a cave the terrain does not hold stands on steep ground (the wall above it),
+    /// nearer the wall's west side; the cave opens east: walked to from the east through its
+    /// mouth, from the west around the wall to the mouth.
+    #[test]
+    fn cave_is_walked_to_through_its_mouth() {
+        let mut t = terrain(&[60, 61, 62, 63]);
+        let (inside, mouth) = (at(10.0, 31.0), at(10.0, 37.0));
+        let (west, east) = (at(10.0, 20.0), at(10.0, 44.0));
+        let before = (
+            t.distance(&west, &inside, 0).unwrap(),
+            t.distance(&east, &inside, 0).unwrap(),
+        );
+        assert!(before.0 < before.1, "nearer the west side: {before:?}");
+        assert!(t.add_cave(&mouth, &inside, 3.0 * CELL));
+        let from_east = t.distance(&east, &inside, 0).unwrap();
+        assert!(
+            (from_east - (east.dist(&mouth) + mouth.dist(&inside))).abs() < CELL,
+            "{from_east}"
+        );
+        let from_west = t.distance(&west, &inside, 0).unwrap();
+        assert!(from_west > 2.0 * 40.0 * CELL, "around the wall: {from_west}");
+        let turns = t.waypoints(&west, &inside, 0);
+        assert!(
+            turns.last().is_some_and(|p| p.dist(&mouth) < 1e-6),
+            "through the mouth: {turns:?}"
+        );
+        // Two places of the cave: straight between them; places outside it are not moved.
+        let deeper = at(12.0, 32.0);
+        assert!((t.distance(&inside, &deeper, 0).unwrap() - inside.dist(&deeper)).abs() < 1e-6);
+        assert!((t.distance(&east, &at(20.0, 44.0), 0).unwrap() - 10.0 * CELL).abs() < 1e-6);
     }
 
     /// A memory of other terrain data (the game changed) is not used: its walks would be wrong.

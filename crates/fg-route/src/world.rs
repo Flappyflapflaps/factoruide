@@ -795,6 +795,19 @@ pub struct EnclosedDef {
     pub at: ZonePoint,
 }
 
+/// A cave the terrain does not hold (`[[cave]]` of `overrides/passes.toml`): it holds the ground
+/// above, so the places inside stand on steep ground, maybe nearer the other side of a ridge
+/// than the mouth. The places on no large walkable area within `radius` yards of `inside` are
+/// walked to through the mouth `at`.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct CaveDef {
+    pub name: String,
+    /// The mouth, on the ground it opens on.
+    pub at: ZonePoint,
+    pub inside: ZonePoint,
+    pub radius: f64,
+}
+
 /// A place up a building (`[[raised]]` of `overrides/passes.toml`): the top of a watchtower,
 /// whose stairs the straight walk on the terrain does not see. Walking there from below, or back
 /// down, takes `climb` yards more.
@@ -877,6 +890,13 @@ impl World {
     /// (their walks depend on it).
     pub fn enclose(&mut self, defs: &[EnclosedDef]) -> Vec<String> {
         let mut warnings = Vec::new();
+        // A valley the gaps opened join to the mainland is taken out of it first (the areas are
+        // numbered anew).
+        for d in defs {
+            if let Some(p) = self.to_world(d.at.zone, d.at.x, d.at.y) {
+                self.terrain.detach(&p);
+            }
+        }
         // The entries of one name are one place: walks between its areas are not cut.
         let mut groups: Vec<&str> = Vec::new();
         for d in defs {
@@ -889,6 +909,28 @@ impl World {
                 .and_then(|p| self.terrain.enclose(&p, group));
             if enclosed.is_none() && !self.terrain.is_empty() {
                 warnings.push(format!("enclosed area {}: not in a large area of the terrain", d.name));
+            }
+        }
+        warnings
+    }
+
+    /// Caves the terrain does not hold: walks to the places inside go through their mouth. Before
+    /// the passages and links (their walks depend on it).
+    pub fn add_caves(&mut self, defs: &[CaveDef]) -> Vec<String> {
+        let mut warnings = Vec::new();
+        for d in defs {
+            let added = match (
+                self.to_world(d.at.zone, d.at.x, d.at.y),
+                self.to_world(d.inside.zone, d.inside.x, d.inside.y),
+            ) {
+                (Some(mouth), Some(inside)) => self.terrain.add_cave(&mouth, &inside, d.radius),
+                _ => false,
+            };
+            if !added && !self.terrain.is_empty() {
+                warnings.push(format!(
+                    "cave {}: its mouth is not in a large area of the terrain",
+                    d.name
+                ));
             }
         }
         warnings

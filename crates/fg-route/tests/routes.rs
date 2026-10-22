@@ -965,6 +965,88 @@ fn rut_theran_is_left_by_portal_or_boat() {
     assert!(portal.seconds < 30.0, "a portal is taken at once");
 }
 
+/// The walking world of each edition for a faction (`job::walk_world`).
+fn walk_worlds(faction: fg_route::faction::Faction) -> Vec<(&'static str, fg_route::world::World)> {
+    [
+        ("forever", Edition::Forever),
+        ("classic", Edition::Classic),
+        ("tbc", Edition::Tbc),
+    ]
+    .into_iter()
+    .map(|(name, edition)| {
+        let overrides = Overrides::load_edition(&repo().join("overrides"), edition).unwrap();
+        (name, job::walk_world(&database_of(name), &overrides, faction).unwrap())
+    })
+    .collect()
+}
+
+/// Whether a walk drawn (`World::walk_path`) goes through a passage.
+fn through(world: &fg_route::world::World, path: &[fg_route::world::Pos], passage: &str) -> bool {
+    let pass = world.passes.iter().find(|q| q.name == passage).unwrap();
+    path.iter().any(|p| p.dist(&pass.pos) < 1.0)
+}
+
+/// Valley of Trials is walled by mountains: walks out of it take its road east to Durotar's
+/// plain, never a straight line over the ridges, even to the plain just behind its north wall
+/// (GitHub #43). Walks inside it do not take the road.
+#[test]
+fn valley_of_trials_is_left_by_its_road() {
+    for (edition, w) in walk_worlds(fg_route::faction::Faction::Horde) {
+        let at = |x, y| w.to_world(14, x, y).unwrap();
+        let (north_end, behind) = (at(44.5, 56.5), at(42.0, 50.5));
+        let (gornek, razor_hill) = (at(42.1, 68.4), at(51.9, 43.5));
+        for (a, b) in [(north_end, behind), (behind, north_end), (gornek, razor_hill)] {
+            let path = w.walk_path(&a, &b, 0);
+            assert!(through(&w, &path, "Valley of Trials road"), "{edition}: {path:?}");
+            let length: f64 = path.windows(2).map(|p| p[0].dist(&p[1])).sum();
+            assert!(
+                (w.walk_distance(&a, &b) - length).abs() < 0.2 * length,
+                "{edition}: priced as drawn"
+            );
+        }
+        assert!(
+            w.walk_distance(&north_end, &behind) > 4.0 * north_end.dist(&behind),
+            "{edition}"
+        );
+        let sarkoth = at(40.6, 62.6);
+        assert!(
+            !through(&w, &w.walk_path(&gornek, &sarkoth, 0), "Valley of Trials road"),
+            "{edition}"
+        );
+    }
+}
+
+/// Burning Blade Coven opens on Valley of Trials: Yarrog Baneshadow, deep inside under the
+/// ridge (nearer the plain behind it than the valley), is walked to from the valley through the
+/// cave's mouth, and from Razor Hill by the valley's road.
+#[test]
+fn burning_blade_coven_is_reached_from_the_valley() {
+    for (edition, w) in walk_worlds(fg_route::faction::Faction::Horde) {
+        let at = |x, y| w.to_world(14, x, y).unwrap();
+        let (yarrog, zureetha, razor_hill) = (at(42.7, 53.0), at(42.8, 69.0), at(51.9, 43.5));
+        let mouth = at(45.3, 56.4);
+        let from_valley = w.walk_distance(&zureetha, &yarrog);
+        assert!(from_valley < 1.5 * zureetha.dist(&yarrog), "{edition}: {from_valley}");
+        assert!(w.walk_distance(&razor_hill, &yarrog) > from_valley, "{edition}");
+        let path = w.walk_path(&razor_hill, &yarrog, 0);
+        assert!(through(&w, &path, "Valley of Trials road"), "{edition}: {path:?}");
+        assert!(
+            path[path.len() - 2].dist(&mouth) < 1.0,
+            "{edition}: by the mouth {path:?}"
+        );
+    }
+}
+
+/// Coldridge Valley is left by Coldridge Pass, the tunnel to Kharanos, in every edition.
+#[test]
+fn coldridge_valley_is_left_by_its_tunnel() {
+    for (edition, w) in walk_worlds(fg_route::faction::Faction::Alliance) {
+        let at = |x, y| w.to_world(1, x, y).unwrap();
+        let path = w.walk_path(&at(29.0, 66.0), &at(46.0, 52.0), 0);
+        assert!(through(&w, &path, "Coldridge Pass, valley end"), "{edition}: {path:?}");
+    }
+}
+
 /// The passages of the Eastern Kingdoms' south (Stormwind, Elwynn) and north (Dun Morogh,
 /// Silverpine) do not meet: going from one to the other takes the tram, a flight or a boat, never
 /// a walk in a straight line over the mountains.

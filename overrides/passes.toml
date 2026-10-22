@@ -302,6 +302,17 @@ at = { zone = 1, x = 66.9, y = 8.5 }
 shortcut = true
 one_way = true
 
+# Coldridge Pass, the tunnel from Coldridge Valley to Kharanos.
+[[pass]]
+name = "Coldridge Pass, valley end"
+zones = [1, 1]
+at = { zone = 1, x = 33.0, y = 69.3 }
+
+[[pass]]
+name = "Coldridge Pass, Kharanos end"
+zones = [1, 1]
+at = { zone = 1, x = 42.6, y = 63.9 }
+
 # --- Enclosed areas ------------------------------------------------------------------
 # Large walkable areas left only by boat, portal or lift (overrides/travel.toml), or through the
 # passages joining them: no other walk to or from them. The area is the terrain's, around `at`;
@@ -318,8 +329,34 @@ at = { zone = 141, x = 55.5, y = 90.0 }
 name = "Teldrassil"                 # the portal down to Rut'theran Village
 at = { zone = 141, x = 56.0, y = 60.0 }
 
+# Valley of Trials, walled by mountains: its only way out is the road east to Durotar's plain,
+# which the terrain breaks into steep steps. An area the terrain joins to the mainland through
+# such gaps only is taken out of it, so no walk goes over the ridges.
+[[enclosed]]
+name = "Valley of Trials"
+at = { zone = 14, x = 43.0, y = 63.0 }
+
+[[pass]]
+name = "Valley of Trials road"
+zones = [14, 14]
+at = { zone = 14, x = 47.4, y = 67.7 } # approx: where the road leaves the valley
+
 # --- Raised places -------------------------------------------------------------------
 # The top of a building (a watchtower) the terrain does not see: walks there from below, or back
 # down, take `climb` yards of stairs or ramps more. `radius`: yards around `at` that are up there.
 # A link (travel.toml) may leave such a place faster (a jump, a glide). <edition>/passes.toml
 # adds those of one game version.
+
+# --- Caves ---------------------------------------------------------------------------
+# A cave the terrain does not hold: it holds the ground above, so the places inside stand on
+# steep ground and would be walked to from wherever is nearest, maybe over a ridge. The places
+# on no large walkable area within `radius` yards of `inside` are walked to through the mouth
+# `at` (on the ground it opens on). `fg travel` to a place inside shows the way through it.
+
+# Burning Blade Coven, in Valley of Trials' north wall: Yarrog Baneshadow deep inside, nearer
+# Durotar's plain behind the ridge than the valley.
+[[cave]]
+name = "Burning Blade Coven"
+at = { zone = 14, x = 45.3, y = 56.4 }     # approx: the mouth, at the valley's northern end
+inside = { zone = 14, x = 43.8, y = 54.0 } # approx
+radius = 120.0

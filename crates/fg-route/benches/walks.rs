@@ -37,6 +37,7 @@ fn world() -> World {
     let mut world = World::load(&conn, Faction::parse("Horde").unwrap(), params.flight_speed).unwrap();
     world.add_danger(&conn, params.danger_weight).unwrap();
     world.enclose(&overrides.enclosed);
+    world.add_caves(&overrides.caves);
     world.raise(&overrides.raised);
     let passes: Vec<_> = (overrides.passes.iter())
         .filter(|p| params.shortcuts || !p.shortcut)

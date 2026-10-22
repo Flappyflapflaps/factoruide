@@ -117,17 +117,6 @@ name = "Stormwind canal steps"
 zones = [1519, 1519]
 at = { zone = 1519, x = 41.4, y = 45.7 }
 
-# Coldridge Pass, the tunnel from Coldridge Valley to Kharanos.
-[[pass]]
-name = "Coldridge Pass, valley end"
-zones = [1, 1]
-at = { zone = 1, x = 33.0, y = 69.3 }
-
-[[pass]]
-name = "Coldridge Pass, Kharanos end"
-zones = [1, 1]
-at = { zone = 1, x = 42.6, y = 63.9 }
-
 # The road up to Nethergarde Keep.
 [[pass]]
 name = "Nethergarde road, top"
