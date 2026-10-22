@@ -125,7 +125,12 @@ thread_local! {
     static MEMO: RefCell<Memo> = RefCell::new(Memo::default());
     /// `Terrain::disconnected` already answered, by terrain, continent and pair of cells.
     static APART: RefCell<FxHashMap<(u32, i64, u64), bool>> = RefCell::new(FxHashMap::default());
+    /// `Terrain::snap` of the cells in no large area (the nearest one looked for around them),
+    /// by terrain, continent and cell: the planner asks for the same places again and again.
+    static SNAPS: RefCell<FxHashMap<(u32, i64, i32, i32), (i32, i32)>> = RefCell::new(FxHashMap::default());
 }
+/// Cells `SNAPS` remembers, beyond which it starts over.
+const SNAPS_MAX: usize = 1 << 18;
 /// The turns of the walks already followed (`Terrain::waypoints`), by continent, pair of cells
 /// and level, in shards; a shard is emptied beyond `TURNS_MAX`.
 type Turns = Vec<Mutex<FxHashMap<Key, Arc<[(i32, i32)]>>>>;
@@ -1206,6 +1211,27 @@ impl Terrain {
         }
     }
 
+    /// `snap` of a cell of continent `map`, remembered in the thread.
+    fn snapped(&self, grid: &Grid, map: i64, (r, c): (i32, i32)) -> (i32, i32) {
+        let a = grid.area(r, c);
+        if a != 0 && grid.sizes[a as usize] >= LARGE_AREA {
+            return (r, c);
+        }
+        let key = (self.id, map, r, c);
+        if let Some(known) = SNAPS.with(|m| m.borrow().get(&key).copied()) {
+            return known;
+        }
+        let cell = Self::snap(grid, (r, c));
+        SNAPS.with(|m| {
+            let mut m = m.borrow_mut();
+            if m.len() >= SNAPS_MAX {
+                m.clear();
+            }
+            m.insert(key, cell);
+        });
+        cell
+    }
+
     /// Extra cost (tenths of a cell) of entering a cell for its danger, at `level` (0: none).
     fn danger_cost(&self, grid: &Grid, p: (i32, i32), level: u8) -> u32 {
         grid.danger_step(p, (level, self.danger_costs))
@@ -1334,7 +1360,7 @@ impl Terrain {
     /// size in cells: None without terrain for its continent, area 0 on steep ground.
     pub fn area_of(&self, p: &Pos) -> Option<(u32, u32)> {
         let grid = self.grids.get(&p.continent)?;
-        let (r, c) = Self::snap(grid, Self::cell(p));
+        let (r, c) = self.snapped(grid, p.continent, Self::cell(p));
         let area = grid.area(r, c);
         Some((area, grid.sizes.get(area as usize).copied().unwrap_or(0)))
     }
@@ -1344,7 +1370,7 @@ impl Terrain {
     /// large area.
     pub fn large_areas_of(&self, p: &Pos) -> Option<(u32, u32)> {
         let grid = self.grids.get(&p.continent)?;
-        let (r, c) = Self::snap(grid, Self::cell(p));
+        let (r, c) = self.snapped(grid, p.continent, Self::cell(p));
         let raw = grid.raw_area(r, c);
         let sizes = if grid.roots.is_empty() {
             &grid.sizes
@@ -1360,6 +1386,7 @@ impl Terrain {
     pub fn forget_walks(&self) {
         MEMO.with(|m| m.borrow_mut().clear());
         APART.with(|m| m.borrow_mut().clear());
+        SNAPS.with(|m| m.borrow_mut().clear());
         self.walks.shards.iter().for_each(|s| s.lock().unwrap().clear());
         self.used.iter().for_each(|u| u.lock().unwrap().clear());
         self.turns.iter().for_each(|t| t.lock().unwrap().clear());
@@ -1565,7 +1592,7 @@ impl Terrain {
         if let Some(known) = APART.with(|m| m.borrow().get(&(id, map, cells)).copied()) {
             return known;
         }
-        let (ca, cb) = (Self::snap(grid, ca), Self::snap(grid, cb));
+        let (ca, cb) = (self.snapped(grid, map, ca), self.snapped(grid, map, cb));
         let (area, other) = (grid.raw_area(ca.0, ca.1), grid.raw_area(cb.0, cb.1));
         let sizes = if grid.roots.is_empty() {
             &grid.sizes
@@ -1603,7 +1630,10 @@ impl Terrain {
         let Some(grid) = self.grids.get(&a.continent) else {
             return false;
         };
-        let (ca, cb) = (Self::snap(grid, Self::cell(a)), Self::snap(grid, Self::cell(b)));
+        let (ca, cb) = (
+            self.snapped(grid, a.continent, Self::cell(a)),
+            self.snapped(grid, a.continent, Self::cell(b)),
+        );
         self.apart(grid, a.continent, grid.area(ca.0, ca.1), grid.area(cb.0, cb.1))
     }
 
@@ -1612,7 +1642,7 @@ impl Terrain {
     /// it does not connect, which a tunnel or a bridge may: a small patch, a ledge, a cave, or no
     /// path found).
     fn walk_cells(&self, grid: &Grid, map: i64, ca: (i32, i32), cb: (i32, i32), level: u8) -> Option<f64> {
-        let (ca, cb, level) = Self::walk_ends(grid, ca, cb, level);
+        let (ca, cb, level) = self.walk_ends(grid, map, ca, cb, level);
         if ca == cb {
             return Some(-1.0);
         }
@@ -1642,8 +1672,15 @@ impl Terrain {
     /// The cells a walk between two cells goes from and to (snapped to a large area), and the
     /// level its danger counts at: none when no mob strong enough is around (one search for
     /// every level).
-    fn walk_ends(grid: &Grid, ca: (i32, i32), cb: (i32, i32), level: u8) -> ((i32, i32), (i32, i32), u8) {
-        let (ca, cb) = (Self::snap(grid, ca), Self::snap(grid, cb));
+    fn walk_ends(
+        &self,
+        grid: &Grid,
+        map: i64,
+        ca: (i32, i32),
+        cb: (i32, i32),
+        level: u8,
+    ) -> ((i32, i32), (i32, i32), u8) {
+        let (ca, cb) = (self.snapped(grid, map, ca), self.snapped(grid, map, cb));
         let level = if level > 0 && grid.danger_near(ca, cb, MARGINS[MARGINS.len() - 1], level) {
             level
         } else {
@@ -1733,7 +1770,7 @@ impl Terrain {
         let memo = self.turns.get(shard(key));
         let known = memo.and_then(|m| m.lock().unwrap().get(&key).cloned());
         let turns = known.unwrap_or_else(|| {
-            let turns = self.turns(grid, ca, cb, level);
+            let turns = self.turns(grid, a.continent, ca, cb, level);
             if let Some(memo) = memo {
                 let mut memo = memo.lock().unwrap();
                 if memo.len() >= TURNS_MAX {
@@ -1753,8 +1790,8 @@ impl Terrain {
     }
 
     /// The cells a walk between two cells turns at (`waypoints`).
-    fn turns(&self, grid: &Grid, ca: (i32, i32), cb: (i32, i32), level: u8) -> Arc<[(i32, i32)]> {
-        let (ca, cb, level) = Self::walk_ends(grid, ca, cb, level);
+    fn turns(&self, grid: &Grid, map: i64, ca: (i32, i32), cb: (i32, i32), level: u8) -> Arc<[(i32, i32)]> {
+        let (ca, cb, level) = self.walk_ends(grid, map, ca, cb, level);
         if ca == cb || self.line(grid, ca, cb, level).is_some() {
             return Arc::new([]);
         }
