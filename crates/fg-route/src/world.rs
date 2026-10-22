@@ -111,6 +111,9 @@ thread_local! {
 }
 const WALKED_MAX: usize = 1 << 17;
 
+/// A lift of `World::area_lifts`: passage and the indices of its two sides.
+type LiftSides = (usize, usize, usize);
+
 pub struct World {
     zones: HashMap<i64, ZoneRect>,
     pub zone_names: HashMap<i64, String>,
@@ -143,7 +146,7 @@ pub struct World {
     /// The lifts (`PassDef::lift`) with two sides in the same large area (the floors join them
     /// only by a long way round: `Pass::areas` keeps such sides apart), by area: passage and the
     /// indices of the two sides in its `areas`, both ways.
-    area_lifts: FxHashMap<(i64, u32), Vec<(usize, usize, usize)>>,
+    area_lifts: FxHashMap<(i64, u32), Vec<LiftSides>>,
     /// Tells this world's walks through the passages from another's in the thread memo.
     bridge_id: u32,
     /// Tells this world's walks from another's in the thread memo (`WALKED`): new each time

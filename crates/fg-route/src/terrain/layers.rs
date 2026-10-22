@@ -298,12 +298,13 @@ impl TileLayers {
 
     /// The floors without the heights of the cells of a single floor (0: only the heights of the
     /// floors of a cell tell them apart) and without their sizes (0).
+    #[must_use]
     pub fn lean(&self) -> Self {
         let mut out = self.clone();
         let o = self.offsets();
-        for i in 0..4096 {
-            if self.counts[i] == 1 {
-                out.floors[o[i] as usize].height = 0;
+        for (&count, &at) in self.counts.iter().zip(o.iter()) {
+            if count == 1 {
+                out.floors[at as usize].height = 0;
             }
         }
         for f in &mut out.floors {
@@ -363,8 +364,8 @@ impl TileLayers {
                     straight.push(f.walks[d] ^ self.predict_straight(&o, i, k, d));
                 }
                 let derived = self.derive_diagonals(&o, i, k);
-                for d in 0..4 {
-                    diagonal.push(f.walks[4 + d] ^ derived[d]);
+                for (&walk, &d) in f.walks[4..8].iter().zip(derived.iter()) {
+                    diagonal.push(walk ^ d);
                 }
             }
         }

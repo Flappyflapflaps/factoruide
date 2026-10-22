@@ -61,8 +61,7 @@ fn floors_terrain(tiles: &[(i64, i32, i32)], floors: impl Fn(i64, i32, i32) -> V
                 };
                 let s = straight(r, c, h);
                 floor.walks[..4].copy_from_slice(&s);
-                for d in 4..8 {
-                    let (dr, dc) = DIRECTIONS[d];
+                for (d, &(dr, dc)) in DIRECTIONS.iter().enumerate().skip(4) {
                     for (via, rest) in [((dr, 0), (0, dc)), ((0, dc), (dr, 0))] {
                         let dv = DIRECTIONS.iter().position(|&x| x == via).unwrap();
                         let dn = DIRECTIONS.iter().position(|&x| x == rest).unwrap();
@@ -429,13 +428,7 @@ fn tunnel_under_a_ridge_is_walked_through() {
     let t2 = floors_terrain(&[(1, 32, 32)], |_, r, c| {
         let (r, c) = (r - 32 * 64, c - 32 * 64);
         let ridge = (28..36).contains(&c) && r < 60;
-        if !ridge {
-            vec![(0, 0)]
-        } else if r == 20 {
-            vec![(0, 0)]
-        } else {
-            Vec::new()
-        }
+        if !ridge || r == 20 { vec![(0, 0)] } else { Vec::new() }
     });
     let (west, east) = (at(20.0, 20.0), at(20.0, 44.0));
     // A floor 30 yards down is not walked to from the valley: round the ridge.

@@ -114,14 +114,23 @@ pub fn run(
         let mut detailed: Vec<String> = vec![format!("{:.1},{:.1}", a.x, a.y)];
         for w in path.windows(2) {
             for (p, f) in world.terrain.cell_path(&w[0], &w[1], 0) {
-                detailed.push(if f == 0 { format!("{:.1},{:.1}", p.x, p.y) } else { format!("{:.1},{:.1},{f}", p.x, p.y) });
+                detailed.push(if f == 0 {
+                    format!("{:.1},{:.1}", p.x, p.y)
+                } else {
+                    format!("{:.1},{:.1},{f}", p.x, p.y)
+                });
             }
             detailed.push(format!("{:.1},{:.1}", w[1].x, w[1].y));
         }
         let drawn: Vec<String> = path.iter().map(|p| format!("{:.1},{:.1}", p.x, p.y)).collect();
         std::fs::write(
             out,
-            format!("travel\t{}\t{}\t{}\t0\t0\n", a.continent, drawn.join(";"), detailed.join(";")),
+            format!(
+                "travel\t{}\t{}\t{}\t0\t0\n",
+                a.continent,
+                drawn.join(";"),
+                detailed.join(";")
+            ),
         )?;
     }
     if path.len() > 2 {
@@ -209,18 +218,32 @@ pub fn overrides(conn: &Connection, overrides_dir: &Path, faction: &str) -> Resu
     };
     for d in &overrides.enclosed {
         match area(&world, d.at.zone, d.at.x, d.at.y) {
-            Some((_, _, _, true)) => println!("enclosed {}: joined to the mainland by the floors (redundant, or a way the game closes)", d.name),
+            Some((_, _, _, true)) => println!(
+                "enclosed {}: joined to the mainland by the floors (redundant, or a way the game closes)",
+                d.name
+            ),
             Some((_, a, size, false)) => println!("enclosed {}: its own area {a} ({size} floors): kept", d.name),
             None => println!("enclosed {}: no terrain", d.name),
         }
     }
     for d in &overrides.caves {
-        let (mouth, inside) = (area(&world, d.at.zone, d.at.x, d.at.y), area(&world, d.inside.zone, d.inside.x, d.inside.y));
+        let (mouth, inside) = (
+            area(&world, d.at.zone, d.at.x, d.at.y),
+            area(&world, d.inside.zone, d.inside.x, d.inside.y),
+        );
         match (mouth, inside) {
             (Some((_, m, _, _)), Some((_, i, size, _))) if m == i && size >= fg_route::terrain::LARGE_AREA => {
-                println!("cave {}: the floors hold it, inside in the mouth's area (redundant)", d.name);
+                println!(
+                    "cave {}: the floors hold it, inside in the mouth's area (redundant)",
+                    d.name
+                );
             }
-            (m, i) => println!("cave {}: mouth area {:?}, inside area {:?}: kept", d.name, m.map(|x| x.1), i.map(|x| (x.1, x.2))),
+            (m, i) => println!(
+                "cave {}: mouth area {:?}, inside area {:?}: kept",
+                d.name,
+                m.map(|x| x.1),
+                i.map(|x| (x.1, x.2))
+            ),
         }
     }
     for w in world.enclose(&overrides.enclosed) {
@@ -241,7 +264,10 @@ pub fn overrides(conn: &Connection, overrides_dir: &Path, faction: &str) -> Resu
                 let mut areas: Vec<u32> = p.areas.iter().map(|a| a.0).collect();
                 areas.sort_unstable();
                 areas.dedup();
-                format!("{n} sides the floors join only by a long way round, or not ({} areas): needed", areas.len())
+                format!(
+                    "{n} sides the floors join only by a long way round, or not ({} areas): needed",
+                    areas.len()
+                )
             }
         };
         println!("pass {}: {how}", p.name);

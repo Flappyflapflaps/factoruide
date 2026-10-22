@@ -111,7 +111,7 @@ impl LocalAreas {
         seen[usize::from(a)] = true;
         let mut stack = vec![a];
         while let Some(x) = stack.pop() {
-            for &y in ways[usize::from(x)].iter() {
+            for &y in &ways[usize::from(x)] {
                 if !std::mem::replace(&mut seen[usize::from(y)], true) {
                     stack.push(y);
                 }
@@ -467,17 +467,15 @@ impl Grid {
     /// The area within its tile of a node, when large enough for gates (0: none, too small, or
     /// out of the terrain).
     fn local_area(&self, n: Node) -> u16 {
-        self.locate(n)
-            .map(|(t, l)| {
-                let la = self.local_areas(t);
-                let a = la.label.get(l).copied().unwrap_or(0);
-                if la.size.get(usize::from(a)).is_some_and(|&s| s >= SMALL_AREA) {
-                    a
-                } else {
-                    0
-                }
-            })
-            .unwrap_or(0)
+        self.locate(n).map_or(0, |(t, l)| {
+            let la = self.local_areas(t);
+            let a = la.label.get(l).copied().unwrap_or(0);
+            if la.size.get(usize::from(a)).is_some_and(|&s| s >= SMALL_AREA) {
+                a
+            } else {
+                0
+            }
+        })
     }
 
     /// The gates of tile `t`: a run of crossings ends where the areas met on either side change
@@ -599,7 +597,9 @@ impl Grid {
             return Some(Arc::clone(graph));
         }
         let graph = Arc::new(DangerGraph {
-            rows: (0..self.graph(t).gates.len()).map(|_| std::sync::OnceLock::new()).collect(),
+            rows: (0..self.graph(t).gates.len())
+                .map(|_| std::sync::OnceLock::new())
+                .collect(),
         });
         graphs.push((key, Arc::clone(&graph)));
         Some(graph)
@@ -612,7 +612,10 @@ impl Grid {
             let gates = &self.graph(t).gates;
             let walks = self.local(t, gates[i], false, danger, false, gates);
             (gates.iter())
-                .map(|&to| self.locate(to).map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE)))
+                .map(|&to| {
+                    self.locate(to)
+                        .map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE))
+                })
                 .collect()
         })
     }

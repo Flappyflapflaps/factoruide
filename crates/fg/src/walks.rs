@@ -16,9 +16,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path, cells: bool) -> Result<()> {
     let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
     let params = &overrides.params;
-    let route: Route = serde_json::from_str(
-        &std::fs::read_to_string(route).with_context(|| format!("reading {}", route.display()))?,
-    )?;
+    let route: Route =
+        serde_json::from_str(&std::fs::read_to_string(route).with_context(|| format!("reading {}", route.display()))?)?;
     let mut world = World::load(conn, route.faction, params.flight_speed)?;
     if params.danger_weight > 0.0 {
         world.add_danger(conn, params.danger_weight)?;

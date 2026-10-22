@@ -137,8 +137,21 @@ thread_local! {
     static APART: RefCell<FxHashMap<(u32, i64, u64), bool>> = RefCell::new(FxHashMap::default());
     /// `Grid::snap` of the cells without a single floor in a large area, by terrain, continent
     /// and cell: the planner asks for the same places again and again.
-    static SNAPS: RefCell<FxHashMap<(u32, i64, i32, i32), Option<Node>>> = RefCell::new(FxHashMap::default());
+    static SNAPS: RefCell<FxHashMap<SnapKey, Option<Node>>> = RefCell::new(FxHashMap::default());
 }
+/// The root of `x` in a union-find over `parent`, the path halved on the way.
+fn find(parent: &mut [u32], mut x: u32) -> u32 {
+    while parent[x as usize] != x {
+        parent[x as usize] = parent[parent[x as usize] as usize];
+        x = parent[x as usize];
+    }
+    x
+}
+
+/// A tile's areas (`Grid::label_tile`): each node's and their sizes.
+type TileLabels = (Vec<u32>, Vec<u32>);
+/// A cell of `SNAPS`: terrain, continent, row and column.
+type SnapKey = (u32, i64, i32, i32);
 /// Cells `SNAPS` remembers, beyond which it starts over.
 const SNAPS_MAX: usize = 1 << 18;
 /// The turns of the walks already followed (`Terrain::waypoints`), by continent, pair of cells
@@ -710,8 +723,7 @@ impl Grid {
                     })
                 })
                 .collect();
-            let mut all: Vec<(usize, (Vec<u32>, Vec<u32>))> =
-                parts.into_iter().flat_map(|p| p.join().unwrap()).collect();
+            let mut all: Vec<(usize, TileLabels)> = parts.into_iter().flat_map(|p| p.join().unwrap()).collect();
             all.sort_unstable_by_key(|x| x.0);
             all.into_iter().map(|x| x.1).collect()
         });
@@ -721,13 +733,6 @@ impl Grid {
             base[t + 1] = base[t] + locals[t].1.len();
         }
         let mut parent: Vec<u32> = (0..base[n] as u32).collect();
-        fn find(parent: &mut [u32], mut x: u32) -> u32 {
-            while parent[x as usize] != x {
-                parent[x as usize] = parent[parent[x as usize] as usize];
-                x = parent[x as usize];
-            }
-            x
-        }
         for t in 0..n {
             let Some(tile) = self.nodes(t) else { continue };
             let (tr, tc) = self.origin(t);
@@ -815,8 +820,7 @@ impl Grid {
                 sizes[id as usize - 1] += 1;
                 let (i, f) = tile.cell_floor(l);
                 let (r, c) = ((i / 64) as i32, (i % 64) as i32);
-                for d in 0..4 {
-                    let (dr, dc) = DIRECTIONS[d];
+                for (d, &(dr, dc)) in DIRECTIONS.iter().enumerate().take(4) {
                     let (nr, nc) = (r + dr, c + dc);
                     if !(0..64).contains(&nr) || !(0..64).contains(&nc) {
                         continue;
@@ -875,14 +879,14 @@ impl Grid {
             let o = l.offsets();
             let mut moves = vec![MOVE_NO_GO; tile.len()];
             let mut edges: Vec<(u16, Box<[Edge]>)> = Vec::new();
-            for i in 0..4096 {
+            for (i, (&count, &first)) in l.counts.iter().zip(o.iter()).enumerate() {
                 let (r, c) = (tr + (i / 64) as i32, tc + (i % 64) as i32);
-                for f in 0..usize::from(l.counts[i]) {
+                for f in 0..usize::from(count) {
                     let at = tile.local(i, f).unwrap_or(i);
                     if tile.flags[at] & NO_GO != 0 {
                         continue;
                     }
-                    let floor = &l.floors[o[i] as usize + f];
+                    let floor = &l.floors[first as usize + f];
                     let mut m = 0u32;
                     let mut more: Vec<Edge> = Vec::new();
                     let mut add = |d: usize, bits: u8, drop: bool| {
@@ -1014,7 +1018,7 @@ impl Grid {
                 DIRECTIONS
                     .into_iter()
                     .chain([(0, 0)])
-                    .filter_map(move |(dr, dc)| Some((r + dr * 64, c + dc * 64)))
+                    .map(move |(dr, dc)| (r + dr * 64, c + dc * 64))
                     .collect::<Vec<_>>()
             })
             .filter_map(|(r, c)| self.tile(r, c).map(|(t, _)| t))
@@ -1275,9 +1279,9 @@ fn tile_nodes(l: &TileLayers) -> Box<TileNodes> {
         edges: Box::new([]),
     };
     let o = l.offsets();
-    for i in 0..4096 {
-        for f in 0..usize::from(l.counts[i]) {
-            let floor = &l.floors[o[i] as usize + f];
+    for (i, (&count, &first)) in l.counts.iter().zip(o.iter()).enumerate() {
+        for f in 0..usize::from(count) {
+            let floor = &l.floors[first as usize + f];
             let at = nodes.local(i, f).unwrap_or(i);
             nodes.height[at] = floor.height;
             nodes.water[at] = floor.water;
