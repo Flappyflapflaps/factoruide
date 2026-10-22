@@ -11,6 +11,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 ### Guides
 
 - Profession quests turned in at a city trainer (Camping 101: Skinning, Leatherworking in Orgrimmar) are planned too, even once they are gray.
+- Guides are computed about a third faster again (walks between zones had slowed them down in 0.14.0).
 - Valley of Trials: walks leave by the valley's road instead of over the mountains, and Burning Blade Medallion is done in the valley.
 
 ### Addon
