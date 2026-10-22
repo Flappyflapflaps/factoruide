@@ -45,6 +45,7 @@ pub fn run(
     from: &str,
     to: &str,
     level: Option<i64>,
+    cells: Option<&Path>,
 ) -> Result<()> {
     let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
     let params = &overrides.params;
@@ -107,6 +108,22 @@ pub fn run(
     }
     // The way the planner draws it: the passages and the turns around the steep terrain.
     let path = world.walk_path(&a, &b, 0);
+    // Every cell walked over, for `fgd terrain-walks-map` (a line: name, continent, the drawn
+    // way, the cells).
+    if let Some(out) = cells {
+        let mut detailed: Vec<String> = vec![format!("{:.1},{:.1}", a.x, a.y)];
+        for w in path.windows(2) {
+            for (p, f) in world.terrain.cell_path(&w[0], &w[1], 0) {
+                detailed.push(if f == 0 { format!("{:.1},{:.1}", p.x, p.y) } else { format!("{:.1},{:.1},{f}", p.x, p.y) });
+            }
+            detailed.push(format!("{:.1},{:.1}", w[1].x, w[1].y));
+        }
+        let drawn: Vec<String> = path.iter().map(|p| format!("{:.1},{:.1}", p.x, p.y)).collect();
+        std::fs::write(
+            out,
+            format!("travel\t{}\t{}\t{}\t0\t0\n", a.continent, drawn.join(";"), detailed.join(";")),
+        )?;
+    }
     if path.len() > 2 {
         let stops: Vec<String> = path[1..path.len() - 1]
             .iter()

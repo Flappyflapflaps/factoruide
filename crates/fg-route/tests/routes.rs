@@ -980,15 +980,33 @@ fn walk_worlds(faction: fg_route::faction::Faction) -> Vec<(&'static str, fg_rou
     .collect()
 }
 
-/// Whether a walk drawn (`World::walk_path`) goes through a passage.
-fn through(world: &fg_route::world::World, path: &[fg_route::world::Pos], passage: &str) -> bool {
+/// The least distance (yards) from a point to a walk drawn (`World::walk_path`), its segments.
+fn distance_to_path(path: &[fg_route::world::Pos], p: &fg_route::world::Pos) -> f64 {
+    path.windows(2)
+        .map(|w| {
+            let (ax, ay, bx, by) = (w[0].x, w[0].y, w[1].x, w[1].y);
+            let (dx, dy) = (bx - ax, by - ay);
+            let len = dx * dx + dy * dy;
+            let t = if len > 0.0 {
+                (((p.x - ax) * dx + (p.y - ay) * dy) / len).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            (p.x - ax - t * dx).hypot(p.y - ay - t * dy)
+        })
+        .fold(f64::INFINITY, f64::min)
+}
+
+/// How near a walk drawn goes by a passage's point (yards).
+fn by(world: &fg_route::world::World, path: &[fg_route::world::Pos], passage: &str) -> f64 {
     let pass = world.passes.iter().find(|q| q.name == passage).unwrap();
-    path.iter().any(|p| p.dist(&pass.pos) < 1.0)
+    distance_to_path(path, &pass.pos)
 }
 
 /// Valley of Trials is walled by mountains: walks out of it take its road east to Durotar's
-/// plain, never a straight line over the ridges, even to the plain just behind its north wall
-/// (GitHub #43). Walks inside it do not take the road.
+/// plain (by the passage's point: the floors hold the road), never a straight line over the
+/// ridges, even to the plain just behind its north wall (GitHub #43). Walks inside it do not
+/// take the road.
 #[test]
 fn valley_of_trials_is_left_by_its_road() {
     for (edition, w) in walk_worlds(fg_route::faction::Faction::Horde) {
@@ -997,7 +1015,8 @@ fn valley_of_trials_is_left_by_its_road() {
         let (gornek, razor_hill) = (at(42.1, 68.4), at(51.9, 43.5));
         for (a, b) in [(north_end, behind), (behind, north_end), (gornek, razor_hill)] {
             let path = w.walk_path(&a, &b, 0);
-            assert!(through(&w, &path, "Valley of Trials road"), "{edition}: {path:?}");
+            let near = by(&w, &path, "Valley of Trials road");
+            assert!(near < ROAD, "{edition}: {near} yd from the road, {path:?}");
             let length: f64 = path.windows(2).map(|p| p[0].dist(&p[1])).sum();
             assert!(
                 (w.walk_distance(&a, &b) - length).abs() < 0.2 * length,
@@ -1010,15 +1029,19 @@ fn valley_of_trials_is_left_by_its_road() {
         );
         let sarkoth = at(40.6, 62.6);
         assert!(
-            !through(&w, &w.walk_path(&gornek, &sarkoth, 0), "Valley of Trials road"),
+            by(&w, &w.walk_path(&gornek, &sarkoth, 0), "Valley of Trials road") > ROAD,
             "{edition}"
         );
     }
 }
 
+/// How near a walk drawn goes by a passage's point when it takes the road or the tunnel there
+/// (yards): its turns are cells, or the tiles' gates on a long walk.
+const ROAD: f64 = 120.0;
+
 /// Burning Blade Coven opens on Valley of Trials: Yarrog Baneshadow, deep inside under the
 /// ridge (nearer the plain behind it than the valley), is walked to from the valley through the
-/// cave's mouth, and from Razor Hill by the valley's road.
+/// cave's mouth (the floors hold the cave), and from Razor Hill by the valley's road.
 #[test]
 fn burning_blade_coven_is_reached_from_the_valley() {
     for (edition, w) in walk_worlds(fg_route::faction::Faction::Horde) {
@@ -1029,11 +1052,11 @@ fn burning_blade_coven_is_reached_from_the_valley() {
         assert!(from_valley < 1.5 * zureetha.dist(&yarrog), "{edition}: {from_valley}");
         assert!(w.walk_distance(&razor_hill, &yarrog) > from_valley, "{edition}");
         let path = w.walk_path(&razor_hill, &yarrog, 0);
-        assert!(through(&w, &path, "Valley of Trials road"), "{edition}: {path:?}");
-        assert!(
-            path[path.len() - 2].dist(&mouth) < 1.0,
-            "{edition}: by the mouth {path:?}"
-        );
+        let near = by(&w, &path, "Valley of Trials road");
+        assert!(near < ROAD, "{edition}: {near} yd from the road, {path:?}");
+        let inside = w.walk_path(&zureetha, &yarrog, 0);
+        let near = distance_to_path(&inside, &mouth);
+        assert!(near < ROAD, "{edition}: {near} yd from the mouth, {inside:?}");
     }
 }
 
@@ -1042,8 +1065,14 @@ fn burning_blade_coven_is_reached_from_the_valley() {
 fn coldridge_valley_is_left_by_its_tunnel() {
     for (edition, w) in walk_worlds(fg_route::faction::Faction::Alliance) {
         let at = |x, y| w.to_world(1, x, y).unwrap();
-        let path = w.walk_path(&at(29.0, 66.0), &at(46.0, 52.0), 0);
-        assert!(through(&w, &path, "Coldridge Pass, valley end"), "{edition}: {path:?}");
+        // Every cell walked over (the turns are the tiles' gates of a long walk).
+        let (a, b) = (at(29.0, 66.0), at(46.0, 52.0));
+        let path: Vec<_> = w.terrain.cell_path(&a, &b, 0).into_iter().map(|(p, _)| p).collect();
+        assert!(!path.is_empty(), "{edition}: no way");
+        // By the tunnel's mouth in the valley (its other end, approx, is the floors' own).
+        let near = by(&w, &path, "Coldridge Pass, valley end");
+        assert!(near < ROAD, "{edition}: {near} yd from the tunnel");
+        assert!(w.walk_distance(&a, &b) < 2.0 * a.dist(&b), "{edition}: no way round");
     }
 }
 
@@ -1777,6 +1806,8 @@ fn one_kill_east_of_start(p: &Prepared, dx: f64) -> Objective {
 #[test]
 fn hearthstone_is_kept_for_the_longer_trip_back() {
     let mut p = quests_at_start(2);
+    // As the crow flies: the objectives are points north of the start, wherever they fall.
+    p.world.terrain = fg_route::terrain::Terrain::default();
     p.model.quests[0].objectives = vec![one_kill_east_of_start(&p, 1500.0)];
     p.model.quests[1].objectives = vec![one_kill_east_of_start(&p, 3000.0)];
     p.model.initial.accepted = vec![0, 1];

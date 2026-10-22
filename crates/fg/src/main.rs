@@ -171,6 +171,9 @@ enum Command {
         /// and with the route's weights (gold, flight overhead)
         #[arg(long)]
         level: Option<i64>,
+        /// Write the walk's cells there (a line for `fgd terrain-walks-map`)
+        #[arg(long)]
+        cells: Option<PathBuf>,
     },
     /// What the walkable floors make of the hand-made terrain overrides (passes.toml)
     #[command(hide = true)]
@@ -344,8 +347,9 @@ fn main() -> Result<()> {
             to,
             faction,
             level,
+            cells,
         } => {
-            travel::run(&open()?, &overrides, &faction, &from, &to, level)?;
+            travel::run(&open()?, &overrides, &faction, &from, &to, level, cells.as_deref())?;
         }
         Command::TerrainOverrides { faction } => travel::overrides(&open()?, &overrides, &faction)?,
         Command::Walks { route, out, cells } => walks::run(&open()?, &overrides, &route, &out, cells)?,
