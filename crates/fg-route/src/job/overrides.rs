@@ -27,6 +27,8 @@ pub struct Overrides {
     /// Class trainer spells that count for power, by class (spells.toml).
     pub spells: HashMap<String, BTreeMap<String, crate::power::SpellWeight>>,
     pub dungeons: Vec<DungeonDef>,
+    /// Objectives done only once others of their quest are (`[[order]]` of objectives.toml).
+    pub objective_orders: Vec<crate::model::ObjectiveOrder>,
     pub links: Vec<LinkDef>,
     /// Class teleports quests teach (`[[teleport]]` of travel.toml).
     pub teleports: Vec<crate::model::TeleportDef>,
@@ -171,6 +173,11 @@ impl Overrides {
             dungeon: Vec<DungeonDef>,
         }
         #[derive(Deserialize, Default)]
+        struct Objectives {
+            #[serde(default)]
+            order: Vec<crate::model::ObjectiveOrder>,
+        }
+        #[derive(Deserialize, Default)]
         struct Travel {
             #[serde(default)]
             link: Vec<LinkDef>,
@@ -203,6 +210,7 @@ impl Overrides {
             spells: parse_toml(&file, "spells.toml")?,
             class_power: parse_toml(&file, "class_power.toml")?,
             dungeons: parse_toml::<Dungeons>(&file, "dungeons.toml")?.dungeon,
+            objective_orders: parse_toml::<Objectives>(&file, "objectives.toml")?.order,
             links: travel.link,
             teleports: travel.teleport,
             passes: passes.pass,

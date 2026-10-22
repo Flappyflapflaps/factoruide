@@ -28,8 +28,8 @@ pub use guard::Guards;
 pub use loot::CommonLoot;
 pub use names::Names;
 pub use types::{
-    Dungeon, DungeonDef, EntityKind, ExploreArea, Guard, Initial, Loc, Model, Objective, ProfessionPlan, Profile,
-    Quest, Spots, Teleport, TeleportDef, Vendor, race_bit,
+    Dungeon, DungeonDef, EntityKind, ExploreArea, Guard, Initial, Loc, Model, Objective, ObjectiveOrder,
+    ProfessionPlan, Profile, Quest, Spots, Teleport, TeleportDef, Vendor, race_bit,
 };
 
 use crate::params::Params;

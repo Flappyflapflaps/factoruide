@@ -1,0 +1,22 @@
+# Objectives the game lets be done only once other objectives of their quest are (`[[order]]`):
+# a creature an event brings out once a trigger starts it. `objective` and `after` are the
+# objectives' numbers in the quest, from 1 in the game's order (m_quest_objective.idx).
+
+# The Affray (Horde warrior, The Barrens): Big Will only comes out to fight once the grate is
+# stepped on; his one spawn is on the grate.
+[[order]]
+quest = 1719
+objective = 1 # Kill Big Will
+after = [2] # Step on the grate to begin the Affray
+
+# The Attack! (Stormwind): Lescovar and Marzon are friendly to the Alliance until their
+# conversation in the keep's garden is overheard; only then do they fight.
+[[order]]
+quest = 434
+objective = 1 # Kill Lord Gregor Lescovar
+after = [3] # Overhear Lescovar and Marzon's Conversation
+
+[[order]]
+quest = 434
+objective = 2 # Kill Marzon the Silent Blade
+after = [3]

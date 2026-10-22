@@ -25,6 +25,8 @@ pub struct Profile {
     pub dungeons: Vec<DungeonDef>,
     /// The class's teleports that a quest teaches (see overrides/travel.toml).
     pub quest_teleports: Vec<TeleportDef>,
+    /// Objectives done only once others of their quest are (see overrides/objectives.toml).
+    pub objective_orders: Vec<ObjectiveOrder>,
     /// Professions to level along the route.
     pub professions: Vec<crate::profession::ProfessionGoal>,
     /// Language of the guide texts (enUS, frFR, deDE...).
@@ -514,6 +516,18 @@ impl Initial {
     pub fn done_outside(&self, id: i64, from_level: i64) -> bool {
         self.completed.as_ref().map_or(from_level > 1, |c| c.contains(&id))
     }
+}
+
+/// An objective the game lets be done only once other objectives of its quest are
+/// (`[[order]]` of `overrides/objectives.toml`): the creature an event brings out once a trigger
+/// starts it (Big Will comes out to fight once the grate of The Affray is stepped on).
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct ObjectiveOrder {
+    pub quest: i64,
+    /// The objective, by its number in the quest (from 1, in the game's order).
+    pub objective: u8,
+    /// The objectives done before it, by number.
+    pub after: Vec<u8>,
 }
 
 /// Per-dungeon settings from `overrides/dungeons.toml`.

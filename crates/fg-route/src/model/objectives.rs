@@ -144,6 +144,7 @@ impl QuestBuilder<'_> {
             }
         }
         self.add_children(&quest, &children, &mut objs);
+        self.order(r.id, &mut objs);
         self.measure(r, &mut objs);
         for o in &mut objs {
             // Elites elsewhere do not replace normal mobs when elites are left out.
@@ -154,6 +155,22 @@ impl QuestBuilder<'_> {
         mark_beside_givers(givers, &mut objs);
         self.add_dungeon_givers(r, &mut objs);
         Ok(objs)
+    }
+
+    /// The objectives of quest `id` the game lets be done only once others are (`[[order]]` of
+    /// overrides/objectives.toml, by their numbers in the quest): after them, at every place.
+    fn order(&self, id: i64, objs: &mut [Objective]) {
+        for order in self.profile.objective_orders.iter().filter(|o| o.quest == id) {
+            let first = (objs.iter().enumerate().take(8))
+                .filter(|(_, o)| o.slot.is_some_and(|n| order.after.contains(&n)))
+                .fold(0u8, |bits, (i, _)| bits | 1 << i);
+            for o in objs.iter_mut().filter(|o| o.slot == Some(order.objective)) {
+                o.after |= first;
+                for alt in &mut o.alts {
+                    alt.after |= first;
+                }
+            }
+        }
     }
 
     /// The quest's children handed in on its way (`LinkKind::Child`): those the sources mark
