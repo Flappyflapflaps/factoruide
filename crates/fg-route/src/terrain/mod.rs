@@ -71,6 +71,9 @@ const APART_REACH: f64 = 3.0;
 /// How much longer than the cheapest walk the walk through the tiles' gates may be (measured: at
 /// most 1.17 on a guide).
 const GATES_SLACK: f64 = 1.25;
+/// The level of the walks' memory (`Walks`) the walks searched cell by cell without danger are
+/// kept at (`search_walk`): no character's.
+const NO_DANGER: u8 = u8::MAX;
 const GAP_AREA: u32 = 500;
 const GAP_RIDGE: i32 = 4;
 /// Cost of a step in tenths of a cell: straight and diagonal, walked then swum (a third
@@ -1668,7 +1671,7 @@ impl Terrain {
             used.lock().unwrap().insert(key);
         }
         let d = self.walks.get_or_search(key, || {
-            self.search_walk(grid, ca, cb, level, None)
+            self.search_walk(grid, map, ca, cb, level, None)
                 .map_or(f32::INFINITY, |d| d as f32)
         });
         d.is_finite().then_some(f64::from(d))
@@ -1700,6 +1703,7 @@ impl Terrain {
     fn search_walk(
         &self,
         grid: &Grid,
+        map: i64,
         ca: (i32, i32),
         cb: (i32, i32),
         level: u8,
@@ -1721,7 +1725,22 @@ impl Terrain {
                 // The gates' way is never much longer than the cheapest (`GATES_SLACK`): far
                 // beyond the reach through them, no way cell by cell is within it either.
                 Some(d) if !within(d / GATES_SLACK) => None,
-                _ => self.path(grid, ca, cb, MARGINS[MARGINS.len() - 1], level, limit, trace),
+                Some(_) => {
+                    // Just beyond the reach through the gates, mostly no way cell by cell is
+                    // within it either: the search without danger tells it once for every level
+                    // (the danger only adds to a walk).
+                    let key = (map, ca.0, ca.1, cb.0, cb.1, NO_DANGER);
+                    let margin = MARGINS[MARGINS.len() - 1];
+                    let free = self.walks.get_or_search(key, || {
+                        self.path(grid, ca, cb, margin, 0, limit, None)
+                            .map_or(f32::INFINITY, |d| d as f32)
+                    });
+                    if !free.is_finite() {
+                        return None;
+                    }
+                    self.path(grid, ca, cb, margin, level, limit, trace)
+                }
+                None => self.path(grid, ca, cb, MARGINS[MARGINS.len() - 1], level, limit, trace),
             }
         } else {
             MARGINS
@@ -1805,7 +1824,7 @@ impl Terrain {
             return Arc::new([]);
         }
         let mut cells = Vec::new();
-        if self.search_walk(grid, ca, cb, level, Some(&mut cells)).is_none() {
+        if self.search_walk(grid, map, ca, cb, level, Some(&mut cells)).is_none() {
             return Arc::new([]);
         }
         // Where the direction changes (the walk's ends are the points themselves).
