@@ -487,6 +487,7 @@ impl Grid {
     }
 
     /// The strongest hostile mob around a cell (0: none).
+    #[inline]
     fn danger(&self, r: i32, c: i32) -> u8 {
         self.tile(r, c)
             .and_then(|(t, i)| Some(self.danger.get(t)?.as_ref()?[i]))
@@ -495,6 +496,7 @@ impl Grid {
 
     /// Extra cost (tenths of a cell) of entering a cell for its danger, at `level` (0: none),
     /// `costs` that of a mob a few levels above and far above.
+    #[inline]
     fn danger_step(&self, (r, c): (i32, i32), (level, costs): gates::Danger) -> u32 {
         if level == 0 {
             return 0;
@@ -1286,6 +1288,7 @@ impl Terrain {
     }
 
     /// Extra cost (tenths of a cell) of entering a cell for its danger, at `level` (0: none).
+    #[inline]
     fn danger_cost(&self, grid: &Grid, p: (i32, i32), level: u8) -> u32 {
         grid.danger_step(p, (level, self.danger_costs))
     }
@@ -1964,33 +1967,43 @@ impl Terrain {
             let Some(tile) = grid.nodes(t) else { continue };
             let (r, c) = n.cell();
             let moves = tile.moves[l];
-            let mut visit = |m: Node, cost: u32| {
-                let (nr, nc) = m.cell();
-                if nr < r0 || nc < c0 || nr >= r0 + rows || nc >= c0 + cols {
-                    return;
+            // The steps to the first floors of the neighbours, inline (most of them).
+            for (d, (dr, dc)) in DIRECTIONS.into_iter().enumerate() {
+                if moves >> d & MOVE == 0 {
+                    continue;
                 }
-                let danger = if (nr, nc) == (r, c) || Self::near_end((nr, nc), ac, bcell) {
-                    0
-                } else {
-                    self.danger_cost(grid, (nr, nc), level)
-                };
-                let ng = g + cost + danger;
-                let Some(k) = grid.best_index(m, space) else { return };
+                let (nr, nc) = (r + dr, c + dc);
+                if nr < r0 || nc < c0 || nr >= r0 + rows || nc >= c0 + cols {
+                    continue;
+                }
+                let mut ng = g + move_cost(moves, d);
+                if level != 0 && !Self::near_end((nr, nc), ac, bcell) {
+                    ng += self.danger_cost(grid, (nr, nc), level);
+                }
+                let k = ((nr - r0) * cols + (nc - c0)) as usize;
                 if ng < get(best, k) {
                     best[k] = (ng, current);
-                    open[(ng + h(nr, nc)) as usize % BUCKETS].push((ng, m));
+                    open[(ng + h(nr, nc)) as usize % BUCKETS].push((ng, Node::new(nr, nc, 0)));
                     queued += 1;
-                }
-            };
-            for (d, (dr, dc)) in DIRECTIONS.into_iter().enumerate() {
-                if moves >> d & MOVE != 0 {
-                    visit(Node::new(r + dr, c + dc, 0), move_cost(moves, d));
                 }
             }
             if moves & MOVE_MORE != 0 {
                 for &e in tile.edges(l) {
                     let (nr, nc) = e.to(r, c);
-                    visit(Node::new(nr, nc, e.floor()), e.cost());
+                    if nr < r0 || nc < c0 || nr >= r0 + rows || nc >= c0 + cols {
+                        continue;
+                    }
+                    let m = Node::new(nr, nc, e.floor());
+                    let mut ng = g + e.cost();
+                    if level != 0 && (nr, nc) != (r, c) && !Self::near_end((nr, nc), ac, bcell) {
+                        ng += self.danger_cost(grid, (nr, nc), level);
+                    }
+                    let Some(k) = grid.best_index(m, space) else { continue };
+                    if ng < get(best, k) {
+                        best[k] = (ng, current);
+                        open[(ng + h(nr, nc)) as usize % BUCKETS].push((ng, m));
+                        queued += 1;
+                    }
                 }
             }
         }

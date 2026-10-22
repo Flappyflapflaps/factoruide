@@ -279,36 +279,6 @@ impl Grid {
             }
         }
         let cell_of = |k: usize| if k < 4096 { k } else { usize::from(tile.more_cell[k - 4096]) };
-        // The steps into each node, for the walks back: from the floors of the cells around.
-        let into = |k: usize, each: &mut dyn FnMut(usize, u32)| {
-            let (i, fk) = tile.cell_floor(k);
-            let (lr, lc) = ((i / 64) as i32, (i % 64) as i32);
-            for (d, (dr, dc)) in DIRECTIONS.into_iter().chain([(0, 0)]).enumerate() {
-                let (pr, pc) = (lr - dr, lc - dc);
-                if !(0..64).contains(&pr) || !(0..64).contains(&pc) {
-                    continue;
-                }
-                let j = (pr * 64 + pc) as usize;
-                for f in 0..usize::from(tile.count[j]) {
-                    let Some(p) = tile.local(j, f) else { continue };
-                    let moves = tile.moves[p];
-                    if moves & MOVE_NO_GO != 0 {
-                        continue;
-                    }
-                    // The steps to a first floor are the moves' bits, the others the edges.
-                    if fk == 0 && d < 8 && moves >> d & MOVE != 0 {
-                        each(p, move_cost(moves, d));
-                    }
-                    if moves & MOVE_MORE != 0 {
-                        for &e in tile.edges(p) {
-                            if e.dir() == d && e.floor() == fk {
-                                each(p, e.cost());
-                            }
-                        }
-                    }
-                }
-            }
-        };
         // Open nodes by cost in a ring of buckets: a step costs less than `BUCKETS`, so the
         // nodes of a bucket all have the cost the search is at (Dijkstra's order).
         LOCAL_OPEN.with(|open| {
@@ -318,6 +288,16 @@ impl Grid {
             }
             let (mut g, mut queued) = (0u32, 1usize);
             open[0].push(start as u16);
+            macro_rules! relax {
+                ($n:expr, $ng:expr) => {{
+                    let (n, ng): (usize, u32) = ($n, $ng);
+                    if ng < cost[n] {
+                        cost[n] = ng;
+                        open[ng as usize % super::BUCKETS].push(n as u16);
+                        queued += 1;
+                    }
+                }};
+            }
             while queued > 0 {
                 let Some(k) = open[g as usize % super::BUCKETS].pop() else {
                     g += 1;
@@ -335,20 +315,61 @@ impl Grid {
                     }
                 }
                 let ck = cell_of(k);
-                let mut relax = |n: usize, step: u32| {
-                    // The danger of the cell entered: `n`'s going out, `k`'s coming back.
-                    let (entered, other) = if back { (ck, cell_of(n)) } else { (cell_of(n), ck) };
-                    let ng = g + step + if entered == other { 0 } else { extra[entered] };
-                    if ng < cost[n] {
-                        cost[n] = ng;
-                        open[ng as usize % super::BUCKETS].push(n as u16);
-                        queued += 1;
-                    }
-                };
+                let (lr, lc) = ((ck / 64) as i32, (ck % 64) as i32);
+                let border = lr == 0 || lc == 0 || lr == 63 || lc == 63;
                 if back {
-                    into(k, &mut relax);
+                    // The steps into `k`: from the floors of the cells around and its own.
+                    let fk = if k < 4096 { 0 } else { k - 4096 - usize::from(tile.more[ck]) + 1 };
+                    for (d, (dr, dc)) in DIRECTIONS.into_iter().chain([(0, 0)]).enumerate() {
+                        let (pr, pc) = (lr - dr, lc - dc);
+                        if border && (!(0..64).contains(&pr) || !(0..64).contains(&pc)) {
+                            continue;
+                        }
+                        let j = (pr * 64 + pc) as usize;
+                        let extra = if d == 8 { 0 } else { extra[ck] };
+                        for f in 0..usize::from(tile.count[j]) {
+                            let p = if f == 0 { j } else { 4096 + usize::from(tile.more[j]) + f - 1 };
+                            let moves = tile.moves[p];
+                            if moves & MOVE_NO_GO != 0 {
+                                continue;
+                            }
+                            // The steps to a first floor are the moves' bits, the others edges.
+                            if fk == 0 && d < 8 && moves >> d & MOVE != 0 {
+                                relax!(p, g + move_cost(moves, d) + extra);
+                            }
+                            if moves & MOVE_MORE != 0 {
+                                for &e in tile.edges(p) {
+                                    if e.dir() == d && e.floor() == fk {
+                                        relax!(p, g + e.cost() + extra);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 } else {
-                    Self::local_steps(tile, k, ((ck / 64) as i32, (ck % 64) as i32), relax);
+                    let moves = tile.moves[k];
+                    if moves & MOVE_NO_GO != 0 {
+                        continue;
+                    }
+                    for (d, (dr, dc)) in DIRECTIONS.into_iter().enumerate() {
+                        let (nr, nc) = (lr + dr, lc + dc);
+                        if moves >> d & MOVE == 0 || (border && (!(0..64).contains(&nr) || !(0..64).contains(&nc))) {
+                            continue;
+                        }
+                        let n = (nr * 64 + nc) as usize;
+                        relax!(n, g + move_cost(moves, d) + extra[n]);
+                    }
+                    if moves & MOVE_MORE != 0 {
+                        for &e in tile.edges(k) {
+                            let (nr, nc) = e.to(lr, lc);
+                            if !(0..64).contains(&nr) || !(0..64).contains(&nc) {
+                                continue;
+                            }
+                            let i = (nr * 64 + nc) as usize;
+                            let Some(n) = tile.local(i, e.floor()) else { continue };
+                            relax!(n, g + e.cost() + if i == ck { 0 } else { extra[i] });
+                        }
+                    }
                 }
             }
         });
