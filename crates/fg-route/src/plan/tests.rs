@@ -700,3 +700,82 @@ fn the_class_and_gathering_keep_bag_room() {
         "{herbalist}"
     );
 }
+
+/// A timed quest whose mob is too strong for the character is taken once it is strong enough
+/// for it (the grinding comes before the clock starts), and turned in in time; untimed, the same
+/// quest is taken at once and its mob waited for.
+#[test]
+fn timed_quest_taken_once_strong_enough_for_its_objectives() {
+    let mut p = quests_at_start(1);
+    p.profile.to_level = 20;
+    let mut loc = p.model.start.clone();
+    loc.pos.x += 50.0;
+    p.model.quests[0].objectives = vec![Objective {
+        loc,
+        text: "Kill a strong mob".into(),
+        kills: 1.0,
+        mob_level: 12,
+        uses: 0.0,
+        extra: 0.0,
+        dungeon: None,
+        elite: false,
+        count: 1.0,
+        mobs: vec![],
+        pull: 1.0,
+        spawns: 1,
+        pack: 1.0,
+        spots: None,
+        guard: Guard::default(),
+        beside_giver: false,
+        item: false,
+        alts: vec![],
+        after: 0,
+        handed_by: vec![],
+        child: None,
+        child_name: None,
+        vendors: vec![],
+        auction: vec![],
+        slot: Some(1),
+        stock: None,
+    }];
+    // Of the mob's level (not gray once there), offered from level 1.
+    (p.model.quests[0].xp, p.model.quests[0].level) = (100, 12);
+    let route = [
+        Stop::quest(0, Kind::Accept),
+        Stop::quest(0, Kind::Objective(0)),
+        Stop::quest(0, Kind::TurnIn),
+    ];
+    let gates = |p: &Prepared| {
+        let planner = planner(p);
+        let s = planner.start_state(planner.planned(&route));
+        (planner.gate_level(&s, route[0]), planner.gate_level(&s, route[1]))
+    };
+    let (accept, objective) = gates(&p);
+    assert!(
+        objective > 1 && accept == 1,
+        "untimed: taken at once ({accept}, {objective})"
+    );
+    p.model.quests[0].time_limit = Some(600.0);
+    let (accept, objective) = gates(&p);
+    assert_eq!(accept, objective, "timed: taken at the mob's level");
+    let mut trace = Vec::new();
+    planner(&p).simulate(&route, Some(&mut trace)).expect("a valid route");
+    let at = |kind: Kind| {
+        trace.iter().find_map(|t| match t.event {
+            super::state::Event::Stop { stop, .. } if stop.kind == kind => Some(t.level),
+            _ => None,
+        })
+    };
+    assert!(
+        at(Kind::Accept).is_some_and(|level| level >= objective),
+        "{:?}",
+        at(Kind::Accept)
+    );
+    assert!(at(Kind::TurnIn).is_some(), "turned in in time");
+    assert!(
+        !trace
+            .iter()
+            .any(|t| matches!(t.event, super::state::Event::Abandon { .. })),
+        "not given up"
+    );
+}

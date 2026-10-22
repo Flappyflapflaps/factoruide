@@ -1529,6 +1529,59 @@ fn late_timed_quest_is_given_up() {
     }
 }
 
+/// The Affray: Big Will only comes out once the grate is stepped on (overrides/objectives.toml),
+/// so a route killing him first is refused. Taken at level 30, too weak for him within the ten
+/// minutes, the quest is taken once the character is strong enough and turned in, not given up.
+#[test]
+fn affray_grate_first_and_taken_strong_enough() {
+    let mut p = prepare("orc", "warrior", 35, &[]);
+    (p.profile.from_level, p.profile.to_level) = (30, 35);
+    let i = quest(&p, 1719).expect("The Affray");
+    let q = &mut p.model.quests[i as usize];
+    assert_eq!(q.time_limit, Some(600.0));
+    (q.pre_all, q.pre_any, q.pre_held) = (vec![], vec![], vec![]);
+    let slot = |n: u8| q.objectives.iter().position(|o| o.slot == Some(n)).unwrap() as u8;
+    let (will, grate) = (slot(1), slot(2));
+    assert_eq!(q.objectives[usize::from(will)].mobs[0].0, 6238, "Big Will");
+    assert_ne!(
+        q.objectives[usize::from(will)].after & (1 << grate),
+        0,
+        "after the grate"
+    );
+    assert_eq!(q.objectives[usize::from(grate)].after & (1 << will), 0);
+    let route = |first: u8, second: u8| {
+        [
+            Stop::quest(i, Kind::Accept),
+            Stop::quest(i, Kind::Objective(first)),
+            Stop::quest(i, Kind::Objective(second)),
+            Stop::quest(i, Kind::TurnIn),
+        ]
+    };
+    assert!(
+        planner(&p).simulate(&route(will, grate), None).is_none(),
+        "Big Will first"
+    );
+    let mut trace = Vec::new();
+    planner(&p)
+        .simulate(&route(grate, will), Some(&mut trace))
+        .expect("the grate first");
+    let given_up = trace
+        .iter()
+        .any(|t| matches!(t.event, Event::Abandon { quest } if quest == i as usize));
+    let level = |kind: Kind| {
+        trace.iter().find_map(|t| match t.event {
+            Event::Stop { stop, .. } if stop.kind == kind => Some(t.level),
+            _ => None,
+        })
+    };
+    assert!(!given_up && level(Kind::TurnIn).is_some(), "turned in in time");
+    assert!(
+        level(Kind::Accept).is_some_and(|l| l > 30),
+        "taken stronger: {:?}",
+        level(Kind::Accept)
+    );
+}
+
 /// Dungeon mobs keep their level: a character far above them gets no XP from the run (they used
 /// to follow the character's level).
 #[test]

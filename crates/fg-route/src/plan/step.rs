@@ -453,7 +453,12 @@ impl Planner<'_> {
         match stop.kind {
             Kind::Accept => {
                 let q = self.quest(stop.index);
-                q.min_level.max(self.combat().guard_level(&q.start_guard, s.might()))
+                let own = q.min_level.max(self.combat().guard_level(&q.start_guard, s.might()));
+                if q.time_limit.is_some() {
+                    own.max(self.timed_gate(q, s))
+                } else {
+                    own
+                }
             }
             Kind::TurnIn => self.combat().guard_level(&self.quest(stop.index).end_guard, s.might()),
             Kind::Objective(k) => self.combat().level_at(
@@ -464,6 +469,21 @@ impl Planner<'_> {
             Kind::Dungeon => self.model.dungeons[i].min_level,
             _ => 0,
         }
+    }
+
+    /// Level a timed quest is taken at: the one its objectives and its turn-in need (each at its
+    /// easiest place, dungeons apart). Taken weaker, the grinding to them comes after the clock
+    /// started and the quest fails (The Affray at 30 when Big Will needs 33).
+    fn timed_gate(&self, q: &crate::model::Quest, s: &State) -> i64 {
+        let combat = self.combat();
+        (q.objectives.iter().filter(|o| o.dungeon.is_none()))
+            .map(|o| {
+                o.places()
+                    .map(|place| combat.level_at(q, place, s.might()))
+                    .min()
+                    .unwrap_or(0)
+            })
+            .fold(combat.guard_level(&q.end_guard, s.might()), i64::max)
     }
 
     fn grind_to_gate(
