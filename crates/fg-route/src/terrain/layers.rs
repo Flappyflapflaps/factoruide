@@ -47,6 +47,10 @@ pub const DROPS: usize = 5;
 pub const DROP_DIRECTIONS: [(i32, i32); DROPS] = [(-1, 0), (1, 0), (0, -1), (0, 1), (0, 0)];
 /// Index in `DIRECTIONS` of the direction the other way.
 pub const OPPOSITE: [usize; 8] = [1, 0, 3, 2, 7, 6, 5, 4];
+/// The two ways to each diagonal neighbour (north-west, north-east, south-west, south-east)
+/// through a straight one: the direction to it, then from it (north or south first, then west
+/// or east first).
+const VIAS: [[(usize, usize); 2]; 4] = [[(0, 2), (2, 0)], [(0, 3), (3, 0)], [(1, 2), (2, 1)], [(1, 3), (3, 1)]];
 /// The format `pack` writes.
 pub const VERSION: i64 = 2;
 
@@ -140,6 +144,25 @@ fn predict_height(a: Option<i16>, b: Option<i16>, c: Option<i16>, last: i16) -> 
     }
 }
 
+thread_local! {
+    /// The compressor of `compress`, kept in each thread (making one at the highest levels
+    /// takes much memory).
+    static COMPRESSOR: std::cell::RefCell<Option<zstd::bulk::Compressor<'static>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Bytes compressed as the tiles are stored (zstd, level 19).
+#[doc(hidden)]
+pub fn compress(raw: &[u8]) -> Result<Vec<u8>> {
+    COMPRESSOR.with(|c| {
+        let mut c = c.borrow_mut();
+        if c.is_none() {
+            *c = Some(zstd::bulk::Compressor::new(19)?);
+        }
+        Ok(c.as_mut().map(|c| c.compress(raw)).transpose()?.unwrap_or_default())
+    })
+}
+
 /// Floors of the cells within 4 yards of a floor in height walked to most of the time: the
 /// nearest of the neighbour's.
 const PREDICT_RISE: i32 = 4;
@@ -195,14 +218,12 @@ impl TileLayers {
         let (r, c) = ((i / 64) as i32, (i % 64) as i32);
         let f = &self.floors[o[i] as usize + k];
         let mut out = [0u8; 4];
-        for (slot, d) in (4..8).enumerate() {
-            let (dr, dc) = DIRECTIONS[d];
+        for (slot, vias) in VIAS.iter().enumerate() {
+            let (dr, dc) = DIRECTIONS[4 + slot];
             let mut bits = 0u8;
-            for (via, rest) in [((dr, 0), (0, dc)), ((0, dc), (dr, 0))] {
-                let dv = DIRECTIONS.iter().position(|&x| x == via).unwrap_or(0);
-                let dn = DIRECTIONS.iter().position(|&x| x == rest).unwrap_or(0);
-                let (vr, vc) = (r + via.0, c + via.1);
-                if !(0..64).contains(&vr) || !(0..64).contains(&vc) {
+            for (w, &(dv, dn)) in vias.iter().enumerate() {
+                let (vr, vc) = if w == 0 { (r + dr, c) } else { (r, c + dc) };
+                if !(0..64).contains(&vr) || !(0..64).contains(&vc) || f.walks[dv] == 0 {
                     continue;
                 }
                 let v = (vr * 64 + vc) as usize;
@@ -220,21 +241,50 @@ impl TileLayers {
     /// Version 2 (see the module).
     pub fn pack(&self) -> Result<Vec<u8>> {
         let mut raw = vec![2u8];
-        for (_, stream) in self.streams()? {
+        for (_, stream) in self.streams(false)? {
             raw.extend(stream);
         }
-        Ok(zstd::encode_all(raw.as_slice(), 19)?)
+        compress(&raw)
     }
 
-    /// The streams of version 2 (see the module), named, before compression.
+    /// Version 2 without what the planner does not read (`lean`): the heights of the cells of a
+    /// single floor and the floors' sizes (the app's databases).
+    pub fn pack_lean(&self) -> Result<Vec<u8>> {
+        let mut raw = vec![3u8];
+        for (_, stream) in self.lean().streams(true)? {
+            raw.extend(stream);
+        }
+        compress(&raw)
+    }
+
+    /// The floors without the heights of the cells of a single floor (0: only the heights of the
+    /// floors of a cell tell them apart) and without their sizes (0).
+    pub fn lean(&self) -> Self {
+        let mut out = self.clone();
+        let o = self.offsets();
+        for i in 0..4096 {
+            if self.counts[i] == 1 {
+                out.floors[o[i] as usize].height = 0;
+            }
+        }
+        for f in &mut out.floors {
+            f.size = 0;
+        }
+        out
+    }
+
+    /// The streams of version 2 (see the module), named, before compression; `lean`: without the
+    /// heights of the cells of a single floor nor the sizes.
     #[doc(hidden)]
-    pub fn streams(&self) -> Result<Vec<(&'static str, Vec<u8>)>> {
+    pub fn streams(&self, lean: bool) -> Result<Vec<(&'static str, Vec<u8>)>> {
         ensure!(self.counts.len() == 4096, "layers: {} cells", self.counts.len());
         let o = self.offsets();
         ensure!(o[4096] as usize == self.floors.len(), "layers: floors and counts differ");
         let mut out = vec![("counts", self.counts.clone())];
         // Heights: first floors predicted from their neighbours', the others from their first.
-        let first = |i: usize| (self.counts[i] > 0).then(|| self.floors[o[i] as usize].height);
+        let first = |i: usize| {
+            (self.counts[i] > 0 && !(lean && self.counts[i] == 1)).then(|| self.floors[o[i] as usize].height)
+        };
         let (mut heights, mut last) = (Vec::new(), 0i16);
         for i in 0..4096 {
             let Some(h) = first(i) else { continue };
@@ -257,7 +307,9 @@ impl TileLayers {
         out.push(("other heights", upper));
         out.push(("water", self.floors.iter().map(|f| f.water).collect()));
         out.push(("flags", self.floors.iter().map(|f| f.flags).collect()));
-        out.push(("size", self.floors.iter().map(|f| f.size).collect()));
+        if !lean {
+            out.push(("size", self.floors.iter().map(|f| f.size).collect()));
+        }
         let (mut straight, mut diagonal) = (Vec::new(), Vec::new());
         for i in 0..4096 {
             for k in 0..usize::from(self.counts[i]) {
@@ -336,7 +388,11 @@ impl TileLayers {
 
     fn unpack_v2(raw: &[u8]) -> Result<Self> {
         let mut rd = Reader { bytes: raw, at: 0 };
-        ensure!(rd.byte()? == 2, "layers: not version 2");
+        let lean = match rd.byte()? {
+            2 => false,
+            3 => true,
+            _ => anyhow::bail!("layers: not version 2"),
+        };
         let counts = rd.take(4096)?.to_vec();
         ensure!(counts.iter().all(|&c| usize::from(c) <= MAX_FLOORS), "layers: bad counts");
         let mut l = Self {
@@ -347,10 +403,12 @@ impl TileLayers {
         let n = l.floors.len();
         let mut last = 0i16;
         for i in 0..4096 {
-            if l.counts[i] == 0 {
+            if l.counts[i] == 0 || (lean && l.counts[i] == 1) {
                 continue;
             }
-            let first = |l: &Self, j: usize| (l.counts[j] > 0).then(|| l.floors[o[j] as usize].height);
+            let first = |l: &Self, j: usize| {
+                (l.counts[j] > 0 && !(lean && l.counts[j] == 1)).then(|| l.floors[o[j] as usize].height)
+            };
             let (r, c) = (i / 64, i % 64);
             let a = (c > 0).then(|| first(&l, i - 1)).flatten();
             let b = (r > 0).then(|| first(&l, i - 64)).flatten();
@@ -369,7 +427,7 @@ impl TileLayers {
         }
         let water = rd.take(n)?.to_vec();
         let flags = rd.take(n)?.to_vec();
-        let size = rd.take(n)?.to_vec();
+        let size = if lean { vec![0; n] } else { rd.take(n)?.to_vec() };
         for (k, f) in l.floors.iter_mut().enumerate() {
             (f.water, f.flags, f.size) = (water[k], flags[k], size[k]);
         }
@@ -455,5 +513,7 @@ mod tests {
             };
             assert_eq!(TileLayers::unpack(&packed, version).unwrap(), l, "version {version}");
         }
+        // Lean: the same but the heights of the cells of one floor and the sizes.
+        assert_eq!(TileLayers::unpack(&l.pack_lean().unwrap(), 2).unwrap(), l.lean());
     }
 }

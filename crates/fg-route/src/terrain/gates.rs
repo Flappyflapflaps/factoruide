@@ -86,6 +86,38 @@ impl Best {
     }
 }
 
+/// The walkable areas within a tile (`Grid::local_areas`): each node's (0: never stood on), the
+/// size of each, and the areas each leads to (`next`) or is led to from (`prev`) by a step
+/// within the tile.
+#[derive(Default)]
+pub(super) struct LocalAreas {
+    label: Box<[u16]>,
+    size: Box<[u32]>,
+    next: Box<[Box<[u16]>]>,
+    prev: Box<[Box<[u16]>]>,
+}
+
+impl LocalAreas {
+    /// The areas reached from area `a` within the tile (or reaching it, `back`).
+    fn reachable(&self, a: u16, back: bool) -> Vec<bool> {
+        let mut seen = vec![false; self.size.len()];
+        let ways = if back { &self.prev } else { &self.next };
+        if usize::from(a) >= seen.len() || a == 0 {
+            return seen;
+        }
+        seen[usize::from(a)] = true;
+        let mut stack = vec![a];
+        while let Some(x) = stack.pop() {
+            for &y in ways[usize::from(x)].iter() {
+                if !std::mem::replace(&mut seen[usize::from(y)], true) {
+                    stack.push(y);
+                }
+            }
+        }
+        seen
+    }
+}
+
 /// Version of the making of the tiles' graphs and of the steps: graphs stored by another
 /// (`Terrain::gate_graphs`) are made again, walking memories of another are dropped. 4: the
 /// floors of the game's geometry.
@@ -113,7 +145,7 @@ impl TileGraph {
         for &c in &self.cost {
             bytes.extend(c.to_le_bytes());
         }
-        zstd::encode_all(bytes.as_slice(), 19).unwrap_or_default()
+        super::layers::compress(&bytes).unwrap_or_default()
     }
 
     /// A graph stored by this version, None otherwise.
@@ -182,9 +214,10 @@ impl Grid {
         if moves & MOVE_NO_GO != 0 {
             return;
         }
+        let border = lr == 0 || lc == 0 || lr == 63 || lc == 63;
         for (d, (dr, dc)) in DIRECTIONS.into_iter().enumerate() {
             let (nr, nc) = (lr + dr, lc + dc);
-            if moves >> d & MOVE != 0 && (0..64).contains(&nr) && (0..64).contains(&nc) {
+            if moves >> d & MOVE != 0 && (!border || ((0..64).contains(&nr) && (0..64).contains(&nc))) {
                 each((nr * 64 + nc) as usize, move_cost(moves, d));
             }
         }
@@ -221,10 +254,19 @@ impl Grid {
             return cost;
         };
         cost[start] = 0;
+        // Only the wanted nodes it may reach (those of other areas none leads to are not
+        // waited for).
+        let areas = self.local_areas(t);
+        let reach = areas.reachable(areas.label.get(start).copied().unwrap_or(0), back);
         let mut left = vec![false; tile.len()];
         let mut count = 0;
         for k in wanted.iter().filter_map(|&n| local(n)) {
-            count += usize::from(!std::mem::replace(&mut left[k], true));
+            if reach.get(usize::from(areas.label[k])).copied().unwrap_or(false) {
+                count += usize::from(!std::mem::replace(&mut left[k], true));
+            }
+        }
+        if count == 0 {
+            return cost;
         }
         // What entering each cell costs more for its danger (none around `from` when `free`).
         let mut extra = [0u32; 4096];
@@ -236,12 +278,12 @@ impl Grid {
                 }
             }
         }
-        let cell_of = |k: usize| tile.cell_floor(k).0;
+        let cell_of = |k: usize| if k < 4096 { k } else { usize::from(tile.more_cell[k - 4096]) };
         // The steps into each node, for the walks back: from the floors of the cells around.
         let into = |k: usize, each: &mut dyn FnMut(usize, u32)| {
-            let i = cell_of(k);
+            let (i, fk) = tile.cell_floor(k);
             let (lr, lc) = ((i / 64) as i32, (i % 64) as i32);
-            for (dr, dc) in DIRECTIONS.into_iter().chain([(0, 0)]) {
+            for (d, (dr, dc)) in DIRECTIONS.into_iter().chain([(0, 0)]).enumerate() {
                 let (pr, pc) = (lr - dr, lc - dc);
                 if !(0..64).contains(&pr) || !(0..64).contains(&pc) {
                     continue;
@@ -249,11 +291,21 @@ impl Grid {
                 let j = (pr * 64 + pc) as usize;
                 for f in 0..usize::from(tile.count[j]) {
                     let Some(p) = tile.local(j, f) else { continue };
-                    Self::local_steps(tile, p, (pr, pc), |n, step| {
-                        if n == k {
-                            each(p, step);
+                    let moves = tile.moves[p];
+                    if moves & MOVE_NO_GO != 0 {
+                        continue;
+                    }
+                    // The steps to a first floor are the moves' bits, the others the edges.
+                    if fk == 0 && d < 8 && moves >> d & MOVE != 0 {
+                        each(p, move_cost(moves, d));
+                    }
+                    if moves & MOVE_MORE != 0 {
+                        for &e in tile.edges(p) {
+                            if e.dir() == d && e.floor() == fk {
+                                each(p, e.cost());
+                            }
                         }
-                    });
+                    }
                 }
             }
         };
@@ -304,15 +356,16 @@ impl Grid {
     }
 
     /// The walkable areas within tile `t` (nodes of straight neighbour cells walking to each
-    /// other, as `label` but not leaving the tile), by node; 0 for the nodes never stood on.
-    fn local_areas(&self, t: usize) -> &[u16] {
+    /// other, as `label` but not leaving the tile), and the steps between them.
+    fn local_areas(&self, t: usize) -> &LocalAreas {
         self.local_areas[t].get_or_init(|| {
             let Some(tile) = self.nodes(t) else {
-                return Box::new([]);
+                return LocalAreas::default();
             };
             let mut area = vec![0u16; tile.len()];
             let mut next = 0u16;
             let mut stack = Vec::new();
+            let mut found: Vec<usize> = Vec::new();
             for start in 0..tile.len() {
                 if area[start] != 0 || tile.moves[start] & MOVE_NO_GO != 0 {
                     continue;
@@ -323,9 +376,9 @@ impl Grid {
                 while let Some(k) = stack.pop() {
                     let i = tile.cell_floor(k).0;
                     let (lr, lc) = ((i / 64) as i32, (i % 64) as i32);
-                    let mut found: Vec<usize> = Vec::new();
+                    found.clear();
                     Self::local_steps(tile, k, (lr, lc), |n, _| found.push(n));
-                    for n in found {
+                    for &n in &found {
                         let j = tile.cell_floor(n).0;
                         let straight = (j / 64 == i / 64) != (j % 64 == i % 64);
                         if area[n] != 0 || !straight {
@@ -339,24 +392,49 @@ impl Grid {
                     }
                 }
             }
-            // Small areas have no gate: their nodes count as never stood on.
             let mut size = vec![0u32; usize::from(next) + 1];
             for &a in &area {
                 size[usize::from(a)] += 1;
             }
-            for a in &mut area {
-                if size[usize::from(*a)] < SMALL_AREA {
-                    *a = 0;
+            // The steps from an area to another (a drop, a diagonal), both ways.
+            let mut ways: Vec<(u16, u16)> = Vec::new();
+            for k in 0..tile.len() {
+                if area[k] == 0 {
+                    continue;
                 }
+                let i = tile.cell_floor(k).0;
+                Self::local_steps(tile, k, ((i / 64) as i32, (i % 64) as i32), |n, _| {
+                    if area[n] != 0 && area[n] != area[k] {
+                        ways.push((area[k], area[n]));
+                    }
+                });
             }
-            area.into()
+            ways.sort_unstable();
+            ways.dedup();
+            let mut next_of = vec![Vec::new(); usize::from(next) + 1];
+            let mut prev_of = vec![Vec::new(); usize::from(next) + 1];
+            for (a, b) in ways {
+                next_of[usize::from(a)].push(b);
+                prev_of[usize::from(b)].push(a);
+            }
+            LocalAreas {
+                label: area.into(),
+                size: size.into(),
+                next: next_of.into_iter().map(Into::into).collect(),
+                prev: prev_of.into_iter().map(Into::into).collect(),
+            }
         })
     }
 
-    /// The area within its tile of a node (0: none, or out of the terrain).
+    /// The area within its tile of a node, when large enough for gates (0: none, too small, or
+    /// out of the terrain).
     fn local_area(&self, n: Node) -> u16 {
         self.locate(n)
-            .and_then(|(t, l)| self.local_areas(t).get(l).copied())
+            .map(|(t, l)| {
+                let la = self.local_areas(t);
+                let a = la.label.get(l).copied().unwrap_or(0);
+                if la.size.get(usize::from(a)).is_some_and(|&s| s >= SMALL_AREA) { a } else { 0 }
+            })
             .unwrap_or(0)
     }
 

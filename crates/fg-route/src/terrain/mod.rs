@@ -31,7 +31,7 @@ pub use gates::GATES_VERSION;
 use crate::world::Pos;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
-use layers::{DEEP, DIRECTIONS, DROP_DIRECTIONS, HAZARD, SURFACE, TileLayers, WET};
+use layers::{DEEP, DIRECTIONS, HAZARD, SURFACE, TileLayers, WET};
 use rusqlite::Connection;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -173,6 +173,11 @@ const MOVE_SWUM: u32 = 1 << 8;
 const MOVE_DROP: u32 = 1 << 16;
 const MOVE_NO_GO: u32 = 1 << 24;
 const MOVE_MORE: u32 = 1 << 25;
+
+/// The direction of each drop slot (`DROP_DIRECTIONS`): as `DIRECTIONS`, 8 for the same cell.
+const DROP_DIRECTION: [usize; 5] = [0, 1, 2, 3, 8];
+/// Index in `DIRECTIONS` of a step (row, column) + 1, as `(dr + 1) * 3 + dc + 1`.
+const DIRECTION_OF: [usize; 9] = [4, 0, 5, 2, usize::MAX, 3, 6, 1, 7];
 
 /// Flags of a floor for a step: never stood on (magma, the open sea), swum.
 const NO_GO: u8 = 1;
@@ -321,7 +326,7 @@ struct Grid {
     /// The walks from nodes of each tile to its gates and back (`gates`).
     ends: Vec<Mutex<gates::Ends>>,
     /// The walkable areas within each tile, found when first needed (`gates`).
-    local_areas: Vec<std::sync::OnceLock<Box<[u16]>>>,
+    local_areas: Vec<std::sync::OnceLock<gates::LocalAreas>>,
     /// The caves the floors miss (`Terrain::add_cave`).
     caves: Vec<Cave>,
 }
@@ -434,7 +439,17 @@ impl Grid {
     }
 
     /// The cost of the step from `a` to `b` (None: not taken), the cheapest when several.
+    #[inline]
     fn step(&self, a: Node, b: Node) -> Option<u32> {
+        let (dr, dc) = (b.r() - a.r(), b.c() - a.c());
+        if b.f() == 0 && dr.abs() <= 1 && dc.abs() <= 1 && (dr, dc) != (0, 0) {
+            let moves = self.moves(a);
+            let d = DIRECTION_OF[((dr + 1) * 3 + dc + 1) as usize];
+            if moves & MOVE_NO_GO != 0 || moves >> d & MOVE == 0 {
+                return None;
+            }
+            return Some(move_cost(moves, d));
+        }
         let mut best: Option<u32> = None;
         self.steps(a, |n, cost, _| {
             if n == b && best.is_none_or(|x| cost < x) {
@@ -444,11 +459,25 @@ impl Grid {
         best
     }
 
-    /// Whether node `a` walks to node `b` (not a drop).
+    /// Whether node `a` walks to node `b` (not a drop; within a cell, only drops).
     fn walks_to(&self, a: Node, b: Node) -> bool {
-        let mut found = false;
-        self.steps(a, |n, _, drop| found |= n == b && !drop);
-        found
+        let (dr, dc) = (b.r() - a.r(), b.c() - a.c());
+        if dr.abs() > 1 || dc.abs() > 1 || (dr, dc) == (0, 0) {
+            return false;
+        }
+        let Some((t, l)) = self.locate(a) else { return false };
+        let Some(tile) = self.nodes(t) else { return false };
+        let moves = tile.moves[l];
+        if moves & MOVE_NO_GO != 0 {
+            return false;
+        }
+        let d = DIRECTION_OF[((dr + 1) * 3 + dc + 1) as usize];
+        if b.f() == 0 {
+            moves >> d & MOVE != 0 && moves >> d & MOVE_DROP == 0
+        } else {
+            moves & MOVE_MORE != 0
+                && (tile.edges(l).iter()).any(|e| e.dir() == d && e.floor() == b.f() && !e.drop())
+        }
     }
 
     /// Whether two nodes of straight neighbour cells walk to each other: joined in an area.
@@ -716,15 +745,18 @@ impl Grid {
                     let mut m = 0u32;
                     let mut more: Vec<Edge> = Vec::new();
                     let mut add = |d: usize, bits: u8, drop: bool| {
+                        if bits == 0 {
+                            return;
+                        }
                         let (dr, dc) = if d == 8 { (0, 0) } else { DIRECTIONS[d] };
-                        for b in 0..8 {
+                        // The floors stepped to: there, and stood on.
+                        let Some((u, j)) = self.tile(r + dr, c + dc) else { return };
+                        let Some(target) = self.nodes(u) else { return };
+                        for b in 0..usize::from(target.count[j]).min(8) {
                             if bits >> b & 1 == 0 {
                                 continue;
                             }
-                            // The floor stepped to: there, and stood on.
-                            let Some((u, j)) = self.tile(r + dr, c + dc) else { continue };
-                            let Some(target) = self.nodes(u) else { continue };
-                            let Some(k) = target.local(j, b) else { continue };
+                            let k = if b == 0 { j } else { 4096 + usize::from(target.more[j]) + b - 1 };
                             if target.flags[k] & NO_GO != 0 {
                                 continue;
                             }
@@ -748,12 +780,7 @@ impl Grid {
                         add(d, bits, false);
                     }
                     for (s, &bits) in floor.drops.iter().enumerate() {
-                        let d = if s == 4 {
-                            8
-                        } else {
-                            DIRECTIONS.iter().position(|&x| x == DROP_DIRECTIONS[s]).unwrap_or(0)
-                        };
-                        add(d, bits, true);
+                        add(DROP_DIRECTION[s], bits, true);
                     }
                     if !more.is_empty() {
                         m |= MOVE_MORE;
@@ -1289,18 +1316,25 @@ impl Terrain {
             }
             let from = std::mem::replace(&mut previous, (r, c));
             let diagonal = usize::from(from.0 != r && from.1 != c);
-            let h = height(at);
-            let mut next: Option<(Node, u32, (bool, bool, i32))> = None;
-            grid.steps(at, |m, step, drop| {
-                if m.cell() != (r, c) {
-                    return;
-                }
-                let rank = (m != b, drop, (height(m) - h).abs());
-                if next.is_none_or(|x| rank < x.2) {
-                    next = Some((m, step, rank));
-                }
-            });
-            let (m, step, _) = next?;
+            // Mostly a single floor there: the step to it, when taken.
+            let (m, step) = if grid.floors(r, c) == 1 {
+                let m = Node::new(r, c, 0);
+                (m, grid.step(at, m)?)
+            } else {
+                let h = height(at);
+                let mut next: Option<(Node, u32, (bool, bool, i32))> = None;
+                grid.steps(at, |m, step, drop| {
+                    if m.cell() != (r, c) {
+                        return;
+                    }
+                    let rank = (m != b, drop, (height(m) - h).abs());
+                    if next.is_none_or(|x| rank < x.2) {
+                        next = Some((m, step, rank));
+                    }
+                });
+                let (m, step, _) = next?;
+                (m, step)
+            };
             if !Self::near_end((r, c), ca, cb) && self.danger_cost(grid, (r, c), level) != 0 {
                 return None;
             }
@@ -1915,11 +1949,15 @@ impl Terrain {
             if n == b {
                 return Some(f64::from(g) / 10.0 * CELL);
             }
-            let Some(k) = grid.best_index(n, space) else { continue };
+            let Some((t, l)) = grid.locate(n) else { continue };
+            let k = if l < 4096 {
+                ((n.r() - r0) * cols + (n.c() - c0)) as usize
+            } else {
+                space.3 + grid.extra_base[t] as usize + l - 4096
+            };
             if g > get(best, k) {
                 continue;
             }
-            let Some((t, l)) = grid.locate(n) else { continue };
             let Some(tile) = grid.nodes(t) else { continue };
             let (r, c) = n.cell();
             let moves = tile.moves[l];
