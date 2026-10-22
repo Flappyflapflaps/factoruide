@@ -1,29 +1,12 @@
 # WoW Forever's walking (added to ../passes.toml, the passages of every game version).
 
 # Mount Hyjal is reached only through Winterspring's Darkwhisper Gorge, whose end climbs to
-# the Tainted Foothills: walked in a straight line between the gorge's two ends; the rest of the
-# mountain is enclosed (no walk up from Felwood or Winterspring elsewhere).
+# the Tainted Foothills (the floors hold the gorge, and nothing else joins the mountain to the
+# land around): the waypoint of walks between the two zones.
 [[pass]]
 name = "Darkwhisper Gorge"
 zones = [618, 616] # Winterspring, Mount Hyjal
 at = { zone = 618, x = 56.5, y = 71.6 }
-
-[[pass]]
-name = "Darkwhisper Gorge, Mount Hyjal end"
-zones = [618, 616]
-at = { zone = 616, x = 85.8, y = 68.8 }
-
-[[enclosed]]
-name = "Mount Hyjal"                # Tainted Foothills
-at = { zone = 616, x = 55.1, y = 82.6 }
-
-[[enclosed]]
-name = "Mount Hyjal"                # Summit of Eternity
-at = { zone = 616, x = 68.6, y = 44.1 }
-
-[[enclosed]]
-name = "Mount Hyjal"                # the west, Ortak Lomgok's inn
-at = { zone = 616, x = 12.8, y = 52.4 }
 
 # Riverglades, between the Badlands, Redridge and the Swamp of Sorrows: its roads out.
 [[pass]]
@@ -49,24 +32,8 @@ at = { zone = 16593, x = 43.71, y = 24.08 }
 radius = 5.0
 climb = 60.0 # approx: the stairs up the tower (about 10 s)
 
-# Ramps the terrain breaks into steep steps (a passage at each end of a long one). Feralas: Camp
-# Mojache's plateau down to the Lower Wilds, the Lower Wilds down to the western jungle and up to
-# Dire Maul's plateau.
-[[pass]]
-name = "Camp Mojache ramp, top"
-zones = [357, 357]
-at = { zone = 357, x = 64.3, y = 49.0 }
-
-[[pass]]
-name = "Camp Mojache ramp, foot"
-zones = [357, 357]
-at = { zone = 357, x = 63.0, y = 51.9 }
-
-[[pass]]
-name = "Lower Wilds - western jungle ramp"
-zones = [357, 357]
-at = { zone = 357, x = 49.3, y = 48.6 }
-
+# Paths the floors break into pieces (a passage at each end of a long one): the plateau they
+# lead to is apart from the land around. Feralas: the Lower Wilds up to Dire Maul's plateau.
 [[pass]]
 name = "Dire Maul road, foot"
 zones = [357, 357]
@@ -110,12 +77,6 @@ at = { zone = 139, x = 56.1, y = 15.6 }
 name = "Stormwind gates, Valley of Heroes"
 zones = [1519, 12]
 at = { zone = 1519, x = 77.8, y = 78.5 }
-
-# The steps down to Stormwind's canals.
-[[pass]]
-name = "Stormwind canal steps"
-zones = [1519, 1519]
-at = { zone = 1519, x = 41.4, y = 45.7 }
 
 # The road up to Nethergarde Keep.
 [[pass]]

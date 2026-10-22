@@ -997,14 +997,8 @@ fn distance_to_path(path: &[fg_route::world::Pos], p: &fg_route::world::Pos) -> 
         .fold(f64::INFINITY, f64::min)
 }
 
-/// How near a walk drawn goes by a passage's point (yards).
-fn by(world: &fg_route::world::World, path: &[fg_route::world::Pos], passage: &str) -> f64 {
-    let pass = world.passes.iter().find(|q| q.name == passage).unwrap();
-    distance_to_path(path, &pass.pos)
-}
-
 /// Valley of Trials is walled by mountains: walks out of it take its road east to Durotar's
-/// plain (by the passage's point: the floors hold the road), never a straight line over the
+/// plain (the floors hold the road, and no way over the ridges), never a straight line over the
 /// ridges, even to the plain just behind its north wall (GitHub #43). Walks inside it do not
 /// take the road.
 #[test]
@@ -1013,9 +1007,11 @@ fn valley_of_trials_is_left_by_its_road() {
         let at = |x, y| w.to_world(14, x, y).unwrap();
         let (north_end, behind) = (at(44.5, 56.5), at(42.0, 50.5));
         let (gornek, razor_hill) = (at(42.1, 68.4), at(51.9, 43.5));
+        // Where the road leaves the valley.
+        let road = at(47.4, 67.7);
         for (a, b) in [(north_end, behind), (behind, north_end), (gornek, razor_hill)] {
             let path = w.walk_path(&a, &b, 0);
-            let near = by(&w, &path, "Valley of Trials road");
+            let near = distance_to_path(&path, &road);
             assert!(near < ROAD, "{edition}: {near} yd from the road, {path:?}");
             let length: f64 = path.windows(2).map(|p| p[0].dist(&p[1])).sum();
             assert!(
@@ -1029,7 +1025,7 @@ fn valley_of_trials_is_left_by_its_road() {
         );
         let sarkoth = at(40.6, 62.6);
         assert!(
-            by(&w, &w.walk_path(&gornek, &sarkoth, 0), "Valley of Trials road") > ROAD,
+            distance_to_path(&w.walk_path(&gornek, &sarkoth, 0), &road) > ROAD,
             "{edition}"
         );
     }
@@ -1047,12 +1043,12 @@ fn burning_blade_coven_is_reached_from_the_valley() {
     for (edition, w) in walk_worlds(fg_route::faction::Faction::Horde) {
         let at = |x, y| w.to_world(14, x, y).unwrap();
         let (yarrog, zureetha, razor_hill) = (at(42.7, 53.0), at(42.8, 69.0), at(51.9, 43.5));
-        let mouth = at(45.3, 56.4);
+        let (mouth, road) = (at(45.3, 56.4), at(47.4, 67.7));
         let from_valley = w.walk_distance(&zureetha, &yarrog);
         assert!(from_valley < 1.5 * zureetha.dist(&yarrog), "{edition}: {from_valley}");
         assert!(w.walk_distance(&razor_hill, &yarrog) > from_valley, "{edition}");
         let path = w.walk_path(&razor_hill, &yarrog, 0);
-        let near = by(&w, &path, "Valley of Trials road");
+        let near = distance_to_path(&path, &road);
         assert!(near < ROAD, "{edition}: {near} yd from the road, {path:?}");
         let inside = w.walk_path(&zureetha, &yarrog, 0);
         let near = distance_to_path(&inside, &mouth);
@@ -1069,10 +1065,29 @@ fn coldridge_valley_is_left_by_its_tunnel() {
         let (a, b) = (at(29.0, 66.0), at(46.0, 52.0));
         let path: Vec<_> = w.terrain.cell_path(&a, &b, 0).into_iter().map(|(p, _)| p).collect();
         assert!(!path.is_empty(), "{edition}: no way");
-        // By the tunnel's mouth in the valley (its other end, approx, is the floors' own).
-        let near = by(&w, &path, "Coldridge Pass, valley end");
+        // By the tunnel's mouth in the valley (the floors hold the tunnel).
+        let near = distance_to_path(&path, &at(33.0, 69.3));
         assert!(near < ROAD, "{edition}: {near} yd from the tunnel");
         assert!(w.walk_distance(&a, &b) < 2.0 * a.dist(&b), "{edition}: no way round");
+    }
+}
+
+/// WoW Forever's Mount Hyjal is walled by cliffs: walks up from Felwood or Winterspring take
+/// Darkwhisper Gorge, even from Felwood just below its western rim.
+#[test]
+fn mount_hyjal_is_reached_by_darkwhisper_gorge() {
+    let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Forever).unwrap();
+    let w = job::walk_world(&database_of("forever"), &overrides, fg_route::faction::Faction::Horde).unwrap();
+    let at = |zone, x, y| w.to_world(zone, x, y).unwrap();
+    let gorge = at(618, 56.5, 71.6);
+    let (west, foothills) = (at(616, 12.8, 52.4), at(616, 55.1, 82.6));
+    for (a, b) in [(at(361, 62.0, 40.0), west), (at(618, 61.0, 38.0), foothills)] {
+        let path = w.walk_path(&a, &b, 0);
+        let near = distance_to_path(&path, &gorge);
+        assert!(near < ROAD, "{near} yd from the gorge, {path:?}");
+        // No shorter way round: at least the straight lines to the gorge and on.
+        let least = a.dist(&gorge) + gorge.dist(&b);
+        assert!(w.walk_distance(&a, &b) > 0.9 * least, "{} < {least}", w.walk_distance(&a, &b));
     }
 }
 

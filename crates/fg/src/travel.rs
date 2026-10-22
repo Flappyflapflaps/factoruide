@@ -264,9 +264,33 @@ pub fn overrides(conn: &Connection, overrides_dir: &Path, faction: &str) -> Resu
                 let mut areas: Vec<u32> = p.areas.iter().map(|a| a.0).collect();
                 areas.sort_unstable();
                 areas.dedup();
+                // Each area's size, the continent's mainland marked.
+                let main = world.terrain.main_area(p.pos.continent);
+                let sizes: Vec<String> = (areas.iter())
+                    .map(|&a| {
+                        let side = p.areas.iter().find(|s| s.0 == a).map(|s| s.1);
+                        let size = (side.and_then(|s| world.terrain.area_of(&s))).map_or(0, |(_, size)| size);
+                        if main == Some(a) {
+                            return format!("{a}:{size} main");
+                        }
+                        // Where the other area is (its side nearest the passage).
+                        let at = side.and_then(|s| {
+                            let zone = world.zone_at(&s).unwrap_or(s.zone);
+                            let m = world.to_map(zone, &s)?;
+                            Some(format!(" at {} {:.1},{:.1}", world.zone_name(zone), m.x, m.y))
+                        });
+                        format!("{a}:{size}{}", at.unwrap_or_default())
+                    })
+                    .collect();
                 format!(
-                    "{n} sides the floors join only by a long way round, or not ({} areas): needed",
-                    areas.len()
+                    "{n} sides the floors join only by a long way round, or not ({} areas: {}){}",
+                    areas.len(),
+                    sizes.join(", "),
+                    if areas.len() > 1 || p.lift {
+                        ": needed"
+                    } else {
+                        ": joins nothing apart (one area, no lift)"
+                    }
                 )
             }
         };
