@@ -14,6 +14,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 - Guides are computed about a third faster again (walks between zones had slowed them down in 0.14.0).
 - Valley of Trials: walks leave by the valley's road instead of over the mountains, and Burning Blade Medallion is done in the valley.
 - Walks follow the game's real ground: into caves and mines, through tunnels, over bridges and up city levels, around buildings, walls and rocks. The app's download is a little smaller.
+- Walks up Mount Hyjal and out of Timbermaw Hold follow Darkwhisper Gorge and the tunnel all the way instead of cutting their last corners.
 
 ### Addon
 

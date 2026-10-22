@@ -1087,7 +1087,11 @@ fn mount_hyjal_is_reached_by_darkwhisper_gorge() {
         assert!(near < ROAD, "{near} yd from the gorge, {path:?}");
         // No shorter way round: at least the straight lines to the gorge and on.
         let least = a.dist(&gorge) + gorge.dist(&b);
-        assert!(w.walk_distance(&a, &b) > 0.9 * least, "{} < {least}", w.walk_distance(&a, &b));
+        assert!(
+            w.walk_distance(&a, &b) > 0.9 * least,
+            "{} < {least}",
+            w.walk_distance(&a, &b)
+        );
     }
 }
 
