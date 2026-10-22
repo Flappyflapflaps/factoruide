@@ -151,8 +151,6 @@ thread_local! {
 
 /// One continent's cells, over the box of its tiles.
 struct Grid {
-    /// Tells this grid's answers from another's in the thread memos (a load, a continent).
-    id: u32,
     r0: i32,
     c0: i32,
     rows: i32,
@@ -177,10 +175,14 @@ struct Grid {
     /// tile (None: none in the tile), and the strongest of each tile.
     danger: Vec<Option<Box<[u8; 4096]>>>,
     danger_max: Vec<u8>,
+    /// The levels of the mobs of each tile (`danger`), sorted, each once.
+    danger_levels: Vec<Box<[u8]>>,
     /// The gates of each tile and the walks between them, found when first needed (`gates`).
     graphs: Vec<std::sync::OnceLock<gates::TileGraph>>,
-    /// The same walks with the danger counted, by level and danger costs (`gates`).
+    /// The same walks with the danger counted, by danger (`gates`).
     danger_graphs: Vec<Mutex<gates::DangerGraphs>>,
+    /// The walks from cells of each tile to its gates and back (`gates`).
+    ends: Vec<Mutex<gates::Ends>>,
     /// The walkable areas within each tile, found when first needed (`gates`).
     local_areas: Vec<std::sync::OnceLock<Box<[u16]>>>,
     /// The steps each cell can take (`Grid::moves`), by tile, found when first needed.
@@ -1045,7 +1047,6 @@ impl Terrain {
                 cells[(y - ty0) as usize * tile_cols + (x - tx0) as usize] = Some(tile);
             }
             let mut grid = Grid {
-                id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
                 r0: ty0 * 64,
                 c0: tx0 * 64,
                 rows,
@@ -1061,8 +1062,10 @@ impl Terrain {
                 joins: Vec::new(),
                 danger: Vec::new(),
                 danger_max: Vec::new(),
+                danger_levels: Vec::new(),
                 graphs: Vec::new(),
                 danger_graphs: Vec::new(),
+                ends: Vec::new(),
                 local_areas: Vec::new(),
                 moves: Vec::new(),
                 caves: Vec::new(),
@@ -1071,6 +1074,7 @@ impl Terrain {
             grid.open_gaps();
             grid.graphs = (0..grid.cells.len()).map(|_| std::sync::OnceLock::new()).collect();
             grid.danger_graphs = (0..grid.cells.len()).map(|_| Mutex::default()).collect();
+            grid.ends = (0..grid.cells.len()).map(|_| Mutex::default()).collect();
             grid.local_areas = (0..grid.cells.len()).map(|_| std::sync::OnceLock::new()).collect();
             grid.moves = (0..grid.cells.len()).map(|_| std::sync::OnceLock::new()).collect();
             terrain.grids.insert(map, grid);
@@ -1453,6 +1457,19 @@ impl Terrain {
             stamped = stamped
                 .wrapping_mul(31)
                 .wrapping_add(u64::from(level) ^ (p.x.to_bits() >> 20));
+        }
+        for grid in self.grids.values_mut() {
+            grid.danger_levels = (grid.danger.iter())
+                .map(|cells| {
+                    let mut levels: Vec<u8> = cells.iter().flat_map(|c| c.iter().copied()).filter(|&m| m != 0).collect();
+                    levels.sort_unstable();
+                    levels.dedup();
+                    levels.into()
+                })
+                .collect();
+            // Walks found with the danger before are not this one's.
+            grid.danger_graphs.iter_mut().for_each(|g| g.get_mut().unwrap().clear());
+            grid.ends.iter_mut().for_each(|e| e.get_mut().unwrap().clear());
         }
         // Other paths: the memories of the terrain without danger are not this one's.
         let mut h = Packed::default();

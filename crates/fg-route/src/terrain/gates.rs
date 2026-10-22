@@ -11,14 +11,12 @@
 //!
 //! The walk is a little longer than the cheapest cell by cell (it goes through the gates). Where
 //! the danger counts, the walks between the gates of a tile near mobs strong enough are found
-//! again with it, once a level (`Grid::danger_graph`).
+//! again with it, once for all the levels that see the tile's mobs alike (`DangerKey`).
 
 use super::{CELL, DIRECTIONS, Grid, MOVE, MOVE_NO_GO, MOVE_SWUM, SWUM, WALKED};
 use rustc_hash::FxHashMap;
-use std::cell::RefCell;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
-use std::rc::Rc;
 use std::sync::Arc;
 
 /// Walks farther than this (cells, one way or the other) go through the gates.
@@ -31,24 +29,24 @@ const OPPOSITE: [usize; 8] = [1, 0, 3, 2, 7, 6, 5, 4];
 /// A walkable area within a tile smaller than this (cells: a ledge between steep slopes) has
 /// no gate of its own.
 const SMALL_AREA: u32 = 4;
-/// Ends of walks whose costs to the gates of their tile are remembered, beyond which the memo
+/// Ends of walks in a tile whose costs to its gates are remembered, beyond which the tile's memo
 /// starts over.
-const ENDS_MAX: usize = 1 << 16;
+const ENDS_MAX: usize = 1 << 12;
 
-/// The walks from a cell to the gates of its tile (or back), by grid, cell, way and danger.
-type Ends = FxHashMap<(u32, i32, i32, bool, Danger), Rc<[u32]>>;
+/// The walks from a cell of a tile to its gates (or back), by cell, way and danger (None: none
+/// counts), shared by the threads.
+pub(super) type Ends = FxHashMap<((i32, i32), bool, Option<DangerKey>), Arc<[u32]>>;
 
 /// The danger a walk counts: the character's level (0: none) and what entering a cell near a
 /// mob a few levels above, or far above, costs more (`Grid::danger_step`).
 pub(super) type Danger = (u8, [u32; 2]);
 const SAFE: Danger = (0, [0; 2]);
+/// What the danger makes the cells of a tile cost, the same for every level seeing its mobs
+/// alike: how many of the levels of its mobs (`Grid::danger_levels`) are below a few levels
+/// above the character's, how many below far above, and the danger costs.
+pub(super) type DangerKey = (u16, u16, [u32; 2]);
 /// The walks between the gates of a tile with the danger counted (`TileGraph::cost`), by danger.
-pub(super) type DangerGraphs = Vec<(Danger, Arc<[u32]>)>;
-
-thread_local! {
-    /// The planner walks from and to the same places again and again.
-    static ENDS: RefCell<Ends> = RefCell::new(Ends::default());
-}
+pub(super) type DangerGraphs = Vec<(DangerKey, Arc<[u32]>)>;
 
 /// Cheapest cost found to each gate (tile, index) of a walk, and the gate it came from
 /// (`FROM_A`: the walk's start).
@@ -351,10 +349,11 @@ impl Grid {
         })
     }
 
-    /// The walks between the gates of tile `t` (`TileGraph::cost`) with the danger counted,
-    /// found once for all the threads; None when no mob there counts at its level.
-    fn danger_graph(&self, t: usize, danger: Danger) -> Option<Arc<[u32]>> {
-        let (level, _) = danger;
+    /// What the danger at `danger` makes the cells of tile `t` cost (`Grid::danger_step` only
+    /// tells the mobs within a few levels above, a few more, far more): None when no mob there
+    /// counts at its level.
+    fn danger_key(&self, t: usize, danger: Danger) -> Option<DangerKey> {
+        let (level, costs) = danger;
         if level == 0
             || self
                 .danger_max
@@ -363,13 +362,23 @@ impl Grid {
         {
             return None;
         }
+        let levels = &self.danger_levels[t];
+        let below = |gap: u8| levels.partition_point(|&m| i32::from(m) - i32::from(level) < i32::from(gap)) as u16;
+        Some((below(super::DANGER_GAP), below(super::DANGER_GAP + 2), costs))
+    }
+
+    /// The walks between the gates of tile `t` (`TileGraph::cost`) with the danger counted,
+    /// found once for all the threads and the levels seeing its mobs alike; None when no mob
+    /// there counts at its level.
+    fn danger_graph(&self, t: usize, danger: Danger) -> Option<Arc<[u32]>> {
+        let key = self.danger_key(t, danger)?;
         let mut graphs = self.danger_graphs[t].lock().unwrap();
-        if let Some((_, cost)) = graphs.iter().find(|(d, _)| *d == danger) {
+        if let Some((_, cost)) = graphs.iter().find(|(d, _)| *d == key) {
             return Some(Arc::clone(cost));
         }
         let cost = self.danger_costs(t, danger);
         let cost: Arc<[u32]> = cost.into();
-        graphs.push((danger, Arc::clone(&cost)));
+        graphs.push((key, Arc::clone(&cost)));
         Some(cost)
     }
 
@@ -396,29 +405,24 @@ impl Grid {
     }
 
     /// Cheapest walks from cell `p` of tile `t` to each of its gates (or from each of them to
-    /// `p`, `back`), the danger counted away from `p`, remembered.
-    fn ends(&self, t: usize, p: (i32, i32), back: bool, danger: Danger) -> Rc<[u32]> {
-        let danger = if self.danger_graph(t, danger).is_some() {
-            danger
-        } else {
-            SAFE
-        };
-        let key = (self.id, p.0, p.1, back, danger);
-        if let Some(known) = ENDS.with(|m| m.borrow().get(&key).cloned()) {
-            return known;
+    /// `p`, `back`), the danger counted away from `p`, remembered for all the threads.
+    fn ends(&self, t: usize, p: (i32, i32), back: bool, danger: Danger) -> Arc<[u32]> {
+        let dkey = self.danger_key(t, danger);
+        let danger = if dkey.is_some() { danger } else { SAFE };
+        let key = (p, back, dkey);
+        if let Some(known) = self.ends[t].lock().unwrap().get(&key) {
+            return Arc::clone(known);
         }
         let (tr, tc) = self.origin(t);
         let walks = self.local(t, p, back, danger, true, &self.graph(t).gates);
-        let costs: Rc<[u32]> = (self.graph(t).gates.iter())
+        let costs: Arc<[u32]> = (self.graph(t).gates.iter())
             .map(|&(r, c)| walks[((r - tr) * 64 + (c - tc)) as usize])
             .collect();
-        ENDS.with(|m| {
-            let mut m = m.borrow_mut();
-            if m.len() >= ENDS_MAX {
-                m.clear();
-            }
-            m.insert(key, Rc::clone(&costs));
-        });
+        let mut memo = self.ends[t].lock().unwrap();
+        if memo.len() >= ENDS_MAX {
+            memo.clear();
+        }
+        memo.insert(key, Arc::clone(&costs));
         costs
     }
 
