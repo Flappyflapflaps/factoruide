@@ -33,35 +33,12 @@ pub fn walk_world(conn: &Connection, overrides: &Overrides, faction: Faction) ->
 /// straight. None after a boat, a teleport or a step without a place, for the steps done along
 /// the way and inside dungeons.
 pub fn add_walk_paths(world: &World, route: &mut Route) {
+    for step in &mut route.steps {
+        step.path.clear();
+    }
     // The walks, in order (where one starts depends on the steps before), then searched side by
     // side: each on its own.
-    let mut walks: Vec<(usize, Pos, Pos, u8)> = Vec::new();
-    let mut from: Option<Pos> = None;
-    for (k, step) in route.steps.iter_mut().enumerate() {
-        step.path.clear();
-        if step.bg || step.inside {
-            continue;
-        }
-        let here = position(world, step);
-        if let (Some(a), Some(b)) = (&from, &here)
-            && a.continent == b.continent
-            && a.dist(b) >= SHORT
-        {
-            walks.push((k, *a, *b, u8::try_from(step.level.clamp(0, 255)).unwrap_or(0)));
-        }
-        from = match step.kind {
-            // Where the flight lands.
-            StepKind::Fly => step.target.as_ref().and_then(|t| {
-                let node = world.taxi_nodes.iter().find(|n| n.id == t.id)?;
-                Some(Pos {
-                    zone: world.zone_at(&node.pos).unwrap_or(0),
-                    ..node.pos
-                })
-            }),
-            StepKind::Link | StepKind::Teleport => None,
-            _ => here.or(from),
-        };
-    }
+    let walks = route_walks(world, route);
     let next = AtomicUsize::new(0);
     let threads = std::thread::available_parallelism()
         .map_or(1, usize::from)
@@ -92,6 +69,38 @@ pub fn add_walk_paths(world: &World, route: &mut Route) {
     for (k, path) in found {
         route.steps[k].path = path;
     }
+}
+
+/// The walks of a route from one step to the next (`add_walk_paths`): the step walked to, from
+/// where, to where, and the character's level then.
+pub fn route_walks(world: &World, route: &Route) -> Vec<(usize, Pos, Pos, u8)> {
+    let mut walks: Vec<(usize, Pos, Pos, u8)> = Vec::new();
+    let mut from: Option<Pos> = None;
+    for (k, step) in route.steps.iter().enumerate() {
+        if step.bg || step.inside {
+            continue;
+        }
+        let here = position(world, step);
+        if let (Some(a), Some(b)) = (&from, &here)
+            && a.continent == b.continent
+            && a.dist(b) >= SHORT
+        {
+            walks.push((k, *a, *b, u8::try_from(step.level.clamp(0, 255)).unwrap_or(0)));
+        }
+        from = match step.kind {
+            // Where the flight lands.
+            StepKind::Fly => step.target.as_ref().and_then(|t| {
+                let node = world.taxi_nodes.iter().find(|n| n.id == t.id)?;
+                Some(Pos {
+                    zone: world.zone_at(&node.pos).unwrap_or(0),
+                    ..node.pos
+                })
+            }),
+            StepKind::Link | StepKind::Teleport => None,
+            _ => here.or(from),
+        };
+    }
+    walks
 }
 
 /// Where a step is: its world position, else (guides made before they had it) its map's.

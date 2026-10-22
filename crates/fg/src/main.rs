@@ -3,6 +3,7 @@ mod diff;
 mod route;
 mod talents;
 mod travel;
+mod walks;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -171,6 +172,15 @@ enum Command {
         #[arg(long)]
         level: Option<i64>,
     },
+    /// The walks of a guide from step to step as the planner walks them, a line each (to compare
+    /// the walks of two versions)
+    #[command(hide = true)]
+    Walks {
+        /// The guide (routes/<name>.json)
+        route: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Look for each known kind of data problem in all the edition's data, for every race
     /// (accepted findings: overrides/audit.toml); fails when some are left to fix
     Audit {
@@ -328,6 +338,7 @@ fn main() -> Result<()> {
         } => {
             travel::run(&open()?, &overrides, &faction, &from, &to, level)?;
         }
+        Command::Walks { route, out } => walks::run(&open()?, &overrides, &route, &out)?,
         Command::Audit { checks, all } => audit::run(&open()?, &overrides, &checks, all)?,
         Command::Talents { out } => talents::run(
             &open()?,
