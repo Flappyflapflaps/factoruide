@@ -148,6 +148,7 @@ type Turns = Vec<Mutex<FxHashMap<TurnKey, Arc<[(i32, i32)]>>>>;
 const TURNS_MAX: usize = 1 << 16;
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
+
 /// The path search's work space, kept from a search to the next in each thread: the cheapest
 /// cost found for each floor of the box and the search it was found in (valid when it is this
 /// one's: nothing to clear), side by side for one memory read, and the open floors by estimate.
@@ -1734,7 +1735,7 @@ impl Terrain {
 
     /// The walk between two floors of the same area that the straight line does not follow
     /// (yards), and its floors in `trace` (from `a` to `b`, given): far apart, through the
-    /// tiles' gates; else floor by floor.
+    /// tiles' gates; else floor by floor in the box around them, else through the gates.
     fn search_walk(&self, grid: &Grid, a: Node, b: Node, level: u8, mut trace: Option<&mut Vec<Node>>) -> Option<f64> {
         let far = (a.r() - b.r()).abs().max((a.c() - b.c()).abs()) > gates::FAR;
         if far {
@@ -1743,9 +1744,11 @@ impl Terrain {
                 None => self.path(grid, a, b, MARGINS[MARGINS.len() - 1], level, trace),
             }
         } else {
-            MARGINS
-                .iter()
-                .find_map(|&m| self.path(grid, a, b, m, level, trace.as_deref_mut()))
+            // Not in the box around: a long way round, through the gates rather than over a much
+            // larger box.
+            self.path(grid, a, b, MARGINS[0], level, trace.as_deref_mut())
+                .or_else(|| grid.through_gates(a, b, (level, self.danger_costs), trace.as_deref_mut()))
+                .or_else(|| self.path(grid, a, b, MARGINS[1], level, trace))
         }
     }
 

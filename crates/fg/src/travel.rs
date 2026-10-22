@@ -1,4 +1,5 @@
-//! `fg travel`: how we walk between two points (distance, passages), to check travel costs.
+//! `fg travel`: how we walk between two points (distance, passages), to check travel costs. The
+//! points: `Zone,x,y` (map percent) or `w:continent,x,y` (world yards).
 
 use anyhow::{Context, Result};
 use fg_route::job::Overrides;
@@ -7,6 +8,19 @@ use rusqlite::Connection;
 use std::path::Path;
 
 fn point(world: &World, spec: &str) -> Result<fg_route::world::Pos> {
+    // World coordinates: w:continent,x,y.
+    if let Some(rest) = spec.strip_prefix("w:") {
+        let v: Vec<f64> = rest.split(',').map(|x| x.trim().parse()).collect::<Result<_, _>>()?;
+        anyhow::ensure!(v.len() == 3, "expected w:continent,x,y: {spec}");
+        let mut p = fg_route::world::Pos {
+            continent: v[0] as i64,
+            x: v[1],
+            y: v[2],
+            zone: 0,
+        };
+        p.zone = world.zone_at(&p).unwrap_or(0);
+        return Ok(p);
+    }
     let parts: Vec<&str> = spec.split(',').map(str::trim).collect();
     anyhow::ensure!(parts.len() == 3, "expected Zone,x,y: {spec}");
     let zone = match parts[0].parse::<i64>() {
