@@ -662,6 +662,7 @@ impl Planner<'_> {
             }
         }
         s.spent.missing_class_quests = missing as u32;
+        s.spent.missing_profession_quests = self.missing_profession_quests(s) as u32;
         s.spent.missing_zone_quests = zone as u32;
         let dungeons = (0..self.model.dungeons.len())
             .filter(|&d| {
@@ -679,6 +680,26 @@ impl Planner<'_> {
             + self.weights(&s.spent)
             + (missing + zone + dungeons + self.reputation_goals_unmet(s)) as f64 * self.params.mandatory_penalty
             + s.spent.reputation_missing * self.params.reputation_weight
+            + f64::from(s.spent.missing_profession_quests) * self.params.profession_quest_weight
+    }
+
+    /// Quests of the leveled professions the route does not turn in, though the profession's
+    /// curve reaches their skill by the target level: one per group of exclusive alternatives
+    /// (the same Camping 101 at each race's trainer), none when one of them is done.
+    pub(crate) fn missing_profession_quests(&self, s: &State) -> usize {
+        let model = self.model;
+        (model.quests.iter().enumerate())
+            .filter(|(i, q)| {
+                q.skill.is_some_and(|(p, value)| model.professions[p].skill_at(self.profile.to_level) >= value)
+                    && !q.mandatory
+                    && !s.rewarded(*i)
+                    && !self.availability().alternative_done(s, q)
+                    // Counted once for its exclusive group: at its first member.
+                    && !q.exclusive.iter().any(|id| {
+                        model.index.get(id).is_some_and(|&j| j < *i && model.quests[j].skill.is_some())
+                    })
+            })
+            .count()
     }
 
     /// Reputation goals not met: each costs like a required quest left out, besides its missing

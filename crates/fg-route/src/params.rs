@@ -311,6 +311,10 @@ pub struct Params {
     /// hours later is grinding in disguise in a guide. Finishing it or leaving it out wins
     /// unless it saves more than that.
     pub abandon_weight: f64,
+    /// Seconds each quest of a leveled profession left out costs the optimizer (Camping 101 at
+    /// the profession's trainer): their reward is the profession's, not XP, so they are planned
+    /// whenever the route passes by, not at the cost of a long detour.
+    pub profession_quest_weight: f64,
     /// How the first route is built.
     pub construction: Construction,
     /// Searches at once (different seeds), whatever the machine's processors: the same guide on
@@ -455,6 +459,7 @@ impl Default for Params {
             gold_weight: 3600.0,
             zone_change_weight: 240.0,
             abandon_weight: 600.0,
+            profession_quest_weight: 300.0,
             dungeon_xp_share: 0.35,
             dungeons: true,
             forced_dungeons: vec![],

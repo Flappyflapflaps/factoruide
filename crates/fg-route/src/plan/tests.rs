@@ -354,6 +354,49 @@ fn a_quest_taken_and_given_up_costs_the_route() {
     assert!(given_up - left_out < 30.0, "{given_up} vs {left_out}");
 }
 
+/// A profession quest (Camping 101: its reward is the trainer's recipe, not XP) taken early and
+/// handed in once gray is not given up, and leaving it out costs `profession_quest_weight`, once
+/// for a group of exclusive alternatives (the same quest at another race's trainer).
+#[test]
+fn profession_quests_are_kept_once_gray() {
+    let mut p = quests_at_start(3);
+    p.profile.to_level = 20;
+    // Quest 1 takes the character to level 7: quest 0 (level 1, leading nowhere) is gray then.
+    p.model.quests[1].xp = 11_200;
+    let mut skinning = crate::model::ProfessionPlan::new(&crate::profession::ProfessionGoal {
+        key: "skinning".into(),
+        target: 300,
+        start_level: None,
+        milestones: vec![],
+    })
+    .unwrap();
+    skinning.curve = vec![1; 61];
+    p.model.professions = vec![skinning];
+    let (camping, other) = (p.model.quests[0].id, p.model.quests[2].id);
+    p.model.quests[0].skill = Some((0, 1));
+    p.model.quests[2].skill = Some((0, 1));
+    p.model.quests[0].exclusive = vec![other];
+    p.model.quests[2].exclusive = vec![camping];
+    p.params.profession_quest_weight = 300.0;
+    let route = [
+        Stop::quest(0, Kind::Accept),
+        Stop::quest(1, Kind::Accept),
+        Stop::quest(1, Kind::TurnIn),
+        Stop::quest(0, Kind::TurnIn),
+    ];
+    let without = [route[1], route[2]];
+    let score = |p: &Prepared, route: &[Stop]| planner(p).simulate_full(route, None).unwrap();
+    let ((kept, spent), (left_out, spent_without)) = (score(&p, &route), score(&p, &without));
+    assert_eq!(spent.abandoned, 0, "not given up once gray");
+    assert_eq!(spent.missing_profession_quests, 0);
+    assert_eq!(spent_without.missing_profession_quests, 1, "one for both alternatives");
+    assert!(left_out - kept > 270.0, "{kept} vs {left_out}");
+    // Without the profession leveled, the quest is nothing the guide misses.
+    p.model.quests[0].skill = None;
+    p.model.quests[2].skill = None;
+    assert_eq!(score(&p, &without).1.missing_profession_quests, 0);
+}
+
 /// A road east of the start lined with mobs of level 1: three of quest 0's (its objective is
 /// done at the end of the road) and three others. Farming on the way is on, without a cap, and
 /// every mob met is killed (`farm_share` 1).

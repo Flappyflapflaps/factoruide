@@ -50,7 +50,8 @@ level:
   take their share, as at an objective's spot); the mobs of the log's quests are left to their
   objectives, which count them where they are done.
   Professions add no time: only their quests are planned, once the skill curve reaches them
-  (optional in the guide).
+  (optional in the guide). Their reward is the profession's, not XP: they are kept once gray,
+  and each one left out costs `profession_quest_weight`.
 - **Every action is a step**: each take, objective and turn-in of a quest is a stop of the route,
   done at that stop and nowhere else (no quest taken in passing at another stop, no objective
   finished on the way), so that each one can be moved or removed in the guide editor. What doing
@@ -168,6 +169,7 @@ stays the real one.
 | Loot left behind with full bags: `bag_weight` per item | 20 s | The bags hold few slots at first, more as bags get bigger (`bag_slots`: the backpack's 16 at level 1, four bags of 6 to 14 slots up to 72 at 60), less what is always carried (4 slots), the class's own (a hunter's quiver and a warlock's soul pouch take a bag, a shaman's totems and a rogue's poisons a few slots) and `gather_share` (10%) for each gathering profession; a kill's loot takes `loot_per_kill` (0.35) slots and each quest item one until its turn-in. Loot that no longer fits is money and time lost: routes by vendors, where it is sold once the bags are half full (`sell_radius`), keep room without any visit forced. |
 | Changing zone: `zone_change_weight` per change | 240 s | Finding one's way and the NPCs of another zone: a few quests far away are not worth a detour. |
 | Quest taken and given up: `abandon_weight` each | 600 s | Taking a quest, killing for one of its objectives and dropping it hours later is grinding in disguise. Finishing it or leaving it out wins unless keeping it saves more than ten minutes. |
+| Profession quest left out: `profession_quest_weight` each | 300 s | Only with professions leveled, for quests whose skill the curve reaches by the target level, once for a group of alternatives: Camping 101 at a trainer the route passes by is planned even when gray and worth no XP, without a long detour for it. |
 | Time outside the preferred zones: `preferred_zone_weight` × its time | 0.5 | Only with preferred zones: the guide stays in them unless leaving saves a lot. |
 | Missing goal: `mandatory_penalty` each | 7200 s | A required class quest left out or a forced dungeon not run: kept in the route unless impossible. |
 

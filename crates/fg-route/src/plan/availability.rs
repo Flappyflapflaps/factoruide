@@ -103,11 +103,14 @@ impl Availability<'_> {
 
     /// A quest gray for the character (no XP worth the trip, turned in whenever the route passes
     /// by) that leads to nothing better: not taken, and given up when it goes gray in the log. A
-    /// gray quest opening a chain that is not gray stays; class quests always do, and those giving
-    /// reputation a goal still misses. An imposed route being replayed takes what it says.
+    /// gray quest opening a chain that is not gray stays; class quests always do, profession
+    /// quests too (their reward is the profession's, e.g. Camping 101's recipe, handed in at a
+    /// trainer the route often reaches only once they are gray), and those giving reputation a
+    /// goal still misses. An imposed route being replayed takes what it says.
     pub(crate) fn gray_dead_end(&self, s: &State, q: &Quest, i: u32) -> bool {
         let gray = xp::Rules::gray_level(s.level);
         !q.mandatory
+            && q.skill.is_none()
             && !self.missing_reputation_of(s, q)
             && !self.replaying
             && !self.params.keep_gray
