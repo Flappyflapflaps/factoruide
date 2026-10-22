@@ -100,6 +100,15 @@ thread_local! {
 const BRIDGES_MAX: usize = 1 << 18;
 static NEXT_BRIDGE_ID: AtomicU32 = AtomicU32::new(1);
 
+/// Walks already worked out in this thread (`World::walk_distance_at`), by world
+/// (`World::walk_id`) and terrain (`Terrain::id`), level and ends (coordinates, then continent and zone of each): the trips
+/// to the flight paths and ports nearest a place are walked again for every trip from it.
+type WalkKey = (u64, u8, [u64; 6]);
+thread_local! {
+    static WALKED: RefCell<FxHashMap<WalkKey, f64>> = RefCell::new(FxHashMap::default());
+}
+const WALKED_MAX: usize = 1 << 17;
+
 pub struct World {
     zones: HashMap<i64, ZoneRect>,
     pub zone_names: HashMap<i64, String>,
@@ -131,6 +140,9 @@ pub struct World {
     area_passes: FxHashMap<(i64, u32), Vec<(usize, usize)>>,
     /// Tells this world's walks through the passages from another's in the thread memo.
     bridge_id: u32,
+    /// Tells this world's walks from another's in the thread memo (`WALKED`): new each time
+    /// what they depend on changes (terrain, danger, raised places, passages).
+    walk_id: u32,
     /// Flight master nodes by x (`taxi_near`).
     taxi_by_x: Vec<(f64, usize)>,
     /// Terrain too steep to walk: walks go around it.
@@ -321,6 +333,7 @@ impl World {
             raised: Vec::new(),
             area_passes: FxHashMap::default(),
             bridge_id: 0,
+            walk_id: NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed),
         };
         world.landmarks = world.load_landmarks(conn)?;
         for i in 0..world.taxi_nodes.len() {
@@ -883,12 +896,14 @@ impl World {
             }
         }
         self.terrain.add_danger(spawns, weight);
+        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
 
     /// Areas left only by boat, portal or lift: no walk to or from them. Before the passages
     /// (their walks depend on it).
     pub fn enclose(&mut self, defs: &[EnclosedDef]) -> Vec<String> {
+        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
         let mut warnings = Vec::new();
         // A valley the gaps opened join to the mainland is taken out of it first (the areas are
         // numbered anew).
@@ -917,6 +932,7 @@ impl World {
     /// Caves the terrain does not hold: walks to the places inside go through their mouth. Before
     /// the passages and links (their walks depend on it).
     pub fn add_caves(&mut self, defs: &[CaveDef]) -> Vec<String> {
+        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
         let mut warnings = Vec::new();
         for d in defs {
             let added = match (
@@ -939,6 +955,7 @@ impl World {
     /// Places up a building: walks between up there and elsewhere take their climb more. Before
     /// the passages and links (their walks depend on it).
     pub fn raise(&mut self, defs: &[RaisedDef]) {
+        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
         self.raised = (defs.iter())
             .filter_map(|d| Some((self.to_world(d.at.zone, d.at.x, d.at.y)?, d.radius, d.climb)))
             .collect();
@@ -1028,6 +1045,7 @@ impl World {
             }
         }
         self.bridge_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
+        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
         // Walking from a passage to another taken from the zone it leads into, then all-pairs
         // shortest walks (one-way passages: not the same both ways). Between two passages of
         // the same terrain area, over the terrain from their points in it (a passage may stand
@@ -1246,6 +1264,32 @@ impl World {
     /// The same for a character of `level`: the danger of the mobs on the way counts (when
     /// `add_danger` set it; 0: never).
     pub fn walk_distance_at(&self, a: &Pos, b: &Pos, level: u8) -> f64 {
+        // The level only counts through the danger.
+        let level = if self.terrain.counts_danger() { level } else { 0 };
+        let head = |p: &Pos| Some(u64::from(u32::try_from(p.continent).ok()?) << 32 | u64::from(u32::try_from(p.zone).ok()?));
+        let (Some(ha), Some(hb)) = (head(a), head(b)) else {
+            return self.compute_walk(a, b, level);
+        };
+        let key = (
+            u64::from(self.walk_id) << 32 | u64::from(self.terrain.id()),
+            level,
+            [a.x.to_bits(), a.y.to_bits(), b.x.to_bits(), b.y.to_bits(), ha, hb],
+        );
+        if let Some(d) = WALKED.with(|m| m.borrow().get(&key).copied()) {
+            return d;
+        }
+        let d = self.compute_walk(a, b, level);
+        WALKED.with(|m| {
+            let mut m = m.borrow_mut();
+            if m.len() >= WALKED_MAX {
+                m.clear();
+            }
+            m.insert(key, d);
+        });
+        d
+    }
+
+    fn compute_walk(&self, a: &Pos, b: &Pos, level: u8) -> f64 {
         let straight = a.dist(b);
         if !straight.is_finite() {
             return straight;
@@ -1463,6 +1507,7 @@ impl World {
     pub fn forget_walks(&self) {
         self.terrain.forget_walks();
         BRIDGES.with(|m| m.borrow_mut().clear());
+        WALKED.with(|m| m.borrow_mut().clear());
     }
 
     /// The walk from `a` to `b`, in two large areas the terrain does not connect, through the

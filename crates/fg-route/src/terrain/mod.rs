@@ -1161,6 +1161,11 @@ impl Terrain {
         }
     }
 
+    /// Tells this terrain from another (a new one each time one is made).
+    pub(crate) fn id(&self) -> u32 {
+        self.id
+    }
+
     pub fn is_empty(&self) -> bool {
         self.grids.is_empty()
     }
