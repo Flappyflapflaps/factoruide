@@ -11,6 +11,11 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 ### Guides
 
 - Profession quests turned in at a city trainer (Camping 101: Skinning, Leatherworking in Orgrimmar) are planned too, even once they are gray.
+- Valley of Trials: walks leave by the valley's road instead of over the mountains, and Burning Blade Medallion is done in the valley.
+
+### Addon
+
+- Objectives done in the same area are shown together under Now; a level checkpoint between them comes after them.
 
 ## 0.14.0 (2026-10-21)
 
