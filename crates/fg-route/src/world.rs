@@ -1327,7 +1327,8 @@ impl World {
     pub fn walk_distance_at(&self, a: &Pos, b: &Pos, level: u8) -> f64 {
         // The level only counts through the danger.
         let level = if self.terrain.counts_danger() { level } else { 0 };
-        let head = |p: &Pos| Some(u64::from(u32::try_from(p.continent).ok()?) << 32 | u64::from(u32::try_from(p.zone).ok()?));
+        let head =
+            |p: &Pos| Some(u64::from(u32::try_from(p.continent).ok()?) << 32 | u64::from(u32::try_from(p.zone).ok()?));
         let (Some(ha), Some(hb)) = (head(a), head(b)) else {
             return self.compute_walk(a, b, level);
         };

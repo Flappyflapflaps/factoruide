@@ -148,7 +148,6 @@ type Turns = Vec<Mutex<FxHashMap<TurnKey, Arc<[(i32, i32)]>>>>;
 const TURNS_MAX: usize = 1 << 16;
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
-
 /// The path search's work space, kept from a search to the next in each thread: the cheapest
 /// cost found for each floor of the box and the search it was found in (valid when it is this
 /// one's: nothing to clear), side by side for one memory read, and the open floors by estimate.
@@ -287,6 +286,20 @@ impl TileNodes {
         }
     }
 
+    /// Whether node `l` walks (not a drop) in direction `d` to floor `f` of the neighbour cell
+    /// there (`Grid::walks_to`, read from this tile only).
+    #[inline]
+    fn walks_dir(&self, l: usize, d: usize, f: usize) -> bool {
+        let moves = self.moves[l];
+        if moves & MOVE_NO_GO != 0 {
+            false
+        } else if f == 0 {
+            moves >> d & MOVE != 0 && moves >> d & MOVE_DROP == 0
+        } else {
+            moves & MOVE_MORE != 0 && (self.edges(l).iter()).any(|e| e.dir() == d && e.floor() == f && !e.drop())
+        }
+    }
+
     /// The other steps of node `l` (`MOVE_MORE`).
     fn edges(&self, l: usize) -> &[Edge] {
         match self.edges.binary_search_by_key(&(l as u16), |e| e.0) {
@@ -295,6 +308,9 @@ impl TileNodes {
         }
     }
 }
+
+/// A tile's moves and other steps (`TileNodes::moves`, `TileNodes::edges`).
+type TileLinks = (Box<[u32]>, Box<[(u16, Box<[Edge]>)]>);
 
 /// One continent's floors, over the box of its tiles.
 struct Grid {
@@ -428,7 +444,11 @@ impl Grid {
         let (r, c) = n.cell();
         for (d, (dr, dc)) in DIRECTIONS.into_iter().enumerate() {
             if moves >> d & MOVE != 0 {
-                each(Node::new(r + dr, c + dc, 0), move_cost(moves, d), moves >> d & MOVE_DROP != 0);
+                each(
+                    Node::new(r + dr, c + dc, 0),
+                    move_cost(moves, d),
+                    moves >> d & MOVE_DROP != 0,
+                );
             }
         }
         if moves & MOVE_MORE != 0 {
@@ -476,8 +496,7 @@ impl Grid {
         if b.f() == 0 {
             moves >> d & MOVE != 0 && moves >> d & MOVE_DROP == 0
         } else {
-            moves & MOVE_MORE != 0
-                && (tile.edges(l).iter()).any(|e| e.dir() == d && e.floor() == b.f() && !e.drop())
+            moves & MOVE_MORE != 0 && (tile.edges(l).iter()).any(|e| e.dir() == d && e.floor() == b.f() && !e.drop())
         }
     }
 
@@ -671,67 +690,186 @@ impl Grid {
     }
 
     /// Label the walkable areas: nodes of straight neighbour cells walking to each other (as
-    /// paths do not cut corners), a drop down a cliff does not join its top to its foot.
+    /// paths do not cut corners), a drop down a cliff does not join its top to its foot. Each
+    /// tile's own areas side by side, then joined across the tiles' borders; numbered by their
+    /// first node (tile by tile, node by node).
     fn label(&mut self) {
-        // Global index of each tile's nodes.
-        let mut base = vec![0usize; self.tiles.len() + 1];
-        for t in 0..self.tiles.len() {
-            base[t + 1] = base[t] + self.nodes(t).map_or(0, TileNodes::len);
+        let workers = std::thread::available_parallelism()
+            .map_or(4, std::num::NonZero::get)
+            .min(8);
+        let this = &*self;
+        let n = self.tiles.len();
+        let mut locals: Vec<(Vec<u32>, Vec<u32>)> = std::thread::scope(|scope| {
+            let parts: Vec<_> = (0..workers)
+                .map(|w| {
+                    scope.spawn(move || {
+                        (w..n)
+                            .step_by(workers)
+                            .map(|t| (t, this.label_tile(t)))
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            let mut all: Vec<(usize, (Vec<u32>, Vec<u32>))> =
+                parts.into_iter().flat_map(|p| p.join().unwrap()).collect();
+            all.sort_unstable_by_key(|x| x.0);
+            all.into_iter().map(|x| x.1).collect()
+        });
+        // Each tile's areas among all (`base[t] + area - 1`), joined across the borders.
+        let mut base = vec![0usize; n + 1];
+        for t in 0..n {
+            base[t + 1] = base[t] + locals[t].1.len();
         }
-        let mut area = vec![0u32; base[self.tiles.len()]];
-        let mut sizes = vec![0];
-        let mut stack: Vec<Node> = Vec::new();
-        let mut next: Vec<Node> = Vec::new();
-        for t0 in 0..self.tiles.len() {
-            let Some(tile) = self.nodes(t0) else { continue };
-            for l0 in 0..tile.len() {
-                if area[base[t0] + l0] != 0 || tile.moves[l0] & MOVE_NO_GO != 0 {
-                    continue;
-                }
-                let id = sizes.len() as u32;
-                let mut size = 0;
-                area[base[t0] + l0] = id;
-                stack.push(self.node_of(t0, l0));
-                while let Some(n) = stack.pop() {
-                    size += 1;
-                    next.clear();
-                    self.steps(n, |m, _, drop| {
-                        if !drop && (m.r() == n.r()) != (m.c() == n.c()) {
-                            next.push(m);
+        let mut parent: Vec<u32> = (0..base[n] as u32).collect();
+        fn find(parent: &mut [u32], mut x: u32) -> u32 {
+            while parent[x as usize] != x {
+                parent[x as usize] = parent[parent[x as usize] as usize];
+                x = parent[x as usize];
+            }
+            x
+        }
+        for t in 0..n {
+            let Some(tile) = self.nodes(t) else { continue };
+            let (tr, tc) = self.origin(t);
+            // The steps south out of the last row and east out of the last column: each border
+            // once (the joins go both ways).
+            for (d, cells) in [
+                (1usize, (63 * 64..4096).collect::<Vec<_>>()),
+                (3, (0..64).map(|r| r * 64 + 63).collect()),
+            ] {
+                let (dr, dc) = DIRECTIONS[d];
+                for i in cells {
+                    let (r, c) = (tr + (i / 64) as i32 + dr, tc + (i % 64) as i32 + dc);
+                    let Some((u, j)) = self.tile(r, c) else { continue };
+                    let Some(next) = self.nodes(u) else { continue };
+                    for f in 0..usize::from(tile.count[i]) {
+                        let Some(l) = tile.local(i, f) else { continue };
+                        let a = locals[t].0[l];
+                        if a == 0 {
+                            continue;
                         }
-                    });
-                    for &m in &next {
-                        let Some((u, k)) = self.locate(m) else { continue };
-                        if area[base[u] + k] == 0 && self.walks_to(m, n) {
-                            area[base[u] + k] = id;
-                            stack.push(m);
+                        for g in 0..usize::from(next.count[j]) {
+                            let Some(k) = next.local(j, g) else { continue };
+                            let b = locals[u].0[k];
+                            if b != 0 && tile.walks_dir(l, d, g) && next.walks_dir(k, layers::OPPOSITE[d], f) {
+                                let (x, y) = (
+                                    find(&mut parent, (base[t] + a as usize - 1) as u32),
+                                    find(&mut parent, (base[u] + b as usize - 1) as u32),
+                                );
+                                if x != y {
+                                    parent[x.max(y) as usize] = x.min(y);
+                                }
+                            }
                         }
                     }
                 }
-                sizes.push(size);
             }
         }
-        self.sizes = sizes;
-        self.areas = (0..self.tiles.len())
+        // Numbered in the order of their first area.
+        let mut id = vec![0u32; base[n]];
+        let mut sizes = vec![0u32];
+        for t in 0..n {
+            for (a, &size) in locals[t].1.iter().enumerate() {
+                let root = find(&mut parent, (base[t] + a) as u32) as usize;
+                if id[root] == 0 {
+                    id[root] = sizes.len() as u32;
+                    sizes.push(0);
+                }
+                sizes[id[root] as usize] += size;
+            }
+        }
+        let numbered: Vec<u32> = (0..base[n]).map(|x| id[find(&mut parent, x as u32) as usize]).collect();
+        self.areas = (0..n)
             .map(|t| {
-                let nodes = &area[base[t]..base[t + 1]];
-                let first = nodes.first().copied().unwrap_or(0);
-                if nodes.iter().all(|&a| a == first) {
+                let (labels, _) = std::mem::take(&mut locals[t]);
+                let global = |a: u32| if a == 0 { 0 } else { numbered[base[t] + a as usize - 1] };
+                let first = labels.first().copied().map_or(0, global);
+                if labels.iter().all(|&a| global(a) == first) {
                     TileAreas::Uniform(first)
                 } else {
-                    TileAreas::Nodes(nodes.into())
+                    TileAreas::Nodes(labels.iter().map(|&a| global(a)).collect())
                 }
             })
             .collect();
+        self.sizes = sizes;
+    }
+
+    /// The walkable areas within tile `t` (`label`): each node's (0: never stood on, else from
+    /// 1, by first node) and the size of each.
+    fn label_tile(&self, t: usize) -> (Vec<u32>, Vec<u32>) {
+        let Some(tile) = self.nodes(t) else {
+            return (Vec::new(), Vec::new());
+        };
+        let mut area = vec![0u32; tile.len()];
+        let mut sizes: Vec<u32> = Vec::new();
+        let mut stack: Vec<usize> = Vec::new();
+        for l0 in 0..tile.len() {
+            if area[l0] != 0 || tile.moves[l0] & MOVE_NO_GO != 0 {
+                continue;
+            }
+            sizes.push(0);
+            let id = sizes.len() as u32;
+            area[l0] = id;
+            stack.push(l0);
+            while let Some(l) = stack.pop() {
+                sizes[id as usize - 1] += 1;
+                let (i, f) = tile.cell_floor(l);
+                let (r, c) = ((i / 64) as i32, (i % 64) as i32);
+                for d in 0..4 {
+                    let (dr, dc) = DIRECTIONS[d];
+                    let (nr, nc) = (r + dr, c + dc);
+                    if !(0..64).contains(&nr) || !(0..64).contains(&nc) {
+                        continue;
+                    }
+                    let j = (nr * 64 + nc) as usize;
+                    for g in 0..usize::from(tile.count[j]) {
+                        let Some(k) = tile.local(j, g) else { continue };
+                        if area[k] == 0 && tile.walks_dir(l, d, g) && tile.walks_dir(k, layers::OPPOSITE[d], f) {
+                            area[k] = id;
+                            stack.push(k);
+                        }
+                    }
+                }
+            }
+        }
+        (area, sizes)
     }
 
     /// The moves and steps of every node from the tiles' layers (by tile, as `tiles`).
     fn link(&mut self, layers: &[Option<TileLayers>]) {
-        let mut all: Vec<(Box<[u32]>, Box<[(u16, Box<[Edge]>)]>)> = Vec::with_capacity(self.tiles.len());
-        for (t, l) in layers.iter().enumerate() {
+        // Side by side, by tile.
+        let workers = std::thread::available_parallelism()
+            .map_or(4, std::num::NonZero::get)
+            .min(8);
+        let this = &*self;
+        let all: Vec<TileLinks> = std::thread::scope(|scope| {
+            let parts: Vec<_> = (0..workers)
+                .map(|w| {
+                    scope.spawn(move || {
+                        (w..layers.len())
+                            .step_by(workers)
+                            .map(|t| (t, this.link_tile(t, layers[t].as_ref())))
+                            .collect::<Vec<_>>()
+                    })
+                })
+                .collect();
+            let mut all: Vec<(usize, TileLinks)> = parts.into_iter().flat_map(|p| p.join().unwrap()).collect();
+            all.sort_unstable_by_key(|x| x.0);
+            all.into_iter().map(|x| x.1).collect()
+        });
+        for (t, (moves, edges)) in all.into_iter().enumerate() {
+            if let Some(tile) = self.tiles[t].as_deref_mut() {
+                tile.moves = moves;
+                tile.edges = edges;
+            }
+        }
+    }
+
+    /// The moves and steps of the nodes of tile `t` from its layers (`link`).
+    fn link_tile(&self, t: usize, l: Option<&TileLayers>) -> TileLinks {
+        {
             let (Some(l), Some(tile)) = (l, self.nodes(t)) else {
-                all.push((Box::new([]), Box::new([])));
-                continue;
+                return (Box::new([]), Box::new([]));
             };
             let (tr, tc) = self.origin(t);
             let o = l.offsets();
@@ -752,14 +890,26 @@ impl Grid {
                             return;
                         }
                         let (dr, dc) = if d == 8 { (0, 0) } else { DIRECTIONS[d] };
-                        // The floors stepped to: there, and stood on.
-                        let Some((u, j)) = self.tile(r + dr, c + dc) else { return };
-                        let Some(target) = self.nodes(u) else { return };
+                        // The floors stepped to: there (in this tile, else the next), and stood on.
+                        let (lr, lc) = ((i / 64) as i32 + dr, (i % 64) as i32 + dc);
+                        let (target, j) = if (0..64).contains(&lr) && (0..64).contains(&lc) {
+                            (tile, (lr * 64 + lc) as usize)
+                        } else {
+                            let Some((u, j)) = self.tile(r + dr, c + dc) else {
+                                return;
+                            };
+                            let Some(target) = self.nodes(u) else { return };
+                            (target, j)
+                        };
                         for b in 0..usize::from(target.count[j]).min(8) {
                             if bits >> b & 1 == 0 {
                                 continue;
                             }
-                            let k = if b == 0 { j } else { 4096 + usize::from(target.more[j]) + b - 1 };
+                            let k = if b == 0 {
+                                j
+                            } else {
+                                4096 + usize::from(target.more[j]) + b - 1
+                            };
                             if target.flags[k] & NO_GO != 0 {
                                 continue;
                             }
@@ -793,13 +943,7 @@ impl Grid {
                 }
             }
             edges.sort_by_key(|e| e.0);
-            all.push((moves.into(), edges.into()));
-        }
-        for (t, (moves, edges)) in all.into_iter().enumerate() {
-            if let Some(tile) = self.tiles[t].as_deref_mut() {
-                tile.moves = moves;
-                tile.edges = edges;
-            }
+            (moves.into(), edges.into())
         }
     }
 
@@ -821,7 +965,9 @@ impl Grid {
                     let m = Node::new(pr, pc, f);
                     let Some((u, k)) = self.locate(m) else { continue };
                     tiles.insert(u);
-                    let Some(tile) = self.tiles[u].as_deref_mut() else { continue };
+                    let Some(tile) = self.tiles[u].as_deref_mut() else {
+                        continue;
+                    };
                     if n.f() == 0 {
                         tile.moves[k] &= !(MOVE << d | MOVE_SWUM << d | MOVE_DROP << d);
                     }
@@ -832,7 +978,9 @@ impl Grid {
         // The other steps to them (edges).
         for &t in &tiles {
             let origin = self.origin(t);
-            let Some(tile) = self.tiles[t].as_deref_mut() else { continue };
+            let Some(tile) = self.tiles[t].as_deref_mut() else {
+                continue;
+            };
             let mut edges = std::mem::take(&mut tile.edges).into_vec();
             for (l, list) in &mut edges {
                 let i = if usize::from(*l) < 4096 {
@@ -1184,7 +1332,9 @@ impl Terrain {
             rows.push((map, x, y, version, data));
         }
         // Unpacked side by side.
-        let workers = std::thread::available_parallelism().map_or(4, std::num::NonZero::get).min(8);
+        let workers = std::thread::available_parallelism()
+            .map_or(4, std::num::NonZero::get)
+            .min(8);
         let unpacked: Vec<(i64, TileRow)> = std::thread::scope(|scope| {
             let parts: Vec<_> = rows
                 .chunks(rows.len().div_ceil(workers).max(1))
@@ -1660,7 +1810,11 @@ impl Terrain {
         for grid in self.grids.values_mut() {
             grid.danger_levels = (grid.danger.iter())
                 .map(|cells| {
-                    let mut levels: Vec<u8> = cells.iter().flat_map(|c| c.iter().copied()).filter(|&m| m != 0).collect();
+                    let mut levels: Vec<u8> = cells
+                        .iter()
+                        .flat_map(|c| c.iter().copied())
+                        .filter(|&m| m != 0)
+                        .collect();
                     levels.sort_unstable();
                     levels.dedup();
                     levels.into()
@@ -1905,7 +2059,11 @@ impl Terrain {
         };
         let mut nodes = Vec::new();
         let span = (na.r() - nb.r()).abs().max((na.c() - nb.c()).abs());
-        if na != nb && self.path(grid, na, nb, MARGINS[1].max(span), level, Some(&mut nodes)).is_none() {
+        if na != nb
+            && self
+                .path(grid, na, nb, MARGINS[1].max(span), level, Some(&mut nodes))
+                .is_none()
+        {
             return Vec::new();
         }
         (nodes.iter())
@@ -1986,7 +2144,15 @@ impl Terrain {
 
     /// Cheapest walk between two floors (yards, danger counted as more of them), within their
     /// box grown by `margin` cells, and its floors in `trace` (from `a` to `b`).
-    fn path(&self, grid: &Grid, a: Node, b: Node, margin: i32, level: u8, trace: Option<&mut Vec<Node>>) -> Option<f64> {
+    fn path(
+        &self,
+        grid: &Grid,
+        a: Node,
+        b: Node,
+        margin: i32,
+        level: u8,
+        trace: Option<&mut Vec<Node>>,
+    ) -> Option<f64> {
         let (r0, c0) = (a.r().min(b.r()) - margin, a.c().min(b.c()) - margin);
         let (rows, cols) = (a.r().max(b.r()) + margin - r0 + 1, a.c().max(b.c()) + margin - c0 + 1);
         let cells = (rows * cols) as usize;

@@ -48,7 +48,13 @@ fn floors_terrain(tiles: &[(i64, i32, i32)], floors: impl Fn(i64, i32, i32) -> V
                 let mut floor = Floor {
                     height: h,
                     water,
-                    flags: if f == 0 { SURFACE } else if h < here[0].0 { UNDER } else { ABOVE },
+                    flags: if f == 0 {
+                        SURFACE
+                    } else if h < here[0].0 {
+                        UNDER
+                    } else {
+                        ABOVE
+                    },
                     size: 16,
                     walks: [0; 8],
                     drops: [0; DROPS],
@@ -230,7 +236,10 @@ fn valley_joined_by_a_narrow_way_stays_the_mainlands() {
         if wall { Vec::new() } else { vec![(0, 0)] }
     });
     let (plain, valley) = (at(10.0, 20.0), at(10.0, 64.0 + 20.0));
-    assert!(t.distance(&plain, &valley, 0).unwrap().is_finite(), "through the narrow way");
+    assert!(
+        t.distance(&plain, &valley, 0).unwrap().is_finite(),
+        "through the narrow way"
+    );
     assert!(!t.detach(&valley));
     assert!(t.enclose(&valley, 0).is_none(), "one area with the mainland");
     assert!(!t.disconnected(&plain, &valley));
@@ -432,7 +441,10 @@ fn tunnel_under_a_ridge_is_walked_through() {
     // A floor 30 yards down is not walked to from the valley: round the ridge.
     assert!(t.distance(&west, &east, 0).unwrap() > 2.0 * west.dist(&east));
     let through = t2.distance(&west, &east, 0).unwrap();
-    assert!((through - west.dist(&east)).abs() < 1e-6, "straight through the tunnel: {through}");
+    assert!(
+        (through - west.dist(&east)).abs() < 1e-6,
+        "straight through the tunnel: {through}"
+    );
 }
 
 /// A road under a bridge: the cells under it have two floors, the road's and the bridge's 12
@@ -462,8 +474,14 @@ fn bridge_over_a_road() {
     let deck = Node::new(r, c, 1);
     assert!(grid.joined(road, Node::new(r + 1, c, 0)), "the road goes on under it");
     assert!(grid.joined(deck, Node::new(r, c + 1, 1)), "the deck goes on");
-    assert!(!grid.walks_to(road, Node::new(r, c + 1, 1)), "not climbed onto from the road");
-    assert!(grid.step(deck, Node::new(r + 1, c, 0)).is_some(), "dropped from onto the road");
+    assert!(
+        !grid.walks_to(road, Node::new(r, c + 1, 1)),
+        "not climbed onto from the road"
+    );
+    assert!(
+        grid.step(deck, Node::new(r + 1, c, 0)).is_some(),
+        "dropped from onto the road"
+    );
     assert_eq!(grid.area(road), grid.area(deck), "one area: the ramps join them");
     // Along the road under the bridge: straight.
     let (a, b) = (at(20.0, 32.0), at(40.0, 32.0));
@@ -494,7 +512,10 @@ fn place_stands_on_the_floor_of_the_area_around() {
     assert_eq!(street.f(), 1, "on the street, by the north edge");
     assert_eq!(ground.f(), 0, "on the ground, by the south edge");
     assert_ne!(grid.area(street), grid.area(ground));
-    assert_eq!(grid.area(street), grid.area(grid.snap(Terrain::cell(&at(5.0, 32.0))).unwrap()));
+    assert_eq!(
+        grid.area(street),
+        grid.area(grid.snap(Terrain::cell(&at(5.0, 32.0))).unwrap())
+    );
 }
 
 /// Far walks go through the tiles' gates, floors of other levels too (a bridge across a tile's
@@ -523,14 +544,19 @@ fn far_walks_through_the_gates() {
     let grid = &t.grids[&1];
     let (a, b) = (at(10.0, 10.0), at(120.0, 180.0));
     let d = t.distance(&a, &b, 0).unwrap();
-    let (na, nb) = (grid.snap(Terrain::cell(&a)).unwrap(), grid.snap(Terrain::cell(&b)).unwrap());
+    let (na, nb) = (
+        grid.snap(Terrain::cell(&a)).unwrap(),
+        grid.snap(Terrain::cell(&b)).unwrap(),
+    );
     let mut trace = Vec::new();
     let cheapest = t.path(grid, na, nb, 240, 0, Some(&mut trace)).unwrap();
     assert!(d >= cheapest - 1e-3 && d <= cheapest * GATES_SLACK, "{d} vs {cheapest}");
     let bridge = Node::new(32 * 64 + 70, 32 * 64 + 100, 0);
     assert!(trace.contains(&bridge), "over the bridge: {trace:?}");
     let mut gates = Vec::new();
-    let through = grid.through_gates(na, nb, gates::SAFE_FOR_TESTS, Some(&mut gates)).unwrap();
+    let through = grid
+        .through_gates(na, nb, gates::SAFE_FOR_TESTS, Some(&mut gates))
+        .unwrap();
     assert!((through - d).abs() < 1e-3);
     // Its legs from gate to gate are walks within a tile: the one across the river's tiles
     // goes from a side of the river to the other.

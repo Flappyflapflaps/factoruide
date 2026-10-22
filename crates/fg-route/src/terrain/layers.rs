@@ -98,7 +98,10 @@ struct Reader<'a> {
 
 impl Reader<'_> {
     fn byte(&mut self) -> Result<u8> {
-        let b = *self.bytes.get(self.at).ok_or_else(|| anyhow::anyhow!("layers: truncated"))?;
+        let b = *self
+            .bytes
+            .get(self.at)
+            .ok_or_else(|| anyhow::anyhow!("layers: truncated"))?;
         self.at += 1;
         Ok(b)
     }
@@ -211,12 +214,48 @@ impl TileLayers {
             .map_or(0, |(_, j)| 1 << j)
     }
 
+    /// `predict_straight` in the 4 straight directions; quick for a cell of one floor among
+    /// cells of one floor (most of them).
+    fn predict_straights(&self, o: &[u32], i: usize, k: usize) -> [u8; 4] {
+        let (r, c) = (i / 64, i % 64);
+        if self.counts[i] == 1 && r > 0 && r < 63 && c > 0 && c < 63 {
+            let (n, s, w, e) = (i - 64, i + 64, i - 1, i + 1);
+            if self.counts[n] == 1 && self.counts[s] == 1 && self.counts[w] == 1 && self.counts[e] == 1 {
+                let f = |j: usize| &self.floors[o[j] as usize];
+                let h = i32::from(f(i).height);
+                let near = |j: usize| u8::from((i32::from(f(j).height) - h).abs() <= PREDICT_RISE);
+                return [
+                    f(n).walks[OPPOSITE[0]] & 1,
+                    near(s),
+                    f(w).walks[OPPOSITE[2]] & 1,
+                    near(e),
+                ];
+            }
+        }
+        [0, 1, 2, 3].map(|d| self.predict_straight(o, i, k, d))
+    }
+
     /// The diagonal walks of floor `k` of cell `i` the straight walks lead to: through a floor
     /// of a straight neighbour walked to, that walks on to the diagonal neighbour (as the
     /// database builder makes them).
     fn derive_diagonals(&self, o: &[u32], i: usize, k: usize) -> [u8; 4] {
         let (r, c) = ((i / 64) as i32, (i % 64) as i32);
         let f = &self.floors[o[i] as usize + k];
+        // Quick: the straight neighbours of one floor each.
+        if (1..63).contains(&r) && (1..63).contains(&c) {
+            let (n, s, w, e) = (i - 64, i + 64, i - 1, i + 1);
+            if self.counts[n] == 1 && self.counts[s] == 1 && self.counts[w] == 1 && self.counts[e] == 1 {
+                let g = |j: usize| &self.floors[o[j] as usize].walks;
+                let via = |d: usize, j: usize, dn: usize| if f.walks[d] & 1 != 0 { g(j)[dn] } else { 0 };
+                // North-west, north-east, south-west, south-east (`VIAS`).
+                return [
+                    via(0, n, 2) | via(2, w, 0),
+                    via(0, n, 3) | via(3, e, 0),
+                    via(1, s, 2) | via(2, w, 1),
+                    via(1, s, 3) | via(3, e, 1),
+                ];
+            }
+        }
         let mut out = [0u8; 4];
         for (slot, vias) in VIAS.iter().enumerate() {
             let (dr, dc) = DIRECTIONS[4 + slot];
@@ -279,7 +318,10 @@ impl TileLayers {
     pub fn streams(&self, lean: bool) -> Result<Vec<(&'static str, Vec<u8>)>> {
         ensure!(self.counts.len() == 4096, "layers: {} cells", self.counts.len());
         let o = self.offsets();
-        ensure!(o[4096] as usize == self.floors.len(), "layers: floors and counts differ");
+        ensure!(
+            o[4096] as usize == self.floors.len(),
+            "layers: floors and counts differ"
+        );
         let mut out = vec![("counts", self.counts.clone())];
         // Heights: first floors predicted from their neighbours', the others from their first.
         let first = |i: usize| {
@@ -301,7 +343,10 @@ impl TileLayers {
         for i in 0..4096 {
             let (lo, hi) = (o[i] as usize, o[i + 1] as usize);
             for f in &self.floors[(lo + 1).min(hi)..hi] {
-                put_varint(&mut upper, zigzag(i32::from(f.height) - i32::from(self.floors[lo].height)));
+                put_varint(
+                    &mut upper,
+                    zigzag(i32::from(f.height) - i32::from(self.floors[lo].height)),
+                );
             }
         }
         out.push(("other heights", upper));
@@ -394,7 +439,10 @@ impl TileLayers {
             _ => anyhow::bail!("layers: not version 2"),
         };
         let counts = rd.take(4096)?.to_vec();
-        ensure!(counts.iter().all(|&c| usize::from(c) <= MAX_FLOORS), "layers: bad counts");
+        ensure!(
+            counts.iter().all(|&c| usize::from(c) <= MAX_FLOORS),
+            "layers: bad counts"
+        );
         let mut l = Self {
             floors: vec![Floor::default(); counts.iter().map(|&c| usize::from(c)).sum()],
             counts,
@@ -431,19 +479,23 @@ impl TileLayers {
         for (k, f) in l.floors.iter_mut().enumerate() {
             (f.water, f.flags, f.size) = (water[k], flags[k], size[k]);
         }
+        let straight = rd.take(4 * n)?;
         for i in 0..4096 {
             for k in 0..usize::from(l.counts[i]) {
+                let at = o[i] as usize + k;
+                let p = l.predict_straights(&o, i, k);
                 for d in 0..4 {
-                    let p = l.predict_straight(&o, i, k, d);
-                    l.floors[o[i] as usize + k].walks[d] = rd.byte()? ^ p;
+                    l.floors[at].walks[d] = straight[4 * at + d] ^ p[d];
                 }
             }
         }
+        let diagonal = rd.take(4 * n)?;
         for i in 0..4096 {
             for k in 0..usize::from(l.counts[i]) {
+                let at = o[i] as usize + k;
                 let derived = l.derive_diagonals(&o, i, k);
                 for (d, p) in derived.into_iter().enumerate() {
-                    l.floors[o[i] as usize + k].walks[4 + d] = rd.byte()? ^ p;
+                    l.floors[at].walks[4 + d] = diagonal[4 * at + d] ^ p;
                 }
             }
         }
@@ -489,7 +541,13 @@ mod tests {
                     flags: if k == 0 { SURFACE } else { ABOVE | MODEL },
                     size: if c == 5 { 7 } else { 16 },
                     walks: if k == 0 { [1; 8] } else { [2, 2, 2, 2, 0, 0, 0, 0] },
-                    drops: if c == 7 { [0, 0, 0, 1, 0] } else if k == 1 { [0, 0, 0, 0, 1] } else { [0; DROPS] },
+                    drops: if c == 7 {
+                        [0, 0, 0, 1, 0]
+                    } else if k == 1 {
+                        [0, 0, 0, 0, 1]
+                    } else {
+                        [0; DROPS]
+                    },
                 });
             }
         }

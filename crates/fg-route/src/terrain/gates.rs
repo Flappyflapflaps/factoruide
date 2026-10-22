@@ -71,13 +71,10 @@ impl Best {
     /// Where the gates of tile `t` (`n` of them) start in `gates`.
     fn row(&mut self, t: usize, n: usize) -> usize {
         let gates = &mut self.gates;
-        *self
-            .tiles
-            .entry(t)
-            .or_insert_with(|| {
-                gates.resize(gates.len() + n, (NONE, FROM_A));
-                gates.len() - n
-            })
+        *self.tiles.entry(t).or_insert_with(|| {
+            gates.resize(gates.len() + n, (NONE, FROM_A));
+            gates.len() - n
+        })
     }
 
     /// What is known of gate `i` of tile `t`.
@@ -278,7 +275,13 @@ impl Grid {
                 }
             }
         }
-        let cell_of = |k: usize| if k < 4096 { k } else { usize::from(tile.more_cell[k - 4096]) };
+        let cell_of = |k: usize| {
+            if k < 4096 {
+                k
+            } else {
+                usize::from(tile.more_cell[k - 4096])
+            }
+        };
         // Open nodes by cost in a ring of buckets: a step costs less than `BUCKETS`, so the
         // nodes of a bucket all have the cost the search is at (Dijkstra's order).
         LOCAL_OPEN.with(|open| {
@@ -319,7 +322,11 @@ impl Grid {
                 let border = lr == 0 || lc == 0 || lr == 63 || lc == 63;
                 if back {
                     // The steps into `k`: from the floors of the cells around and its own.
-                    let fk = if k < 4096 { 0 } else { k - 4096 - usize::from(tile.more[ck]) + 1 };
+                    let fk = if k < 4096 {
+                        0
+                    } else {
+                        k - 4096 - usize::from(tile.more[ck]) + 1
+                    };
                     for (d, (dr, dc)) in DIRECTIONS.into_iter().chain([(0, 0)]).enumerate() {
                         let (pr, pc) = (lr - dr, lc - dc);
                         if border && (!(0..64).contains(&pr) || !(0..64).contains(&pc)) {
@@ -328,7 +335,11 @@ impl Grid {
                         let j = (pr * 64 + pc) as usize;
                         let extra = if d == 8 { 0 } else { extra[ck] };
                         for f in 0..usize::from(tile.count[j]) {
-                            let p = if f == 0 { j } else { 4096 + usize::from(tile.more[j]) + f - 1 };
+                            let p = if f == 0 {
+                                j
+                            } else {
+                                4096 + usize::from(tile.more[j]) + f - 1
+                            };
                             let moves = tile.moves[p];
                             if moves & MOVE_NO_GO != 0 {
                                 continue;
@@ -454,7 +465,11 @@ impl Grid {
             .map(|(t, l)| {
                 let la = self.local_areas(t);
                 let a = la.label.get(l).copied().unwrap_or(0);
-                if la.size.get(usize::from(a)).is_some_and(|&s| s >= SMALL_AREA) { a } else { 0 }
+                if la.size.get(usize::from(a)).is_some_and(|&s| s >= SMALL_AREA) {
+                    a
+                } else {
+                    0
+                }
             })
             .unwrap_or(0)
     }
@@ -506,7 +521,10 @@ impl Grid {
             let mut i = 0;
             while i < crossings.len() {
                 let mut j = i + 1;
-                while j < crossings.len() && crossings[j].0 == crossings[i].0 && crossings[j].1 == crossings[j - 1].1 + 1 {
+                while j < crossings.len()
+                    && crossings[j].0 == crossings[i].0
+                    && crossings[j].1 == crossings[j - 1].1 + 1
+                {
                     j += 1;
                 }
                 let run = &crossings[i..j];
@@ -538,7 +556,9 @@ impl Grid {
             for (i, &from) in gates.iter().enumerate() {
                 let walks = self.local(t, from, false, SAFE, false, &gates);
                 for (j, &to) in gates.iter().enumerate() {
-                    cost[i * n + j] = self.locate(to).map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE));
+                    cost[i * n + j] = self
+                        .locate(to)
+                        .map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE));
                 }
             }
             TileGraph { gates, cost }
@@ -586,7 +606,9 @@ impl Grid {
         for (i, &from) in gates.iter().enumerate() {
             let walks = self.local(t, from, false, danger, false, gates);
             for (j, &to) in gates.iter().enumerate() {
-                cost[i * n + j] = self.locate(to).map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE));
+                cost[i * n + j] = self
+                    .locate(to)
+                    .map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE));
             }
         }
         cost
@@ -594,8 +616,9 @@ impl Grid {
 
     /// The walks from node `p` to the gates of its tile with the danger counted, found anew.
     pub(super) fn ends_anew(&self, p: Node, danger: Danger) -> Vec<u32> {
-        self.tile(p.r(), p.c())
-            .map_or_else(Vec::new, |(t, _)| self.local(t, p, false, danger, true, &self.graph(t).gates))
+        self.tile(p.r(), p.c()).map_or_else(Vec::new, |(t, _)| {
+            self.local(t, p, false, danger, true, &self.graph(t).gates)
+        })
     }
 
     /// Cheapest walks from node `p` of tile `t` to each of its gates (or from each of them to
@@ -609,7 +632,10 @@ impl Grid {
         }
         let walks = self.local(t, p, back, danger, true, &self.graph(t).gates);
         let costs: Arc<[u32]> = (self.graph(t).gates.iter())
-            .map(|&g| self.locate(g).map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE)))
+            .map(|&g| {
+                self.locate(g)
+                    .map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE))
+            })
             .collect();
         let mut memo = self.ends[t].lock().unwrap();
         if memo.len() >= ENDS_MAX {
