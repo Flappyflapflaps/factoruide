@@ -37,6 +37,8 @@ pub struct Overrides {
     pub raised: Vec<crate::world::RaisedDef>,
     /// Caves the terrain does not hold (`[[cave]]` of passes.toml).
     pub caves: Vec<crate::world::CaveDef>,
+    /// Ways the game keeps closed (`[[closed]]` of passes.toml).
+    pub closed: Vec<crate::world::ClosedDef>,
     pub params: Params,
 }
 
@@ -185,6 +187,8 @@ impl Overrides {
             raised: Vec<crate::world::RaisedDef>,
             #[serde(default)]
             cave: Vec<crate::world::CaveDef>,
+            #[serde(default)]
+            closed: Vec<crate::world::ClosedDef>,
         }
         let class_quests: HashMap<String, ClassQuests> = parse_toml(&file, "class_quests.toml")?;
         let passes = parse_toml::<Passes>(&file, "passes.toml")?;
@@ -205,6 +209,7 @@ impl Overrides {
             enclosed: passes.enclosed,
             raised: passes.raised,
             caves: passes.cave,
+            closed: passes.closed,
             params: parse_toml(&file, "routing.toml")?,
         })
     }

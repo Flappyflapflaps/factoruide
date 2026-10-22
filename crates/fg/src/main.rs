@@ -180,6 +180,9 @@ enum Command {
         route: PathBuf,
         #[arg(long)]
         out: PathBuf,
+        /// Every cell walked over, not only the turns
+        #[arg(long)]
+        cells: bool,
     },
     /// Look for each known kind of data problem in all the edition's data, for every race
     /// (accepted findings: overrides/audit.toml); fails when some are left to fix
@@ -338,7 +341,7 @@ fn main() -> Result<()> {
         } => {
             travel::run(&open()?, &overrides, &faction, &from, &to, level)?;
         }
-        Command::Walks { route, out } => walks::run(&open()?, &overrides, &route, &out)?,
+        Command::Walks { route, out, cells } => walks::run(&open()?, &overrides, &route, &out, cells)?,
         Command::Audit { checks, all } => audit::run(&open()?, &overrides, &checks, all)?,
         Command::Talents { out } => talents::run(
             &open()?,

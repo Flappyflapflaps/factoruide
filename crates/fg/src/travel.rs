@@ -51,6 +51,9 @@ pub fn run(
     let faction =
         fg_route::faction::Faction::parse(faction).ok_or_else(|| anyhow::anyhow!("unknown faction {faction}"))?;
     let mut world = World::load(conn, faction, params.flight_speed)?;
+    for w in world.close(&overrides.closed) {
+        eprintln!("{w}");
+    }
     for w in world.enclose(&overrides.enclosed) {
         eprintln!("{w}");
     }

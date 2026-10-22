@@ -803,6 +803,82 @@ impl Grid {
         }
     }
 
+    /// Never stand on `closed` nor step to them (`Terrain::close`): their moves and the steps
+    /// to them taken out, the areas labelled again, the tiles' gates around made anew.
+    fn close(&mut self, closed: &[Node]) {
+        let shut: HashSet<Node> = closed.iter().copied().collect();
+        let mut tiles: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+        for &n in closed {
+            let Some((t, l)) = self.locate(n) else { continue };
+            if let Some(tile) = self.tiles[t].as_deref_mut() {
+                tile.moves[l] = MOVE_NO_GO;
+                tile.flags[l] |= NO_GO;
+            }
+            // The steps to it from the floors around.
+            for (d, (dr, dc)) in DIRECTIONS.into_iter().enumerate() {
+                let (pr, pc) = (n.r() - dr, n.c() - dc);
+                for f in 0..self.floors(pr, pc) {
+                    let m = Node::new(pr, pc, f);
+                    let Some((u, k)) = self.locate(m) else { continue };
+                    tiles.insert(u);
+                    let Some(tile) = self.tiles[u].as_deref_mut() else { continue };
+                    if n.f() == 0 {
+                        tile.moves[k] &= !(MOVE << d | MOVE_SWUM << d | MOVE_DROP << d);
+                    }
+                }
+            }
+            tiles.insert(t);
+        }
+        // The other steps to them (edges).
+        for &t in &tiles {
+            let origin = self.origin(t);
+            let Some(tile) = self.tiles[t].as_deref_mut() else { continue };
+            let mut edges = std::mem::take(&mut tile.edges).into_vec();
+            for (l, list) in &mut edges {
+                let i = if usize::from(*l) < 4096 {
+                    usize::from(*l)
+                } else {
+                    usize::from(tile.more_cell[usize::from(*l) - 4096])
+                };
+                let (r, c) = (origin.0 + (i / 64) as i32, origin.1 + (i % 64) as i32);
+                let kept: Vec<Edge> = list
+                    .iter()
+                    .copied()
+                    .filter(|e| {
+                        let (nr, nc) = e.to(r, c);
+                        !shut.contains(&Node::new(nr, nc, e.floor()))
+                    })
+                    .collect();
+                if kept.is_empty() {
+                    tile.moves[usize::from(*l)] &= !MOVE_MORE;
+                }
+                *list = kept.into();
+            }
+            edges.retain(|(_, list)| !list.is_empty());
+            tile.edges = edges.into();
+        }
+        self.label();
+        // The gates of the tiles around are another's.
+        let around: std::collections::BTreeSet<usize> = tiles
+            .iter()
+            .flat_map(|&t| {
+                let (r, c) = self.origin(t);
+                DIRECTIONS
+                    .into_iter()
+                    .chain([(0, 0)])
+                    .filter_map(move |(dr, dc)| Some((r + dr * 64, c + dc * 64)))
+                    .collect::<Vec<_>>()
+            })
+            .filter_map(|(r, c)| self.tile(r, c).map(|(t, _)| t))
+            .collect();
+        for t in around {
+            self.graphs[t] = std::sync::OnceLock::new();
+            self.local_areas[t] = std::sync::OnceLock::new();
+            self.ends[t].get_mut().unwrap().clear();
+            self.danger_graphs[t].get_mut().unwrap().clear();
+        }
+    }
+
     /// Index of a node in `Scratch::best` for a search over the box of first row and column
     /// `r0`, `c0`, `cols` columns and `cells` cells: its cell's for a first floor, else after
     /// the cells.
@@ -1499,6 +1575,39 @@ impl Terrain {
         false
     }
 
+    /// A way the floors hold that the game keeps closed (a locked gate, `[[closed]]` of
+    /// `overrides/passes.toml`): the floors within `radius` yards of `p` are never stood on.
+    /// Before `enclose` (the areas are labelled again). Whether there were floors there.
+    pub fn close(&mut self, p: &Pos, radius: f64) -> bool {
+        let Some(grid) = self.grids.get_mut(&p.continent) else {
+            return false;
+        };
+        let (r, c) = Self::cell(p);
+        let k = (radius / CELL).ceil() as i32;
+        let mut closed: Vec<Node> = Vec::new();
+        for dr in -k..=k {
+            for dc in -k..=k {
+                if f64::from(dr * dr + dc * dc).sqrt() * CELL > radius + CELL / 2.0 {
+                    continue;
+                }
+                closed.extend((0..grid.floors(r + dr, c + dc)).map(|f| Node::new(r + dr, c + dc, f)));
+            }
+        }
+        if closed.is_empty() {
+            return false;
+        }
+        grid.close(&closed);
+        let mut h = Packed::default();
+        for n in &closed {
+            h.write_u32(n.0);
+        }
+        self.fingerprint = self.fingerprint.wrapping_add(h.finish());
+        self.walks.bind(self.fingerprint);
+        self.id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        self.turns.iter_mut().for_each(|t| t.get_mut().unwrap().clear());
+        true
+    }
+
     /// The large area at `p` is left only by boat, portal or lift (Rut'theran Village, at the
     /// foot of Teldrassil): no walk between it and the other areas. Its area and size, None when
     /// `p` is not in a large area.
@@ -1780,6 +1889,35 @@ impl Terrain {
             return points;
         }
         self.waypoints_between(grid, a, b, level)
+    }
+
+    /// The floors a walk between two points goes over, each cell's centre and the floor's
+    /// index, searched floor by floor (to draw it: the planner's walks only keep their turns).
+    /// Empty when the floors do not know the way.
+    #[doc(hidden)]
+    pub fn cell_path(&self, a: &Pos, b: &Pos, level: u8) -> Vec<(Pos, u8)> {
+        let Some(grid) = self.grids.get(&a.continent) else {
+            return Vec::new();
+        };
+        let level = if self.danger_weight > 0.0 { level } else { 0 };
+        let Some((na, nb, level)) = self.walk_ends(grid, a.continent, Self::cell(a), Self::cell(b), level) else {
+            return Vec::new();
+        };
+        let mut nodes = Vec::new();
+        let span = (na.r() - nb.r()).abs().max((na.c() - nb.c()).abs());
+        if na != nb && self.path(grid, na, nb, MARGINS[1].max(span), level, Some(&mut nodes)).is_none() {
+            return Vec::new();
+        }
+        (nodes.iter())
+            .map(|n| {
+                let p = Pos {
+                    x: ORIGIN - (f64::from(n.r()) + 0.5) * CELL,
+                    y: ORIGIN - (f64::from(n.c()) + 0.5) * CELL,
+                    ..*a
+                };
+                (p, n.f() as u8)
+            })
+            .collect()
     }
 
     /// `waypoints` from a cell to another (as snapped).

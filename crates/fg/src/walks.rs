@@ -11,8 +11,9 @@ use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Writes a line a walk (tab-separated): the step, the continent, the start (x, y, zone), the
-/// end, the level, the straight line and the walk (yards), then its points (`x,y` by `;`).
-pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path) -> Result<()> {
+/// end, the level, the straight line and the walk (yards), then its points (`x,y` by `;`; with
+/// `cells`, every cell walked over, `x,y,f` on a floor `f` other than the cell's first).
+pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path, cells: bool) -> Result<()> {
     let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
     let params = &overrides.params;
     let route: Route = serde_json::from_str(
@@ -22,6 +23,7 @@ pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path) ->
     if params.danger_weight > 0.0 {
         world.add_danger(conn, params.danger_weight)?;
     }
+    world.close(&overrides.closed);
     world.enclose(&overrides.enclosed);
     world.add_caves(&overrides.caves);
     world.raise(&overrides.raised);
@@ -40,7 +42,25 @@ pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path) ->
                     let mut lines = Vec::new();
                     while let Some(&(k, a, b, level)) = walks.get(next.fetch_add(1, Ordering::Relaxed)) {
                         let d = world.walk_distance_at(&a, &b, level);
-                        let path = world.walk_path(&a, &b, level);
+                        let mut path = world.walk_path(&a, &b, level);
+                        // Every cell walked over, between the turns (floors other than the
+                        // cells' first: as `x,y,f`).
+                        let mut floors: Vec<u8> = vec![0; path.len()];
+                        if cells && path.len() >= 2 {
+                            let (mut detailed, mut over) = (vec![path[0]], vec![0u8]);
+                            for w in path.windows(2) {
+                                let leg = world.terrain.cell_path(&w[0], &w[1], level);
+                                if leg.len() >= 2 {
+                                    for &(p, f) in &leg[1..leg.len() - 1] {
+                                        detailed.push(p);
+                                        over.push(f);
+                                    }
+                                }
+                                detailed.push(w[1]);
+                                over.push(0);
+                            }
+                            (path, floors) = (detailed, over);
+                        }
                         let mut line = format!(
                             "{k}\t{}\t{:.1}\t{:.1}\t{}\t{:.1}\t{:.1}\t{}\t{level}\t{:.1}\t{:.1}\t",
                             a.continent,
@@ -53,8 +73,11 @@ pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path) ->
                             a.dist(&b),
                             d
                         );
-                        for (i, p) in path.iter().enumerate() {
+                        for (i, (p, f)) in path.iter().zip(&floors).enumerate() {
                             let _ = write!(line, "{}{:.1},{:.1}", if i == 0 { "" } else { ";" }, p.x, p.y);
+                            if *f != 0 {
+                                let _ = write!(line, ",{f}");
+                            }
                         }
                         lines.push((k, line));
                     }

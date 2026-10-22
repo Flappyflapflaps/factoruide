@@ -17,6 +17,7 @@ const SHORT: f64 = 40.0;
 pub fn walk_world(conn: &Connection, overrides: &Overrides, faction: Faction) -> Result<World> {
     let params = &overrides.params;
     let mut world = World::load(conn, faction, params.flight_speed)?;
+    world.close(&overrides.closed);
     world.enclose(&overrides.enclosed);
     world.add_caves(&overrides.caves);
     world.raise(&overrides.raised);

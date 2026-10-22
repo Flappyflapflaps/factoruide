@@ -360,3 +360,13 @@ name = "Burning Blade Coven"
 at = { zone = 14, x = 45.3, y = 56.4 }     # approx: the mouth, at the valley's northern end
 inside = { zone = 14, x = 43.8, y = 54.0 } # approx
 radius = 120.0
+
+# --- Ways closed in the game -------------------------------------------------------------------
+# The walkable floors come from the game's geometry: a gate or a door the server places is not
+# part of it, the way under it looks open. No walk goes within `radius` yards of a `[[closed]]`
+# point: `world` = [continent, x, y] (world yards), or `at` = zone percent coordinates.
+
+[[closed]]
+name = "Searing Gorge - Badlands gate"   # locked: the canyon from the Badlands' west edge
+world = [0, -6916.0, -2033.0]
+radius = 60.0

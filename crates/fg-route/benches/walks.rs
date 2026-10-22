@@ -36,6 +36,7 @@ fn world() -> World {
     let params = &overrides.params;
     let mut world = World::load(&conn, Faction::parse("Horde").unwrap(), params.flight_speed).unwrap();
     world.add_danger(&conn, params.danger_weight).unwrap();
+    world.close(&overrides.closed);
     world.enclose(&overrides.enclosed);
     world.add_caves(&overrides.caves);
     world.raise(&overrides.raised);

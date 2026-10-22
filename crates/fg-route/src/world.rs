@@ -800,6 +800,20 @@ pub struct PassDef {
     pub one_way: bool,
 }
 
+/// A way the walkable floors hold that the game keeps closed (`[[closed]]` of
+/// `overrides/passes.toml`): a locked gate, a door the server places. No walk goes within
+/// `radius` yards of it.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ClosedDef {
+    pub name: String,
+    /// Where, on a zone's map, or in the world (continent, x, y).
+    #[serde(default)]
+    pub at: Option<ZonePoint>,
+    #[serde(default)]
+    pub world: Option<[f64; 3]>,
+    pub radius: f64,
+}
+
 /// A large walkable area left only by boat, portal or lift (`[[enclosed]]` of
 /// `overrides/passes.toml`): the terrain area at `at`.
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -898,6 +912,30 @@ impl World {
         self.terrain.add_danger(spawns, weight);
         self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
         Ok(())
+    }
+
+    /// Ways the game keeps closed (`Terrain::close`). Before the areas enclosed, the caves and
+    /// the passages (their walks depend on it).
+    pub fn close(&mut self, defs: &[ClosedDef]) -> Vec<String> {
+        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
+        let mut warnings = Vec::new();
+        for d in defs {
+            let p = match (&d.at, d.world) {
+                (_, Some([continent, x, y])) => Some(Pos {
+                    continent: continent as i64,
+                    x,
+                    y,
+                    zone: 0,
+                }),
+                (Some(at), None) => self.to_world(at.zone, at.x, at.y),
+                (None, None) => None,
+            };
+            let closed = p.is_some_and(|p| self.terrain.close(&p, d.radius));
+            if !closed && !self.terrain.is_empty() {
+                warnings.push(format!("closed way {}: no walkable floor there", d.name));
+            }
+        }
+        warnings
     }
 
     /// Areas left only by boat, portal or lift: no walk to or from them. Before the passages
