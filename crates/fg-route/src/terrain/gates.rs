@@ -48,7 +48,13 @@ pub(super) const SAFE_FOR_TESTS: Danger = SAFE;
 /// above the character's, how many below far above, and the danger costs.
 pub(super) type DangerKey = (u16, u16, [u32; 2]);
 /// The walks between the gates of a tile with the danger counted (`TileGraph::cost`), by danger.
-pub(super) type DangerGraphs = Vec<(DangerKey, Arc<[u32]>)>;
+pub(super) type DangerGraphs = Vec<(DangerKey, Arc<DangerGraph>)>;
+
+/// The walks from each gate of a tile to the others with the danger counted, a gate's found the
+/// first time a walk goes through it (most walks cross a tile one way: few gates are left from).
+pub(super) struct DangerGraph {
+    rows: Box<[std::sync::OnceLock<Box<[u32]>>]>,
+}
 
 const FROM_A: (usize, usize) = (usize::MAX, usize::MAX);
 
@@ -586,16 +592,29 @@ impl Grid {
     /// The walks between the gates of tile `t` (`TileGraph::cost`) with the danger counted,
     /// found once for all the threads and the levels seeing its mobs alike; None when no mob
     /// there counts at its level.
-    fn danger_graph(&self, t: usize, danger: Danger) -> Option<Arc<[u32]>> {
+    fn danger_graph(&self, t: usize, danger: Danger) -> Option<Arc<DangerGraph>> {
         let key = self.danger_key(t, danger)?;
         let mut graphs = self.danger_graphs[t].lock().unwrap();
-        if let Some((_, cost)) = graphs.iter().find(|(d, _)| *d == key) {
-            return Some(Arc::clone(cost));
+        if let Some((_, graph)) = graphs.iter().find(|(d, _)| *d == key) {
+            return Some(Arc::clone(graph));
         }
-        let cost = self.danger_costs(t, danger);
-        let cost: Arc<[u32]> = cost.into();
-        graphs.push((key, Arc::clone(&cost)));
-        Some(cost)
+        let graph = Arc::new(DangerGraph {
+            rows: (0..self.graph(t).gates.len()).map(|_| std::sync::OnceLock::new()).collect(),
+        });
+        graphs.push((key, Arc::clone(&graph)));
+        Some(graph)
+    }
+
+    /// The walks from gate `i` of tile `t` to the others with the danger counted (a row of
+    /// `danger_costs`), found the first time.
+    fn danger_row<'a>(&self, t: usize, danger: Danger, graph: &'a DangerGraph, i: usize) -> &'a [u32] {
+        graph.rows[i].get_or_init(|| {
+            let gates = &self.graph(t).gates;
+            let walks = self.local(t, gates[i], false, danger, false, gates);
+            (gates.iter())
+                .map(|&to| self.locate(to).map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE)))
+                .collect()
+        })
     }
 
     /// The walks between the gates of tile `t` with the danger counted, found anew.
@@ -650,7 +669,7 @@ impl Grid {
     pub(super) fn through_gates(&self, a: Node, b: Node, danger: Danger, trace: Option<&mut Vec<Node>>) -> Option<f64> {
         let ((ta, _), (tb, _)) = (self.tile(a.r(), a.c())?, self.tile(b.r(), b.c())?);
         let (start, goal) = (self.ends(ta, a, false, danger), self.ends(tb, b, true, danger));
-        let mut dangers: FxHashMap<usize, Option<Arc<[u32]>>> = FxHashMap::default();
+        let mut dangers: FxHashMap<usize, Option<Arc<DangerGraph>>> = FxHashMap::default();
         // Estimate: the length to `b`, as floor by floor.
         let (br, bc) = b.cell();
         let h = |n: Node| {
@@ -693,8 +712,12 @@ impl Grid {
             if g > best.gates[row + i].0 {
                 continue;
             }
-            let cost = dangers.entry(t).or_insert_with(|| self.danger_graph(t, danger));
-            let cost = cost.as_deref().unwrap_or(&graph.cost);
+            let dg = dangers.entry(t).or_insert_with(|| self.danger_graph(t, danger)).clone();
+            let n = graph.gates.len();
+            let cost = match &dg {
+                Some(dg) => self.danger_row(t, danger, dg, i),
+                None => &graph.cost[i * n..(i + 1) * n],
+            };
             let gate = graph.gates[i];
             if t == tb {
                 let rest = goal.get(i).copied().unwrap_or(NONE);
@@ -702,9 +725,8 @@ impl Grid {
                     (found, last) = (g + rest, (t, i));
                 }
             }
-            let n = graph.gates.len();
             for (j, &other) in graph.gates.iter().enumerate() {
-                let c = cost[i * n + j];
+                let c = cost[j];
                 if j != i && c != NONE {
                     reach(&mut best, &mut open, (t, j, row), g + c, other, (t, i));
                 }
