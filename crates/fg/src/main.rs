@@ -172,6 +172,12 @@ enum Command {
         #[arg(long)]
         level: Option<i64>,
     },
+    /// What the walkable floors make of the hand-made terrain overrides (passes.toml)
+    #[command(hide = true)]
+    TerrainOverrides {
+        #[arg(long, default_value = "Alliance")]
+        faction: String,
+    },
     /// The walks of a guide from step to step as the planner walks them, a line each (to compare
     /// the walks of two versions)
     #[command(hide = true)]
@@ -341,6 +347,7 @@ fn main() -> Result<()> {
         } => {
             travel::run(&open()?, &overrides, &faction, &from, &to, level)?;
         }
+        Command::TerrainOverrides { faction } => travel::overrides(&open()?, &overrides, &faction)?,
         Command::Walks { route, out, cells } => walks::run(&open()?, &overrides, &route, &out, cells)?,
         Command::Audit { checks, all } => audit::run(&open()?, &overrides, &checks, all)?,
         Command::Talents { out } => talents::run(

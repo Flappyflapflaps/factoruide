@@ -172,3 +172,65 @@ fn flights(
         );
     }
 }
+
+/// `fg travel --overrides`: what the walkable floors make of the hand-made terrain overrides
+/// (`passes.toml`): the areas declared enclosed the floors join to the mainland, the caves they
+/// hold, the passages whose sides they join.
+pub fn overrides(conn: &Connection, overrides_dir: &Path, faction: &str) -> Result<()> {
+    let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
+    let params = &overrides.params;
+    let faction =
+        fg_route::faction::Faction::parse(faction).ok_or_else(|| anyhow::anyhow!("unknown faction {faction}"))?;
+    let mut world = World::load(conn, faction, params.flight_speed)?;
+    for w in world.close(&overrides.closed) {
+        println!("{w}");
+    }
+    let area = |world: &World, zone: i64, x: f64, y: f64| {
+        let p = world.to_world(zone, x, y)?;
+        let (a, size) = world.terrain.area_of(&p)?;
+        Some((p.continent, a, size, world.terrain.main_area(p.continent) == Some(a)))
+    };
+    for d in &overrides.enclosed {
+        match area(&world, d.at.zone, d.at.x, d.at.y) {
+            Some((_, _, _, true)) => println!("enclosed {}: joined to the mainland by the floors (redundant, or a way the game closes)", d.name),
+            Some((_, a, size, false)) => println!("enclosed {}: its own area {a} ({size} floors): kept", d.name),
+            None => println!("enclosed {}: no terrain", d.name),
+        }
+    }
+    for d in &overrides.caves {
+        let (mouth, inside) = (area(&world, d.at.zone, d.at.x, d.at.y), area(&world, d.inside.zone, d.inside.x, d.inside.y));
+        match (mouth, inside) {
+            (Some((_, m, _, _)), Some((_, i, size, _))) if m == i && size >= fg_route::terrain::LARGE_AREA => {
+                println!("cave {}: the floors hold it, inside in the mouth's area (redundant)", d.name);
+            }
+            (m, i) => println!("cave {}: mouth area {:?}, inside area {:?}: kept", d.name, m.map(|x| x.1), i.map(|x| (x.1, x.2))),
+        }
+    }
+    for w in world.enclose(&overrides.enclosed) {
+        println!("{w}");
+    }
+    world.add_caves(&overrides.caves);
+    world.raise(&overrides.raised);
+    for w in world.add_passes(conn, &overrides.passes)? {
+        println!("{w}");
+    }
+    for p in &world.passes {
+        // Its sides: the areas around, and in one area the points the floors walk to only by a
+        // long way around (`World::pass_areas`).
+        let how = match p.areas.len() {
+            0 => "no walkable area around".to_owned(),
+            1 => "the floors walk across it directly (a waypoint between zones only)".to_owned(),
+            n => {
+                let mut areas: Vec<u32> = p.areas.iter().map(|a| a.0).collect();
+                areas.sort_unstable();
+                areas.dedup();
+                format!("{n} sides the floors join only by a long way round, or not ({} areas): needed", areas.len())
+            }
+        };
+        println!("pass {}: {how}", p.name);
+    }
+    for d in &overrides.raised {
+        println!("raised {}: kept until places stand on a floor by their height", d.name);
+    }
+    Ok(())
+}
