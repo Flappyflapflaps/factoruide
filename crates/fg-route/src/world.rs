@@ -140,6 +140,10 @@ pub struct World {
     /// index in its `areas`. Not the shortcuts nor the one-way passages (taken only on a walk
     /// between their zones).
     area_passes: FxHashMap<(i64, u32), Vec<(usize, usize)>>,
+    /// The lifts (`PassDef::lift`) with two sides in the same large area (the floors join them
+    /// only by a long way round: `Pass::areas` keeps such sides apart), by area: passage and the
+    /// indices of the two sides in its `areas`, both ways.
+    area_lifts: FxHashMap<(i64, u32), Vec<(usize, usize, usize)>>,
     /// Tells this world's walks through the passages from another's in the thread memo.
     bridge_id: u32,
     /// Tells this world's walks from another's in the thread memo (`WALKED`): new each time
@@ -334,6 +338,7 @@ impl World {
             landmarks: Vec::new(),
             raised: Vec::new(),
             area_passes: FxHashMap::default(),
+            area_lifts: FxHashMap::default(),
             bridge_id: 0,
             walk_id: NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed),
         };
@@ -800,6 +805,10 @@ pub struct PassDef {
     /// Taken only from the first zone to the second (a drop that is not climbed back).
     #[serde(default)]
     pub one_way: bool,
+    /// A lift or an elevator, which the floors do not hold (it moves): its sides in the same
+    /// walkable area are still joined through it when the floors' way round is long.
+    #[serde(default)]
+    pub lift: bool,
 }
 
 /// A way the walkable floors hold that the game keeps closed (`[[closed]]` of
@@ -857,6 +866,8 @@ pub struct Pass {
     pub zones: [i64; 2],
     pub shortcut: bool,
     pub one_way: bool,
+    /// A lift (`PassDef::lift`).
+    pub lift: bool,
     /// Its sides: the large terrain areas within `PASS_REACH` (the two ends of a tunnel, of a
     /// bridge, of a gap in a road), each area and its point nearest to the passage, and the
     /// points of an area the terrain walks to only by a long way around. Walked between freely.
@@ -1051,6 +1062,7 @@ impl World {
                     zones: d.zones,
                     shortcut: d.shortcut,
                     one_way: d.one_way,
+                    lift: d.lift,
                     areas: Vec::new(),
                     raw_areas: Vec::new(),
                 }),
@@ -1066,6 +1078,7 @@ impl World {
             }
         }
         self.area_passes.clear();
+        self.area_lifts.clear();
         for i in 0..self.passes.len() {
             let areas = self.pass_areas(&self.passes[i].pos);
             let pass = &mut self.passes[i];
@@ -1082,6 +1095,14 @@ impl World {
                     .entry((pass.pos.continent, *area))
                     .or_default()
                     .push((i, k));
+                for (j, (other, _)) in pass.areas.iter().enumerate() {
+                    if pass.lift && j != k && other == area {
+                        self.area_lifts
+                            .entry((pass.pos.continent, *area))
+                            .or_default()
+                            .push((i, k, j));
+                    }
+                }
             }
         }
         self.bridge_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
@@ -1578,7 +1599,7 @@ impl World {
         if let Some(known) = BRIDGES.with(|m| m.borrow().get(&key).copied()) {
             return known;
         }
-        let found = self.find_bridge(a, b, level, f64::INFINITY);
+        let found = self.find_bridge(a, b, level);
         BRIDGES.with(|m| {
             let mut m = m.borrow_mut();
             if m.len() >= BRIDGES_MAX {
@@ -1589,11 +1610,10 @@ impl World {
         found
     }
 
-    /// A way through the passages shorter than `walk`, the floors' way between two points of
-    /// one area: a lift, an elevator, a portal the floors do not hold (Undercity's elevators,
-    /// down from the ruins), when the walk round is long.
+    /// A way through a lift shorter than `walk`, the floors' way between two points of one
+    /// area (Undercity's elevators, down from the ruins), when the walk round is long.
     fn lift(&self, a: &Pos, b: &Pos, level: u8, walk: f64) -> Option<Bridge> {
-        if a.continent != b.continent || self.area_passes.is_empty() {
+        if a.continent != b.continent || self.area_lifts.is_empty() {
             return None;
         }
         let level = if self.terrain.counts_danger() { level } else { 0 };
@@ -1607,7 +1627,7 @@ impl World {
         if let Some(known) = LIFTS.with(|m| m.borrow().get(&key).copied()) {
             return known;
         }
-        let found = self.find_bridge(a, b, level, walk);
+        let found = self.find_lift(a, b, level, walk);
         LIFTS.with(|m| {
             let mut m = m.borrow_mut();
             if m.len() >= BRIDGES_MAX {
@@ -1618,8 +1638,53 @@ impl World {
         found
     }
 
-    /// `bridge`, none of `limit` yards or more.
-    fn find_bridge(&self, a: &Pos, b: &Pos, level: u8, limit: f64) -> Option<Bridge> {
+    /// `lift`: from `a` to a side of a lift of its area, out by another side of the same lift
+    /// and on to `b`, shorter than `walk`.
+    fn find_lift(&self, a: &Pos, b: &Pos, level: u8, walk: f64) -> Option<Bridge> {
+        let (area, size) = self.terrain.area_of(a)?;
+        if area == 0 || size < crate::terrain::LARGE_AREA {
+            return None;
+        }
+        let lifts = self.area_lifts.get(&(a.continent, area))?;
+        // As the crow flies first: walked to only while that could beat the best.
+        let mut ways: Vec<(f64, usize, usize, usize)> = (lifts.iter())
+            .map(|&(i, k, j)| {
+                let pass = &self.passes[i];
+                let (near_a, near_b) = (&pass.areas[k].1, &pass.areas[j].1);
+                let least = a.dist(near_a) + near_a.dist(&pass.pos) + pass.pos.dist(near_b) + near_b.dist(b);
+                (least, i, k, j)
+            })
+            .filter(|w| w.0 < walk)
+            .collect();
+        if ways.is_empty() {
+            return None;
+        }
+        ways.sort_by(|x, y| x.0.total_cmp(&y.0).then((x.1, x.2, x.3).cmp(&(y.1, y.2, y.3))));
+        let known = |p: &Pos, q: &Pos| match self.terrain.distance(p, q, level) {
+            Some(d) => d,
+            None if self.terrain.disconnected(p, q) => f64::INFINITY,
+            None => p.dist(q),
+        };
+        let mut best: Option<Bridge> = None;
+        for (least, i, k, j) in ways {
+            if least >= best.map_or(walk, |b| b.dist) {
+                break;
+            }
+            let pass = &self.passes[i];
+            let (near_a, near_b) = (&pass.areas[k].1, &pass.areas[j].1);
+            let t = known(a, near_a) + near_a.dist(&pass.pos) + pass.pos.dist(near_b) + known(near_b, b);
+            if t < best.map_or(walk, |b| b.dist) {
+                best = Some(Bridge {
+                    dist: t,
+                    from: (i, k),
+                    to: (i, j),
+                });
+            }
+        }
+        best
+    }
+
+    fn find_bridge(&self, a: &Pos, b: &Pos, level: u8) -> Option<Bridge> {
         let large = |p: &Pos| {
             self.terrain
                 .area_of(p)
@@ -1630,27 +1695,15 @@ impl World {
         let from = self.area_passes.get(&(a.continent, area_a))?;
         let to = self.area_passes.get(&(b.continent, area_b))?;
         let point = |(i, k): (usize, usize)| (&self.passes[i].pos, &self.passes[i].areas[k].1);
-        // The legs to and from each passage as the crow flies, those under the limit.
-        let legs_a: Vec<(usize, f64)> = (0..from.len())
-            .map(|ka| {
-                let (pass_a, near_a) = point(from[ka]);
-                (ka, a.dist(near_a) + near_a.dist(pass_a))
-            })
-            .filter(|&(_, d)| d < limit)
-            .collect();
-        let legs_b: Vec<(usize, f64)> = (0..to.len())
-            .map(|kb| {
-                let (pass_b, near_b) = point(to[kb]);
-                (kb, pass_b.dist(near_b) + near_b.dist(b))
-            })
-            .filter(|&(_, d)| d < limit)
-            .collect();
         // Weighed from the least straight trip up, walked to while that could beat the best.
         let mut pairs: Vec<(f64, usize, usize)> = Vec::new();
-        for &(ka, la) in &legs_a {
-            for &(kb, lb) in &legs_b {
-                let least = la + self.pass_dist[from[ka].0][to[kb].0] + lb;
-                if least.is_finite() && least < limit {
+        for (ka, &(i, _)) in from.iter().enumerate() {
+            let (pass_a, near_a) = point(from[ka]);
+            for (kb, &(j, _)) in to.iter().enumerate() {
+                let (pass_b, near_b) = point(to[kb]);
+                let least =
+                    a.dist(near_a) + near_a.dist(pass_a) + self.pass_dist[i][j] + pass_b.dist(near_b) + near_b.dist(b);
+                if least.is_finite() {
                     pairs.push((least, ka, kb));
                 }
             }

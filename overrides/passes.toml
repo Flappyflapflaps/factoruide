@@ -13,7 +13,9 @@
 # in). A bridge, a tunnel or a building longer than that is two passages of the same zones, one
 # at each end: walked between in a straight line (Thandol Span, Blackrock Mountain, Timbermaw
 # Hold). Two passages of a zone are walked between around the steep terrain, or straight when
-# the terrain breaks the road (at most 1.5 times the straight line).
+# the terrain breaks the road (at most 1.5 times the straight line). `lift = true`: a lift or an
+# elevator (the floors do not hold it): its sides in the same walkable area are still joined
+# through it when the floors' way round is long.
 
 # --- Eastern Kingdoms -----------------------------------------------------------
 
@@ -153,6 +155,7 @@ at = { zone = 85, x = 54.0, y = 88.0 } # approx
 name = "Undercity entrance"
 zones = [85, 1497]
 at = { zone = 85, x = 62.0, y = 73.0 } # approx
+lift = true
 
 [[pass]]
 name = "The Bulwark"
@@ -252,6 +255,7 @@ at = { zone = 15, x = 28.0, y = 48.0 } # approx
 name = "The Great Lift"
 zones = [17, 400] # The Barrens, Thousand Needles
 subzone = "The Great Lift"
+lift = true
 
 [[pass]]
 name = "Orgrimmar gates"
@@ -262,6 +266,7 @@ at = { zone = 14, x = 45.5, y = 12.0 } # approx
 name = "Thunder Bluff lifts"
 zones = [215, 1638]
 subzone = "Thunder Bluff"
+lift = true
 
 [[pass]]
 name = "Thousand Needles - Feralas road"
