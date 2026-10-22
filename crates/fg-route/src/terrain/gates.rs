@@ -50,6 +50,12 @@ pub(super) type DangerGraphs = Vec<(DangerKey, Arc<[u32]>)>;
 
 const FROM_A: (usize, usize) = (usize::MAX, usize::MAX);
 
+thread_local! {
+    /// The open cells of `Grid::local`, kept from a search to the next.
+    static LOCAL_OPEN: std::cell::RefCell<Vec<Vec<u16>>> =
+        std::cell::RefCell::new((0..super::BUCKETS).map(|_| Vec::new()).collect());
+}
+
 /// Cheapest cost found to each gate (tile, index) of a walk (`NONE`: none yet), and the gate it
 /// came from (`FROM_A`: the walk's start): the gates of a tile side by side, found by one lookup
 /// of the tile.
@@ -193,66 +199,84 @@ impl Grid {
         if !inside(from) {
             return cost;
         }
+        cost[index(from)] = 0;
+        // Without terrain no cell is stood on: no step.
+        let Some(moves) = self.tile_moves(t) else {
+            return cost;
+        };
         let mut left = [false; 4096];
         let mut count = 0;
         for &p in wanted.iter().filter(|&&p| inside(p)) {
             count += usize::from(!std::mem::replace(&mut left[index(p)], true));
         }
-        // Cost and cell in one word: the heap compares integers.
-        let mut open = BinaryHeap::new();
-        cost[index(from)] = 0;
-        open.push(Reverse(index(from) as u64));
-        while let Some(Reverse(word)) = open.pop() {
-            let (g, k) = ((word >> 12) as u32, (word & 4095) as usize);
-            if g > cost[k] {
-                continue;
-            }
-            if std::mem::take(&mut left[k]) {
-                count -= 1;
-                if count == 0 {
-                    break;
-                }
-            }
-            let cell = (tr + (k >> 6) as i32, tc + (k & 63) as i32);
-            let here = self.moves(cell.0, cell.1);
-            for (d, (dr, dc)) in DIRECTIONS.into_iter().enumerate() {
-                let next = (cell.0 + dr, cell.1 + dc);
-                if !inside(next) {
-                    continue;
-                }
-                // The step taken: from `cell` to `next`, or back from `next` to `cell`.
-                let (moves, d) = if back {
-                    (self.moves(next.0, next.1), OPPOSITE[d])
-                } else {
-                    (here, d)
-                };
-                if moves & MOVE_NO_GO != 0 || moves >> d & MOVE == 0 {
-                    continue;
-                }
-                // No corner cutting, as cell by cell.
-                let (sr, sc) = DIRECTIONS[d];
-                if d >= 4 && (moves >> usize::from(sr > 0) & moves >> (2 + usize::from(sc > 0))) & MOVE == 0 {
-                    continue;
-                }
-                let diagonal = usize::from(d >= 4);
-                let step = if moves >> d & MOVE_SWUM != 0 {
-                    SWUM[diagonal]
-                } else {
-                    WALKED[diagonal]
-                };
-                let y = if back { cell } else { next };
-                let step = if free && super::Terrain::near_end(y, from, from) {
-                    step
-                } else {
-                    step + self.danger_step(y, danger)
-                };
-                let k = index(next);
-                if g + step < cost[k] {
-                    cost[k] = g + step;
-                    open.push(Reverse(u64::from(g + step) << 12 | k as u64));
+        // What entering each cell costs more for its danger (none around `from` when `free`).
+        let mut extra = [0u32; 4096];
+        if danger.0 != 0 && self.danger.get(t).is_some_and(Option::is_some) {
+            for (k, e) in extra.iter_mut().enumerate() {
+                let y = (tr + (k >> 6) as i32, tc + (k & 63) as i32);
+                if !(free && super::Terrain::near_end(y, from, from)) {
+                    *e = self.danger_step(y, danger);
                 }
             }
         }
+        // Open cells by cost in a ring of buckets: a step costs less than `BUCKETS`, so the
+        // cells of a bucket all have the cost the search is at (Dijkstra's order).
+        LOCAL_OPEN.with(|open| {
+            let open = &mut *open.borrow_mut();
+            for bucket in open.iter_mut() {
+                bucket.clear();
+            }
+            let (mut g, mut queued) = (0u32, 1usize);
+            open[0].push(index(from) as u16);
+            while queued > 0 {
+                let Some(k) = open[g as usize % super::BUCKETS].pop() else {
+                    g += 1;
+                    continue;
+                };
+                queued -= 1;
+                let k = usize::from(k);
+                if g > cost[k] {
+                    continue;
+                }
+                if std::mem::take(&mut left[k]) {
+                    count -= 1;
+                    if count == 0 {
+                        break;
+                    }
+                }
+                let (r, c) = ((k >> 6) as i32, (k & 63) as i32);
+                let here = moves[k];
+                for (d, (dr, dc)) in DIRECTIONS.into_iter().enumerate() {
+                    let (nr, nc) = (r + dr, c + dc);
+                    if !(0..64).contains(&nr) || !(0..64).contains(&nc) {
+                        continue;
+                    }
+                    let n = (nr * 64 + nc) as usize;
+                    // The step taken: from `k` to `n`, or back from `n` to `k`.
+                    let (moves, d) = if back { (moves[n], OPPOSITE[d]) } else { (here, d) };
+                    if moves & MOVE_NO_GO != 0 || moves >> d & MOVE == 0 {
+                        continue;
+                    }
+                    // No corner cutting, as cell by cell.
+                    let (sr, sc) = DIRECTIONS[d];
+                    if d >= 4 && (moves >> usize::from(sr > 0) & moves >> (2 + usize::from(sc > 0))) & MOVE == 0 {
+                        continue;
+                    }
+                    let diagonal = usize::from(d >= 4);
+                    let step = if moves >> d & MOVE_SWUM != 0 {
+                        SWUM[diagonal]
+                    } else {
+                        WALKED[diagonal]
+                    };
+                    let ng = g + step + extra[if back { k } else { n }];
+                    if ng < cost[n] {
+                        cost[n] = ng;
+                        open[ng as usize % super::BUCKETS].push(n as u16);
+                        queued += 1;
+                    }
+                }
+            }
+        });
         cost
     }
 

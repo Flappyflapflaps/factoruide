@@ -352,10 +352,16 @@ impl Grid {
         let Some((t, i)) = self.tile(r, c) else {
             return self.compute_moves(r, c);
         };
-        if self.cells[t].is_none() {
-            return self.compute_moves(r, c);
+        match self.tile_moves(t) {
+            Some(moves) => moves[i],
+            None => self.compute_moves(r, c),
         }
-        self.moves[t].get_or_init(|| {
+    }
+
+    /// `moves` of the cells of tile `t`, row by row (None without terrain).
+    fn tile_moves(&self, t: usize) -> Option<&[u32; 4096]> {
+        self.cells[t].as_ref()?;
+        Some(self.moves[t].get_or_init(|| {
             let (r0, c0) = (
                 self.r0 + (t / self.tile_cols) as i32 * 64,
                 self.c0 + (t % self.tile_cols) as i32 * 64,
@@ -365,7 +371,7 @@ impl Grid {
                 *m = self.compute_moves(r0 + (k / 64) as i32, c0 + (k % 64) as i32);
             }
             moves
-        })[i]
+        }))
     }
 
     fn compute_moves(&self, r: i32, c: i32) -> u32 {
