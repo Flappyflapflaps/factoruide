@@ -104,7 +104,7 @@ pub const CHECKS: &[Check] = &[
                the same NPC or object near) in a cell where floors lie far over each other (a \
                cave under a hill, a bridge over a river, a tower): the planner puts them on the \
                surface or the floor most of the floors around are in, maybe the wrong one. Give \
-               the height in the quest data ([[spawn]] with `z`) when it is wrong, or accept it",
+               the height in the quest data (`[[height]]`) when it is wrong, or accept it",
         error: false,
     },
     Check {
