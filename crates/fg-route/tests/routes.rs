@@ -2489,6 +2489,36 @@ fn dungeons_filed_under_the_continent() {
     }
 }
 
+/// City of Dalaran (Forever) is entered by a tunnel at the west edge of the Alterac Mountains
+/// by the Horde, by the pipe in the Alliance's own quarter further in: each faction's guide
+/// plans the dungeon at its own door.
+#[test]
+fn city_of_dalaran_has_a_door_for_each_faction() {
+    let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Forever).unwrap();
+    let door = |race: &str| {
+        let request = PlanRequest {
+            params: Some(overrides.params.with_overrides(&[]).unwrap()),
+            ..request(race, "mage", 40, &[])
+        };
+        let p = job::prepare(&database_of("forever"), &overrides, &request, &|_| {}).unwrap();
+        let dalaran = p
+            .model
+            .dungeons
+            .iter()
+            .find(|d| d.area == 16544)
+            .expect("City of Dalaran");
+        let at = p.world.to_map(dalaran.entrance.zone, &dalaran.entrance.pos).unwrap();
+        (dalaran.entrance.zone, at.x, at.y)
+    };
+    let close = |(zone, x, y): (i64, f64, f64), (z, ex, ey): (i64, f64, f64)| {
+        zone == z && (x - ex).abs() < 0.1 && (y - ey).abs() < 0.1
+    };
+    let alliance = door("human");
+    let horde = door("orc");
+    assert!(close(alliance, (36, 14.7, 63.0)), "Alliance: {alliance:?}");
+    assert!(close(horde, (36, 8.46, 59.21)), "Horde: {horde:?}");
+}
+
 /// A book for the library (Forever, GitHub #29): the librarian offers "The Dalaran Digest" only
 /// while the book is in the bags. Looting it is the accept, the quest is taken and turned in
 /// together at the librarian, never sent there before the book.

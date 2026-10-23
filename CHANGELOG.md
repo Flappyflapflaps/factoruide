@@ -10,6 +10,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ### Guides
 
+- WoW Forever: City of Dalaran is entered from the Alliance's own quarter (the pipe in the Alterac Mountains) in Alliance guides, and by the tunnel at the west edge only in Horde guides.
 - Profession quests turned in at a city trainer (Camping 101: Skinning, Leatherworking in Orgrimmar) are planned too, even once they are gray.
 - Guides are computed about a third faster again (walks between zones had slowed them down in 0.14.0).
 - TBC: places in Outland, the blood elf and draenei zones are walked to on the floor they stand on (towers, ramps, cave levels), not the nearest ground.

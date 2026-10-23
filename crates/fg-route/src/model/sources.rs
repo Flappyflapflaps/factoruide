@@ -149,7 +149,8 @@ impl Sources {
         let reachable = world.reachable_continents(start.pos.continent);
         forget_unreachable(&mut entities, world, &reachable);
         entities.borrow_heights(world);
-        let (dungeons, dungeon_by_area, inside) = load_dungeons(conn, world, &profile.dungeons, &reachable)?;
+        let (dungeons, dungeon_by_area, inside) =
+            load_dungeons(conn, world, profile.faction, &profile.dungeons, &reachable)?;
         let rows = quest_rows(conn)?;
         let objectives = objective_rows(conn)?;
         let (item_origins, drop_chance) = item_origins(conn, params)?;

@@ -108,6 +108,16 @@ pub const CHECKS: &[Check] = &[
         error: false,
     },
     Check {
+        name: "dungeon-entrances",
+        what: "dungeons whose sides enter by different doors (`dungeon_entrance`: City of Dalaran, a \
+               tunnel for the Horde, a pipe for the Alliance) with a door given for one faction \
+               only (the other would take the shared one, which may be the first's), or for an \
+               area that is no dungeon of the data. Nothing in the data says which dungeons have \
+               two doors: give the other faction's door in the data overrides \
+               (`[[dungeon_entrance]]`, both sides), or accept a door the other side shares",
+        error: true,
+    },
+    Check {
         name: "timed-quests",
         what: "quests of the guide whose objectives give a time (\"in ten minutes\") while the \
                data has no time limit: the planner may do other things between taking and \
@@ -203,6 +213,16 @@ pub fn audit(
     } else {
         HashMap::new()
     };
+    let doors = if on("dungeon-entrances") {
+        dungeon_doors(conn)?
+    } else {
+        Vec::new()
+    };
+    let known_dungeons = if on("dungeon-entrances") {
+        dungeon_areas(conn)?
+    } else {
+        HashSet::new()
+    };
     let trainer_quests = if on("other-class-quests") {
         trainer_quests(conn)?
     } else {
@@ -275,6 +295,11 @@ pub fn audit(
         }
         if on("ambiguous-floors") {
             ambiguous_floors(&prepared.world, &prepared.model)
+                .into_iter()
+                .for_each(&mut add);
+        }
+        if on("dungeon-entrances") {
+            dungeon_entrances(&prepared.model, &doors, &known_dungeons)
                 .into_iter()
                 .for_each(&mut add);
         }
@@ -848,6 +873,69 @@ fn unknown_starter_drops(model: &Model, starters: &[StarterDrop]) -> Vec<Finding
     out
 }
 
+/// A dungeon's door for one faction (`dungeon_entrance`): dungeon area, faction letter.
+type Door = (i64, String);
+
+/// The doors the data gives dungeons per faction (none in a database without the table).
+fn dungeon_doors(conn: &Connection) -> Result<Vec<Door>> {
+    let has_table: bool = conn.query_row(
+        "SELECT count(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = 'dungeon_entrance'",
+        [],
+        |r| r.get(0),
+    )?;
+    if !has_table {
+        return Ok(Vec::new());
+    }
+    let mut stmt = conn.prepare("SELECT DISTINCT area, faction FROM dungeon_entrance ORDER BY area, faction")?;
+    let doors = stmt
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(doors)
+}
+
+/// The areas of the dungeons the data knows.
+fn dungeon_areas(conn: &Connection) -> Result<HashSet<i64>> {
+    let mut stmt = conn.prepare("SELECT area FROM dungeon")?;
+    let areas = stmt.query_map([], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+    Ok(areas)
+}
+
+/// Doors given for one faction only, and doors of an area that is no dungeon (a wrong area ID
+/// the planner would never use). `known` are the areas of the data's dungeons; the planned
+/// ones (those with settings of their own) count too.
+fn dungeon_entrances(model: &Model, doors: &[Door], known: &HashSet<i64>) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let areas: std::collections::BTreeSet<i64> = doors.iter().map(|d| d.0).collect();
+    for area in areas {
+        let name = model.dungeons.iter().find(|d| d.area == area).map(|d| d.name.as_str());
+        if name.is_none() && !known.contains(&area) {
+            out.push(Finding {
+                check: "dungeon-entrances",
+                key: format!("area {area}"),
+                detail: format!("a door is given for area {area}, which is no dungeon of the data"),
+                races: Vec::new(),
+            });
+            continue;
+        }
+        let Some(name) = name else { continue };
+        for (letter, faction, other) in [("A", "Alliance", "Horde"), ("H", "Horde", "Alliance")] {
+            let has = |l: &str| doors.iter().any(|d| d.0 == area && d.1 == l);
+            if has(letter) && !has(if letter == "A" { "H" } else { "A" }) {
+                out.push(Finding {
+                    check: "dungeon-entrances",
+                    key: format!("{name} ({area})"),
+                    detail: format!(
+                        "{name} has a door for the {faction} only: the {other} enters by the shared one, \
+                         which may be the {faction}'s"
+                    ),
+                    races: Vec::new(),
+                });
+            }
+        }
+    }
+    out
+}
+
 /// The quests of the 1.12 data (VMaNGOS): the server's own prerequisites, complete.
 fn old_quests(conn: &Connection) -> Result<HashSet<i64>> {
     let mut stmt = conn.prepare("SELECT id FROM m_quest WHERE ',' || sources || ',' LIKE '%,vmangos,%'")?;
@@ -1167,5 +1255,52 @@ mod tests {
         let keys: Vec<String> = timed_quests(&p.model, &untimed).into_iter().map(|f| f.key).collect();
         assert_eq!(keys, [format!("quest {id}")]);
         assert!(timed_quests(&p.model, &HashMap::new()).is_empty());
+    }
+    /// A door given for one faction only is found (the other would take the shared one), and a
+    /// door of an area that is no dungeon; both sides given, or a dungeon not planned, are not.
+    #[test]
+    fn a_dungeon_door_for_one_faction_only_is_found() {
+        let mut p = quests_at_start(1);
+        let mut dungeon = |area: i64, name: &str| {
+            let here = p.model.start.clone();
+            p.model.dungeons.push(crate::model::Dungeon {
+                area,
+                name: name.into(),
+                entrance: here,
+                min_level: 1,
+                max_level: 60,
+                minutes: 60.0,
+                kills: 100.0,
+                mob_level: 30,
+                content: 0,
+            });
+        };
+        dungeon(16544, "City of Dalaran");
+        dungeon(719, "Blackfathom Deeps");
+        let known = HashSet::from([16544, 719, 990_001]);
+        let keys = |doors: &[Door]| -> Vec<String> {
+            dungeon_entrances(&p.model, doors, &known)
+                .into_iter()
+                .map(|f| f.key)
+                .collect()
+        };
+        let door = |area: i64, faction: &str| (area, faction.to_owned());
+        assert!(keys(&[]).is_empty(), "no door given");
+        assert_eq!(
+            keys(&[door(16544, "A")]),
+            ["City of Dalaran (16544)"],
+            "the Horde has none"
+        );
+        assert_eq!(
+            keys(&[door(16544, "H")]),
+            ["City of Dalaran (16544)"],
+            "the Alliance has none"
+        );
+        assert!(keys(&[door(16544, "A"), door(16544, "H")]).is_empty(), "both given");
+        assert!(
+            keys(&[door(990_001, "A")]).is_empty(),
+            "a dungeon this guide does not plan"
+        );
+        assert_eq!(keys(&[door(999, "A"), door(999, "H")]), ["area 999"], "no such dungeon");
     }
 }
