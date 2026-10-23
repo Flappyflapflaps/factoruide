@@ -248,5 +248,5 @@ How the optimized route is computed: [ARCHITECTURE.md](ARCHITECTURE.md).
 ## License
 
 The code is under the MIT license ([LICENSE](LICENSE)). The quest databases (`data/`) are under
-GPL-2.0-or-later, the license of the VMaNGOS data they include ([data/LICENSE](data/LICENSE));
+GPL-3.0, the license of the server data they include ([data/LICENSE](data/LICENSE));
 their sources and the terms of each are listed in [NOTICE.md](NOTICE.md).

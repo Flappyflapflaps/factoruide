@@ -43,7 +43,7 @@ export function AboutPanels({ version }: { version: string | null }) {
               {t("Code de l'application et de l'addon :")} <Link url="LICENSE" label="MIT" />
             </li>
             <li>
-              {t("Bases de quêtes :")} <Link url="data/LICENSE" label="GPL-2.0-or-later" />
+              {t("Bases de quêtes :")} <Link url="data/LICENSE" label="GPL-3.0" />
             </li>
           </ul>
         </section>

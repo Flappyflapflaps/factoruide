@@ -1,7 +1,7 @@
 # Notice: data sources
 
 The code of this repository is under the MIT license ([LICENSE](LICENSE)); the quest databases
-are under GPL-2.0-or-later ([data/LICENSE](data/LICENSE)), the parts below keeping their own
+are under GPL-3.0 ([data/LICENSE](data/LICENSE)), the parts below keeping their own
 terms.
 
 The quest databases in `data/<edition>.sqlite.zst` are compiled from the sources below. Each row
@@ -12,6 +12,7 @@ of the databases keeps the sources it comes from (`sources` columns, `import_run
 | World of Warcraft game client (Blizzard Entertainment) | Blizzard's | Maps and map images, zones, flight paths, races, classes, quest IDs and XP, names. World of Warcraft and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc. This project is not affiliated with or endorsed by Blizzard. |
 | [QuestieDB](https://github.com/Questie/QuestieDB) and [Questie](https://github.com/Questie/Questie) | None stated (see below) | Quests, givers and turn-ins, prerequisites, objectives, NPC/object/item data and positions, quest XP, drop rates, dungeon entrances, translated names, quest blacklist |
 | [VMaNGOS](https://github.com/vmangos/core) | GPL-2.0 | Classic 1.12 world database: exclusive quest groups, loot tables and chances, NPC titles, positions, objective amounts |
+| [CMaNGOS TBC database](https://github.com/cmangos/tbc-db) | GPL-3.0 | TBC 2.4.3 world database: the heights of creature and object spawns on the old continents and Outland, which tell the floor a place stands on |
 | [AllTheThings](https://github.com/ATTWoWAddon/AllTheThings) | MIT | Forever quests: classes and races, givers and positions, prerequisites, exclusive quests |
 | [Wowhead](https://www.wowhead.com) tooltips | Wowhead's | Whether quests exist in Forever, names, levels, objective texts, NPC titles and positions; Questie's drop rates also come from Wowhead |
 | Factoruide players | — | Quests and positions observed in game, sent through the app and accepted only when several trusted players agree |
@@ -33,6 +34,15 @@ The VMaNGOS data is distributed under the terms of the GNU General Public Licens
 (<https://www.gnu.org/licenses/old-licenses/gpl-2.0.html>). It comes from the VMaNGOS
 `db_latest` release (SQLite snapshot, <https://github.com/vmangos/core/releases>);
 the build keeps the rows up to patch 1.12 and merges them with the other sources.
+
+## CMaNGOS TBC database
+
+The CMaNGOS TBC data (`tbc-db`) is distributed under the terms of the GNU General Public
+License, version 3 (<https://www.gnu.org/licenses/gpl-3.0.html>). It comes from the `latest`
+release of <https://github.com/cmangos/tbc-db> (SQLite snapshot); the build keeps only the
+height of its creature and object spawns. Because of it, and since VMaNGOS's terms allow "any
+later version", the databases as a whole are distributed under the GPL version 3
+([data/LICENSE](data/LICENSE)).
 
 ## AllTheThings
 
