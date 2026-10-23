@@ -1,5 +1,6 @@
 //! `fg travel`: how we walk between two points (distance, passages), to check travel costs. The
-//! points: `Zone,x,y` (map percent) or `w:continent,x,y` (world yards).
+//! points: `Zone,x,y` (map percent) or `w:continent,x,y` (world yards), each with the height
+//! after when known (`Zone,x,y,z`: the floor it stands on where several lie over each other).
 
 use anyhow::{Context, Result};
 use fg_route::job::Overrides;
@@ -11,18 +12,19 @@ fn point(world: &World, spec: &str) -> Result<fg_route::world::Pos> {
     // World coordinates: w:continent,x,y.
     if let Some(rest) = spec.strip_prefix("w:") {
         let v: Vec<f64> = rest.split(',').map(|x| x.trim().parse()).collect::<Result<_, _>>()?;
-        anyhow::ensure!(v.len() == 3, "expected w:continent,x,y: {spec}");
+        anyhow::ensure!(matches!(v.len(), 3 | 4), "expected w:continent,x,y[,z]: {spec}");
         let mut p = fg_route::world::Pos {
             continent: v[0] as i64,
             x: v[1],
             y: v[2],
             zone: 0,
+            z: fg_route::world::height(v.get(3).copied()),
         };
         p.zone = world.zone_at(&p).unwrap_or(0);
         return Ok(p);
     }
     let parts: Vec<&str> = spec.split(',').map(str::trim).collect();
-    anyhow::ensure!(parts.len() == 3, "expected Zone,x,y: {spec}");
+    anyhow::ensure!(matches!(parts.len(), 3 | 4), "expected Zone,x,y[,z]: {spec}");
     let zone = match parts[0].parse::<i64>() {
         Ok(id) => id,
         Err(_) => *world
@@ -33,9 +35,14 @@ fn point(world: &World, spec: &str) -> Result<fg_route::world::Pos> {
             .min()
             .with_context(|| format!("unknown zone {}", parts[0]))?,
     };
-    world
+    let z = parts.get(3).map(|z| z.parse()).transpose()?;
+    let p = world
         .to_world(zone, parts[1].parse()?, parts[2].parse()?)
-        .with_context(|| format!("no map for zone {zone}"))
+        .with_context(|| format!("no map for zone {zone}"))?;
+    Ok(fg_route::world::Pos {
+        z: fg_route::world::height(z),
+        ..p
+    })
 }
 
 pub fn run(

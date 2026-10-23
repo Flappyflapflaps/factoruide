@@ -16,6 +16,9 @@ pub struct Pos {
     pub y: f64,
     /// AreaTable zone the point is in (0 when unknown).
     pub zone: i64,
+    /// Height (yards) when known: the floor the point stands on where several lie over each
+    /// other (a cave under a hill, a bridge over a river, the levels of a city).
+    pub z: Option<i16>,
 }
 
 impl Pos {
@@ -25,6 +28,11 @@ impl Pos {
         }
         ((self.x - o.x).powi(2) + (self.y - o.y).powi(2)).sqrt()
     }
+}
+
+/// A height of the game's data (yards) as `Pos::z`: None when unknown or out of range.
+pub fn height(z: Option<f64>) -> Option<i16> {
+    z.filter(|z| z.is_finite() && z.abs() < 30000.0).map(|z| z.round() as i16)
 }
 
 /// A point as the game UI shows it: zone (AreaTable), its map, percent coordinates.
@@ -217,7 +225,7 @@ impl World {
             ("MountCreatureID_1", 1)
         };
         let mut stmt = conn.prepare(&format!(
-            "SELECT ID, Name_lang, ContinentID, Pos_0, Pos_1 FROM client_taxinodes
+            "SELECT ID, Name_lang, ContinentID, Pos_0, Pos_1, Pos_2 FROM client_taxinodes
              WHERE {mount_col} != 0 AND (Flags & {side}) != 0"
         ))?;
         let taxi_nodes: Vec<TaxiNode> = stmt
@@ -230,6 +238,7 @@ impl World {
                         x: r.get(3)?,
                         y: r.get(4)?,
                         zone: 0,
+                        z: height(r.get(5)?),
                     },
                 })
             })?
@@ -377,6 +386,7 @@ impl World {
             x: z.max_x - y / 100.0 * (z.max_x - z.min_x),
             y: z.max_y - x / 100.0 * (z.max_y - z.min_y),
             zone,
+            z: None,
         })
     }
 
@@ -942,6 +952,7 @@ impl World {
                     x,
                     y,
                     zone: 0,
+                    z: None,
                 }),
                 (Some(at), None) => self.to_world(at.zone, at.x, at.y),
                 (None, None) => None,

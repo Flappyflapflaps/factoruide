@@ -17,7 +17,7 @@ pub(crate) type FlightTables = RefCell<FxHashMap<u128, Rc<FlightTable>>>;
 
 /// A point as a key: links opened (6 bits), level (8 bits), continent (16 bits), zone (32 bits)
 /// and a flag in one word, then the bits of its coordinates.
-type PosKey = [u64; 3];
+type PosKey = [u64; 4];
 
 /// Trips already computed (from with mounted or not and the links opened, to, known flight
 /// paths): a replay asks the same trips again and again. 88 bytes a trip; emptied when full.
@@ -62,13 +62,18 @@ impl Hop {
     }
 }
 
+/// A height in a key (`Pos::z`): known heights apart from the unknown one.
+pub(crate) fn height_key(z: Option<i16>) -> u64 {
+    z.map_or(0, |z| u64::from(z as u16) | 1 << 16)
+}
+
 /// The key of point `p` (None when its continent or zone does not fit: not remembered), with a
 /// flag and a level (the danger's, 0 when it does not count).
 fn pos_key(p: &Pos, flag: bool, level: u8) -> Option<PosKey> {
     let continent = u16::try_from(p.continent).ok()?;
     let zone = u32::try_from(p.zone).ok()?;
     let head = (u64::from(level) << 50) | (u64::from(continent) << 33) | (u64::from(zone) << 1) | u64::from(flag);
-    Some([head, p.x.to_bits(), p.y.to_bits()])
+    Some([head, p.x.to_bits(), p.y.to_bits(), height_key(p.z)])
 }
 
 /// A lower bound of `Trips::fastest` from a state: every walk is at least the straight line
@@ -430,7 +435,8 @@ impl Trips<'_> {
 mod tests {
     use super::*;
 
-    /// Points that differ only by their zone, or by being reached mounted, have their own key.
+    /// Points that differ only by their zone, their height, or by being reached mounted, have
+    /// their own key.
     #[test]
     fn keys_tell_points_apart() {
         let p = Pos {
@@ -438,9 +444,12 @@ mod tests {
             x: 10.0,
             y: 20.0,
             zone: 14,
+            z: None,
         };
         let key = |p: &Pos, flag| pos_key(p, flag, 0).unwrap();
         assert_ne!(key(&p, false), key(&Pos { zone: 15, ..p }, false));
+        assert_ne!(key(&p, false), key(&Pos { z: Some(0), ..p }, false), "a height on another floor");
+        assert_ne!(key(&Pos { z: Some(-3), ..p }, false), key(&Pos { z: Some(3), ..p }, false));
         assert_ne!(key(&p, false), key(&Pos { continent: 0, ..p }, false));
         assert_ne!(key(&p, false), key(&p, true));
         assert!(pos_key(&Pos { zone: -1, ..p }, false, 0).is_none());

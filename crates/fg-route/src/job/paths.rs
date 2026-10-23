@@ -112,6 +112,7 @@ fn position(world: &World, step: &Step) -> Option<Pos> {
             x,
             y,
             zone: step.zone_id.unwrap_or(0),
+            z: step.height,
         }
     } else {
         let map = step.map.as_ref()?;

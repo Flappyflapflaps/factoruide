@@ -369,6 +369,7 @@ impl Editor {
                         x: p.at[1],
                         y: p.at[2],
                         zone: 0,
+                        z: None,
                     };
                     s.pos.dist(&at)
                 })

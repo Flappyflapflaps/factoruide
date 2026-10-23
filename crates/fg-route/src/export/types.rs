@@ -198,6 +198,10 @@ pub struct Step {
     /// World position: [continent (map ID), x, y], to draw the route on any map.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub world: Option<[f64; 3]>,
+    /// Height of the place (yards) when known: the floor it stands on where several lie over
+    /// each other (a cave under a hill, a bridge over a river).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<i16>,
     /// The walk to the step from the step before when it does not go straight (world x, y on
     /// the step's continent): where it starts, then where it turns, around the steep ground and
     /// through the passages between zones. Worked out when the addon is installed
@@ -295,6 +299,7 @@ impl Step {
             spots: Vec::new(),
             patrol: false,
             world: None,
+            height: None,
             path: Vec::new(),
             skill: None,
             line: None,

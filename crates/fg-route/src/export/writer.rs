@@ -104,6 +104,7 @@ impl StepWriter<'_> {
                 (p.x * 10.0).round() / 10.0,
                 (p.y * 10.0).round() / 10.0,
             ]);
+            step.height = p.z;
         }
     }
 
@@ -210,6 +211,7 @@ impl StepWriter<'_> {
             zone_id: at.zone_id,
             map: at.map.clone(),
             world: at.world,
+            height: at.height,
             path: Vec::new(),
             ..grind.clone()
         }
@@ -264,6 +266,7 @@ impl StepWriter<'_> {
             spots: Vec::new(),
             patrol: false,
             world: None,
+            height: None,
             path: Vec::new(),
             skill: None,
             line: None,
@@ -305,6 +308,7 @@ impl StepWriter<'_> {
                         x,
                         y,
                         zone: 0,
+                        z: None,
                     },
                     zone,
                 )
@@ -918,6 +922,7 @@ mod tests {
             x,
             y: 0.0,
             zone: 0,
+            z: None,
         };
         let points = along(&[p(0.0), p(100.0), p(400.0)], 3);
         let xs: Vec<f64> = points.iter().map(|q| q.x).collect();

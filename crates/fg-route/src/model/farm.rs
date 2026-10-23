@@ -58,16 +58,23 @@ impl FarmMobs {
     /// Each is tagged with the `quests` whose objectives are done on it.
     pub(super) fn load(conn: &Connection, world: &World, quests: &[Quest]) -> Result<Self> {
         let (tags, by_tag) = Self::quest_tags(quests);
-        let mut stmt = conn.prepare(
-            "SELECT s.zone_id, s.x, s.y, coalesce(n.min_level, 1), coalesce(n.max_level, n.min_level, 1), n.id
+        // Databases built before the heights have none.
+        let heights: bool = conn.query_row(
+            "SELECT count(*) > 0 FROM pragma_table_info('m_spawn') WHERE name = 'z'",
+            [],
+            |r| r.get(0),
+        )?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT s.zone_id, s.x, s.y, coalesce(n.min_level, 1), coalesce(n.max_level, n.min_level, 1), n.id, {}
              FROM m_spawn s JOIN m_npc n ON n.id = s.entity_id
              WHERE s.entity_type = 'npc' AND s.x >= 0 AND coalesce(n.rank, 0) = 0
                AND coalesce(n.npc_flags, 0) = 0 AND coalesce(n.friendly_to, '') IN ('', 'AH')
                AND s.zone_id NOT IN (SELECT ID FROM client_areatable WHERE (Flags_0 & 256) != 0)",
-        )?;
+            if heights { "s.z" } else { "NULL" }
+        ))?;
         let mut cells = Cells::default();
-        // The zone of each spawn, in the order of its cell's (for the camps).
-        let mut zones: FxHashMap<(i64, i64, i64), Vec<i64>> = FxHashMap::default();
+        // The zone and height of each spawn, in the order of its cell's (for the camps).
+        let mut zones: FxHashMap<(i64, i64, i64), Vec<(i64, Option<i16>)>> = FxHashMap::default();
         // Each spawn kept: its cell and its place there.
         let mut seen: FxHashMap<(i64, i64, i64, u8), (CellKey, usize)> = FxHashMap::default();
         let rows = stmt.query_map([], |r| {
@@ -78,10 +85,11 @@ impl FarmMobs {
                 r.get::<_, i64>(3)?,
                 r.get::<_, i64>(4)?,
                 r.get::<_, i64>(5)?,
+                r.get::<_, Option<f64>>(6)?,
             ))
         })?;
         for row in rows {
-            let (zone, x, y, min, max, npc) = row?;
+            let (zone, x, y, min, max, npc, z) = row?;
             let Some(p) = world.to_world(zone, x, y) else { continue };
             let level = i64::midpoint(min, max).clamp(1, 255) as u8;
             let tag = tags.get(&npc).copied().unwrap_or(0);
@@ -102,7 +110,7 @@ impl FarmMobs {
                         level,
                         tag,
                     });
-                    zones.entry(cell).or_default().push(p.zone);
+                    zones.entry(cell).or_default().push((p.zone, crate::world::height(z)));
                 }
                 // The same mob listed twice (two sources' IDs): a quest's mob if either is.
                 std::collections::hash_map::Entry::Occupied(e) => {
@@ -173,7 +181,10 @@ impl FarmMobs {
     /// The camps of each level: the cells holding `CAMP_MOBS` mobs of the level give or take
     /// one, each at the spawn of those mobs nearest to their middle (a place a mob stands on),
     /// in the order of the cells.
-    fn find_camps(cells: &Cells, zones: &FxHashMap<(i64, i64, i64), Vec<i64>>) -> FxHashMap<(i64, u8), Vec<Pos>> {
+    fn find_camps(
+        cells: &Cells,
+        zones: &FxHashMap<(i64, i64, i64), Vec<(i64, Option<i16>)>>,
+    ) -> FxHashMap<(i64, u8), Vec<Pos>> {
         let mut keys: Vec<_> = cells.keys().copied().collect();
         keys.sort_unstable();
         let mut camps: FxHashMap<(i64, u8), Vec<Pos>> = FxHashMap::default();
@@ -199,7 +210,8 @@ impl FarmMobs {
                         continent: key.0,
                         x: f64::from(spawns[i].x),
                         y: f64::from(spawns[i].y),
-                        zone: zones[&key][i],
+                        zone: zones[&key][i].0,
+                        z: zones[&key][i].1,
                     });
                 }
             }
@@ -328,6 +340,7 @@ mod tests {
             x,
             y,
             zone: 0,
+            z: None,
         }
     }
 

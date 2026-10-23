@@ -61,6 +61,7 @@ fn walks(name: &str) -> Vec<(Pos, Pos, u8)> {
                 x,
                 y,
                 zone: zone as i64,
+                z: None,
             };
             (pos(v[1], v[2], v[3]), pos(v[4], v[5], v[6]), v[7] as u8)
         })

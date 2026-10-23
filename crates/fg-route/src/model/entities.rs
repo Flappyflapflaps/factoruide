@@ -6,7 +6,8 @@ use anyhow::Result;
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
 
-pub(super) type Spawns = HashMap<(EntityKind, i64), Vec<(i64, f64, f64)>>;
+/// Each entity's spawns: zone, map percent coordinates and height when known (`Pos::z`).
+pub(super) type Spawns = HashMap<(EntityKind, i64), Vec<(i64, f64, f64, Option<i16>)>>;
 
 pub(super) struct Entities {
     pub(super) npc: HashMap<i64, (String, i64, i64, i64)>, // name, min level, max level, rank
@@ -83,22 +84,6 @@ impl Entities {
             let (id, v) = row?;
             item.insert(id, v);
         }
-        let mut spawns: Spawns = HashMap::new();
-        let mut stmt = conn.prepare("SELECT entity_type, entity_id, zone_id, x, y FROM m_spawn WHERE x >= 0")?;
-        for row in stmt.query_map([], |r| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, i64>(1)?,
-                r.get(2)?,
-                r.get(3)?,
-                r.get(4)?,
-            ))
-        })? {
-            let (t, id, z, x, y) = row?;
-            if let Some(kind) = EntityKind::parse(&t) {
-                spawns.entry((kind, id)).or_default().push((z, x, y));
-            }
-        }
         let has = |table: &str| -> Result<bool> {
             Ok(
                 conn.query_row("SELECT count(*) > 0 FROM sqlite_schema WHERE name = ?1", [table], |r| {
@@ -106,6 +91,32 @@ impl Entities {
                 })?,
             )
         };
+        // Databases built before the heights have none.
+        let heights: bool = conn.query_row(
+            "SELECT count(*) > 0 FROM pragma_table_info('m_spawn') WHERE name = 'z'",
+            [],
+            |r| r.get(0),
+        )?;
+        let mut spawns: Spawns = HashMap::new();
+        let mut stmt = conn.prepare(&format!(
+            "SELECT entity_type, entity_id, zone_id, x, y, {} FROM m_spawn WHERE x >= 0",
+            if heights { "z" } else { "NULL" }
+        ))?;
+        for row in stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get::<_, Option<f64>>(5)?,
+            ))
+        })? {
+            let (t, id, zone, x, y, z) = row?;
+            if let Some(kind) = EntityKind::parse(&t) {
+                spawns.entry((kind, id)).or_default().push((zone, x, y, crate::world::height(z)));
+            }
+        }
         let mut respawn = HashMap::new();
         if has("m_respawn")? {
             let mut stmt = conn.prepare("SELECT entity_type, entity_id, seconds FROM m_respawn")?;
@@ -185,8 +196,34 @@ impl Entities {
             .get(&(kind, id))
             .into_iter()
             .flatten()
-            .filter_map(|&(z, x, y)| world.to_world(z, x, y).map(|p| (p, z)))
+            .filter_map(|&(zone, x, y, z)| world.to_world(zone, x, y).map(|p| (Pos { z, ..p }, zone)))
             .collect()
+    }
+
+    /// The spawns of unknown height take the height of their entity's nearest spawn of known
+    /// height within `BORROWED_HEIGHT` yards: a mob of a mine stands in it as its pack does.
+    pub(super) fn borrow_heights(&mut self, world: &World) {
+        /// Spawns of an entity this close stand on the same floor (yards): a camp, a pack.
+        const BORROWED_HEIGHT: f64 = 50.0;
+        for points in self.spawns.values_mut() {
+            if points.iter().all(|p| p.3.is_some()) || points.iter().all(|p| p.3.is_none()) {
+                continue;
+            }
+            let at: Vec<Option<Pos>> = (points.iter())
+                .map(|&(zone, x, y, _)| world.to_world(zone, x, y))
+                .collect();
+            let known: Vec<(Pos, i16)> = (points.iter().zip(&at))
+                .filter_map(|(p, w)| Some(((*w)?, p.3?)))
+                .collect();
+            for (p, w) in points.iter_mut().zip(&at) {
+                let Some(w) = w.filter(|_| p.3.is_none()) else { continue };
+                p.3 = (known.iter())
+                    .map(|(q, z)| (q.dist(&w), *z))
+                    .filter(|(d, _)| *d <= BORROWED_HEIGHT)
+                    .min_by(|a, b| a.0.total_cmp(&b.0))
+                    .map(|(_, z)| z);
+            }
+        }
     }
 }
 
@@ -263,6 +300,17 @@ impl EliteSpawns {
     }
 }
 
+/// The middle of the heights known among `heights` (None when none is): the floor most of a
+/// group's spawns stand on.
+pub(super) fn median_height(heights: impl Iterator<Item = Option<i16>>) -> Option<i16> {
+    let mut known: Vec<i16> = heights.flatten().collect();
+    if known.is_empty() {
+        return None;
+    }
+    let k = known.len() / 2;
+    Some(*known.select_nth_unstable(k).1)
+}
+
 /// Densest group of points, favoring those close to `near`. Returns its center and zone.
 pub(super) fn best_cluster(points: &[(Pos, i64)], near: Option<&Pos>) -> Option<(Pos, i64, usize)> {
     const RADIUS: f64 = 200.0;
@@ -276,6 +324,7 @@ pub(super) fn best_cluster(points: &[(Pos, i64)], near: Option<&Pos>) -> Option<
             zone: p.zone,
             x: members.iter().map(|q| q.x).sum::<f64>() / members.len() as f64,
             y: members.iter().map(|q| q.y).sum::<f64>() / members.len() as f64,
+            z: median_height(members.iter().map(|q| q.z)),
         };
         let distance = near.map_or(0.0, |n| n.dist(&center));
         let score = (members.len() as f64).sqrt() / (1.0 + distance / 800.0);

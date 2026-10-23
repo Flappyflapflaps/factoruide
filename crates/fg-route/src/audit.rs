@@ -99,6 +99,15 @@ pub const CHECKS: &[Check] = &[
         error: true,
     },
     Check {
+        name: "ambiguous-floors",
+        what: "places of quests of unknown height (no spawn of the server data at them, nor of \
+               the same NPC or object near) in a cell where floors lie far over each other (a \
+               cave under a hill, a bridge over a river, a tower): the planner puts them on the \
+               surface or the floor most of the floors around are in, maybe the wrong one. Give \
+               the height in the quest data ([[spawn]] with `z`) when it is wrong, or accept it",
+        error: false,
+    },
+    Check {
         name: "timed-quests",
         what: "quests of the guide whose objectives give a time (\"in ten minutes\") while the \
                data has no time limit: the planner may do other things between taking and \
@@ -261,6 +270,11 @@ pub fn audit(
         }
         if on("starter-drops") {
             unknown_starter_drops(&prepared.model, &starter_drops)
+                .into_iter()
+                .for_each(&mut add);
+        }
+        if on("ambiguous-floors") {
+            ambiguous_floors(&prepared.world, &prepared.model)
                 .into_iter()
                 .for_each(&mut add);
         }
@@ -504,6 +518,62 @@ fn large_area(world: &World, p: &Pos) -> Option<Area> {
         .area_of(p)
         .filter(|&(a, size)| a != 0 && size >= LARGE_AREA)
         .map(|(a, _)| (p.continent, a))
+}
+
+/// Floors of a cell this far apart in height (yards) or more make a place of unknown height
+/// there ambiguous.
+const AMBIGUOUS_FLOORS: i16 = 10;
+
+/// Places of quests (givers, turn-ins, objectives) of unknown height whose cell has floors of
+/// large areas `AMBIGUOUS_FLOORS` yards apart or more: the planner may put them on the wrong one.
+/// One finding per entity and zone.
+fn ambiguous_floors(world: &World, model: &Model) -> Vec<Finding> {
+    let mut found: BTreeMap<String, Finding> = BTreeMap::new();
+    for q in &model.quests {
+        let places = (q.starts.iter().map(|l| ("starts at", l)))
+            .chain(q.ends.iter().map(|l| ("ends at", l)))
+            .chain(
+                (q.objectives.iter())
+                    .filter(|o| o.dungeon.is_none())
+                    .flat_map(|o| std::iter::once(&o.loc).chain(o.alts.iter().map(|a| &a.loc)))
+                    .map(|l| ("objective at", l)),
+            );
+        for (what, loc) in places {
+            if loc.pos.z.is_some() || matches!(loc.kind, EntityKind::Dungeon | EntityKind::Taxi) {
+                continue;
+            }
+            let Some((floors, on)) = world.terrain.floors_at(&loc.pos) else {
+                continue;
+            };
+            let (Some(low), Some(high)) = (floors.first(), floors.last()) else {
+                continue;
+            };
+            if high - low < AMBIGUOUS_FLOORS {
+                continue;
+            }
+            let zone = world.zone_at(&loc.pos).map_or("?", |z| world.zone_name(z));
+            let key = format!("{zone}: {}", loc.name);
+            let at = world
+                .zone_at(&loc.pos)
+                .and_then(|z| world.to_map(z, &loc.pos))
+                .map(|m| format!("{:.1}, {:.1}", m.x, m.y))
+                .unwrap_or_default();
+            let heights: Vec<String> = floors.iter().map(i16::to_string).collect();
+            found.entry(key.clone()).or_insert_with(|| Finding {
+                check: "ambiguous-floors",
+                key,
+                detail: format!(
+                    "{} {what} {} ({at}): floors at {} yards, put on {}",
+                    q.name,
+                    loc.name,
+                    heights.join(", "),
+                    on.map_or("none".to_owned(), |h| h.to_string())
+                ),
+                races: Vec::new(),
+            });
+        }
+    }
+    found.into_values().collect()
 }
 
 /// Places of quests the planner cannot get to: in an area left only by boat, portal, lift or

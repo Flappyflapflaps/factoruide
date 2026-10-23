@@ -9,9 +9,13 @@
 //! `add_danger`, the cells near hostile mobs stronger than the character cost more (not near
 //! the walk's ends: the quest's mobs are there).
 //!
-//! A place has no height: it stands on the floor of its cell in the large walkable area most of
-//! the floors around it are in (the street of a city rather than the ground under it), else on
-//! the nearest floor of that area or of a large one (an NPC in a building, on a ledge).
+//! A place of known height (`Pos::z`: a spawn of the server data, a flight master) stands on the
+//! floor of a large walkable area nearest to it in height, of its cell or of the cells around
+//! (`HEIGHT_REACH`), when one is within `HEIGHT_GAP` yards: the mine under the hill, the bridge
+//! over the river. A place of unknown height (or no floor that high) stands on the floor of its
+//! cell in the large walkable area most of the floors around it are in (the street of a city
+//! rather than the ground under it), else on the nearest floor of that area or of a large one (an
+//! NPC in a building, on a ledge).
 //!
 //! A straight line of plain steps (dry, safe) is the walk; otherwise the cheapest path (A* on
 //! the floors, cached). Points it does not connect keep the straight line. The large areas
@@ -50,6 +54,12 @@ const ORIGIN: f64 = 32.0 * TILE;
 const SNAP: i32 = 12;
 /// The floors around a place that tell which large area it stands in (cells).
 const AROUND: i32 = 3;
+/// A place of known height stands on a floor at most this far from it in height (yards): the
+/// floors of a cell have one height, its ground may slope (a spawn on a hillside).
+pub const HEIGHT_GAP: i32 = 6;
+/// Cells around a place of known height where its floor may be, when none of its cell is that
+/// high (a spawn at the edge of a bridge, of a tower's top).
+const HEIGHT_REACH: i32 = 2;
 pub const LARGE_AREA: u32 = 2000;
 /// The path is searched in the box around both ends, this much larger (cells), then larger.
 const MARGINS: [i32; 2] = [60, 240];
@@ -129,12 +139,12 @@ impl Hasher for Packed {
 /// Answers already given in this thread, by terrain, continent, pair of cells and level: the
 /// planner asks the same walks millions of times. Negative: the straight line; infinite: not
 /// connected; NaN: not known.
-type MemoKey = (u32, i64, u64, u8);
+type MemoKey = (u32, i64, u128, u8);
 type Memo = FxHashMap<MemoKey, f32>;
 thread_local! {
     static MEMO: RefCell<Memo> = RefCell::new(Memo::default());
     /// `Terrain::disconnected` already answered, by terrain, continent and pair of cells.
-    static APART: RefCell<FxHashMap<(u32, i64, u64), bool>> = RefCell::new(FxHashMap::default());
+    static APART: RefCell<FxHashMap<(u32, i64, u128), bool>> = RefCell::new(FxHashMap::default());
     /// `Grid::snap` of the cells without a single floor in a large area, by terrain, continent
     /// and cell: the planner asks for the same places again and again.
     static SNAPS: RefCell<FxHashMap<SnapKey, Option<Node>>> = RefCell::new(FxHashMap::default());
@@ -150,14 +160,17 @@ fn find(parent: &mut [u32], mut x: u32) -> u32 {
 
 /// A tile's areas (`Grid::label_tile`): each node's and their sizes.
 type TileLabels = (Vec<u32>, Vec<u32>);
-/// A cell of `SNAPS`: terrain, continent, row and column.
-type SnapKey = (u32, i64, i32, i32);
+/// A cell of `SNAPS`: terrain, continent, row, column and height.
+type SnapKey = (u32, i64, i32, i32, Option<i16>);
+/// Where a place stands for the walks: its cell and its height when known (`Pos::z`).
+type Spot = ((i32, i32), Option<i16>);
 /// Cells `SNAPS` remembers, beyond which it starts over.
 const SNAPS_MAX: usize = 1 << 18;
-/// The turns of the walks already followed (`Terrain::waypoints`), by continent, pair of cells
-/// and level, in shards; a shard is emptied beyond `TURNS_MAX`.
-type TurnKey = (i64, i32, i32, i32, i32, u8);
-type Turns = Vec<Mutex<FxHashMap<TurnKey, Arc<[(i32, i32)]>>>>;
+/// The turns of the walks already followed (`Terrain::waypoints`), by continent, pair of cells,
+/// level and pair of heights, in shards; a shard is emptied beyond `TURNS_MAX`. A turn: its cell
+/// and the height of the floor walked there.
+type TurnKey = (i64, i32, i32, i32, i32, u8, Option<i16>, Option<i16>);
+type Turns = Vec<Mutex<FxHashMap<TurnKey, Arc<[(i32, i32, i16)]>>>>;
 const TURNS_MAX: usize = 1 << 16;
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
@@ -584,6 +597,44 @@ impl Grid {
     fn large(&self, n: Node) -> bool {
         let a = self.area(n);
         a != 0 && self.sizes[a as usize] >= LARGE_AREA
+    }
+
+    /// The height of a node (yards; 0 out of the terrain).
+    fn height(&self, n: Node) -> i16 {
+        self.locate(n)
+            .and_then(|(t, l)| Some(self.nodes(t)?.height[l]))
+            .unwrap_or(0)
+    }
+
+    /// The floor of a large area nearest in height to `z`, at most `HEIGHT_GAP` yards from it:
+    /// of cell (r, c), else of the nearest cells around that have one (`HEIGHT_REACH`).
+    fn floor_at(&self, (r, c): (i32, i32), z: i16) -> Option<Node> {
+        for d in 0..=HEIGHT_REACH {
+            let mut best: Option<(i32, Node)> = None;
+            for dr in -d..=d {
+                for dc in -d..=d {
+                    if dr.abs() != d && dc.abs() != d {
+                        continue;
+                    }
+                    for n in self.large_floors(r + dr, c + dc) {
+                        let gap = (i32::from(self.height(n)) - i32::from(z)).abs();
+                        if gap <= HEIGHT_GAP && best.is_none_or(|b| (gap, n) < b) {
+                            best = Some((gap, n));
+                        }
+                    }
+                }
+            }
+            if let Some((_, n)) = best {
+                return Some(n);
+            }
+        }
+        None
+    }
+
+    /// The node a place of cell (r, c) and height `z` stands on (see the module): the floor
+    /// that high when there is one, else `snap`.
+    fn snap_at(&self, (r, c): (i32, i32), z: Option<i16>) -> Option<Node> {
+        z.and_then(|z| self.floor_at((r, c), z)).or_else(|| self.snap((r, c)))
     }
 
     /// Whether a node is the terrain's own surface.
@@ -1049,7 +1100,7 @@ fn shard((_, a, b, _): Key) -> usize {
     ((a.0 ^ b.0.rotate_left(13)).wrapping_mul(0x9e37_79b9) >> 20) as usize % SHARDS
 }
 
-fn turn_shard((_, r1, c1, r2, c2, _): TurnKey) -> usize {
+fn turn_shard((_, r1, c1, r2, c2, ..): TurnKey) -> usize {
     (r1 ^ r2 ^ c1.wrapping_mul(31) ^ c2.wrapping_mul(17)).unsigned_abs() as usize % SHARDS
 }
 
@@ -1493,20 +1544,28 @@ impl Terrain {
         (floor((ORIGIN - p.x) / CELL), floor((ORIGIN - p.y) / CELL))
     }
 
-    /// `Grid::snap` of a cell of continent `map`, remembered in the thread.
-    fn snapped(&self, grid: &Grid, map: i64, (r, c): (i32, i32)) -> Option<Node> {
-        // Most places: a single floor, in a large area.
+    /// Where a place stands for the walks.
+    fn spot(p: &Pos) -> Spot {
+        (Self::cell(p), p.z)
+    }
+
+    /// `Grid::snap_at` of a place of continent `map`, remembered in the thread.
+    fn snapped(&self, grid: &Grid, map: i64, ((r, c), z): Spot) -> Option<Node> {
+        // Most places: a single floor, in a large area (as high as the place, when known).
         if grid.floors(r, c) == 1 {
             let n = Node::new(r, c, 0);
-            if !grid.blocked(n) && grid.large(n) {
+            if !grid.blocked(n)
+                && grid.large(n)
+                && z.is_none_or(|z| (i32::from(grid.height(n)) - i32::from(z)).abs() <= HEIGHT_GAP)
+            {
                 return Some(n);
             }
         }
-        let key = (self.id, map, r, c);
+        let key = (self.id, map, r, c, z);
         if let Some(known) = SNAPS.with(|m| m.borrow().get(&key).copied()) {
             return known;
         }
-        let node = grid.snap((r, c));
+        let node = grid.snap_at((r, c), z);
         SNAPS.with(|m| {
             let mut m = m.borrow_mut();
             if m.len() >= SNAPS_MAX {
@@ -1585,10 +1644,13 @@ impl Terrain {
         close(a) || close(b)
     }
 
-    /// The key of a walk between two cells in the thread memos.
-    fn memo_key(&self, map: i64, ca: (i32, i32), cb: (i32, i32), level: u8) -> MemoKey {
-        let pack = |(r, c): (i32, i32)| (u64::from(r as u16) << 16) | u64::from(c as u16);
-        (self.id, map, (pack(ca) << 32) | pack(cb), level)
+    /// The key of a walk between two places in the thread memos.
+    fn memo_key(&self, map: i64, a: Spot, b: Spot, level: u8) -> MemoKey {
+        let pack = |((r, c), z): Spot| {
+            let z = z.map_or(0, |z| u64::from(z as u16) | 1 << 16);
+            (u128::from(z) << 32) | (u128::from(r as u16) << 16) | u128::from(c as u16)
+        };
+        (self.id, map, (pack(a) << 64) | pack(b), level)
     }
 
     /// Walking distance (yards) between two points of the same continent (see the module), for
@@ -1604,12 +1666,12 @@ impl Terrain {
             return Some(straight);
         }
         let level = if self.danger_weight > 0.0 { level } else { 0 };
-        let (ca, cb) = (Self::cell(a), Self::cell(b));
-        let key = self.memo_key(a.continent, ca, cb, level);
+        let (sa, sb) = (Self::spot(a), Self::spot(b));
+        let key = self.memo_key(a.continent, sa, sb, level);
         let known = MEMO.with(|m| m.borrow().get(&key).copied());
         let walk = known.unwrap_or_else(|| {
             let w = self
-                .walk_cells(grid, a.continent, ca, cb, level)
+                .walk_cells(grid, a.continent, sa, sb, level)
                 .map_or(f32::NAN, |d| d as f32);
             MEMO.with(|m| m.borrow_mut().insert(key, w));
             w
@@ -1651,7 +1713,7 @@ impl Terrain {
         let Some(grid) = self.grids.get_mut(&mouth.continent) else {
             return false;
         };
-        let Some(node) = grid.snap(Self::cell(mouth)) else {
+        let Some(node) = grid.snap_at(Self::cell(mouth), mouth.z) else {
             return false;
         };
         if !grid.large(node) || inside.continent != mouth.continent {
@@ -1674,9 +1736,21 @@ impl Terrain {
     pub fn area_of(&self, p: &Pos) -> Option<(u32, u32)> {
         let grid = self.grids.get(&p.continent)?;
         let area = self
-            .snapped(grid, p.continent, Self::cell(p))
+            .snapped(grid, p.continent, Self::spot(p))
             .map_or(0, |n| grid.area(n));
         Some((area, grid.sizes.get(area as usize).copied().unwrap_or(0)))
+    }
+
+    /// The heights of the floors of large areas in the cell of `p` (yards, lowest first), and
+    /// the height of the one it stands on (`Grid::snap_at`): None without terrain for its
+    /// continent.
+    pub fn floors_at(&self, p: &Pos) -> Option<(Vec<i16>, Option<i16>)> {
+        let grid = self.grids.get(&p.continent)?;
+        let (r, c) = Self::cell(p);
+        let mut heights: Vec<i16> = grid.large_floors(r, c).map(|n| grid.height(n)).collect();
+        heights.sort_unstable();
+        let on = self.snapped(grid, p.continent, Self::spot(p)).map(|n| grid.height(n));
+        Some((heights, on))
     }
 
     /// The large walkable area a point stands in, twice (once the areas the gaps of the
@@ -1719,7 +1793,7 @@ impl Terrain {
         let Some(grid) = self.grids.get(&p.continent) else {
             return 0;
         };
-        grid.snap(Self::cell(p))
+        grid.snap_at(Self::cell(p), p.z)
             .map_or(0, |n| grid.ends_anew(n, (level, self.danger_costs)).len())
     }
 
@@ -1914,13 +1988,13 @@ impl Terrain {
         let Some(grid) = self.grids.get(&a.continent) else {
             return false;
         };
-        let (ca, cb) = (Self::cell(a), Self::cell(b));
-        let (id, map, cells, _) = self.memo_key(a.continent, ca, cb, 0);
+        let (sa, sb) = (Self::spot(a), Self::spot(b));
+        let (id, map, cells, _) = self.memo_key(a.continent, sa, sb, 0);
         if let Some(known) = APART.with(|m| m.borrow().get(&(id, map, cells)).copied()) {
             return known;
         }
         let area = |c| self.snapped(grid, map, c).map_or(0, |n| grid.area(n));
-        let (area, other) = (area(ca), area(cb));
+        let (area, other) = (area(sa), area(sb));
         let large = |a: u32| a != 0 && grid.sizes[a as usize] >= LARGE_AREA;
         let apart = area != other && large(area) && large(other);
         APART.with(|m| {
@@ -1953,17 +2027,17 @@ impl Terrain {
             return false;
         };
         let area = |p: &Pos| {
-            self.snapped(grid, a.continent, Self::cell(p))
+            self.snapped(grid, a.continent, Self::spot(p))
                 .map_or(0, |n| grid.area(n))
         };
         self.apart(grid, a.continent, area(a), area(b))
     }
 
-    /// Walk between two cells (yards), negative for the straight line, infinite when no walk
+    /// Walk between two places (yards), negative for the straight line, infinite when no walk
     /// goes between them (`separated`), None when the floors do not know the way (two areas
     /// they do not connect, which a lift or a boat may; no path found).
-    fn walk_cells(&self, grid: &Grid, map: i64, ca: (i32, i32), cb: (i32, i32), level: u8) -> Option<f64> {
-        let (a, b, level) = self.walk_ends(grid, map, ca, cb, level)?;
+    fn walk_cells(&self, grid: &Grid, map: i64, sa: Spot, sb: Spot, level: u8) -> Option<f64> {
+        let (a, b, level) = self.walk_ends(grid, map, sa, sb, level)?;
         if a == b {
             return Some(-1.0);
         }
@@ -1990,11 +2064,11 @@ impl Terrain {
         d.is_finite().then_some(f64::from(d))
     }
 
-    /// The floors a walk between two cells goes from and to (`Grid::snap`), and the level its
-    /// danger counts at: none when no mob strong enough is around (one search for every
+    /// The floors a walk between two places goes from and to (`Grid::snap_at`), and the level
+    /// its danger counts at: none when no mob strong enough is around (one search for every
     /// level). None when an end stands on no floor.
-    fn walk_ends(&self, grid: &Grid, map: i64, ca: (i32, i32), cb: (i32, i32), level: u8) -> Option<(Node, Node, u8)> {
-        let (a, b) = (self.snapped(grid, map, ca)?, self.snapped(grid, map, cb)?);
+    fn walk_ends(&self, grid: &Grid, map: i64, sa: Spot, sb: Spot, level: u8) -> Option<(Node, Node, u8)> {
+        let (a, b) = (self.snapped(grid, map, sa)?, self.snapped(grid, map, sb)?);
         let level = if level > 0 && grid.danger_near(a.cell(), b.cell(), MARGINS[MARGINS.len() - 1], level) {
             level
         } else {
@@ -2058,7 +2132,7 @@ impl Terrain {
             return Vec::new();
         };
         let level = if self.danger_weight > 0.0 { level } else { 0 };
-        let Some((na, nb, level)) = self.walk_ends(grid, a.continent, Self::cell(a), Self::cell(b), level) else {
+        let Some((na, nb, level)) = self.walk_ends(grid, a.continent, Self::spot(a), Self::spot(b), level) else {
             return Vec::new();
         };
         let mut nodes = Vec::new();
@@ -2075,6 +2149,7 @@ impl Terrain {
                 let p = Pos {
                     x: ORIGIN - (f64::from(n.r()) + 0.5) * CELL,
                     y: ORIGIN - (f64::from(n.c()) + 0.5) * CELL,
+                    z: Some(grid.height(*n)),
                     ..*a
                 };
                 (p, n.f() as u8)
@@ -2082,24 +2157,25 @@ impl Terrain {
             .collect()
     }
 
-    /// `waypoints` from a cell to another (as snapped).
+    /// `waypoints` from a place to another (as snapped).
     fn waypoints_between(&self, grid: &Grid, a: &Pos, b: &Pos, level: u8) -> Vec<Pos> {
         let level = if self.danger_weight > 0.0 { level } else { 0 };
-        let (ca, cb) = (Self::cell(a), Self::cell(b));
+        let (sa, sb) = (Self::spot(a), Self::spot(b));
+        let (ca, cb) = (sa.0, sb.0);
         // Most walks go straight, or the floors do not know the way: the distance asked before
         // tells it.
-        let distance = self.memo_key(a.continent, ca, cb, level);
+        let distance = self.memo_key(a.continent, sa, sb, level);
         if MEMO
             .with(|m| m.borrow().get(&distance).copied())
             .is_some_and(|w| !(w >= 0.0 && w.is_finite()))
         {
             return Vec::new();
         }
-        let key = (a.continent, ca.0, ca.1, cb.0, cb.1, level);
+        let key = (a.continent, ca.0, ca.1, cb.0, cb.1, level, a.z, b.z);
         let memo = self.turns.get(turn_shard(key));
         let known = memo.and_then(|m| m.lock().unwrap().get(&key).cloned());
         let turns = known.unwrap_or_else(|| {
-            let turns = self.turns(grid, a.continent, ca, cb, level);
+            let turns = self.turns(grid, a.continent, sa, sb, level);
             if let Some(memo) = memo {
                 let mut memo = memo.lock().unwrap();
                 if memo.len() >= TURNS_MAX {
@@ -2110,17 +2186,19 @@ impl Terrain {
             turns
         });
         (turns.iter())
-            .map(|&(r, c)| Pos {
+            .map(|&(r, c, h)| Pos {
                 x: ORIGIN - (f64::from(r) + 0.5) * CELL,
                 y: ORIGIN - (f64::from(c) + 0.5) * CELL,
+                z: Some(h),
                 ..*a
             })
             .collect()
     }
 
-    /// The cells a walk between two cells turns at (`waypoints`).
-    fn turns(&self, grid: &Grid, map: i64, ca: (i32, i32), cb: (i32, i32), level: u8) -> Arc<[(i32, i32)]> {
-        let Some((a, b, level)) = self.walk_ends(grid, map, ca, cb, level) else {
+    /// The cells a walk between two places turns at (`waypoints`), and the height of the floor
+    /// walked there.
+    fn turns(&self, grid: &Grid, map: i64, sa: Spot, sb: Spot, level: u8) -> Arc<[(i32, i32, i16)]> {
+        let Some((a, b, level)) = self.walk_ends(grid, map, sa, sb, level) else {
             return Arc::new([]);
         };
         if a == b || self.line(grid, a, b, level).is_some() {
@@ -2134,15 +2212,15 @@ impl Terrain {
         if self.search_walk(grid, a, b, level, Some(&mut nodes)).is_none() {
             return Arc::new([]);
         }
-        let mut cells: Vec<(i32, i32)> = nodes.iter().map(|n| n.cell()).collect();
-        cells.dedup();
+        let mut cells: Vec<((i32, i32), i16)> = nodes.iter().map(|&n| (n.cell(), grid.height(n))).collect();
+        cells.dedup_by_key(|c| c.0);
         // Where the direction changes (the walk's ends are the points themselves).
         (1..cells.len().saturating_sub(1))
             .filter(|&k| {
-                let (p, q, r) = (cells[k - 1], cells[k], cells[k + 1]);
+                let (p, q, r) = (cells[k - 1].0, cells[k].0, cells[k + 1].0);
                 (q.0 - p.0, q.1 - p.1) != (r.0 - q.0, r.1 - q.1)
             })
-            .map(|k| cells[k])
+            .map(|k| (cells[k].0.0, cells[k].0.1, cells[k].1))
             .collect()
     }
 

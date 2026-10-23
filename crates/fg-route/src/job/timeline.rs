@@ -119,6 +119,9 @@ pub struct Leg {
     /// The character's level, for the way a walk takes (the danger on it).
     #[serde(skip)]
     pub level: i64,
+    /// The heights of `from` and `to` when known (`Pos::z`): the floors the walk joins.
+    #[serde(skip)]
+    pub heights: [Option<i16>; 2],
 }
 
 /// The character before the first step.
@@ -271,18 +274,10 @@ impl Editor {
     fn walk_paths(&self, legs: &[Leg], request: Option<&Request<'_>>) -> Option<Vec<Vec<[f32; 2]>>> {
         let world = &self.prepared.world;
         let planner = self.planner();
-        let at = |p: &[f64; 3]| Pos {
-            continent: p[0] as i64,
-            x: p[1],
-            y: p[2],
-            zone: world
-                .zone_at(&Pos {
-                    continent: p[0] as i64,
-                    x: p[1],
-                    y: p[2],
-                    zone: 0,
-                })
-                .unwrap_or(0),
+        let at = |p: &[f64; 3], z: Option<i16>| Pos {
+            zone: world.zone_at(&pos_of(*p)).unwrap_or(0),
+            z,
+            ..pos_of(*p)
         };
         legs.iter()
             .enumerate()
@@ -294,13 +289,13 @@ impl Editor {
                     return Some(Vec::new());
                 }
                 // The passages it goes through, then the way around the terrain between them.
-                let mut stops = vec![at(&leg.from)];
+                let mut stops = vec![at(&leg.from, leg.heights[0])];
                 stops.extend(
                     leg.via
                         .iter()
-                        .map(|v| at(&[leg.from[0], f64::from(v[0]), f64::from(v[1])])),
+                        .map(|v| at(&[leg.from[0], f64::from(v[0]), f64::from(v[1])], None)),
                 );
-                stops.push(at(&leg.to));
+                stops.push(at(&leg.to, leg.heights[1]));
                 let level = planner.trips().danger_level(leg.level);
                 let mut path: Vec<Pos> = vec![stops[0]];
                 for w in stops.windows(2) {
@@ -681,6 +676,7 @@ impl<'r> Replay<'r> {
                 to: w,
                 via: Vec::new(),
                 level: saved[i].level,
+                heights: [None, saved[i].height],
             };
             let k = found.partition_point(|l| l.start <= start);
             found.insert(k, leg.clone());
@@ -751,6 +747,7 @@ impl<'r> Replay<'r> {
             to: point(to),
             via,
             level,
+            heights: [from.z, to.z],
         };
         let walk_split = |length: f64| [(length - farming).max(0.0), farming.min(length), 0.0, 0.0];
         for (n, e) in events.iter().enumerate() {
@@ -1241,5 +1238,6 @@ fn pos_of(w: [f64; 3]) -> Pos {
         x: w[1],
         y: w[2],
         zone: 0,
+        z: None,
     }
 }

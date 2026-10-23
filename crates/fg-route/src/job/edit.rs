@@ -479,6 +479,7 @@ impl Editor {
                             x,
                             y,
                             zone: 0,
+                            z: None,
                         };
                         world.taxi_near(&pos, 100.0)
                     })

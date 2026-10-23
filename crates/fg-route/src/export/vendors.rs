@@ -178,6 +178,7 @@ mod tests {
                 x,
                 y,
                 zone: 0,
+                z: None,
             },
             zone: 0,
             who: vec![(id, String::new())],

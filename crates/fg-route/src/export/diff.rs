@@ -829,6 +829,7 @@ mod tests {
                 y: 50.0,
             }),
             world: None,
+            height: None,
             path: Vec::new(),
             skill: None,
             line: None,

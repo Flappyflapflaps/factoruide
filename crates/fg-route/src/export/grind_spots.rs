@@ -168,6 +168,7 @@ fn grindable(writer: &StepWriter<'_>, step: &Step, level: i64) -> bool {
             x,
             y,
             zone: 0,
+            z: step.height,
         };
         writer
             .planner

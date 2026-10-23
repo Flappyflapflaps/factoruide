@@ -148,6 +148,7 @@ impl Sources {
         let start = start_place(&entities, world, profile)?;
         let reachable = world.reachable_continents(start.pos.continent);
         forget_unreachable(&mut entities, world, &reachable);
+        entities.borrow_heights(world);
         let (dungeons, dungeon_by_area, inside) = load_dungeons(conn, world, &profile.dungeons, &reachable)?;
         let rows = quest_rows(conn)?;
         let objectives = objective_rows(conn)?;
@@ -224,7 +225,7 @@ fn start_place(entities: &Entities, world: &World, profile: &Profile) -> Result<
 /// Forget everything on continents the character cannot reach.
 fn forget_unreachable(entities: &mut Entities, world: &World, reachable: &HashSet<i64>) {
     for points in entities.spawns.values_mut() {
-        points.retain(|(z, _, _)| on_reachable(world, reachable, *z));
+        points.retain(|(zone, ..)| on_reachable(world, reachable, *zone));
     }
 }
 

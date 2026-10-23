@@ -127,6 +127,7 @@ fn at(r: f64, c: f64) -> Pos {
         x: ORIGIN - 32.0 * TILE - (r + 0.5) * CELL,
         y: ORIGIN - 32.0 * TILE - (c + 0.5) * CELL,
         zone: 0,
+        z: None,
     }
 }
 
@@ -329,6 +330,7 @@ fn cell_of_a_point() {
             x: ORIGIN - v,
             y: ORIGIN - v,
             zone: 0,
+            z: None,
         };
         let expected = ((ORIGIN - p.x) / CELL).floor() as i32;
         assert_eq!(Terrain::cell(&p), (expected, expected), "{v}");
