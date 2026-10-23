@@ -443,8 +443,15 @@ mod tests {
         };
         let key = |p: &Pos, flag| pos_key(p, flag, 0).unwrap();
         assert_ne!(key(&p, false), key(&Pos { zone: 15, ..p }, false));
-        assert_ne!(key(&p, false), key(&Pos { z: Some(0), ..p }, false), "a height on another floor");
-        assert_ne!(key(&Pos { z: Some(-3), ..p }, false), key(&Pos { z: Some(3), ..p }, false));
+        assert_ne!(
+            key(&p, false),
+            key(&Pos { z: Some(0), ..p }, false),
+            "a height on another floor"
+        );
+        assert_ne!(
+            key(&Pos { z: Some(-3), ..p }, false),
+            key(&Pos { z: Some(3), ..p }, false)
+        );
         assert_ne!(key(&p, false), key(&Pos { continent: 0, ..p }, false));
         assert_ne!(key(&p, false), key(&p, true));
         assert!(pos_key(&Pos { zone: -1, ..p }, false, 0).is_none());

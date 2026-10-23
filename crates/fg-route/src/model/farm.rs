@@ -22,6 +22,8 @@ type CellKey = (i64, i64, i64);
 
 /// Spawns of a cell.
 type Cells = FxHashMap<CellKey, Vec<Spawn>>;
+/// The zone and height of each spawn of a cell, in the order of its `Cells` (for the camps).
+type CellPlaces = FxHashMap<CellKey, Vec<(i64, Option<i16>)>>;
 
 /// Mobs met along a walk: their level, how many, and the quests whose objectives are done on
 /// them (`FarmMobs::quests`; 0: none).
@@ -74,7 +76,7 @@ impl FarmMobs {
         ))?;
         let mut cells = Cells::default();
         // The zone and height of each spawn, in the order of its cell's (for the camps).
-        let mut zones: FxHashMap<(i64, i64, i64), Vec<(i64, Option<i16>)>> = FxHashMap::default();
+        let mut zones = CellPlaces::default();
         // Each spawn kept: its cell and its place there.
         let mut seen: FxHashMap<(i64, i64, i64, u8), (CellKey, usize)> = FxHashMap::default();
         let rows = stmt.query_map([], |r| {
@@ -181,10 +183,7 @@ impl FarmMobs {
     /// The camps of each level: the cells holding `CAMP_MOBS` mobs of the level give or take
     /// one, each at the spawn of those mobs nearest to their middle (a place a mob stands on),
     /// in the order of the cells.
-    fn find_camps(
-        cells: &Cells,
-        zones: &FxHashMap<(i64, i64, i64), Vec<(i64, Option<i16>)>>,
-    ) -> FxHashMap<(i64, u8), Vec<Pos>> {
+    fn find_camps(cells: &Cells, zones: &CellPlaces) -> FxHashMap<(i64, u8), Vec<Pos>> {
         let mut keys: Vec<_> = cells.keys().copied().collect();
         keys.sort_unstable();
         let mut camps: FxHashMap<(i64, u8), Vec<Pos>> = FxHashMap::default();

@@ -639,18 +639,16 @@ impl QuestBuilder<'_> {
             .flat_map(|(z, pts)| {
                 let z: i64 = z.parse().unwrap_or(0);
                 let ok = on_reachable(self.world, &self.sources.reachable, z);
-                pts.iter()
-                    .filter(move |_| ok)
-                    .filter_map(move |p| {
-                        let w = self.world.to_world(z, *p.first()?, *p.get(1)?)?;
-                        Some((
-                            Pos {
-                                z: crate::world::height(p.get(2).copied()),
-                                ..w
-                            },
-                            z,
-                        ))
-                    })
+                pts.iter().filter(move |_| ok).filter_map(move |p| {
+                    let w = self.world.to_world(z, *p.first()?, *p.get(1)?)?;
+                    Some((
+                        Pos {
+                            z: crate::world::height(p.get(2).copied()),
+                            ..w
+                        },
+                        z,
+                    ))
+                })
             })
             .collect();
         let (pos, zone, _) = best_cluster(&points, Some(&quest.anchor)).ok_or("exploration area unknown")?;

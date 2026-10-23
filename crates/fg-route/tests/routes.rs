@@ -2721,7 +2721,12 @@ fn items_a_child_hands_over_are_got_at_its_hand_in() {
 fn fargodeep_mine_is_under_the_hill() {
     let p = human_warrior();
     let mut checked = 0;
-    for name in ["The Fargodeep Mine", "Goldtooth", "Gold Dust Exchange", "Kobold Candles"] {
+    for name in [
+        "The Fargodeep Mine",
+        "Goldtooth",
+        "Gold Dust Exchange",
+        "Kobold Candles",
+    ] {
         let q = (p.model.quests.iter().find(|q| q.name == name)).unwrap_or_else(|| panic!("{name} planned"));
         for o in &q.objectives {
             let (floors, on) = p.world.terrain.floors_at(&o.loc.pos).unwrap();
@@ -2753,6 +2758,9 @@ fn zephras_watchtower_is_climbed() {
     assert_eq!(halaan.z, Some(1020));
     let below = fg_route::world::Pos { z: None, ..*halaan };
     let ground = p.world.to_world(16593, 43.0, 25.5).unwrap();
-    let (up, foot) = (p.world.walk_distance(&ground, halaan), p.world.walk_distance(&ground, &below));
+    let (up, foot) = (
+        p.world.walk_distance(&ground, halaan),
+        p.world.walk_distance(&ground, &below),
+    );
     assert!(up > foot + 40.0, "up the stairs: {up} yd, {foot} yd to the foot");
 }

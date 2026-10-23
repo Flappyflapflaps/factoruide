@@ -37,7 +37,8 @@ impl Pos {
 
 /// A height of the game's data (yards) as `Pos::z`: None when unknown or out of range.
 pub fn height(z: Option<f64>) -> Option<i16> {
-    z.filter(|z| z.is_finite() && z.abs() < 30000.0).map(|z| z.round() as i16)
+    z.filter(|z| z.is_finite() && z.abs() < 30000.0)
+        .map(|z| z.round() as i16)
 }
 
 /// A point as the game UI shows it: zone (AreaTable), its map, percent coordinates.
@@ -719,7 +720,13 @@ impl World {
             ) else {
                 continue;
             };
-            let (a, b) = (Pos { z: height(d.from.z), ..a }, Pos { z: height(d.to.z), ..b });
+            let (a, b) = (
+                Pos {
+                    z: height(d.from.z),
+                    ..a
+                },
+                Pos { z: height(d.to.z), ..b },
+            );
             let make = |from: Pos, fz, to: Pos, tz| Link {
                 name: d.name.clone(),
                 from,

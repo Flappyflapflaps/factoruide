@@ -2224,7 +2224,8 @@ impl Terrain {
         if self.search_walk(grid, a, b, level, Some(&mut nodes)).is_none() {
             return Arc::new([]);
         }
-        let mut cells: Vec<((i32, i32), Option<i16>)> = nodes.iter().map(|&n| (n.cell(), grid.known_height(n))).collect();
+        let mut cells: Vec<((i32, i32), Option<i16>)> =
+            nodes.iter().map(|&n| (n.cell(), grid.known_height(n))).collect();
         cells.dedup_by_key(|c| c.0);
         // Where the direction changes (the walk's ends are the points themselves).
         (1..cells.len().saturating_sub(1))

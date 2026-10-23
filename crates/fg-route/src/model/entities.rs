@@ -114,7 +114,10 @@ impl Entities {
         })? {
             let (t, id, zone, x, y, z) = row?;
             if let Some(kind) = EntityKind::parse(&t) {
-                spawns.entry((kind, id)).or_default().push((zone, x, y, crate::world::height(z)));
+                spawns
+                    .entry((kind, id))
+                    .or_default()
+                    .push((zone, x, y, crate::world::height(z)));
             }
         }
         let mut respawn = HashMap::new();
@@ -379,21 +382,28 @@ pub(super) fn alternatives(points: &[(Pos, i64)], first: &Pos, near: &Pos, work:
 mod tests {
     use super::*;
 
-    fn at(x: f64) -> Option<Pos> {
-        Some(Pos {
+    fn at(x: f64) -> Pos {
+        Pos {
             continent: 0,
             x,
             y: 0.0,
             zone: 12,
             z: None,
-        })
+        }
     }
 
     /// A spawn of unknown height stands where its nearest neighbour of known height does, when
     /// close: in the mine with its pack, not on the hill 30 yards away; alone far off, unknown.
     #[test]
     fn spawns_borrow_the_height_of_their_pack() {
-        let points = [at(0.0), at(20.0), at(50.0), at(65.0), at(300.0), None];
+        let points = [
+            Some(at(0.0)),
+            Some(at(20.0)),
+            Some(at(50.0)),
+            Some(at(65.0)),
+            Some(at(300.0)),
+            None,
+        ];
         let mut heights = [Some(10), None, Some(45), None, None, None];
         borrow_heights(&points, &mut heights);
         assert_eq!(heights, [Some(10), Some(10), Some(45), Some(45), None, None]);
@@ -402,7 +412,10 @@ mod tests {
     /// The height of a group is that of most of its spawns.
     #[test]
     fn a_group_stands_at_the_height_of_most_of_its_spawns() {
-        assert_eq!(median_height([Some(10), None, Some(12), Some(45)].into_iter()), Some(12));
+        assert_eq!(
+            median_height([Some(10), None, Some(12), Some(45)].into_iter()),
+            Some(12)
+        );
         assert_eq!(median_height([Some(10), Some(11), Some(45)].into_iter()), Some(11));
         assert_eq!(median_height([None, None].into_iter()), None);
     }

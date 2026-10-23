@@ -597,7 +597,11 @@ fn place_of_known_height_stands_on_its_floor() {
     let inside = t.distance(&west, &kobold(Some(11)), 0).unwrap();
     assert_eq!(floor(&kobold(None)), Some(40), "on the hill without a height");
     assert_eq!(floor(&kobold(Some(11))), Some(10), "in the mine");
-    assert_eq!(floor(&kobold(Some(25))), Some(40), "no floor that high: as without a height");
+    assert_eq!(
+        floor(&kobold(Some(25))),
+        Some(40),
+        "no floor that high: as without a height"
+    );
     assert!(
         (inside - west.dist(&kobold(None))).abs() < 1e-6,
         "straight in through the mouth: {inside}"
@@ -617,7 +621,13 @@ fn place_of_known_height_stands_on_its_floor() {
 #[test]
 fn turns_keep_their_floors() {
     let t = mine_under_a_hill();
-    let (from, kobold) = (at(10.0, 60.0), Pos { z: Some(10), ..at(32.0, 26.0) });
+    let (from, kobold) = (
+        at(10.0, 60.0),
+        Pos {
+            z: Some(10),
+            ..at(32.0, 26.0)
+        },
+    );
     let turns = t.waypoints(&from, &kobold, 0);
     assert!(!turns.is_empty(), "round the hill to the mine's mouth");
     let last = turns.last().unwrap();

@@ -264,7 +264,10 @@ impl Planner<'_> {
         }
         let head = (u64::from(level) << 56) | (u64::from(continent) << 40) | (u64::from(za) << 20) | u64::from(zb);
         let heights = a.height_key() << 32 | b.height_key();
-        let key = (head, [a.x.to_bits(), a.y.to_bits(), b.x.to_bits(), b.y.to_bits(), heights]);
+        let key = (
+            head,
+            [a.x.to_bits(), a.y.to_bits(), b.x.to_bits(), b.y.to_bits(), heights],
+        );
         if let Some(mobs) = self.farm_walks.borrow().get(&key) {
             return mobs.clone();
         }
