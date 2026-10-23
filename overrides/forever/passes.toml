@@ -24,14 +24,6 @@ name = "Riverglades - Swamp of Sorrows road"
 zones = [16591, 8]
 at = { zone = 16591, x = 42.5, y = 97.0 }
 
-# Thendal Grove's watchtower (Zephras Isle): Halaan Hawk-Eye and Myriaal Mistwake stand on top.
-# The quick way down is the Skyborne's glide, Walk on Air (travel.toml).
-[[raised]]
-name = "Thendal Grove watchtower"
-at = { zone = 16593, x = 43.71, y = 24.08 }
-radius = 5.0
-climb = 60.0 # approx: the stairs up the tower (about 10 s)
-
 # Paths the floors break into pieces (a passage at each end of a long one): the plateau they
 # lead to is apart from the land around. Feralas: the Lower Wilds up to Dire Maul's plateau.
 [[pass]]

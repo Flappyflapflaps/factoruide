@@ -35,8 +35,6 @@ pub struct Overrides {
     pub passes: Vec<crate::world::PassDef>,
     /// Areas left only by boat, portal or lift (`[[enclosed]]` of passes.toml).
     pub enclosed: Vec<crate::world::EnclosedDef>,
-    /// Places up a building (`[[raised]]` of passes.toml).
-    pub raised: Vec<crate::world::RaisedDef>,
     /// Caves the terrain does not hold (`[[cave]]` of passes.toml).
     pub caves: Vec<crate::world::CaveDef>,
     /// Ways the game keeps closed (`[[closed]]` of passes.toml).
@@ -191,8 +189,6 @@ impl Overrides {
             #[serde(default)]
             enclosed: Vec<crate::world::EnclosedDef>,
             #[serde(default)]
-            raised: Vec<crate::world::RaisedDef>,
-            #[serde(default)]
             cave: Vec<crate::world::CaveDef>,
             #[serde(default)]
             closed: Vec<crate::world::ClosedDef>,
@@ -215,7 +211,6 @@ impl Overrides {
             teleports: travel.teleport,
             passes: passes.pass,
             enclosed: passes.enclosed,
-            raised: passes.raised,
             caves: passes.cave,
             closed: passes.closed,
             params: parse_toml(&file, "routing.toml")?,

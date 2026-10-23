@@ -9,10 +9,10 @@
 //! `add_danger`, the cells near hostile mobs stronger than the character cost more (not near
 //! the walk's ends: the quest's mobs are there).
 //!
-//! A place of known height (`Pos::z`: a spawn of the server data, a flight master) stands on the
-//! floor of a large walkable area nearest to it in height, of its cell or of the cells around
-//! (`HEIGHT_REACH`), when one is within `HEIGHT_GAP` yards: the mine under the hill, the bridge
-//! over the river. A place of unknown height (or no floor that high) stands on the floor of its
+//! A place of known height (`Pos::z`: a spawn of the server data, a flight master) in a cell of
+//! several floors stands on the floor of a large walkable area nearest to it in height, when one
+//! is within `HEIGHT_GAP` yards: the mine under the hill, the bridge over the river (a place on
+//! no such floor, the nearest cells around that have some, `HEIGHT_REACH`). A place of unknown height (or no floor that high) stands on the floor of its
 //! cell in the large walkable area most of the floors around it are in (the street of a city
 //! rather than the ground under it), else on the nearest floor of that area or of a large one (an
 //! NPC in a building, on a ledge).
@@ -55,8 +55,9 @@ const SNAP: i32 = 12;
 /// The floors around a place that tell which large area it stands in (cells).
 const AROUND: i32 = 3;
 /// A place of known height stands on a floor at most this far from it in height (yards): the
-/// floors of a cell have one height, its ground may slope (a spawn on a hillside).
-pub const HEIGHT_GAP: i32 = 6;
+/// floors of a cell have one height, its ground may slope (a spawn on a hillside). 94 % of the
+/// server data's spawns in cells of floors 10 yards apart or more are within 6 yards of one.
+pub const HEIGHT_GAP: i32 = 8;
 /// Cells around a place of known height where its floor may be, when none of its cell is that
 /// high (a spawn at the edge of a bridge, of a tower's top).
 const HEIGHT_REACH: i32 = 2;
@@ -170,7 +171,7 @@ const SNAPS_MAX: usize = 1 << 18;
 /// level and pair of heights, in shards; a shard is emptied beyond `TURNS_MAX`. A turn: its cell
 /// and the height of the floor walked there.
 type TurnKey = (i64, i32, i32, i32, i32, u8, Option<i16>, Option<i16>);
-type Turns = Vec<Mutex<FxHashMap<TurnKey, Arc<[(i32, i32, i16)]>>>>;
+type Turns = Vec<Mutex<FxHashMap<TurnKey, Arc<[(i32, i32, Option<i16>)]>>>>;
 const TURNS_MAX: usize = 1 << 16;
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
@@ -606,26 +607,36 @@ impl Grid {
             .unwrap_or(0)
     }
 
-    /// The floor of a large area nearest in height to `z`, at most `HEIGHT_GAP` yards from it:
-    /// of cell (r, c), else of the nearest cells around that have one (`HEIGHT_REACH`).
+    /// The height of a node when the floors keep it: None on a cell of a single floor
+    /// (`TileLayers::lean`).
+    fn known_height(&self, n: Node) -> Option<i16> {
+        (self.floors(n.r(), n.c()) >= 2).then(|| self.height(n))
+    }
+
+    /// The floor of a large area nearest in height to `z`, at most `HEIGHT_GAP` yards from it,
+    /// of the nearest cells around (r, c) holding floors of large areas (`HEIGHT_REACH`): None
+    /// when they have none that high, or when one of them has a single floor (its height is not
+    /// kept, `TileLayers::lean`: the place stands on it, as `snap` says).
     fn floor_at(&self, (r, c): (i32, i32), z: i16) -> Option<Node> {
         for d in 0..=HEIGHT_REACH {
-            let mut best: Option<(i32, Node)> = None;
+            let (mut best, mut seen): (Option<(i32, Node)>, bool) = (None, false);
             for dr in -d..=d {
                 for dc in -d..=d {
                     if dr.abs() != d && dc.abs() != d {
                         continue;
                     }
+                    let single = self.floors(r + dr, c + dc) < 2;
                     for n in self.large_floors(r + dr, c + dc) {
+                        seen = true;
                         let gap = (i32::from(self.height(n)) - i32::from(z)).abs();
-                        if gap <= HEIGHT_GAP && best.is_none_or(|b| (gap, n) < b) {
+                        if !single && gap <= HEIGHT_GAP && best.is_none_or(|b| (gap, n) < b) {
                             best = Some((gap, n));
                         }
                     }
                 }
             }
-            if let Some((_, n)) = best {
-                return Some(n);
+            if best.is_some() || seen {
+                return best.map(|b| b.1);
             }
         }
         None
@@ -1551,13 +1562,11 @@ impl Terrain {
 
     /// `Grid::snap_at` of a place of continent `map`, remembered in the thread.
     fn snapped(&self, grid: &Grid, map: i64, ((r, c), z): Spot) -> Option<Node> {
-        // Most places: a single floor, in a large area (as high as the place, when known).
+        // Most places: a single floor, in a large area (whatever their height: the floors keep
+        // none for a cell of one).
         if grid.floors(r, c) == 1 {
             let n = Node::new(r, c, 0);
-            if !grid.blocked(n)
-                && grid.large(n)
-                && z.is_none_or(|z| (i32::from(grid.height(n)) - i32::from(z)).abs() <= HEIGHT_GAP)
-            {
+            if !grid.blocked(n) && grid.large(n) {
                 return Some(n);
             }
         }
@@ -1741,15 +1750,18 @@ impl Terrain {
         Some((area, grid.sizes.get(area as usize).copied().unwrap_or(0)))
     }
 
-    /// The heights of the floors of large areas in the cell of `p` (yards, lowest first), and
-    /// the height of the one it stands on (`Grid::snap_at`): None without terrain for its
+    /// The heights of the floors of large areas in the cell of `p` (yards, lowest first; none
+    /// for a cell of a single floor, whose height the floors do not keep), and the height of
+    /// the one it stands on (`Grid::snap_at`, when kept): None without terrain for its
     /// continent.
     pub fn floors_at(&self, p: &Pos) -> Option<(Vec<i16>, Option<i16>)> {
         let grid = self.grids.get(&p.continent)?;
         let (r, c) = Self::cell(p);
-        let mut heights: Vec<i16> = grid.large_floors(r, c).map(|n| grid.height(n)).collect();
+        let mut heights: Vec<i16> = grid.large_floors(r, c).filter_map(|n| grid.known_height(n)).collect();
         heights.sort_unstable();
-        let on = self.snapped(grid, p.continent, Self::spot(p)).map(|n| grid.height(n));
+        let on = self
+            .snapped(grid, p.continent, Self::spot(p))
+            .and_then(|n| grid.known_height(n));
         Some((heights, on))
     }
 
@@ -2149,7 +2161,7 @@ impl Terrain {
                 let p = Pos {
                     x: ORIGIN - (f64::from(n.r()) + 0.5) * CELL,
                     y: ORIGIN - (f64::from(n.c()) + 0.5) * CELL,
-                    z: Some(grid.height(*n)),
+                    z: grid.known_height(*n),
                     ..*a
                 };
                 (p, n.f() as u8)
@@ -2186,10 +2198,10 @@ impl Terrain {
             turns
         });
         (turns.iter())
-            .map(|&(r, c, h)| Pos {
+            .map(|&(r, c, z)| Pos {
                 x: ORIGIN - (f64::from(r) + 0.5) * CELL,
                 y: ORIGIN - (f64::from(c) + 0.5) * CELL,
-                z: Some(h),
+                z,
                 ..*a
             })
             .collect()
@@ -2197,7 +2209,7 @@ impl Terrain {
 
     /// The cells a walk between two places turns at (`waypoints`), and the height of the floor
     /// walked there.
-    fn turns(&self, grid: &Grid, map: i64, sa: Spot, sb: Spot, level: u8) -> Arc<[(i32, i32, i16)]> {
+    fn turns(&self, grid: &Grid, map: i64, sa: Spot, sb: Spot, level: u8) -> Arc<[(i32, i32, Option<i16>)]> {
         let Some((a, b, level)) = self.walk_ends(grid, map, sa, sb, level) else {
             return Arc::new([]);
         };
@@ -2212,7 +2224,7 @@ impl Terrain {
         if self.search_walk(grid, a, b, level, Some(&mut nodes)).is_none() {
             return Arc::new([]);
         }
-        let mut cells: Vec<((i32, i32), i16)> = nodes.iter().map(|&n| (n.cell(), grid.height(n))).collect();
+        let mut cells: Vec<((i32, i32), Option<i16>)> = nodes.iter().map(|&n| (n.cell(), grid.known_height(n))).collect();
         cells.dedup_by_key(|c| c.0);
         // Where the direction changes (the walk's ends are the points themselves).
         (1..cells.len().saturating_sub(1))

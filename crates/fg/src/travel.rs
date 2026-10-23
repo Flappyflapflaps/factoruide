@@ -68,7 +68,6 @@ pub fn run(
     for w in world.add_caves(&overrides.caves) {
         eprintln!("{w}");
     }
-    world.raise(&overrides.raised);
     for w in world.add_passes(conn, &overrides.passes)? {
         eprintln!("{w}");
     }
@@ -257,7 +256,6 @@ pub fn overrides(conn: &Connection, overrides_dir: &Path, faction: &str) -> Resu
         println!("{w}");
     }
     world.add_caves(&overrides.caves);
-    world.raise(&overrides.raised);
     for w in world.add_passes(conn, &overrides.passes)? {
         println!("{w}");
     }
@@ -302,9 +300,6 @@ pub fn overrides(conn: &Connection, overrides_dir: &Path, faction: &str) -> Resu
             }
         };
         println!("pass {}: {how}", p.name);
-    }
-    for d in &overrides.raised {
-        println!("raised {}: kept until places stand on a floor by their height", d.name);
     }
     Ok(())
 }

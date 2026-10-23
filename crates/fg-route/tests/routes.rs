@@ -1182,7 +1182,7 @@ fn link_kept_to_a_race() {
 #[test]
 fn link_opened_by_a_quest() {
     let mut p = quests_at_start(2);
-    let point = |zone, x, y| fg_route::world::ZonePoint { zone, x, y };
+    let point = |zone, x, y| fg_route::world::ZonePoint { zone, x, y, z: None };
     let link = fg_route::world::LinkDef {
         name: "Opened by quest 1".into(),
         faction: None,
@@ -1218,37 +1218,13 @@ fn link_opened_by_a_quest() {
     assert!(takes_it(&mut p, vec![0, 1]), "quest 1 taken: open");
 }
 
-/// A place up a building (the top of a watchtower) takes its climb more to walk to from below
-/// and back down, nothing more between two points up there.
-#[test]
-fn raised_place_takes_its_climb() {
-    let mut p = quests_at_start(1);
-    let up = p.world.to_world(12, 48.17, 42.94).unwrap();
-    let beside = p.world.to_world(12, 48.19, 42.94).unwrap();
-    let below = p.world.to_world(12, 49.0, 42.94).unwrap();
-    let before = (p.world.walk_distance(&up, &below), p.world.walk_distance(&up, &beside));
-    p.world.raise(&[fg_route::world::RaisedDef {
-        name: "Watchtower".into(),
-        at: fg_route::world::ZonePoint {
-            zone: 12,
-            x: 48.17,
-            y: 42.94,
-        },
-        radius: 5.0,
-        climb: 60.0,
-    }]);
-    assert!((p.world.walk_distance(&up, &below) - before.0 - 60.0).abs() < 1e-6);
-    assert!((p.world.walk_distance(&below, &up) - before.0 - 60.0).abs() < 1e-6);
-    assert!((p.world.walk_distance(&up, &beside) - before.1).abs() < 1e-6);
-}
-
 /// A link open only while a quest is in the log (Vesprystus flies the character to Auberdine
 /// with Flight to Auberdine, the flight path known or not) is closed before it is taken and
 /// once it is turned in.
 #[test]
 fn link_open_while_a_quest_is_held() {
     let mut p = quests_at_start(2);
-    let point = |zone, x, y| fg_route::world::ZonePoint { zone, x, y };
+    let point = |zone, x, y| fg_route::world::ZonePoint { zone, x, y, z: None };
     let link = fg_route::world::LinkDef {
         name: "While quest 1 is held".into(),
         faction: None,

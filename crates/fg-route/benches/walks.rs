@@ -39,7 +39,6 @@ fn world() -> World {
     world.close(&overrides.closed);
     world.enclose(&overrides.enclosed);
     world.add_caves(&overrides.caves);
-    world.raise(&overrides.raised);
     let passes: Vec<_> = (overrides.passes.iter())
         .filter(|p| params.shortcuts || !p.shortcut)
         .cloned()

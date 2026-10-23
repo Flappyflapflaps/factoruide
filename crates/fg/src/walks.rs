@@ -25,7 +25,6 @@ pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path, ce
     world.close(&overrides.closed);
     world.enclose(&overrides.enclosed);
     world.add_caves(&overrides.caves);
-    world.raise(&overrides.raised);
     let passes: Vec<_> = (overrides.passes.iter())
         .filter(|p| params.shortcuts || !p.shortcut)
         .cloned()

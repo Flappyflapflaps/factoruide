@@ -158,7 +158,7 @@ pub struct World {
     /// Tells this world's walks through the passages from another's in the thread memo.
     bridge_id: u32,
     /// Tells this world's walks from another's in the thread memo (`WALKED`): new each time
-    /// what they depend on changes (terrain, danger, raised places, passages).
+    /// what they depend on changes (terrain, danger, passages).
     walk_id: u32,
     /// Flight master nodes by x (`taxi_near`).
     taxi_by_x: Vec<(f64, usize)>,
@@ -167,9 +167,6 @@ pub struct World {
     /// Named places of the zone maps (their exploration overlays): to tell which zone a point
     /// belongs to where zone maps overlap, and to name towns.
     landmarks: Vec<Landmark>,
-    /// Places up a building (`[[raised]]` of passes.toml): center, radius and the yards of
-    /// stairs or ramps walked to get there or back.
-    raised: Vec<(Pos, f64, f64)>,
 }
 
 /// A named place of a zone map (Ratchet, Valley of Trials...), at the center of its overlay.
@@ -348,7 +345,6 @@ impl World {
             taxi_by_x: Vec::new(),
             terrain: crate::terrain::Terrain::load(conn)?,
             landmarks: Vec::new(),
-            raised: Vec::new(),
             area_passes: FxHashMap::default(),
             area_lifts: FxHashMap::default(),
             bridge_id: 0,
@@ -649,6 +645,9 @@ pub struct ZonePoint {
     pub zone: i64,
     pub x: f64,
     pub y: f64,
+    /// Height (yards) when the floor matters (the top of a tower): `Pos::z`.
+    #[serde(default)]
+    pub z: Option<f64>,
 }
 
 /// A transport link as configured in `overrides/travel.toml`.
@@ -715,6 +714,7 @@ impl World {
             ) else {
                 continue;
             };
+            let (a, b) = (Pos { z: height(d.from.z), ..a }, Pos { z: height(d.to.z), ..b });
             let make = |from: Pos, fz, to: Pos, tz| Link {
                 name: d.name.clone(),
                 from,
@@ -857,19 +857,6 @@ pub struct CaveDef {
     pub at: ZonePoint,
     pub inside: ZonePoint,
     pub radius: f64,
-}
-
-/// A place up a building (`[[raised]]` of `overrides/passes.toml`): the top of a watchtower,
-/// whose stairs the straight walk on the terrain does not see. Walking there from below, or back
-/// down, takes `climb` yards more.
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct RaisedDef {
-    pub name: String,
-    pub at: ZonePoint,
-    /// Yards around `at` that are up there.
-    pub radius: f64,
-    /// Yards of stairs or ramps between up there and the ground.
-    pub climb: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -1015,25 +1002,6 @@ impl World {
             }
         }
         warnings
-    }
-
-    /// Places up a building: walks between up there and elsewhere take their climb more. Before
-    /// the passages and links (their walks depend on it).
-    pub fn raise(&mut self, defs: &[RaisedDef]) {
-        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
-        self.raised = (defs.iter())
-            .filter_map(|d| Some((self.to_world(d.at.zone, d.at.x, d.at.y)?, d.radius, d.climb)))
-            .collect();
-    }
-
-    /// Yards of stairs between `a` and `b`: the climb of each raised place one of them is up and
-    /// the other not.
-    fn climb(&self, a: &Pos, b: &Pos) -> f64 {
-        let up = |p: &Pos, c: &Pos, r: f64| p.continent == c.continent && (p.x - c.x).hypot(p.y - c.y) <= r;
-        (self.raised.iter())
-            .filter(|(c, r, _)| up(a, c, *r) != up(b, c, *r))
-            .map(|(_, _, climb)| climb)
-            .sum()
     }
 
     /// Register passages; subzone positions come from the map exploration overlays.
@@ -1278,7 +1246,7 @@ impl World {
                 }
             }
         }
-        best.min(straight * UNKNOWN_DETOUR) + self.climb(&a.pos, &b.pos)
+        best.min(straight * UNKNOWN_DETOUR)
     }
 
     /// The passages of the shortest walk from passage `i` to passage `j`, both included (none
@@ -1543,13 +1511,12 @@ impl World {
 
     /// `ground` and the way it goes.
     fn ground_way(&self, a: &Pos, b: &Pos, level: u8) -> (f64, Way) {
-        let climb = self.climb(a, b);
         let straight = a.dist(b);
         let known = self.terrain.distance(a, b, level);
         if known.is_some_and(f64::is_infinite) {
             // Another continent, or an enclosed area and another.
             return match self.bridge(a, b, level) {
-                Some(bridge) if a.continent == b.continent => (bridge.dist + climb, Way::Bridge(bridge)),
+                Some(bridge) if a.continent == b.continent => (bridge.dist, Way::Bridge(bridge)),
                 _ => (f64::INFINITY, Way::Terrain),
             };
         }
@@ -1560,14 +1527,14 @@ impl World {
                 && walk > straight * UNKNOWN_DETOUR
                 && let Some(lift) = self.lift(a, b, level, walk)
             {
-                return (lift.dist + climb, Way::Bridge(lift));
+                return (lift.dist, Way::Bridge(lift));
             }
-            return (walk + climb, Way::Terrain);
+            return (walk, Way::Terrain);
         }
         let walk = known.unwrap_or(f64::INFINITY);
         // Through the gaps opened, about as straight as can be: no passage beats it by much.
         if walk <= straight * UNKNOWN_DETOUR {
-            return (walk + climb, Way::Terrain);
+            return (walk, Way::Terrain);
         }
         let bridge = self.bridge(a, b, level);
         let cap = straight
@@ -1578,11 +1545,11 @@ impl World {
             };
         let via = bridge.map_or(f64::INFINITY, |b| b.dist);
         if walk <= via && walk <= cap {
-            (walk + climb, Way::Terrain)
+            (walk, Way::Terrain)
         } else if let Some(bridge) = bridge.filter(|_| via <= cap) {
-            (via + climb, Way::Bridge(bridge))
+            (via, Way::Bridge(bridge))
         } else {
-            (cap + climb, Way::Straight)
+            (cap, Way::Straight)
         }
     }
 

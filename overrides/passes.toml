@@ -306,12 +306,6 @@ at = { zone = 141, x = 55.5, y = 90.0 }
 name = "Teldrassil"                 # the portal down to Rut'theran Village
 at = { zone = 141, x = 56.0, y = 60.0 }
 
-# --- Raised places -------------------------------------------------------------------
-# The top of a building (a watchtower) the terrain does not see: walks there from below, or back
-# down, take `climb` yards of stairs or ramps more. `radius`: yards around `at` that are up there.
-# A link (travel.toml) may leave such a place faster (a jump, a glide). <edition>/passes.toml
-# adds those of one game version.
-
 # --- Caves ---------------------------------------------------------------------------
 # A cave the terrain does not hold: it holds the ground above, so the places inside stand on
 # steep ground and would be walked to from wherever is nearest, maybe over a ridge. The places
