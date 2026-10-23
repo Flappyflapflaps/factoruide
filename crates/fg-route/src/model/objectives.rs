@@ -630,7 +630,8 @@ impl QuestBuilder<'_> {
         })
     }
 
-    /// Reach an area. Its points: `extra` = {zone: [[x, y], ...]}.
+    /// Reach an area. Its points: `extra` = {zone: [[x, y], ...]}, a point `[x, y, z]` with its
+    /// height when known (its area trigger's).
     fn explore(&self, quest: &QuestContext<'_>, text: Option<String>, extra: Option<&str>) -> Result<Objective, Skip> {
         let area: HashMap<String, Vec<Vec<f64>>> = extra.and_then(|e| serde_json::from_str(e).ok()).unwrap_or_default();
         let points: Vec<_> = area
@@ -640,7 +641,16 @@ impl QuestBuilder<'_> {
                 let ok = on_reachable(self.world, &self.sources.reachable, z);
                 pts.iter()
                     .filter(move |_| ok)
-                    .filter_map(move |p| self.world.to_world(z, *p.first()?, *p.get(1)?).map(|w| (w, z)))
+                    .filter_map(move |p| {
+                        let w = self.world.to_world(z, *p.first()?, *p.get(1)?)?;
+                        Some((
+                            Pos {
+                                z: crate::world::height(p.get(2).copied()),
+                                ..w
+                            },
+                            z,
+                        ))
+                    })
             })
             .collect();
         let (pos, zone, _) = best_cluster(&points, Some(&quest.anchor)).ok_or("exploration area unknown")?;

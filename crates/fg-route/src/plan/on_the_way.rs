@@ -16,8 +16,9 @@ pub(crate) const CAMP_LOG_MARGIN: usize = 2;
 pub(crate) const CAMP_AHEAD: u32 = 30;
 
 /// A walk: in one word the level its danger counts at (0: none), the continent and its ends'
-/// zones (the passages taken between them), then the bits of its ends' coordinates.
-pub(crate) type FarmKey = (u64, [u64; 4]);
+/// zones (the passages taken between them), then the bits of its ends' coordinates and their
+/// heights.
+pub(crate) type FarmKey = (u64, [u64; 5]);
 
 /// Normal mobs met on each walk, by level (see `FarmMobs::along`).
 pub(crate) type FarmWalks = std::cell::RefCell<FxHashMap<FarmKey, Rc<[Met]>>>;
@@ -262,7 +263,8 @@ impl Planner<'_> {
             return farm();
         }
         let head = (u64::from(level) << 56) | (u64::from(continent) << 40) | (u64::from(za) << 20) | u64::from(zb);
-        let key = (head, [a.x.to_bits(), a.y.to_bits(), b.x.to_bits(), b.y.to_bits()]);
+        let heights = a.height_key() << 32 | b.height_key();
+        let key = (head, [a.x.to_bits(), a.y.to_bits(), b.x.to_bits(), b.y.to_bits(), heights]);
         if let Some(mobs) = self.farm_walks.borrow().get(&key) {
             return mobs.clone();
         }

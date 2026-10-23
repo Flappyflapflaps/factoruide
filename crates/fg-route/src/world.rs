@@ -22,6 +22,11 @@ pub struct Pos {
 }
 
 impl Pos {
+    /// The height in a key of the memos (`z`): known heights apart from the unknown one.
+    pub(crate) fn height_key(&self) -> u64 {
+        self.z.map_or(0, |z| u64::from(z as u16) | 1 << 16)
+    }
+
     pub fn dist(&self, o: &Pos) -> f64 {
         if self.continent != o.continent {
             return f64::INFINITY;
@@ -100,8 +105,8 @@ pub struct Bridge {
 }
 
 /// Walks through the passages already worked out in this thread, by world (`World::bridge_id`),
-/// continent, pair of cells and level.
-type BridgeKey = (u32, i64, (i32, i32), (i32, i32), u8);
+/// continent, pair of cells, level and pair of heights.
+type BridgeKey = (u32, i64, (i32, i32), (i32, i32), u8, u64);
 thread_local! {
     static BRIDGES: RefCell<FxHashMap<BridgeKey, Option<Bridge>>> = RefCell::new(FxHashMap::default());
     /// The same for the walks the floors join by a long way round (`World::lift`).
@@ -113,7 +118,7 @@ static NEXT_BRIDGE_ID: AtomicU32 = AtomicU32::new(1);
 /// Walks already worked out in this thread (`World::walk_distance_at`), by world
 /// (`World::walk_id`) and terrain (`Terrain::id`), level and ends (coordinates, then continent and zone of each): the trips
 /// to the flight paths and ports nearest a place are walked again for every trip from it.
-type WalkKey = (u64, u8, [u64; 6]);
+type WalkKey = (u64, u8, [u64; 7]);
 thread_local! {
     static WALKED: RefCell<FxHashMap<WalkKey, f64>> = RefCell::new(FxHashMap::default());
 }
@@ -1317,7 +1322,15 @@ impl World {
         let key = (
             u64::from(self.walk_id) << 32 | u64::from(self.terrain.id()),
             level,
-            [a.x.to_bits(), a.y.to_bits(), b.x.to_bits(), b.y.to_bits(), ha, hb],
+            [
+                a.x.to_bits(),
+                a.y.to_bits(),
+                b.x.to_bits(),
+                b.y.to_bits(),
+                ha,
+                hb,
+                a.height_key() << 32 | b.height_key(),
+            ],
         );
         if let Some(d) = WALKED.with(|m| m.borrow().get(&key).copied()) {
             return d;
@@ -1577,6 +1590,7 @@ impl World {
             crate::terrain::Terrain::cell_of(a),
             crate::terrain::Terrain::cell_of(b),
             level,
+            a.height_key() << 32 | b.height_key(),
         );
         if let Some(known) = BRIDGES.with(|m| m.borrow().get(&key).copied()) {
             return known;
@@ -1605,6 +1619,7 @@ impl World {
             crate::terrain::Terrain::cell_of(a),
             crate::terrain::Terrain::cell_of(b),
             level,
+            a.height_key() << 32 | b.height_key(),
         );
         if let Some(known) = LIFTS.with(|m| m.borrow().get(&key).copied()) {
             return known;

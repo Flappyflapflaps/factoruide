@@ -2714,3 +2714,45 @@ fn items_a_child_hands_over_are_got_at_its_hand_in() {
         q.objectives.iter().map(|o| &o.text).collect::<Vec<_>>()
     );
 }
+
+/// Places of known height stand on their floor where several lie over each other: Fargodeep
+/// Mine's kobolds, Goldtooth and the area to scout are in the mine, not on the hill over it.
+#[test]
+fn fargodeep_mine_is_under_the_hill() {
+    let p = human_warrior();
+    let mut checked = 0;
+    for name in ["The Fargodeep Mine", "Goldtooth", "Gold Dust Exchange", "Kobold Candles"] {
+        let q = (p.model.quests.iter().find(|q| q.name == name)).unwrap_or_else(|| panic!("{name} planned"));
+        for o in &q.objectives {
+            let (floors, on) = p.world.terrain.floors_at(&o.loc.pos).unwrap();
+            assert!(o.loc.pos.z.is_some(), "{name}: {} has its height", o.loc.name);
+            let top = *floors.last().unwrap();
+            assert!(
+                on.is_some_and(|h| h <= top - 20),
+                "{name}: {} on {on:?} of {floors:?}",
+                o.loc.name
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked >= 4);
+}
+
+/// Thendal Grove's watchtower (WoW Forever, Zephras Isle): Halaan Hawk-Eye stands on its top
+/// (the height the quest data gives), walked to up its stairs from the ground below.
+#[test]
+fn zephras_watchtower_is_climbed() {
+    let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Forever).unwrap();
+    let request = PlanRequest {
+        params: Some(overrides.params.with_overrides(&[]).unwrap()),
+        ..request("skyborne", "mage", 5, &[])
+    };
+    let p = job::prepare(&database_of("forever"), &overrides, &request, &|_| {}).unwrap();
+    let q = &p.model.quests[quest(&p, 94414).expect("The Anchors of Zephras planned") as usize];
+    let halaan = &q.starts[0].pos;
+    assert_eq!(halaan.z, Some(1020));
+    let below = fg_route::world::Pos { z: None, ..*halaan };
+    let ground = p.world.to_world(16593, 43.0, 25.5).unwrap();
+    let (up, foot) = (p.world.walk_distance(&ground, halaan), p.world.walk_distance(&ground, &below));
+    assert!(up > foot + 40.0, "up the stairs: {up} yd, {foot} yd to the foot");
+}

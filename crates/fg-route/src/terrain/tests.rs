@@ -560,3 +560,69 @@ fn far_walks_through_the_gates() {
 
 /// How much longer than the cheapest a walk through the gates is, at most (on these tests).
 const GATES_SLACK: f64 = 1.25;
+
+/// A mine under a hill: the ground at 10 yards, a hill at 40 (rows and columns 20 to 44) climbed
+/// by a ramp from the east, a mine under its west half at 10 (rows 28 to 36, columns 20 to 31)
+/// that opens on the ground west of the hill.
+fn mine_under_a_hill() -> Terrain {
+    floors_terrain(&[(1, 32, 32)], |_, r, c| {
+        let (r, c) = (r - 32 * 64, c - 32 * 64);
+        let hill = (20..=44).contains(&r) && (20..=44).contains(&c);
+        let mine = (28..=36).contains(&r) && (20..=31).contains(&c);
+        let ramp = (20..=44).contains(&r) && (45..=54).contains(&c);
+        if mine {
+            vec![(40, 0), (10, 0)]
+        } else if hill {
+            vec![(40, 0)]
+        } else if ramp {
+            vec![(40 - (c - 44) as i16 * 3, 0)]
+        } else {
+            vec![(10, 0)]
+        }
+    })
+}
+
+/// A place of known height in a cell of several floors stands on the floor of its height: the
+/// kobold in the mine is walked to through the mine's mouth, not up the hill above it; without
+/// a height, or a height of no floor there, on the surface as before. A cell of a single floor
+/// keeps it whatever the height.
+#[test]
+fn place_of_known_height_stands_on_its_floor() {
+    let t = mine_under_a_hill();
+    let west = at(32.0, 10.0);
+    let kobold = |z: Option<i16>| Pos { z, ..at(32.0, 26.0) };
+    let floor = |p: &Pos| t.floors_at(p).unwrap().1;
+    // Asked first without a height: the answers given for the cell are not those of a height.
+    let over = t.distance(&west, &kobold(None), 0).unwrap();
+    let inside = t.distance(&west, &kobold(Some(11)), 0).unwrap();
+    assert_eq!(floor(&kobold(None)), Some(40), "on the hill without a height");
+    assert_eq!(floor(&kobold(Some(11))), Some(10), "in the mine");
+    assert_eq!(floor(&kobold(Some(25))), Some(40), "no floor that high: as without a height");
+    assert!(
+        (inside - west.dist(&kobold(None))).abs() < 1e-6,
+        "straight in through the mouth: {inside}"
+    );
+    assert!(over > 2.0 * inside, "up the ramp and over the hill: {over} vs {inside}");
+    assert_eq!(t.distance(&kobold(Some(11)), &west, 0), Some(inside), "and back out");
+    // On the ground (one floor), a height changes nothing.
+    let ground = |z| Pos { z, ..at(10.0, 10.0) };
+    assert_eq!(
+        t.distance(&west, &ground(Some(90)), 0),
+        t.distance(&west, &ground(None), 0)
+    );
+}
+
+/// The turns of a walk to a place of known height keep the heights of the floors they are on:
+/// asked again from a turn, the walk stays on that floor.
+#[test]
+fn turns_keep_their_floors() {
+    let t = mine_under_a_hill();
+    let (from, kobold) = (at(10.0, 60.0), Pos { z: Some(10), ..at(32.0, 26.0) });
+    let turns = t.waypoints(&from, &kobold, 0);
+    assert!(!turns.is_empty(), "round the hill to the mine's mouth");
+    let last = turns.last().unwrap();
+    assert!(
+        (t.distance(last, &kobold, 0).unwrap() - last.dist(&kobold)).abs() < 1e-6,
+        "from the last turn, straight in: {last:?}"
+    );
+}

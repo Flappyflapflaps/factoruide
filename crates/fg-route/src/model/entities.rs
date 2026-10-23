@@ -201,10 +201,8 @@ impl Entities {
     }
 
     /// The spawns of unknown height take the height of their entity's nearest spawn of known
-    /// height within `BORROWED_HEIGHT` yards: a mob of a mine stands in it as its pack does.
+    /// height within `BORROWED_HEIGHT` yards (`borrow_heights`).
     pub(super) fn borrow_heights(&mut self, world: &World) {
-        /// Spawns of an entity this close stand on the same floor (yards): a camp, a pack.
-        const BORROWED_HEIGHT: f64 = 50.0;
         for points in self.spawns.values_mut() {
             if points.iter().all(|p| p.3.is_some()) || points.iter().all(|p| p.3.is_none()) {
                 continue;
@@ -212,18 +210,32 @@ impl Entities {
             let at: Vec<Option<Pos>> = (points.iter())
                 .map(|&(zone, x, y, _)| world.to_world(zone, x, y))
                 .collect();
-            let known: Vec<(Pos, i16)> = (points.iter().zip(&at))
-                .filter_map(|(p, w)| Some(((*w)?, p.3?)))
-                .collect();
-            for (p, w) in points.iter_mut().zip(&at) {
-                let Some(w) = w.filter(|_| p.3.is_none()) else { continue };
-                p.3 = (known.iter())
-                    .map(|(q, z)| (q.dist(&w), *z))
-                    .filter(|(d, _)| *d <= BORROWED_HEIGHT)
-                    .min_by(|a, b| a.0.total_cmp(&b.0))
-                    .map(|(_, z)| z);
+            let mut heights: Vec<Option<i16>> = points.iter().map(|p| p.3).collect();
+            borrow_heights(&at, &mut heights);
+            for (p, z) in points.iter_mut().zip(heights) {
+                p.3 = z;
             }
         }
+    }
+}
+
+/// Spawns of an entity this close stand on the same floor (yards): a camp, a pack.
+const BORROWED_HEIGHT: f64 = 50.0;
+
+/// The heights of an entity's spawns (`at`, None when not placed) where unknown: that of its
+/// nearest spawn of known height within `BORROWED_HEIGHT` yards, a mob of a mine standing in it
+/// as its pack does.
+fn borrow_heights(at: &[Option<Pos>], heights: &mut [Option<i16>]) {
+    let known: Vec<(Pos, i16)> = (at.iter().zip(heights.iter()))
+        .filter_map(|(p, z)| Some(((*p)?, (*z)?)))
+        .collect();
+    for (p, z) in at.iter().zip(heights.iter_mut()) {
+        let Some(p) = p.filter(|_| z.is_none()) else { continue };
+        *z = (known.iter())
+            .map(|(q, h)| (q.dist(&p), *h))
+            .filter(|(d, _)| *d <= BORROWED_HEIGHT)
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, h)| h);
     }
 }
 
@@ -361,4 +373,37 @@ pub(super) fn alternatives(points: &[(Pos, i64)], first: &Pos, near: &Pos, work:
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn at(x: f64) -> Option<Pos> {
+        Some(Pos {
+            continent: 0,
+            x,
+            y: 0.0,
+            zone: 12,
+            z: None,
+        })
+    }
+
+    /// A spawn of unknown height stands where its nearest neighbour of known height does, when
+    /// close: in the mine with its pack, not on the hill 30 yards away; alone far off, unknown.
+    #[test]
+    fn spawns_borrow_the_height_of_their_pack() {
+        let points = [at(0.0), at(20.0), at(50.0), at(65.0), at(300.0), None];
+        let mut heights = [Some(10), None, Some(45), None, None, None];
+        borrow_heights(&points, &mut heights);
+        assert_eq!(heights, [Some(10), Some(10), Some(45), Some(45), None, None]);
+    }
+
+    /// The height of a group is that of most of its spawns.
+    #[test]
+    fn a_group_stands_at_the_height_of_most_of_its_spawns() {
+        assert_eq!(median_height([Some(10), None, Some(12), Some(45)].into_iter()), Some(12));
+        assert_eq!(median_height([Some(10), Some(11), Some(45)].into_iter()), Some(11));
+        assert_eq!(median_height([None, None].into_iter()), None);
+    }
 }

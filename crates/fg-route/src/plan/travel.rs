@@ -62,18 +62,13 @@ impl Hop {
     }
 }
 
-/// A height in a key (`Pos::z`): known heights apart from the unknown one.
-pub(crate) fn height_key(z: Option<i16>) -> u64 {
-    z.map_or(0, |z| u64::from(z as u16) | 1 << 16)
-}
-
 /// The key of point `p` (None when its continent or zone does not fit: not remembered), with a
 /// flag and a level (the danger's, 0 when it does not count).
 fn pos_key(p: &Pos, flag: bool, level: u8) -> Option<PosKey> {
     let continent = u16::try_from(p.continent).ok()?;
     let zone = u32::try_from(p.zone).ok()?;
     let head = (u64::from(level) << 50) | (u64::from(continent) << 33) | (u64::from(zone) << 1) | u64::from(flag);
-    Some([head, p.x.to_bits(), p.y.to_bits(), height_key(p.z)])
+    Some([head, p.x.to_bits(), p.y.to_bits(), p.height_key()])
 }
 
 /// A lower bound of `Trips::fastest` from a state: every walk is at least the straight line
