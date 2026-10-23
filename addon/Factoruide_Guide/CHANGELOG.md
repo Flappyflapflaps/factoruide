@@ -7,6 +7,7 @@ under Unreleased; `scripts/release.sh` gives them the release's version.
 ## Unreleased
 
 - Objectives done in the same area (mobs next to each other) are shown together in Now, and a level checkpoint between them no longer cuts them apart: it comes after them (GitHub #41).
+- Merchant, trainer, flight master and inn steps before the last quest you handed in are done on their own when a guide is loaded or reset, instead of each needing a right click.
 
 ## 0.14.0 (2026-10-20)
 

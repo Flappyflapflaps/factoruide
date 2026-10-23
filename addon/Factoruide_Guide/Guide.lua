@@ -1078,9 +1078,25 @@ function Guide:PrevGroup()
     self:Go(GroupOf(math.max(1, first - 1)))
 end
 
+local VISITS = { flight_master = true, train = true, sell = true, bind = true, profession = true }
+
+--- The visits (merchant, trainer, flight master, inn) before the last quest the game knows as
+--- handed in are done: their marks are lost with a new version of the guide or a character
+--- joining it halfway, and the game cannot say whether a merchant was seen.
+local function PassVisits()
+    local last = 0
+    for i, step in ipairs(route.steps) do
+        if step.k == "turnin" and step.q and QuestLog.IsQuestFlaggedCompleted(step.q) then last = i end
+    end
+    for i = 1, last - 1 do
+        if VISITS[route.steps[i].k] and not state.marks[i] then state.marks[i] = true end
+    end
+end
+
 --- Go to the first step not done yet (on login, route change, or the resync button).
 function Guide:Resync()
     if route then
+        PassVisits()
         state.step = 1
         SkipDone()
     end

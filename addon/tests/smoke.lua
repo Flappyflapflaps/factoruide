@@ -1694,6 +1694,32 @@ do
 end
 print("objectives of a place grouped ok")
 
+-- A guide loaded on a character that went on without it (or a new version of the guide, which
+-- drops the marks of the visits): the merchant, trainer and inn visits before the last quest handed
+-- in are done, the ones after it are not (GitHub #44).
+FG.Routes["visits-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "sell", t = "Sell", e = "npc", id = 66, m = 1429, x = 41.9, y = 67.1, lvl = 3 },
+        { k = "accept", t = "Accept A", q = 8201, lvl = 3 },
+        { k = "train", t = "Train", e = "npc", id = 67, m = 1429, x = 40, y = 60, lvl = 3 },
+        { k = "turnin", t = "Turn in A", q = 8201, lvl = 3 },
+        { k = "bind", t = "Bind", e = "npc", id = 68, m = 1429, x = 40, y = 61, lvl = 4 },
+        { k = "accept", t = "Accept B", q = 8202, lvl = 4 },
+    },
+}
+completed[8201] = true
+useRoute("visits-test")
+assert(char.guide.step == 5, "visits before the last turn-in are done, step " .. char.guide.step)
+assert(char.guide.marks[1] and char.guide.marks[3] and not char.guide.marks[5], "only the visits behind")
+completed[8201] = nil
+print("visits passed ok")
+
 -- A dungeon run followed by its quests is done on entering the dungeon, then each quest step as
 -- the quest progresses; without them (guides made before), once back out of the dungeon.
 local inside = false

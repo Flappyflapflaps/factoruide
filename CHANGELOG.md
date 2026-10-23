@@ -22,6 +22,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 ### Addon
 
 - Objectives done in the same area are shown together under Now; a level checkpoint between them comes after them.
+- Merchant, trainer, flight master and inn steps before the last quest you handed in are done on their own when a guide is loaded or reset, instead of each needing a right click.
 
 ## 0.14.0 (2026-10-21)
 
