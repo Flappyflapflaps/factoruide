@@ -181,7 +181,7 @@ profile now**) and the guides (choose the one each character follows, start over
 then a page per group of settings and an Advanced page (the recordings). What you do while
 playing is on the guide's buttons and in the game's key bindings (Factoruide section): next and
 previous step, mark a step done, undo the last mark, next spot, full or minimal guide, show or
-hide the guide or all the addon's windows, time per level, quest item, gust of wind, the options.
+hide the guide or all the addon's windows, time per level, quest item, the options.
 On WoW Forever with [Polestar](https://github.com/fitzforge/polestar) installed, the app also
 writes your guides as a Polestar guide pack (Factoruide_Polestar; the web app downloads it). In Polestar, choose Factoruide
 under "Suggest guides from" on the "Community guides" page: it offers each character the guide of
@@ -201,7 +201,7 @@ planned routes.
   map shows them all.
 - **Show or hide the guide** (a key binding, or the setting) shows or hides the guide only;
   **Show or hide all the addon's windows** (a key binding) hides all of its windows and marks
-  (guide, compass or wind, quest panel, quest item button, map pins and waypoint, the
+  (guide, compass, quest panel, quest item button, map pins and waypoint, the
   upgrade line of item tooltips, safety alerts) and the same key brings them back as they were.
   For the session only: progress is kept and the automation goes on; pressed in combat, it
   applies when the fight ends.

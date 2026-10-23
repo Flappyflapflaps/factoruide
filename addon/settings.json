@@ -158,33 +158,6 @@
       "sections": [
         {
           "options": [
-            {
-              "key": "windGuide",
-              "kind": "select",
-              "default": "auto",
-              "label": "Le vent à la place de la boussole",
-              "help": "Pas de boussole : de temps en temps une rafale passe près du personnage et file vers l'étape en cours, plus souvent quand vous partez ailleurs, et tourbillonne à l'arrivée. Pas en combat ni en instance. Automatique : avec Poulpix UI Immersive.",
-              "options": [
-                { "value": "auto", "label": "Automatique" },
-                { "value": "on", "label": "Toujours" },
-                { "value": "off", "label": "Jamais" }
-              ]
-            },
-            {
-              "key": "windStyle",
-              "kind": "select",
-              "default": "wind",
-              "requires": "windGuide",
-              "label": "Aspect du vent",
-              "options": [
-                { "value": "wind", "label": "Traînées de vent" },
-                { "value": "mist", "label": "Brume basse" },
-                { "value": "leaves", "label": "Feuilles" },
-                { "value": "wisps", "label": "Feux follets" }
-              ]
-            },
-            { "key": "windInterval", "kind": "number", "default": 8, "min": 3, "max": 25, "step": 1, "requires": "windGuide", "label": "Secondes entre deux rafales", "help": "Plus souvent quand vous tournez le dos à l'étape, moins quand vous y allez tout droit. Une rafale à la demande : raccourci dans les touches du jeu (Factoruide)." },
-            { "key": "windIntensity", "kind": "number", "default": 1, "min": 0.3, "max": 2, "step": 0.1, "percent": true, "requires": "windGuide", "label": "Force du vent" },
             { "key": "poulpixFade", "reload": true, "kind": "bool", "default": true, "label": "Fondu avec Poulpix UI Immersive", "help": "Les fenêtres de Factoruide s'effacent avec l'interface de Poulpix pendant l'exploration, et reviennent avec elle ou sous la souris." }
           ]
         }
@@ -202,17 +175,12 @@
               "label": "Boussole",
               "help": "Une bande en haut de l'écran : l'étape, sa distance et le chemin à suivre.",
               "default": true,
-              "values": { "compassShown": true, "arrowShown": false, "windGuide": "auto" }
+              "values": { "compassShown": true, "arrowShown": false }
             },
             {
               "label": "Boussole et flèche",
               "help": "La boussole, et une flèche 3D près du personnage qui montre où aller.",
-              "values": { "compassShown": true, "arrowShown": true, "windGuide": "auto" }
-            },
-            {
-              "label": "Le vent",
-              "help": "Rien à l'écran : de temps en temps une rafale file vers l'étape.",
-              "values": { "compassShown": false, "arrowShown": false, "windGuide": "on" }
+              "values": { "compassShown": true, "arrowShown": true }
             }
           ]
         }
@@ -446,16 +414,6 @@
     "Temps de jeu comparé au guide": { "en": "Play time compared with the guide", "de": "Spielzeit im Vergleich zum Guide", "es": "Tiempo de juego comparado con la guía", "pt": "Tempo de jogo comparado ao guia", "ru": "Игровое время по сравнению с гайдом", "ko": "가이드 대비 플레이 시간", "zhCN": "游戏时间与指南对比", "zhTW": "遊戲時間與指南對比" },
     "Avance ou retard sur le temps prévu, dans l'en-tête du guide ; le détail : une touche (raccourcis Factoruide, « Temps par niveau »).": { "en": "Ahead of or behind the planned time, in the guide header; the detail: a key (Factoruide key bindings, “Time per level”).", "de": "Vorsprung oder Rückstand zur geplanten Zeit im Guide-Kopf; Details: eine Taste (Tastenbelegung Factoruide, “Time per level”).", "es": "Adelanto o retraso respecto al tiempo previsto, en la cabecera de la guía; el detalle: una tecla (atajos de Factoruide, “Time per level”).", "pt": "Adiantado ou atrasado em relação ao tempo previsto, no topo do guia; detalhes: uma tecla (atalhos do Factoruide, “Time per level”).", "ru": "Опережение или отставание от плана в заголовке гайда; подробности: клавиша (назначения клавиш Factoruide, “Time per level”).", "ko": "계획 시간 대비 앞섬/뒤처짐을 가이드 상단에 표시; 자세히는 단축키 (Factoruide 단축키, “Time per level”).", "zhCN": "在指南标题显示领先或落后于计划时间；详情：按键（Factoruide 按键设置，“Time per level”）。", "zhTW": "在指南標題顯示領先或落後於計畫時間；詳情：按鍵（Factoruide 按鍵設定，“Time per level”）。" },
     "Immersion": { "en": "Immersion", "de": "Immersion", "es": "Inmersión", "pt": "Imersão", "ru": "Погружение", "ko": "몰입", "zhCN": "沉浸", "zhTW": "沉浸" },
-    "Le vent à la place de la boussole": { "en": "The wind instead of the compass", "de": "Der Wind statt des Kompasses", "es": "El viento en lugar de la brújula", "pt": "O vento no lugar da bússola", "ru": "Ветер вместо компаса", "ko": "나침반 대신 바람", "zhCN": "用风代替指南针", "zhTW": "用風代替指南針" },
-    "Pas de boussole : de temps en temps une rafale passe près du personnage et file vers l'étape en cours, plus souvent quand vous partez ailleurs, et tourbillonne à l'arrivée. Pas en combat ni en instance. Automatique : avec Poulpix UI Immersive.": { "en": "No compass: now and then a gust passes by the character and heads for the current step, more often when you go elsewhere, and swirls on arrival. Not in combat or in instances. Automatic: with Poulpix UI Immersive.", "de": "Kein Kompass: Ab und zu streicht ein Windstoß am Charakter vorbei und zieht zum aktuellen Schritt, öfter, wenn du woandershin gehst, und wirbelt bei der Ankunft. Nicht im Kampf und nicht in Instanzen. Automatisch: mit Poulpix UI Immersive.", "es": "Sin brújula: de vez en cuando una ráfaga pasa junto al personaje y va hacia el paso actual, más a menudo si te vas a otro lado, y gira en remolino al llegar. Ni en combate ni en instancias. Automático: con Poulpix UI Immersive.", "pt": "Sem bússola: de vez em quando uma rajada passa pelo personagem e segue para a etapa atual, com mais frequência quando você vai para outro lado, e gira em redemoinho na chegada. Não em combate nem em instâncias. Automático: com Poulpix UI Immersive.", "ru": "Без компаса: время от времени порыв ветра проносится мимо персонажа к текущему шагу, чаще, когда вы уходите в другую сторону, и кружится по прибытии. Не в бою и не в подземельях. Автоматически: с Poulpix UI Immersive.", "ko": "나침반 없이: 가끔 바람이 캐릭터 곁을 지나 현재 단계 쪽으로 불고, 다른 곳으로 가면 더 자주 불며, 도착하면 소용돌이칩니다. 전투 중이나 인스턴스에서는 없습니다. 자동: Poulpix UI Immersive와 함께.", "zhCN": "没有指南针：不时有一阵风从角色身旁吹过，吹向当前步骤；走错方向时更频繁，到达时打旋。战斗中和副本内不出现。自动：配合 Poulpix UI Immersive。", "zhTW": "沒有指南針：不時有一陣風從角色身旁吹過，吹向目前步驟；走錯方向時更頻繁，抵達時打旋。戰鬥中和副本內不出現。自動：搭配 Poulpix UI Immersive。" },
-    "Aspect du vent": { "en": "Look of the wind", "de": "Aussehen des Windes", "es": "Aspecto del viento", "pt": "Aparência do vento", "ru": "Вид ветра", "ko": "바람 모양", "zhCN": "风的样式", "zhTW": "風的樣式" },
-    "Traînées de vent": { "en": "Wind trails", "de": "Windschlieren", "es": "Estelas de viento", "pt": "Rastros de vento", "ru": "Струи ветра", "ko": "바람 줄기", "zhCN": "风痕", "zhTW": "風痕" },
-    "Brume basse": { "en": "Low mist", "de": "Bodennebel", "es": "Bruma baja", "pt": "Névoa baixa", "ru": "Стелющийся туман", "ko": "낮은 안개", "zhCN": "低雾", "zhTW": "低霧" },
-    "Feuilles": { "en": "Leaves", "de": "Blätter", "es": "Hojas", "pt": "Folhas", "ru": "Листья", "ko": "나뭇잎", "zhCN": "落叶", "zhTW": "落葉" },
-    "Feux follets": { "en": "Will-o'-wisps", "de": "Irrlichter", "es": "Fuegos fatuos", "pt": "Fogos-fátuos", "ru": "Блуждающие огоньки", "ko": "도깨비불", "zhCN": "鬼火", "zhTW": "鬼火" },
-    "Secondes entre deux rafales": { "en": "Seconds between gusts", "de": "Sekunden zwischen zwei Windstößen", "es": "Segundos entre dos ráfagas", "pt": "Segundos entre duas rajadas", "ru": "Секунд между порывами", "ko": "돌풍 사이 간격(초)", "zhCN": "两阵风之间的秒数", "zhTW": "兩陣風之間的秒數" },
-    "Plus souvent quand vous tournez le dos à l'étape, moins quand vous y allez tout droit. Une rafale à la demande : raccourci dans les touches du jeu (Factoruide).": { "en": "More often when your back is to the step, less when you head straight for it. A gust on demand: key binding in the game's key bindings (Factoruide).", "de": "Öfter, wenn du dem Schritt den Rücken zukehrst, seltener, wenn du direkt darauf zugehst. Ein Windstoß auf Abruf: Taste in der Tastaturbelegung des Spiels (Factoruide).", "es": "Más a menudo cuando das la espalda al paso, menos cuando vas directo. Una ráfaga a demanda: atajo en los atajos del juego (Factoruide).", "pt": "Com mais frequência quando você está de costas para a etapa, menos quando vai direto a ela. Uma rajada sob demanda: atalho nas teclas do jogo (Factoruide).", "ru": "Чаще, когда вы стоите спиной к шагу, реже, когда идёте прямо к нему. Порыв по запросу: клавиша в назначениях клавиш игры (Factoruide).", "ko": "단계를 등지고 있으면 더 자주, 곧장 향하면 덜 자주 붑니다. 원할 때 돌풍: 게임 단축키 설정(Factoruide)에서 지정.", "zhCN": "背对步骤时更频繁，径直走向它时更少。随时来一阵风：可在游戏按键设置（Factoruide）中绑定。", "zhTW": "背對步驟時更頻繁，筆直走向它時更少。隨時來一陣風：可在遊戲按鍵設定（Factoruide）中綁定。" },
-    "Force du vent": { "en": "Wind strength", "de": "Windstärke", "es": "Fuerza del viento", "pt": "Força do vento", "ru": "Сила ветра", "ko": "바람 세기", "zhCN": "风力", "zhTW": "風力" },
     "Fondu avec Poulpix UI Immersive": { "en": "Fade with Poulpix UI Immersive", "de": "Mit Poulpix UI Immersive ausblenden", "es": "Desvanecer con Poulpix UI Immersive", "pt": "Esmaecer com o Poulpix UI Immersive", "ru": "Затухание вместе с Poulpix UI Immersive", "ko": "Poulpix UI Immersive와 함께 흐려짐", "zhCN": "随 Poulpix UI Immersive 淡出", "zhTW": "隨 Poulpix UI Immersive 淡出" },
     "Les fenêtres de Factoruide s'effacent avec l'interface de Poulpix pendant l'exploration, et reviennent avec elle ou sous la souris.": { "en": "Factoruide's windows fade out with Poulpix's interface while exploring, and come back with it or under the mouse.", "de": "Die Fenster von Factoruide blenden beim Erkunden mit der Oberfläche von Poulpix aus und kehren mit ihr oder unter der Maus zurück.", "es": "Las ventanas de Factoruide se desvanecen con la interfaz de Poulpix mientras exploras y vuelven con ella o bajo el ratón.", "pt": "As janelas do Factoruide somem com a interface do Poulpix durante a exploração e voltam com ela ou sob o mouse.", "ru": "Окна Factoruide гаснут вместе с интерфейсом Poulpix во время исследования и возвращаются вместе с ним или под курсором.", "ko": "탐험하는 동안 Factoruide 창이 Poulpix 인터페이스와 함께 흐려지고, 인터페이스가 돌아오거나 마우스를 올리면 다시 나타납니다.", "zhCN": "探索时 Factoruide 的窗口随 Poulpix 界面一起淡出，并随它或在鼠标悬停时重新出现。", "zhTW": "探索時 Factoruide 的視窗隨 Poulpix 介面一起淡出，並隨它或在滑鼠懸停時重新出現。" }
   }

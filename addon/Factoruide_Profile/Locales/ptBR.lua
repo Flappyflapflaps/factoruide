@@ -70,7 +70,6 @@ FG.Locales.ptBR = {
     ["Step"] = "Etapa",
     ["Use the quest item"] = "Usar o item de missão",
     ["Full or minimal guide"] = "Guia completo ou mínimo",
-    ["A gust of wind towards the guide's target"] = "Uma rajada de vento rumo ao objetivo do guia",
     ["no room for a character macro (%s)"] = "sem espaço para uma macro de personagem (%s)",
     ["not possible in combat"] = "impossível em combate",
     ["grey items sold: %s"] = "itens cinza vendidos: %s",

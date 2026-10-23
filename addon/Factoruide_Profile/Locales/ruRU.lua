@@ -70,7 +70,6 @@ FG.Locales.ruRU = {
     ["Step"] = "Шаг",
     ["Use the quest item"] = "Использовать предмет задания",
     ["Full or minimal guide"] = "Полный или минимальный гайд",
-    ["A gust of wind towards the guide's target"] = "Порыв ветра к цели гайда",
     ["no room for a character macro (%s)"] = "нет места для макроса персонажа (%s)",
     ["not possible in combat"] = "невозможно в бою",
     ["grey items sold: %s"] = "серые предметы проданы: %s",

@@ -18,9 +18,19 @@ run() {
     fi
 }
 
+# The last lines of each run; the output whole when it fails.
+show() {
+    if out=$(run "$@" 2>&1); then
+        printf '%s\n' "$out" | tail -3
+    else
+        printf '%s\n' "$out" >&2
+        exit 1
+    fi
+}
+
 if [ $# -gt 0 ]; then
-    run "$@" | tail -3
+    show "$@"
 else
-    run | tail -3
-    run profile | tail -3
+    show
+    show profile
 fi

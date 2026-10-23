@@ -42,7 +42,6 @@ Arrow.lua
 Nearby.lua
 NpcMark.lua
 Poulpix.lua
-Wind.lua
 Macro.lua
 ItemButton.lua
 Merchant.lua

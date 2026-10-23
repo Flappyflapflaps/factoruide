@@ -2047,48 +2047,9 @@ assert(FG.Compass:Points()[1].index == 2 and FG.Compass:Points()[1].main, "the p
 onQuest[8001], onQuest[8002] = nil, nil
 print("compass points ok")
 
--- The wind: projected ahead, left and behind like the compass; instead of it with Poulpix UI
--- Immersive ("auto"), or always; gusts towards a far target, a swirl on arrival.
-do
-    local x, y = FG.Wind.Project(20, 0, 0, 0, 9, 3.2, 0)
-    assert(close(x, 0) and y > 0.39, "north, facing north: ahead, under the horizon")
-    assert(FG.Wind.Project(0, 10, 0, 0, 9, 3.2, 0) < 0, "west, facing north: to the left")
-    assert(FG.Wind.Project(-20, 0, 0, 0, 9, 3.2, 0) == nil, "behind the camera: not drawn")
-    assert(FG.Wind.Project(20, 0, 0, 0, 9, 3.2, 1) < 0, "camera over the right shoulder: to the left")
-
-    assert(FG.Wind:Active() == false, "auto without Poulpix UI Immersive: the compass")
-    assert(#FG.Compass:Points() > 0 and FG.Wind:Target() == nil)
-    C_AddOns = { IsAddOnLoaded = function(name) return name == "Poulpix_UI_Immersive" end }
-    assert(FG.Wind:Active() == true, "auto with Poulpix UI Immersive: the wind")
-    FG.Guide:Refresh()
-    assert(#FG.Compass:Points() == 0 and FG.Wind:Target() ~= nil, "the wind instead of the compass")
-
-    local realCombat = UnitAffectingCombat
-    GetPlayerFacing = function() return 0 end
-    UnitAffectingCombat = function() return false end
-    UnitIsDeadOrGhost = function() return false end
-    FG.Guide:PointToStep(3)
-    for _ = 1, 20 do
-        FG.Wind:Update(0.1)
-    end
-    assert(FG.Wind:Count() > 0, "a gust towards the far target")
-    for _ = 1, 60 do
-        FG.Wind:Update(0.1)
-    end
-    assert(FG.Wind:Count() == 0, "the gust gone, until the next")
-    FG.Guide:PointToStep(1)
-    FG.Wind:Update(0.1)
-    assert(FG.Wind:Count() > 0, "a swirl on arrival")
-
-    FG:Set("windGuide", "off")
-    assert(FG.Wind:Active() == false, "off even with Poulpix UI Immersive")
-    FG.Guide:Refresh()
-    assert(#FG.Compass:Points() > 0 and FG.Wind:Target() == nil, "the compass back")
-    FG:Set("windGuide", nil)
-    C_AddOns, GetPlayerFacing, UnitIsDeadOrGhost, UnitAffectingCombat = nil, nil, nil, realCombat
-    assert(FG.Poulpix.Alpha(0.2, false) == 0.2 and FG.Poulpix.Alpha(0.2, true) == 1, "faded, full under the mouse")
-end
-print("wind ok")
+-- With Poulpix UI Immersive the guide's windows fade with its HUD, and are full under the mouse.
+assert(FG.Poulpix.Alpha(0.2, false) == 0.2 and FG.Poulpix.Alpha(0.2, true) == 1, "faded, full under the mouse")
+print("poulpix ok")
 
 -- The compass's places (tests/fixtures/Services.lua): for a gnome mage, the mage trainer, not
 -- another class's nor the Horde's, the flight masters; not the trainer of a profession neither
@@ -2940,7 +2901,6 @@ for _, name in ipairs({
     "FactoruideMini",
     "FactoruideButtons",
     "FactoruideCompass",
-    "FactoruideWind",
     "FactoruideTracker",
     "FGItemButton",
 }) do
@@ -4173,11 +4133,11 @@ local function SettingsTest()
     Option("Factoruide_scale"):SetValueToDefault()
     Option("Factoruide_trackerQuests"):SetValueToDefault()
     -- A select: a drop-down of its choices, translated.
-    local styles = controls.windStyle.data.options()
-    assert(#styles == 4 and styles[2].value == "mist" and styles[2].label == "Brume basse", "the choices")
-    Option("Factoruide_windStyle"):SetValue("mist")
-    assert(FG:Get("windStyle") == "mist" and Option("Factoruide_windStyle"):GetValue() == "mist", "select saved")
-    Option("Factoruide_windStyle"):SetValueToDefault()
+    local styles = controls.pathMode.data.options()
+    assert(#styles == 3 and styles[2].value == "on" and styles[2].label == "Toujours", "the choices")
+    Option("Factoruide_pathMode"):SetValue("on")
+    assert(FG:Get("pathMode") == "on" and Option("Factoruide_pathMode"):GetValue() == "on", "select saved")
+    Option("Factoruide_pathMode"):SetValueToDefault()
     -- Requires: under the setting it needs, greyed while it is off.
     assert(controls.trackerQuests.parent == controls.trackerShown, "under the setting it needs")
     assert(controls.trackerQuests:Enabled(), "enabled while the tracker is on")
@@ -4251,7 +4211,7 @@ local function SettingsTest()
         assert(type(global) == "string" and global ~= "", "no name for the binding " .. name)
         names = names + 1
     end
-    assert(names == 12 and BINDING_HEADER_FACTORUIDE == "Factoruide", "the bindings: " .. names)
+    assert(names == 11 and BINDING_HEADER_FACTORUIDE == "Factoruide", "the bindings: " .. names)
     assert(BINDING_NAME_FACTORUIDE_NEXT == "Étape suivante", "translated: " .. BINDING_NAME_FACTORUIDE_NEXT)
     options.opened = nil
     Key("FACTORUIDE_OPTIONS")
@@ -4261,12 +4221,6 @@ local function SettingsTest()
     assert(FG:Get("guideShown") == not shown and FactoruideDB.settings.guideShown == not shown, "the guide hidden")
     Key("FACTORUIDE_GUIDE")
     assert(FG:Get("guideShown") == shown, "and shown")
-    local gusts = 0
-    local gust = FG.Wind.Gust
-    FG.Wind.Gust = function() gusts = gusts + 1 end
-    Key("FACTORUIDE_WIND")
-    FG.Wind.Gust = gust
-    assert(gusts == 1, "a gust")
     FG:Save("guideShown", nil)
     FG:Save("guideMode", nil)
     -- Nothing left over: every setting back to its default.

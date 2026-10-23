@@ -28,9 +28,6 @@
     <Binding name="FACTORUIDE_TIME" category="ADDONS">
         Factoruide.Timing:Print()
     </Binding>
-    <Binding name="FACTORUIDE_WIND" category="ADDONS">
-        Factoruide.Wind:Gust()
-    </Binding>
     <Binding name="FACTORUIDE_OPTIONS" category="ADDONS">
         Factoruide:OpenSettings()
     </Binding>
