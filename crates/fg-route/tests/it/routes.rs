@@ -2181,7 +2181,8 @@ fn each_player_keeps_its_race() {
     }
 }
 
-/// A group guide needs every player at level 10 and of one faction, five players at most.
+/// A group guide needs every player at level 10, or all in one zone, and of one faction, five
+/// players at most.
 #[test]
 fn group_guides_have_rules() {
     let fails = |start: StartState, mates: Vec<StartState>| {
@@ -2195,6 +2196,15 @@ fn group_guides_have_rules() {
     };
     let low = fails(player("A", 1, "warrior", 12), vec![player("B", 1, "mage", 9)]);
     assert!(low.contains("level 10"), "{low}");
+    // Below level 10 it needs the same zone for everyone.
+    let at = |mut p: StartState, map: i64| {
+        p.position = Some(MapPos { map, x: 50.0, y: 50.0 });
+        p
+    };
+    let apart = fails(at(player("A", 1, "warrior", 5), 1429), vec![at(player("B", 1, "mage", 6), 1426)]);
+    assert!(apart.contains("same zone"), "{apart}");
+    let together = fails(at(player("A", 1, "warrior", 5), 1429), vec![at(player("B", 1, "mage", 6), 1429)]);
+    assert!(together.is_empty(), "new characters together in Elwynn: {together}");
     let horde = fails(player("A", 1, "warrior", 12), vec![player("B", 2, "warrior", 12)]);
     assert!(horde.contains("faction"), "{horde}");
     let six = fails(

@@ -2685,31 +2685,50 @@ button.dungeon.excluded b {
   max-height: 230px;
 }
 
-/* Group of players ------------------------------------------------------------ */
-.companions {
+/* Group of players, under the character ----------------------------------------- */
+.group-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  margin-top: 12px;
 }
-.companion {
+.group-players {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
 }
-.companion select {
-  flex: 1;
+.group-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-right: 4px;
 }
-.companion.me {
-  justify-content: space-between;
-  padding: 6px 10px;
+.companion {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-2);
 }
 .companion.add {
-  justify-content: center;
   border-style: dashed;
+  background: transparent;
   color: var(--text-secondary);
+  cursor: pointer;
+}
+.companion.add:hover {
+  color: var(--text);
+}
+.group-add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
 }
 .tag {
   margin-left: 8px;

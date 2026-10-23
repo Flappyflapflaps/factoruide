@@ -114,8 +114,9 @@ pub(super) fn character(conn: &Connection, overrides: &Overrides, req: &PlanRequ
     Ok((profile, params))
 }
 
-/// The members of a group guide must be of the same faction, at least level `GROUP_MIN_LEVEL`,
-/// `GROUP_MAX` at most and each once.
+/// The members of a group guide must be of the same faction, `GROUP_MAX` at most and each once.
+/// Each is at least level `GROUP_MIN_LEVEL`, unless they all start in the same zone (a group of
+/// new characters leveling together from the start).
 fn check_group(overrides: &Overrides, req: &PlanRequest, members: &[&StartState]) -> Result<()> {
     if req.mates.is_empty() {
         return Ok(());
@@ -126,11 +127,13 @@ fn check_group(overrides: &Overrides, req: &PlanRequest, members: &[&StartState]
     if members.len() > GROUP_MAX {
         bail!("a group has {GROUP_MAX} players at most");
     }
+    let zone = |m: &StartState| m.position.as_ref().map(|p| p.map);
+    let together = zone(members[0]).is_some() && members.iter().all(|m| zone(m) == zone(members[0]));
     let mut faction = None;
     for (k, m) in members.iter().enumerate() {
-        if m.level < GROUP_MIN_LEVEL {
+        if m.level < GROUP_MIN_LEVEL && !together {
             bail!(
-                "{} is level {}: every player of a group guide must be level {GROUP_MIN_LEVEL} first",
+                "{} is level {}: below level {GROUP_MIN_LEVEL}, the players of a group guide must all start in the same zone",
                 m.name,
                 m.level
             );
