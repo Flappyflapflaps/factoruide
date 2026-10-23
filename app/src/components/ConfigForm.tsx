@@ -12,6 +12,8 @@ import { ReputationPanel } from "./ReputationPanel";
 import { WorldMap, type ZoneState } from "./WorldMap";
 import { ZonePanel } from "./ZonePanel";
 import { useGameName, useT } from "../i18n";
+import { IS_WEB } from "../web/mode";
+import { ProfilePaste } from "../web/components/ProfilePaste";
 
 interface Props {
   options: Options;
@@ -111,30 +113,36 @@ const GROUP_MIN_LEVEL = 10;
 const shortName = (name: string) => name.split("-")[0];
 
 /**
- * The other players of a group guide: characters the addon recorded, of the same faction and
- * level 10 or more, here or received in game (`/fg partage` in the party).
+ * The other players of a group guide: characters of the same faction and level 10 or more,
+ * the ones the addon recorded on this computer or, in the browser, each player's export pasted
+ * (in game: /fg, "Export my character").
  */
 function GroupPanel({
   start,
   mates,
   characters,
+  note,
   onAdd,
   onRemove,
+  onPasted,
 }: {
   start: StartState | null;
   mates: StartState[];
   characters: CharacterInfo[] | null;
+  /** Why the character just pasted was not added to the group. */
+  note: string | null;
   onAdd: (mate: StartState) => void;
   onRemove: (name: string) => void;
+  onPasted: (name: string) => void;
 }) {
   const t = useT();
+  const [pasting, setPasting] = useState(false);
   const candidates = (characters ?? []).filter(
     (c) => start && c.profile.name !== start.name && c.profile.faction === start.faction && c.profile.level >= GROUP_MIN_LEVEL && !mates.some((m) => m.name === c.profile.name),
   );
-  const player = (p: StartState, shared: boolean) => (
+  const player = (p: StartState) => (
     <>
       <strong>{shortName(p.name)}</strong> <ClassName klass={p.class.toLowerCase()} /> <span className="muted">{t("niveau {n}", { n: p.level })}</span>
-      {shared && <span className="tag">{t("reçu en jeu")}</span>}
     </>
   );
   return (
@@ -151,11 +159,11 @@ function GroupPanel({
         <>
           <div className="companions">
             <div className="companion me">
-              <span className="muted">{t("Vous")}</span> {player(start, false)}
+              <span className="muted">{t("Vous")}</span> {player(start)}
             </div>
             {mates.map((m) => (
               <div className="companion" key={m.name}>
-                {player(m, characters?.find((c) => c.profile.name === m.name)?.shared ?? false)}
+                {player(m)}
                 <button className="link" aria-label={t("Retirer")} title={t("Retirer")} onClick={() => onRemove(m.name)}>
                   ✕
                 </button>
@@ -175,13 +183,31 @@ function GroupPanel({
                 {candidates.map((c) => (
                   <option key={c.profile.name} value={c.profile.name}>
                     {shortName(c.profile.name)} · {t("niveau {n}", { n: c.profile.level })}
-                    {c.shared ? ` · ${t("reçu en jeu")}` : ""}
                   </option>
                 ))}
               </select>
             )}
           </div>
-          <p className="muted">{t("Les autres joueurs tapent /fg partage en jeu, dans votre groupe : leur profil arrive ici après un /reload de votre côté.")}</p>
+          {IS_WEB && mates.length < GROUP_MAX - 1 && !pasting && (
+            <button className="link" onClick={() => setPasting(true)}>
+              {t("Coller l'export d'un joueur (en jeu : /fg, « Exporter mon personnage »)…")}
+            </button>
+          )}
+          {IS_WEB && pasting && (
+            <ProfilePaste
+              compact
+              onImported={(name) => {
+                setPasting(false);
+                onPasted(name);
+              }}
+            />
+          )}
+          {note && <p className="error">{note}</p>}
+          <p className="muted">
+            {IS_WEB
+              ? t("Chaque autre joueur copie l'export de son personnage en jeu : collez-le ici, un joueur à la fois.")
+              : t("Les autres joueurs : les personnages que l'addon a enregistrés sur cet ordinateur.")}
+          </p>
         </>
       )}
     </section>
@@ -223,10 +249,31 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
     if (mates.length === 0) set("allow_elite", true);
     setMates([...mates, mate]);
   };
+  // Why the character just pasted for the group was left out of it.
+  const [groupNote, setGroupNote] = useState<string | null>(null);
   const [newClassQuest, setNewClassQuest] = useState("");
   // The character met in game the guide starts from, and those the addon recorded.
   const [start, setStart] = useState<StartState | null>(initial?.start ?? null);
   const [characters, setCharacters] = useState<CharacterInfo[] | null>(null);
+  /** A player's export just pasted: in the group when it can be, else why not. */
+  const addPasted = (pasted: string) =>
+    api
+      .listCharacters()
+      .then((list) => {
+        setCharacters(list);
+        const p = list.find((c) => c.profile.name === pasted)?.profile;
+        if (!p || !start) return;
+        const who = shortName(p.name);
+        if (p.name === start.name || mates.some((m) => m.name === p.name)) setGroupNote(t("{name} est déjà dans le groupe.", { name: who }));
+        else if (mates.length >= GROUP_MAX - 1) setGroupNote(t("Le groupe est complet ({n} joueurs).", { n: GROUP_MAX }));
+        else if (p.level < GROUP_MIN_LEVEL) setGroupNote(t("{name} est niveau {n} : un guide de groupe commence au niveau 10.", { name: who, n: p.level }));
+        else if (p.faction !== start.faction) setGroupNote(t("{name} n'est pas de votre faction : tous les joueurs d'un guide de groupe sont de la même faction.", { name: who }));
+        else {
+          setGroupNote(null);
+          addMate(p);
+        }
+      })
+      .catch(() => {});
   useEffect(() => {
     api
       .listCharacters()
@@ -562,7 +609,18 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
                 onChange={(reputation_goals) => setParams((p) => ({ ...p, reputation_goals }))}
               />
 
-              <GroupPanel start={start} mates={mates} characters={characters} onAdd={addMate} onRemove={(gone) => setMates(mates.filter((m) => m.name !== gone))} />
+              <GroupPanel
+                start={start}
+                mates={mates}
+                characters={characters}
+                note={groupNote}
+                onAdd={(mate) => {
+                  setGroupNote(null);
+                  addMate(mate);
+                }}
+                onRemove={(gone) => setMates(mates.filter((m) => m.name !== gone))}
+                onPasted={addPasted}
+              />
             </div>
 
             <div className="config-col config-side">
