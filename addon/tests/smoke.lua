@@ -1139,7 +1139,7 @@ do
     assert(char.guide.step == 4, "Pata catching up: we wait, step " .. char.guide.step)
     fromPata("S:7:5:4:13:60:9400")
     assert(char.guide.step == 5, "Pata caught up, step " .. char.guide.step)
-    SlashCmdList.FACTORUIDE("skip")
+    FG.Guide:SkipCurrent()
     assert(char.guide.step == 5, "marked done by us only: still on it, step " .. char.guide.step)
     local told = false
     for _, m in ipairs(sentMessages) do
