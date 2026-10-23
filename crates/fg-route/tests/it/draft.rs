@@ -2,32 +2,11 @@
 //! background (a newer replay makes the older give up), and what the page offers to add at a
 //! moment of it.
 
+use crate::common::{database, repo};
 use fg_route::job::{self, Editor, Overrides, PlanOutcome, PlanRequest, Requests, RouteStep};
 use fg_route::model::Names;
 use fg_route::xp::Edition;
-use rusqlite::Connection;
-use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
-
-fn repo() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
-/// The Classic database, unpacked next to the packed one when missing or older.
-fn database() -> Connection {
-    static UNPACK: Mutex<()> = Mutex::new(());
-    let _guard = UNPACK.lock().unwrap();
-    let (path, packed) = (
-        repo().join("data/classic.sqlite"),
-        repo().join("data/classic.sqlite.zst"),
-    );
-    let modified = |p: &PathBuf| std::fs::metadata(p).and_then(|m| m.modified()).ok();
-    if !path.exists() || modified(&packed) > modified(&path) {
-        let data = zstd::decode_all(std::fs::File::open(&packed).unwrap()).unwrap();
-        std::fs::write(&path, data).unwrap();
-    }
-    Connection::open(path).unwrap()
-}
+use std::sync::OnceLock;
 
 fn overrides() -> Overrides {
     Overrides::load_edition(&repo().join("overrides"), Edition::Classic).unwrap()

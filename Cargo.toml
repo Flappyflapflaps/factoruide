@@ -58,3 +58,12 @@ verbose_file_reads = "warn"
 [profile.profiling]
 inherits = "release"
 debug = "line-tables-only"
+
+# Iterating on tests: release-derived (the planner tests are too slow in debug) but compiled
+# fast and incrementally. `cargo test --profile fast -p fg-route <name>`; the full
+# `cargo test --release` runs once before pushing (scripts/check.sh).
+[profile.fast]
+inherits = "release"
+opt-level = 1
+codegen-units = 256
+incremental = true

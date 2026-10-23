@@ -1,38 +1,13 @@
 //! Planner behavior on the Classic database: reproductions of the problems met on real guides.
 
+use crate::common::{database, database_of, repo};
 use fg_route::job::{self, Bind, LogObjective, LogQuest, MapPos, Overrides, PlanRequest, Prepared, StartState};
 use fg_route::model::{CommonLoot, EntityKind, Guard, Initial, Objective, Spots};
 use fg_route::params::ReputationGoal;
 use fg_route::plan::{Edit, Event, Kind, Outcome, Planner, Stop};
 use fg_route::xp::Edition;
 use rusqlite::Connection;
-use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
-
-fn repo() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
-/// The Classic database, unpacked next to the packed one when missing or older.
-fn database() -> Connection {
-    database_of("classic")
-}
-
-/// An edition's database (classic, tbc, forever), unpacked the same way.
-fn database_of(edition: &str) -> Connection {
-    static UNPACK: Mutex<()> = Mutex::new(());
-    let _guard = UNPACK.lock().unwrap();
-    let (path, packed) = (
-        repo().join(format!("data/{edition}.sqlite")),
-        repo().join(format!("data/{edition}.sqlite.zst")),
-    );
-    let modified = |p: &PathBuf| std::fs::metadata(p).and_then(|m| m.modified()).ok();
-    if !path.exists() || modified(&packed) > modified(&path) {
-        let data = zstd::decode_all(std::fs::File::open(&packed).unwrap()).unwrap();
-        std::fs::write(&path, data).unwrap();
-    }
-    Connection::open(path).unwrap()
-}
+use std::sync::OnceLock;
 
 fn prepare(race: &str, class: &str, to_level: i64, params: &[&str]) -> Prepared {
     prepare_from(race, class, to_level, params, None)

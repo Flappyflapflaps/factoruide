@@ -1,36 +1,14 @@
 //! What the addon gets besides the guides' steps, on the Classic database: the walks between
 //! steps (for the compass) and the places that serve the player.
 
+use crate::common::{database, repo};
 use fg_route::Route;
 use fg_route::faction::Faction;
 use fg_route::job::{self, Overrides, Service};
 use fg_route::model::Names;
 use fg_route::plan::Breakdown;
 use fg_route::xp::Edition;
-use rusqlite::Connection;
 use serde_json::json;
-use std::path::PathBuf;
-use std::sync::Mutex;
-
-fn repo() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
-/// The Classic database, unpacked next to the packed one when missing or older.
-fn database() -> Connection {
-    static UNPACK: Mutex<()> = Mutex::new(());
-    let _guard = UNPACK.lock().unwrap();
-    let (path, packed) = (
-        repo().join("data/classic.sqlite"),
-        repo().join("data/classic.sqlite.zst"),
-    );
-    let modified = |p: &PathBuf| std::fs::metadata(p).and_then(|m| m.modified()).ok();
-    if !path.exists() || modified(&packed) > modified(&path) {
-        let data = zstd::decode_all(std::fs::File::open(&packed).unwrap()).unwrap();
-        std::fs::write(&path, data).unwrap();
-    }
-    Connection::open(path).unwrap()
-}
 
 fn overrides() -> Overrides {
     Overrides::load_edition(&repo().join("overrides"), Edition::Classic).unwrap()
