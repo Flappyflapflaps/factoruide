@@ -360,7 +360,7 @@ fn add_version(
         created,
         race: request.race.clone(),
         class: request.class.clone(),
-        group: request.group.clone(),
+        group: request.mates.iter().map(|m| m.class.to_lowercase()).collect(),
         from_level: route.from_level,
         to_level: route.to_level,
         total_time: route.total_time,

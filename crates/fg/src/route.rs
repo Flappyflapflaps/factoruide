@@ -250,7 +250,7 @@ pub fn share(conn: &Connection, overrides_dir: &Path, opts: &ShareOptions, out: 
         required_class_quests: Some(options.class_quests.get(&class_name).cloned().unwrap_or_default()),
         professions: vec![],
         locale: Some(opts.locale.clone()),
-        group: vec![],
+        mates: vec![],
         start: None,
     };
     let walks = std::sync::Arc::new(fg_route::terrain::Walks::default());
@@ -287,7 +287,7 @@ pub fn share(conn: &Connection, overrides_dir: &Path, opts: &ShareOptions, out: 
         "created": created,
         "race": request.race,
         "class": request.class,
-        "group": request.group,
+        "group": request.mates.iter().map(|m| m.class.to_lowercase()).collect::<Vec<_>>(),
         "from_level": route.from_level,
         "to_level": route.to_level,
         "total_time": route.total_time,

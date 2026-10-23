@@ -801,7 +801,6 @@ async fn plan_route(app: AppHandle, request: PlanRequest) -> CmdResult<VersionMe
             }
         })?;
         let meta = state.add_version(&request, &outcome, data_version(&conn), (false, false), now()?)?;
-        assign_players(state, &meta.guide, &outcome.route)?;
         Ok(meta)
     })
     .await
@@ -1539,30 +1538,7 @@ fn import_guide(state: State<'_, AppState>, content: String) -> CmdResult<Versio
         walks.add(memory.clone());
     }
     let meta = state.add_version(&shared.request, &shared.outcome, data, (true, false), now()?)?;
-    assign_players(state, &meta.guide, &shared.outcome.route)?;
     Ok(meta)
-}
-
-/// A group guide is followed by those of its players who play on this computer: made here or
-/// received from another player, it is theirs at once (the addon is installed again).
-fn assign_players(state: State<'_, AppState>, guide: &str, route: &Route) -> CmdResult<()> {
-    if route.players.is_empty() {
-        return Ok(());
-    }
-    let here: std::collections::HashSet<String> = (characters(&state)?.into_iter())
-        .filter(|c| !c.shared)
-        .map(|c| c.profile.name)
-        .collect();
-    let mut assignments = state.assignments();
-    let mut changed = false;
-    for p in route.players.iter().filter(|p| here.contains(&p.name)) {
-        changed |= assignments.insert(p.name.clone(), guide.to_owned()).as_deref() != Some(guide);
-    }
-    if changed {
-        state.write_assignments(&assignments)?;
-        install_addon(state)?;
-    }
-    Ok(())
 }
 
 // Characters -------------------------------------------------------------------------
