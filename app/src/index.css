@@ -4605,3 +4605,9 @@ button.link.cmp-jump {
   gap: 6px;
   font-size: 0.85rem;
 }
+.start-previous {
+  font-size: 0.72rem;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+}

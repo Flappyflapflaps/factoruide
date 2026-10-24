@@ -50,6 +50,8 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
   // The starts to choose from, and how far their comparison is.
   const [starts, setStarts] = useState<StartOption[]>([]);
   const [tried, setTried] = useState(0);
+  // The start chosen when the guide was computed before (a rerun), marked on the choice.
+  const [previousStart, setPreviousStart] = useState(0);
   const [startDetails, setStartDetails] = useState<string[]>([]);
   const [preview, setPreview] = useState<[number, number] | null>(null);
   const [initial, setInitial] = useState<PlanRequest | null>(start.initial);
@@ -122,8 +124,12 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
   }, []);
 
   /** Compare the starts first when the character has several (a choice to make), else compute. */
-  const begin = async (request: PlanRequest) => {
-    if (!compareStarts || running.current) return run(request);
+  const begin = async (given: PlanRequest) => {
+    if (!compareStarts || running.current) return run(given);
+    // A start chosen before is offered again among the others, not kept.
+    const before = given.params?.start_zone ?? 0;
+    const request: PlanRequest = given.params ? { ...given, params: { ...given.params, start_zone: 0 } } : given;
+    setPreviousStart(before);
     running.current = true;
     onBusy?.(true);
     setInitial(request);
@@ -229,7 +235,7 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
 
   // Recomputing a saved result starts right away.
   useEffect(() => {
-    if (start.rerun && start.initial) run(start.initial);
+    if (start.rerun && start.initial) begin(start.initial);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -300,6 +306,7 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
         <StartsChoice
           starts={starts}
           tried={tried}
+          previous={previousStart}
           details={startDetails}
           zones={options.zones}
           onBack={() => setStep("config")}

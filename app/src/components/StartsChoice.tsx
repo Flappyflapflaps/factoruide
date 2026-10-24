@@ -7,6 +7,8 @@ interface Props {
   starts: StartOption[];
   /** How many starts were computed (those beginning in the same zone are shown once). */
   tried: number;
+  /** The start chosen when the guide was computed before (a rerun): chosen again at first. */
+  previous?: number;
   /** What was tried, shown on demand. */
   details: string[];
   zones: Options["zones"];
@@ -35,10 +37,10 @@ function ZonePicture({ map }: { map: number }) {
  * score the planner ranks by, smaller, in a tooltip), its steps and quests. The best score is
  * chosen at first.
  */
-export function StartsChoice({ starts, tried, details, zones, onPick, onBack }: Props) {
+export function StartsChoice({ starts, tried, previous, details, zones, onPick, onBack }: Props) {
   const t = useT();
   const areaName = useAreaName();
-  const [chosen, setChosen] = useState(0);
+  const [chosen, setChosen] = useState(() => Math.max(0, previous ? starts.findIndex((s) => s.start_zone === previous) : 0));
   const name = (zone: number) => {
     const z = zones.find((x) => x.id === zone);
     return z ? areaName(z) : `#${zone}`;
@@ -65,6 +67,7 @@ export function StartsChoice({ starts, tried, details, zones, onPick, onBack }: 
               <div className="start-zone">
                 {name(s.zone)}
                 {i === 0 && <span className="start-best">{t("Le plus rapide")}</span>}
+                {previous ? s.start_zone === previous && <span className="start-previous">{t("Départ précédent")}</span> : null}
               </div>
               <div className="start-time">{fmtTime(s.time)}</div>
               <div
