@@ -6,6 +6,9 @@ under Unreleased; `scripts/release.sh` gives them the release's version.
 
 ## Unreleased
 
+- The hearthstone's inn is found whatever the game's language (the guide no longer sends you back to your starting place).
+- No more error when logging out before the realm name is known.
+
 ## 0.14.0 (2026-10-20)
 
 - In the game's addon list, the Factoruide addons are under Quests, with their own icon, Guide and Data grouped under Profile.

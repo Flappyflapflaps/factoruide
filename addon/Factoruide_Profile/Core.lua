@@ -251,7 +251,7 @@ function FG.PlayerPosition()
     return mapID, math.floor(x * 10000 + 0.5) / 100, math.floor(y * 10000 + 0.5) / 100
 end
 
-function FG:CharacterKey() return UnitName("player") .. "-" .. GetNormalizedRealmName() end
+function FG:CharacterKey() return UnitName("player") .. "-" .. (GetNormalizedRealmName() or GetRealmName() or "") end
 
 -- Skill names in the skills list, for clients without GetProfessions (matched by name).
 local SKILL_NAMES = {

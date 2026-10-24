@@ -94,6 +94,9 @@ pub struct MapPos {
 pub struct Bind {
     pub name: String,
     pub position: Option<MapPos>,
+    /// AreaTable IDs whose name in the player's language is `name` (the addon looks them up:
+    /// the data only knows English names).
+    pub areas: Vec<i64>,
 }
 
 /// A profession skill (skill line ID, rank).
@@ -234,6 +237,7 @@ impl StartState {
             bind: Some(Bind {
                 name: inn.name.clone(),
                 position: map(inn.zone, &inn.pos),
+                areas: vec![],
             }),
             flights: (world.taxi_nodes.iter().enumerate().take(128))
                 .filter(|(n, _)| end.known & (1u128 << n) != 0)
@@ -270,10 +274,33 @@ impl StartState {
             }
         }
         let name = bind.name.trim();
-        model.inns.iter().position(|inn| {
+        let named = model.inns.iter().position(|inn| {
             world.place_name(&inn.pos).is_some_and(|n| n.eq_ignore_ascii_case(name))
                 || world.zone_name(inn.zone).eq_ignore_ascii_case(name)
-        })
+        });
+        if named.is_some() {
+            return named;
+        }
+        // The area of the inn (a tavern is a subzone of its town): the inns of its zone, the
+        // closest to where the character stands when several.
+        let from = self.position.and_then(|p| at(world, p)).map(|p| p.0);
+        bind.areas
+            .iter()
+            .flat_map(|&a| {
+                let zone = world.area_zone(a);
+                model
+                    .inns
+                    .iter()
+                    .enumerate()
+                    .filter(move |(_, inn)| world.area_zone(inn.zone) == zone)
+                    .map(|(i, _)| i)
+            })
+            .min_by(|&a, &b| match &from {
+                Some(p) if model.inns[a].pos.continent == p.continent && model.inns[b].pos.continent == p.continent => {
+                    model.inns[a].pos.dist(p).total_cmp(&model.inns[b].pos.dist(p))
+                }
+                _ => a.cmp(&b),
+            })
     }
 }
 

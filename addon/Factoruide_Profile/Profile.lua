@@ -76,12 +76,31 @@ local function Spells()
     return out
 end
 
---- Keep the hearthstone's place: its name, and where the character stands when `here` (just
---- bound: next to the innkeeper). Returns whether it changed.
+--- The AreaTable IDs whose name (in the game's language) is `name`: the app only knows English
+--- names, an ID tells it which inn the hearthstone is bound to.
+local function AreasNamed(name)
+    local out = {}
+    local info = C_Map and C_Map.GetAreaInfo
+    if not (name and info) then return out end
+    for id = 1, 6000 do
+        local ok, found = pcall(info, id)
+        if ok and found == name then table.insert(out, id) end
+    end
+    return out
+end
+
+--- Keep the hearthstone's place: its name and area, and where the character stands when `here`
+--- (just bound: next to the innkeeper). Returns whether it changed.
 local function UpdateBind(here)
     local name = GetBindLocation and GetBindLocation()
-    if not name or (profile.bind and profile.bind.name == name) then return false end
-    profile.bind = { name = name }
+    if not name then return false end
+    local bind = profile.bind
+    if bind and bind.name == name then
+        if bind.areas then return false end
+        bind.areas = AreasNamed(name)
+        return true
+    end
+    profile.bind = { name = name, areas = AreasNamed(name) }
     if here then
         local map, x, y = FG.PlayerPosition()
         if x then profile.bind.position = { map = map, x = x, y = y } end

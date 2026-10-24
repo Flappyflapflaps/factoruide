@@ -1795,6 +1795,7 @@ fn hearthstone_flight_paths_and_log_of_a_character_met_in_game() {
         }],
         bind: Some(Bind {
             name: String::new(),
+            areas: vec![],
             position: Some(map_pos(&p, &p.model.inns[inn].pos, p.model.inns[inn].zone)),
         }),
         flights: vec![p.world.taxi_nodes[node].id],

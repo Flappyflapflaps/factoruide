@@ -137,6 +137,8 @@ type LiftSides = (usize, usize, usize);
 pub struct World {
     zones: HashMap<i64, ZoneRect>,
     pub zone_names: HashMap<i64, String>,
+    /// AreaTable parent of each subzone (a tavern, a valley), to find its zone.
+    area_parents: HashMap<i64, i64>,
     pub taxi_nodes: Vec<TaxiNode>,
     /// Direct flight time in seconds between node indexes, INFINITY when no direct path.
     pub direct: Vec<Vec<f64>>,
@@ -228,10 +230,16 @@ impl World {
         }
 
         let mut zone_names = HashMap::new();
-        let mut stmt = conn.prepare("SELECT ID, AreaName_lang FROM client_areatable")?;
-        for row in stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))? {
-            let (id, name) = row?;
+        let mut area_parents = HashMap::new();
+        let mut stmt = conn.prepare("SELECT ID, AreaName_lang, ParentAreaID FROM client_areatable")?;
+        for row in stmt.query_map([], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?))
+        })? {
+            let (id, name, parent) = row?;
             zone_names.insert(id, name);
+            if parent != 0 {
+                area_parents.insert(id, parent);
+            }
         }
 
         // MountCreatureID_0 is the Horde mount, _1 the Alliance one; Flags 2 shows the node on the
@@ -351,6 +359,7 @@ impl World {
         let mut world = Self {
             zones,
             zone_names,
+            area_parents,
             taxi_nodes,
             direct: flight,
             direct_cost: cost,
@@ -423,6 +432,17 @@ impl World {
 
     pub fn zone_name(&self, zone: i64) -> &str {
         self.zone_names.get(&zone).map_or("?", String::as_str)
+    }
+
+    /// The zone (AreaTable parent, up to the top) an area belongs to: itself for a zone.
+    pub fn area_zone(&self, mut area: i64) -> i64 {
+        for _ in 0..8 {
+            match self.area_parents.get(&area) {
+                Some(&parent) => area = parent,
+                None => break,
+            }
+        }
+        area
     }
 
     /// Nearest flight master node index within `radius` yards.
