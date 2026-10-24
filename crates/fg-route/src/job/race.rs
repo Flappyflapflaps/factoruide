@@ -41,7 +41,17 @@ pub fn optimize_interruptible(planner: &Planner<'_>, progress: Progress<'_>, int
         interrupt,
         changes: Mutex::new(Vec::new()),
         mutants: Mutex::new(Vec::new()),
+        starts: if plan.race && planner.params.construction_random && planner.params.forced_starts > 0 {
+            let mut zones = planner.start_zones();
+            zones.truncate(planner.params.forced_starts);
+            zones
+        } else {
+            Vec::new()
+        },
     };
+    if std::env::var_os("FG_RACE_LOG").is_some() {
+        progress(&format!("forced starts: {:?}", searcher.starts));
+    }
     let ranked = std::thread::scope(|scope| {
         scope.spawn(|| live.watch(&searcher));
         // The watcher ends with the searches, also when one panics: the scope waits for it
@@ -220,6 +230,7 @@ fn candidate_params(params: &Params, k: usize) -> Params {
     if params.construction_random && k > 0 && p.construction == Construction::Greedy {
         let mut rng = rand::rngs::SmallRng::seed_from_u64(p.seed ^ 0x9e37_79b9_7f4a_7c15);
         p.zone_stay = rng.random_range(3.5..=5.0);
+        p.zone_stay_quests = rng.random_range(3.0..=12.0);
         p.continent_stay = rng.random_range(1.0..=4.0);
         p.dungeon_quest_weight = rng.random_range(0.1..=0.6);
         p.fit_penalty = rng.random_range(0.0..=0.15);
@@ -464,6 +475,8 @@ struct Searcher<'a> {
     /// built as another with one of them done otherwise.
     changes: Mutex<Vec<Vec<ZoneChange>>>,
     mutants: Mutex<Vec<Option<Mutant>>>,
+    /// Zones rich in quests the first candidates after the first begin in (`start_zones`).
+    starts: Vec<i64>,
 }
 
 /// A race candidate built as a better one with one zone change done otherwise.
@@ -475,6 +488,18 @@ struct Mutant {
 }
 
 impl Searcher<'_> {
+    /// The settings of race candidate `k` (`candidate_params`), the first ones after the first
+    /// beginning in a zone rich in quests rather than where the character stands.
+    fn candidate(&self, k: usize) -> Params {
+        let mut p = candidate_params(self.params, k);
+        if k >= 1
+            && let Some(&zone) = self.starts.get(k - 1)
+        {
+            p.zone_detour = vec![0, 0, zone];
+        }
+        p
+    }
+
     /// Improve `route` (built when None) with candidate `k`'s settings for the tries of `slot`,
     /// meeting the other searches of the route at `member`'s exchange. Returns its score under
     /// the request's own settings; None when the generation is cancelled, or stopped while
@@ -494,7 +519,7 @@ impl Searcher<'_> {
         let mutant = self.mutants.lock().unwrap().get(k).cloned().flatten();
         let mut p = mutant
             .as_ref()
-            .map_or_else(|| candidate_params(self.params, k), |m| m.params.clone());
+            .map_or_else(|| self.candidate(k), |m| m.params.clone());
         if let Some((stage, search)) = slot.round {
             p.seed = round_seed(p.seed, stage, search);
         }
@@ -587,7 +612,7 @@ impl Searcher<'_> {
         let mutant = self.mutants.lock().unwrap().get(k).cloned().flatten();
         let p = mutant
             .as_ref()
-            .map_or_else(|| candidate_params(self.params, k), |m| m.params.clone());
+            .map_or_else(|| self.candidate(k), |m| m.params.clone());
         let give_up = || self.interrupt.cancelled() || (!needed && self.interrupt.stopping());
         let planner = Planner::new(self.model, self.world, &p, self.profile).abortable(&give_up);
         let route = self.build(k, &planner, mutant.as_ref(), |_| {})?;
@@ -712,7 +737,7 @@ fn mutate(searcher: &Searcher<'_>, ranked: &[(f64, usize, Vec<Stop>)], ks: std::
         let seed = searcher.params.seed.wrapping_add(k as u64);
         let mut rng = rand::rngs::SmallRng::seed_from_u64(seed ^ 0x5851_f42d_4c95_7f2d);
         let (detour, what) = detour(&changes[parent], &mut rng);
-        let mut params = candidate_params(searcher.params, parent);
+        let mut params = searcher.candidate(parent);
         params.seed = seed;
         params.zone_detour = detour;
         mutants[k] = Some(Mutant { params, parent, what });

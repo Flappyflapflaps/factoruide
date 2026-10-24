@@ -13,6 +13,8 @@ struct Candidate {
     pos: Pos,
     weight: f64,
     stay: f64,
+    /// In the character's zone (the stay weight does not apply).
+    here: bool,
     worth: Option<u32>,
     least: f64,
 }
@@ -123,6 +125,30 @@ impl Planner<'_> {
         self.insert_missing_mandatory(route)
     }
 
+    /// Zones other than the character's with the most quests worth doing from the start, the
+    /// richest first (at least `MIN_START_QUESTS`, in reach): where a candidate of the race may
+    /// begin instead of in the zone it stands in, `Params::zone_detour` [0, 0, zone].
+    pub fn start_zones(&self) -> Vec<i64> {
+        const MIN_START_QUESTS: usize = 5;
+        let s = self.initial_state();
+        let mut counts: std::collections::HashMap<i64, usize> = std::collections::HashMap::new();
+        for i in 0..self.model.quests.len() as u32 {
+            let accept = Stop::quest(i, Kind::Accept);
+            if self.gate_level(&s, accept) <= s.level
+                && self.availability().can_accept(&s, i)
+                && self.worth().worth_it(&s, i, s.level, 0.0)
+            {
+                let zone = self.places().zone(accept);
+                if zone != s.zone && self.trips().fastest(&s, &self.places().pos(&s, accept)).0.is_finite() {
+                    *counts.entry(zone).or_default() += 1;
+                }
+            }
+        }
+        let mut zones: Vec<(i64, usize)> = counts.into_iter().filter(|&(_, n)| n >= MIN_START_QUESTS).collect();
+        zones.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        zones.into_iter().map(|(z, _)| z).collect()
+    }
+
     /// The stop the greedy construction takes next from `s` (None: nothing worth doing at this
     /// level), pulled to a zone by a detour.
     ///
@@ -167,6 +193,7 @@ impl Planner<'_> {
                 pos,
                 weight,
                 stay,
+                here: zone == s.zone,
                 worth,
                 least,
             });
@@ -249,6 +276,18 @@ impl Planner<'_> {
                 add(stop, weight, None, bound.at(&self.places().pos(s, stop)));
             }
         }
+        // Staying in a zone only matters while it has something left to do: with few stops left
+        // there, the weight of leaving it fades to nothing (`Params::zone_stay_quests`).
+        let want = self.params.zone_stay_quests;
+        if want > 0.0 && self.params.zone_stay > 1.0 {
+            let left = candidates.iter().filter(|c| c.here).count() as f64;
+            let eff = 1.0 + (self.params.zone_stay - 1.0) * (left / want).min(1.0);
+            let scale = eff / self.params.zone_stay;
+            for c in candidates.iter_mut().filter(|c| !c.here) {
+                c.stay *= scale;
+                c.least *= scale;
+            }
+        }
         if let Some(stop) = self.least_score(s, candidates) {
             return Some(stop);
         }
@@ -282,6 +321,7 @@ impl Planner<'_> {
                         pos,
                         weight: 1.0,
                         stay,
+                        here: zone == s.zone,
                         worth: None,
                         least: if stay > 0.0 {
                             (lower + self.params.stop_overhead) * stay

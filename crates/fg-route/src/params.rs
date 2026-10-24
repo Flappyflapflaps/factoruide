@@ -113,6 +113,9 @@ pub struct Params {
     /// none). The other stops weigh `zone_detour_pull` more meanwhile.
     pub zone_detour: Vec<i64>,
     pub zone_detour_pull: f64,
+    /// Race: the first candidates after the first begin in this many of the zones richest in
+    /// quests (`Planner::start_zones`) rather than where the character stands; 0 = none.
+    pub forced_starts: usize,
     /// Race: candidates built after those above as the best of them with one zone change done
     /// otherwise (`zone_detour`), fewer with a low `effort`.
     pub race_mutants: usize,
@@ -147,6 +150,10 @@ pub struct Params {
     /// Greedy construction: weight of the stops outside the current zone (1 = nearest stop first,
     /// higher values clear the zone before leaving it).
     pub zone_stay: f64,
+    /// Greedy construction: stops left in the current zone (worth doing at this level) from
+    /// which `zone_stay` applies in full; with fewer, the weight of leaving fades to 1 (a zone
+    /// with nothing left holds nobody). 0 = always in full.
+    pub zone_stay_quests: f64,
     /// Objects looting more different items than this (world treasure chests) are not sources
     /// of quest items (0 = every object counts).
     pub max_object_loot: usize,
@@ -388,9 +395,11 @@ impl Default for Params {
             dynamic_respawn: 0.5,
             solo_elite_kills: 2.0,
             zone_stay: 4.0,
+            zone_stay_quests: 0.0,
             construction_random: true,
             zone_detour: vec![],
             zone_detour_pull: 10.0,
+            forced_starts: 0,
             race_mutants: 224,
             screen: 8,
             continent_stay: 1.0,
