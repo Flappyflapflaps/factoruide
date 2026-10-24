@@ -66,29 +66,14 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
         required_class_quests: None,
         professions: opts.professions.clone(),
         locale: opts.locale.clone(),
-        start: opts
-            .start
-            .as_deref()
-            .map(read_profile)
-            .transpose()?
-            .map(|mut start| {
-                // The flight paths of the towns it did quests in count as learned.
-                if let Some(side) = fg_route::faction::Faction::parse(&start.faction)
-                    && let Ok(found) = job::inferred_flights(conn, side, &start.completed)
-                {
-                    start.flights.extend(found);
-                    start.flights.sort_unstable();
-                    start.flights.dedup();
-                }
-                start
-            }),
+        start: opts.start.as_deref().map(read_profile).transpose()?,
         mates: opts.mates.iter().map(|p| read_profile(p)).collect::<Result<_>>()?,
     };
     // FG_PREVIEW_STARTS: the starts the app offers to choose from, as JSON (not a guide).
     if std::env::var_os("FG_PREVIEW_STARTS").is_some() {
         let began = std::time::Instant::now();
         let starts = job::preview_starts(conn, &overrides, &request, &|m| eprintln!("{m}"), &job::Interrupt::default(), None)?;
-        eprintln!("{} starts in {:.0} s", starts.len(), began.elapsed().as_secs_f64());
+        eprintln!("{} starts in {:.0} s", starts.options.len(), began.elapsed().as_secs_f64());
         println!("{}", serde_json::to_string_pretty(&starts)?);
         return Ok(());
     }
@@ -361,6 +346,11 @@ pub fn replay(
         "{}-replay",
         request.name.clone().unwrap_or_else(|| "request".into())
     ));
+    if std::env::var_os("FG_PREVIEW_STARTS").is_some() {
+        let preview = job::preview_starts(conn, &overrides, &request, &|m| eprintln!("{m}"), &job::Interrupt::default(), None)?;
+        eprintln!("{} starts of {} tried", preview.options.len(), preview.tried);
+        return Ok(());
+    }
     let outcome = job::plan(conn, &overrides, &request, &|m| {
         if !m.starts_with('@') {
             eprintln!("{m}");

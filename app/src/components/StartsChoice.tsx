@@ -5,6 +5,10 @@ import { loadImage } from "./WorldMap";
 
 interface Props {
   starts: StartOption[];
+  /** How many starts were computed (those beginning in the same zone are shown once). */
+  tried: number;
+  /** What was tried, shown on demand. */
+  details: string[];
   zones: Options["zones"];
   /** The start chosen (the best score is the one shown first and chosen at first). */
   onPick: (start: StartOption) => void;
@@ -31,7 +35,7 @@ function ZonePicture({ map }: { map: number }) {
  * score the planner ranks by, smaller, in a tooltip), its steps and quests. The best score is
  * chosen at first.
  */
-export function StartsChoice({ starts, zones, onPick, onBack }: Props) {
+export function StartsChoice({ starts, tried, details, zones, onPick, onBack }: Props) {
   const t = useT();
   const areaName = useAreaName();
   const [chosen, setChosen] = useState(0);
@@ -43,7 +47,8 @@ export function StartsChoice({ starts, zones, onPick, onBack }: Props) {
     <section className="panel starts">
       <h2>{t("Par où commencer ?")}</h2>
       <p className="muted">
-        {t("Plusieurs départs sont possibles : chacun est un guide calculé rapidement, avant d'être optimisé à fond. Le plus rapide est choisi d'office.")}
+        {t("Plusieurs départs sont possibles : chacun est un guide calculé rapidement, avant d'être optimisé à fond. Le plus rapide est choisi d'office.")}{" "}
+        {t("{tried} départs calculés, {shown} réellement différents : ceux qui commencent dans la même zone sont regroupés, ceux bien plus lents sont écartés.", { tried, shown: starts.length })}
       </p>
       <div className="starts-grid" role="radiogroup" aria-label={t("Départs possibles")}>
         {starts.map((s, i) => (
@@ -80,6 +85,16 @@ export function StartsChoice({ starts, zones, onPick, onBack }: Props) {
           </button>
         ))}
       </div>
+      {details.length > 0 && (
+        <details className="starts-details">
+          <summary>{t("Détail du calcul")}</summary>
+          <ul>
+            {details.map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        </details>
+      )}
       <div className="starts-actions">
         <button onClick={onBack}>{t("Retour")}</button>
         <button className="primary big" onClick={() => onPick(starts[chosen])}>

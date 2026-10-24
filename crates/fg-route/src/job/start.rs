@@ -36,6 +36,9 @@ pub struct StartState {
     pub bind: Option<Bind>,
     /// Flight paths known (TaxiNodes IDs).
     pub flights: Vec<i64>,
+    /// `flights` is the final list (the app deduced the towns' flight paths from the quests and
+    /// the player ticked or unticked them): not deduced again when planning.
+    pub flights_final: bool,
     pub professions: Vec<Skill>,
     /// Riding skill (0: no mount).
     pub riding: i64,

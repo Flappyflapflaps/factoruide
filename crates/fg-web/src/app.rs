@@ -708,7 +708,7 @@ fn plan_route(request: &PlanRequest) -> CmdResult<VersionMeta> {
 }
 
 /// The starts the character can choose from before the guide is computed.
-fn preview_starts(request: &PlanRequest) -> CmdResult<Vec<job::StartOption>> {
+fn preview_starts(request: &PlanRequest) -> CmdResult<job::StartPreview> {
     PLAN_INTERRUPT.reset();
     let edition = request_edition(request);
     let progress = |m: &str| host::event("plan-progress", &serde_json::Value::String(m.to_owned()));

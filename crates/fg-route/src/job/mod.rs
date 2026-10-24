@@ -37,11 +37,12 @@ pub use routes::{
     write_data_addon, write_polestar_pack, write_polestar_source, write_polestar_strings,
 };
 pub use services::{Place, Service, places, services_lua};
-pub use starts::{StartOption, preview_starts};
+pub use starts::{StartOption, StartPreview, preview_starts};
 pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};
 pub use timeline::{InnInfo, Leg, LegMode, NodeInfo, ObjectiveInfo, QuestInfo, StartView, Timeline, TimelineStep};
 
 use crate::export;
+use crate::faction::Faction;
 use crate::model::{self, Profile};
 use crate::params::Params;
 use crate::plan::Planner;
@@ -218,6 +219,21 @@ pub fn prepare(
     // A group is planned for the member with the least XP.
     let start = members.first().copied().or(req.start.as_ref());
     if let Some(start) = start {
+        // The flight paths of the towns it did quests in count as learned, unless the list was settled by hand.
+        let deduced;
+        let start = match Faction::parse(&start.faction) {
+            Some(side) if !start.flights_final => {
+                let mut copy = start.clone();
+                if let Ok(found) = inferred_flights(conn, side, &start.completed) {
+                    copy.flights.extend(found);
+                    copy.flights.sort_unstable();
+                    copy.flights.dedup();
+                }
+                deduced = copy;
+                &deduced
+            }
+            _ => start,
+        };
         model.initial = start.initial(&model, &world, &mut params, &mut start_notes);
         if members.len() > 1 {
             group::join(&mut model, &world, start, &members[1..], &mut start_notes);

@@ -825,7 +825,7 @@ async fn inferred_flights(app: AppHandle, start: StartState) -> CmdResult<Vec<i6
 /// streaming `plan-progress` events (`@preview <done> <total>`). Fewer than two: nothing to choose.
 /// `cancel_plan` ends it with "cancelled".
 #[tauri::command]
-async fn preview_starts(app: AppHandle, request: PlanRequest) -> CmdResult<Vec<job::StartOption>> {
+async fn preview_starts(app: AppHandle, request: PlanRequest) -> CmdResult<job::StartPreview> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
         state.plan_interrupt.reset();

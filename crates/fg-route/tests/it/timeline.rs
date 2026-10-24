@@ -223,6 +223,6 @@ fn the_addon_follows_the_walks_the_app_draws() {
 #[test]
 fn a_new_character_has_no_start_to_choose() {
     let conn = database();
-    let starts = job::preview_starts(&conn, &overrides(), &request(), &|_| {}, &job::Interrupt::default(), None).unwrap();
-    assert!(starts.len() < 2, "{} starts", starts.len());
+    let preview = job::preview_starts(&conn, &overrides(), &request(), &|_| {}, &job::Interrupt::default(), None).unwrap();
+    assert!(preview.options.len() < 2, "{} starts", preview.options.len());
 }

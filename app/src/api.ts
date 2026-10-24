@@ -221,6 +221,8 @@ export interface StartState {
   bind: { name: string; position: MapPos | null } | null;
   /** Flight paths known (TaxiNodes IDs). */
   flights: number[];
+  /** `flights` is final (deduced and edited in the app): the planner does not deduce them again. */
+  flights_final?: boolean;
   professions: { line: number; rank: number }[];
   riding: number;
   gear: number[];
@@ -510,7 +512,7 @@ export const api = {
   /** The flight paths a character probably knows from its quests done in their towns. */
   inferredFlights: (start: StartState) => invoke<number[]>("inferred_flights", { start }),
   /** The starts the character can choose from (fewer than two: nothing to choose), the best score first. */
-  previewStarts: (request: PlanRequest) => invoke<StartOption[]>("preview_starts", { request }),
+  previewStarts: (request: PlanRequest) => invoke<StartPreview>("preview_starts", { request }),
   /** Saves a guide of no steps from the request's character and settings (edited by hand), to fill in the editor. */
   manualRoute: (request: PlanRequest) => invoke<VersionMeta>("manual_route", { request }),
   /** Ends the optimization under way now: `planRoute` saves and returns the best guide so far. */
@@ -618,6 +620,14 @@ export function fmtTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "—";
   const m = Math.round(seconds / 60);
   return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`;
+}
+
+/** The starts offered, and how many different ones were tried. */
+export interface StartPreview {
+  tried: number;
+  options: StartOption[];
+  /** What was tried (flight paths known, each start's zone, time and score). */
+  details: string[];
 }
 
 /** A way to begin the guide (`previewStarts`): a route computed lightly from a zone. */

@@ -49,6 +49,8 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
   const [compareStarts, setCompareStarts] = useState(compareStartsSaved);
   // The starts to choose from, and how far their comparison is.
   const [starts, setStarts] = useState<StartOption[]>([]);
+  const [tried, setTried] = useState(0);
+  const [startDetails, setStartDetails] = useState<string[]>([]);
   const [preview, setPreview] = useState<[number, number] | null>(null);
   const [initial, setInitial] = useState<PlanRequest | null>(start.initial);
   const [optimize, setOptimize] = useState<OptimizeState | null>(null);
@@ -132,8 +134,13 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
     setPreview(null);
     interrupted.current = null;
     let found: StartOption[] = [];
+    let count = 0;
+    let lines: string[] = [];
     try {
-      found = await api.previewStarts(request);
+      const preview = await api.previewStarts(request);
+      found = preview.options;
+      count = preview.tried;
+      lines = preview.details;
     } catch (e) {
       // Cancelled: back to the configuration. Any other failure: the guide is computed as usual.
       if (String(e) === "cancelled") {
@@ -148,6 +155,8 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
     if (found.length < 2) return run(request);
     onBusy?.(false);
     setStarts(found);
+    setTried(count);
+    setStartDetails(lines);
     setStep("starts");
   };
 
@@ -290,6 +299,8 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
       {step === "starts" && initial && (
         <StartsChoice
           starts={starts}
+          tried={tried}
+          details={startDetails}
           zones={options.zones}
           onBack={() => setStep("config")}
           onPick={(pick) => run({ ...initial, params: initial.params ? { ...initial.params, start_zone: pick.start_zone } : initial.params })}

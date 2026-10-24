@@ -320,7 +320,7 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
     for (const id of after) if (!before.has(id)) (added.add(id), removed.delete(id));
     for (const id of before) if (!after.has(id)) (removed.add(id), added.delete(id));
     localStorage.setItem(`fg.flights.${start.name}`, JSON.stringify({ added: [...added], removed: [...removed] }));
-    setStart({ ...start, flights });
+    setStart({ ...start, flights, flights_final: true });
   };
   const pickCharacter = (c: CharacterInfo | null) => {
     setStart(c ? { ...c.profile, flights: mergeFlights(c.profile.name, c.profile.flights, []) } : null);
@@ -331,7 +331,7 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
         .inferredFlights(c.profile)
         .then((inferred) => {
           setFlightInfo({ recorded, inferred });
-          setStart((s) => (s && s.name === c.profile.name ? { ...s, flights: mergeFlights(c.profile.name, recorded, inferred) } : s));
+          setStart((s) => (s && s.name === c.profile.name ? { ...s, flights: mergeFlights(c.profile.name, recorded, inferred), flights_final: true } : s));
         })
         .catch(() => {});
     }
