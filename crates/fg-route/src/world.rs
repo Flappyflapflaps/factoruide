@@ -77,8 +77,12 @@ pub const PASS_REACH: f64 = 150.0;
 /// misses, around a mountain), it is not shorter, and a walk priced as the crow flies over
 /// mountains makes flights look useless.
 pub const UNKNOWN_DETOUR: f64 = 1.5;
-/// The level of a leg of `World::walk_path` drawn straight (to or through a passage).
-const STRAIGHT: u8 = u8::MAX;
+/// A leg of `World::walk_path`: drawn straight or around the steep terrain.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Leg {
+    Straight,
+    Terrain,
+}
 /// The most a walk through the passages joining two areas the terrain does not connect may
 /// cost, times the straight line: farther around, a shorter way the terrain and the passages
 /// do not know (a ramp, a path up a cliff) is likelier.
@@ -105,16 +109,7 @@ pub struct Bridge {
     pub to: (usize, usize),
 }
 
-/// Walks through the passages already worked out in this thread, by world (`World::bridge_id`),
-/// continent, pair of cells, level and pair of heights.
-type BridgeKey = (u32, i64, (i32, i32), (i32, i32), u8, u64);
-thread_local! {
-    static BRIDGES: RefCell<FxHashMap<BridgeKey, Option<Bridge>>> = RefCell::new(FxHashMap::default());
-    /// The same for the walks the floors join by a long way round (`World::lift`).
-    static LIFTS: RefCell<FxHashMap<BridgeKey, Option<Bridge>>> = RefCell::new(FxHashMap::default());
-}
-const BRIDGES_MAX: usize = 1 << 18;
-static NEXT_BRIDGE_ID: AtomicU32 = AtomicU32::new(1);
+static NEXT_WORLD_ID: AtomicU32 = AtomicU32::new(1);
 
 /// Walks already worked out in this thread (`World::walk_distance_at`), by world
 /// (`World::walk_id`) and terrain (`Terrain::id`), level and ends (coordinates, then continent and zone of each): the trips
@@ -124,6 +119,17 @@ thread_local! {
     static WALKED: RefCell<FxHashMap<WalkKey, f64>> = RefCell::new(FxHashMap::default());
 }
 const WALKED_MAX: usize = 1 << 17;
+
+/// Walks between the passages (`World::pass_closed`): shortest distances and the next passage
+/// on each.
+type PassGraph = (Vec<Vec<f64>>, Vec<Vec<usize>>);
+
+/// Times a walk through a closed zone costs, between two passages.
+const CLOSED_COST: f64 = 5.0;
+/// Zones with fewer hostile mobs than this have no level (small islands).
+const ZONE_MOBS_MIN: usize = 30;
+/// Levels above which a mob is a boss or unknown ("??"), not counted in a zone's level.
+const ZONE_MOB_LEVEL_MAX: i64 = 70;
 
 /// A lift of `World::area_lifts`: passage and the indices of its two sides.
 type LiftSides = (usize, usize, usize);
@@ -152,6 +158,17 @@ pub struct World {
     pass_next: Vec<Vec<usize>>,
     /// Whether the shortest walk from passage i to passage j takes a shortcut (them included).
     pass_shortcut: Vec<Vec<bool>>,
+    /// Median level of the hostile mobs of each zone (`add_zone_levels`).
+    zone_levels: FxHashMap<i64, u8>,
+    /// Levels a zone's median hostile mob may be above the character's (the top of its band of
+    /// 5) for walks to go in it (`add_zone_levels`).
+    zone_gap: u8,
+    /// The walk level of each band of 5 levels (`World::walk_level`).
+    band_levels: Vec<u8>,
+    /// The same walks between passages for a character of a level (the top of its band of 5),
+    /// where crossing the zones too strong for it (`ZONE_GAP`) costs many times more: distances and next
+    /// passages. The levels with no zone closed are not here (`pass_graph`).
+    pass_closed: FxHashMap<u8, PassGraph>,
     pub zone_passes: FxHashMap<i64, Vec<usize>>,
     /// The passages joining each large terrain area (continent, area) to others: passage and
     /// index in its `areas`. Not the shortcuts nor the one-way passages (taken only on a walk
@@ -161,10 +178,8 @@ pub struct World {
     /// only by a long way round: `Pass::areas` keeps such sides apart), by area: passage and the
     /// indices of the two sides in its `areas`, both ways.
     area_lifts: FxHashMap<(i64, u32), Vec<LiftSides>>,
-    /// Tells this world's walks through the passages from another's in the thread memo.
-    bridge_id: u32,
     /// Tells this world's walks from another's in the thread memo (`WALKED`): new each time
-    /// what they depend on changes (terrain, danger, passages).
+    /// what they depend on changes (terrain, zone levels, passages).
     walk_id: u32,
     /// Flight master nodes by x (`taxi_near`).
     taxi_by_x: Vec<(f64, usize)>,
@@ -347,14 +362,17 @@ impl World {
             pass_dist: Vec::new(),
             pass_next: Vec::new(),
             pass_shortcut: Vec::new(),
+            zone_levels: FxHashMap::default(),
+            zone_gap: 0,
+            band_levels: Vec::new(),
+            pass_closed: FxHashMap::default(),
             zone_passes: FxHashMap::default(),
             taxi_by_x: Vec::new(),
             terrain: crate::terrain::Terrain::load(conn)?,
             landmarks: Vec::new(),
             area_passes: FxHashMap::default(),
             area_lifts: FxHashMap::default(),
-            bridge_id: 0,
-            walk_id: NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed),
+            walk_id: NEXT_WORLD_ID.fetch_add(1, Ordering::Relaxed),
         };
         world.landmarks = world.load_landmarks(conn)?;
         for i in 0..world.taxi_nodes.len() {
@@ -909,40 +927,63 @@ impl Pass {
 }
 
 impl World {
-    /// Count the danger of the mobs hostile to both factions on walks (`Terrain::add_danger`):
-    /// their highest level, 3 more for an elite. Before the passages and links.
-    pub fn add_danger(&mut self, conn: &Connection, weight: f64) -> Result<()> {
-        let mut stmt = conn.prepare(
-            "SELECT s.zone_id, s.x, s.y, coalesce(n.max_level, n.min_level, 1), coalesce(n.rank, 0)
-             FROM m_spawn s JOIN m_npc n ON n.id = s.entity_id
-             WHERE s.entity_type = 'npc' AND s.x >= 0 AND coalesce(n.friendly_to, '') = ''",
-        )?;
-        let rows = stmt.query_map([], |r| {
-            Ok((
-                r.get::<_, i64>(0)?,
-                r.get::<_, f64>(1)?,
-                r.get::<_, f64>(2)?,
-                r.get::<_, i64>(3)?,
-                r.get::<_, i64>(4)?,
-            ))
-        })?;
-        let mut spawns = Vec::new();
-        for row in rows {
-            let (zone, x, y, level, rank) = row?;
-            if let Some(p) = self.to_world(zone, x, y) {
-                let elite = if rank > 0 { 3 } else { 0 };
-                spawns.push((p, (level + elite).clamp(1, 255) as u8));
+    /// Close the zones too strong for the character to walks: those whose median level of the
+    /// mobs hostile to both factions is more than `gap` levels above the top of its band of 5
+    /// (0: none is). No walk goes into a closed zone (a character a flight or a teleport left
+    /// in one walks out), a walk across it costs `CLOSED_COST` times more. Before the passages.
+    pub fn add_zone_levels(&mut self, conn: &Connection, gap: f64) -> Result<()> {
+        let mut levels: FxHashMap<i64, Vec<u8>> = FxHashMap::default();
+        if gap > 0.0 {
+            let mut stmt = conn.prepare(
+                "SELECT s.zone_id, coalesce(n.max_level, n.min_level, 1)
+                 FROM m_spawn s JOIN m_npc n ON n.id = s.entity_id
+                 WHERE s.entity_type = 'npc' AND s.x >= 0 AND coalesce(n.friendly_to, '') = ''",
+            )?;
+            for row in stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))? {
+                let (zone, level) = row?;
+                if (1..=ZONE_MOB_LEVEL_MAX).contains(&level) {
+                    levels.entry(zone).or_default().push(level as u8);
+                }
             }
         }
-        self.terrain.add_danger(spawns, weight);
-        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
+        self.zone_gap = gap.clamp(0.0, 100.0).round() as u8;
+        // The zones with named places of their own: not the cities, whose few hostile mobs say
+        // nothing of the walk to their trainers.
+        self.zone_levels = (levels.into_iter())
+            .filter(|(z, l)| l.len() >= ZONE_MOBS_MIN && self.landmarks.iter().any(|m| m.zone == *z))
+            .map(|(z, mut l)| {
+                l.sort_unstable();
+                (z, l[l.len() / 2])
+            })
+            .collect();
+        // Bands that close the same zones share a walk level (their walks are the same ones).
+        let closed_at = |band: u8| self.zone_levels.values().filter(|&&l| l > band + self.zone_gap).count();
+        self.band_levels = (1..=ZONE_MOB_LEVEL_MAX as u8 / 5)
+            .map(|k| {
+                let band = k * 5;
+                let closed = closed_at(band);
+                if closed == 0 {
+                    0
+                } else {
+                    (5..=band).step_by(5).find(|&b| closed_at(b) == closed).unwrap_or(band)
+                }
+            })
+            .collect();
+        self.walk_id = NEXT_WORLD_ID.fetch_add(1, Ordering::Relaxed);
         Ok(())
+    }
+
+    /// What a character of `level` needs of the walks (`walk_distance_at`): 0 when no zone is
+    /// closed to it, else the level of the first band of 5 closing the same zones.
+    pub fn walk_level(&self, level: i64) -> u8 {
+        let band = (level.clamp(1, 250) as usize).div_ceil(5);
+        self.band_levels.get(band - 1).copied().unwrap_or(0)
     }
 
     /// Ways the game keeps closed (`Terrain::close`). Before the areas enclosed, the caves and
     /// the passages (their walks depend on it).
     pub fn close(&mut self, defs: &[ClosedDef]) -> Vec<String> {
-        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
+        self.walk_id = NEXT_WORLD_ID.fetch_add(1, Ordering::Relaxed);
         let mut warnings = Vec::new();
         for d in defs {
             let p = match (&d.at, d.world) {
@@ -967,7 +1008,7 @@ impl World {
     /// Areas left only by boat, portal or lift: no walk to or from them. Before the passages
     /// (their walks depend on it).
     pub fn enclose(&mut self, defs: &[EnclosedDef]) -> Vec<String> {
-        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
+        self.walk_id = NEXT_WORLD_ID.fetch_add(1, Ordering::Relaxed);
         let mut warnings = Vec::new();
         // A valley the gaps opened join to the mainland is taken out of it first (the areas are
         // numbered anew).
@@ -996,7 +1037,7 @@ impl World {
     /// Caves the terrain does not hold: walks to the places inside go through their mouth. Before
     /// the passages and links (their walks depend on it).
     pub fn add_caves(&mut self, defs: &[CaveDef]) -> Vec<String> {
-        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
+        self.walk_id = NEXT_WORLD_ID.fetch_add(1, Ordering::Relaxed);
         let mut warnings = Vec::new();
         for d in defs {
             let added = match (
@@ -1099,31 +1140,28 @@ impl World {
                 }
             }
         }
-        self.bridge_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
-        self.walk_id = NEXT_BRIDGE_ID.fetch_add(1, Ordering::Relaxed);
+        self.walk_id = NEXT_WORLD_ID.fetch_add(1, Ordering::Relaxed);
         // Walking from a passage to another taken from the zone it leads into, then all-pairs
         // shortest walks (one-way passages: not the same both ways). Between two passages of
         // the same terrain area, over the terrain from their points in it (a passage may stand
         // on the other side of a gap the terrain does not cross).
         let n = self.passes.len();
-        let mut d = vec![vec![f64::INFINITY; n]; n];
-        let mut next: Vec<Vec<usize>> = (0..n).map(|_| (0..n).collect()).collect();
-        for (i, (row, a)) in d.iter_mut().zip(&self.passes).enumerate() {
-            row[i] = 0.0;
+        // The walk from each passage to the next, and the zone(s) it goes through.
+        let mut edges = vec![vec![f64::INFINITY; n]; n];
+        for (i, (row, a)) in edges.iter_mut().zip(&self.passes).enumerate() {
             for (j, (cell, b)) in row.iter_mut().zip(&self.passes).enumerate() {
                 if i != j && a.zones.iter().any(|&z| a.leads_to(z) && b.taken_from(z)) {
                     *cell = self.between_passes(a, b);
                 }
             }
         }
-        for k in 0..n {
-            for i in 0..n {
-                for j in 0..n {
-                    let via = d[i][k] + d[k][j];
-                    if via < d[i][j] {
-                        d[i][j] = via;
-                        next[i][j] = next[i][k];
-                    }
+        let (d, next) = self.pass_graph(&edges, |_| false);
+        self.pass_closed.clear();
+        if !self.zone_levels.is_empty() {
+            for &level in self.band_levels.iter().filter(|&&l| l != 0) {
+                if !self.pass_closed.contains_key(&level) {
+                    let graph = self.pass_graph(&edges, |z| self.zone_closed(z, level));
+                    self.pass_closed.insert(level, graph);
                 }
             }
         }
@@ -1158,8 +1196,8 @@ impl World {
                     && size >= crate::terrain::LARGE_AREA
                     && sides.iter().filter(|&&(a, _)| a == area).all(|(_, q)| {
                         let near = 2.0 * q.dist(&p) + 50.0;
-                        !self.terrain.distance(q, &p, 0).is_some_and(|d| d <= near)
-                            || !self.terrain.distance(&p, q, 0).is_some_and(|d| d <= near)
+                        !self.terrain.distance(q, &p).is_some_and(|d| d <= near)
+                            || !self.terrain.distance(&p, q).is_some_and(|d| d <= near)
                     })
                 {
                     sides.push((area, p));
@@ -1247,11 +1285,11 @@ impl World {
     /// way around (Deadwind Pass's road between Duskwood and the Swamp of Sorrows).
     fn between_passes(&self, a: &Pass, b: &Pass) -> f64 {
         let straight = a.pos.dist(&b.pos);
-        let mut best = self.terrain.distance(&a.pos, &b.pos, 0).unwrap_or(straight);
+        let mut best = self.terrain.distance(&a.pos, &b.pos).unwrap_or(straight);
         for (area, pa) in &a.areas {
             for (other, pb) in &b.areas {
                 if area == other
-                    && let Some(d) = self.terrain.distance(pa, pb, 0)
+                    && let Some(d) = self.terrain.distance(pa, pb)
                     && d.is_finite()
                 {
                     best = best.min(a.pos.dist(pa) + d + pb.dist(&b.pos));
@@ -1261,16 +1299,77 @@ impl World {
         best.min(straight * UNKNOWN_DETOUR)
     }
 
+    /// All-pairs shortest walks between passages from the walks `edges` between those that
+    /// join, `CLOSED_COST` times longer through the zones `closed` says (a walk from a passage
+    /// into a zone and out of it through the next goes through the zone).
+    fn pass_graph(&self, edges: &[Vec<f64>], closed: impl Fn(i64) -> bool) -> PassGraph {
+        let n = self.passes.len();
+        let mut d = vec![vec![f64::INFINITY; n]; n];
+        let mut next: Vec<Vec<usize>> = (0..n).map(|_| (0..n).collect()).collect();
+        for (i, a) in self.passes.iter().enumerate() {
+            d[i][i] = 0.0;
+            for (j, b) in self.passes.iter().enumerate() {
+                // Through a closed zone a walk costs many times its length, not nothing: a
+                // character a teleport or a flight left in one (Moonglade) gets out of it.
+                let through = a.zones.iter().filter(|&&z| a.leads_to(z) && b.taken_from(z));
+                let factor = through
+                    .map(|&z| if closed(z) { CLOSED_COST } else { 1.0 })
+                    .min_by(f64::total_cmp);
+                if i != j
+                    && let Some(factor) = factor
+                {
+                    d[i][j] = edges[i][j] * factor;
+                }
+            }
+        }
+        for k in 0..n {
+            for i in 0..n {
+                for j in 0..n {
+                    let via = d[i][k] + d[k][j];
+                    if via < d[i][j] {
+                        d[i][j] = via;
+                        next[i][j] = next[i][k];
+                    }
+                }
+            }
+        }
+        (d, next)
+    }
+
+    /// Whether walks do not go into zone `z` at walk level `level` (0: no zone is closed): its
+    /// median hostile mob is more than `zone_gap` levels above.
+    pub fn zone_closed(&self, z: i64, level: u8) -> bool {
+        level > 0
+            && self
+                .zone_levels
+                .get(&z)
+                .is_some_and(|&l| l > level.saturating_add(self.zone_gap))
+    }
+
+    /// The walks between passages for a character of `level` (0: no zone is closed).
+    fn pass_graph_at(&self, level: u8) -> (&Vec<Vec<f64>>, &Vec<Vec<usize>>) {
+        match self.pass_closed.get(&level) {
+            Some((d, next)) => (d, next),
+            None => (&self.pass_dist, &self.pass_next),
+        }
+    }
+
     /// The passages of the shortest walk from passage `i` to passage `j`, both included (none
     /// when no walk goes there).
     pub fn pass_path(&self, i: usize, j: usize) -> Vec<usize> {
-        if self.pass_dist[i][j].is_infinite() {
+        self.pass_path_at(i, j, 0)
+    }
+
+    /// The same for a character of `level` (`pass_graph_at`).
+    fn pass_path_at(&self, i: usize, j: usize, level: u8) -> Vec<usize> {
+        let (dist, next) = self.pass_graph_at(level);
+        if dist[i][j].is_infinite() {
             return Vec::new();
         }
         let mut path = vec![i];
         let mut k = i;
         while k != j {
-            k = self.pass_next[k][j];
+            k = next[k][j];
             path.push(k);
         }
         path
@@ -1316,11 +1415,9 @@ impl World {
         self.walk_distance_at(a, b, 0)
     }
 
-    /// The same for a character of `level`: the danger of the mobs on the way counts (when
-    /// `add_danger` set it; 0: never).
+    /// The same for a character with the walk level `level` (`walk_level`): the zones too strong
+    /// for it are closed.
     pub fn walk_distance_at(&self, a: &Pos, b: &Pos, level: u8) -> f64 {
-        // The level only counts through the danger.
-        let level = if self.terrain.counts_danger() { level } else { 0 };
         let head =
             |p: &Pos| Some(u64::from(u32::try_from(p.continent).ok()?) << 32 | u64::from(u32::try_from(p.zone).ok()?));
         let (Some(ha), Some(hb)) = (head(a), head(b)) else {
@@ -1361,17 +1458,21 @@ impl World {
         if a.zone == b.zone {
             return self.ground(a, b, level);
         }
+        // No walk into a zone too strong for the character (out of one: yes).
+        if self.zone_closed(b.zone, level) {
+            return f64::INFINITY;
+        }
         let (Some(pa), Some(pb)) = (self.zone_passes.get(&a.zone), self.zone_passes.get(&b.zone)) else {
             return self.ground(a, b, level);
         };
         let best = self.through_passes(a, b, pa, pb, level).0;
         let passes = &self.passes;
+        let dist = self.pass_graph_at(level).0;
         if best.is_finite() {
             best
         } else if pa.iter().all(|&i| {
-            pb.iter().all(|&j| {
-                !passes[i].taken_from(a.zone) || !passes[j].leads_to(b.zone) || self.pass_dist[i][j].is_infinite()
-            })
+            pb.iter()
+                .all(|&j| !passes[i].taken_from(a.zone) || !passes[j].leads_to(b.zone) || dist[i][j].is_infinite())
         }) {
             f64::INFINITY
         } else {
@@ -1383,31 +1484,30 @@ impl World {
     /// passages it takes between zones, the turns around the steep terrain
     /// (`Terrain::waypoints`). Only the ends when it goes straight, or when no walk goes there.
     pub fn walk_path(&self, a: &Pos, b: &Pos, level: u8) -> Vec<Pos> {
-        // The legs walked over the terrain, and the level each counts the danger at.
-        let mut legs: Vec<(Pos, Pos, u8)> = Vec::new();
+        // The legs: those drawn straight (to or through a passage) or over the terrain.
+        let mut legs: Vec<(Pos, Pos, Leg)> = Vec::new();
         if a.zone != b.zone
             && a.continent == b.continent
             && let (Some(pa), Some(pb)) = (self.zone_passes.get(&a.zone), self.zone_passes.get(&b.zone))
             && let (t, Some((i, j))) = self.through_passes(a, b, pa, pb, level)
             && t.is_finite()
         {
-            let chain = self.pass_path(i, j);
+            let chain = self.pass_path_at(i, j, level);
             let side = |k: usize, s: Option<usize>| s.map_or(self.passes[k].pos, |s| self.passes[k].areas[s].1);
             let first = side(i, self.walk_to_pass(a, i, level).1);
             self.ground_legs(a, &first, level, &mut legs);
-            legs.push((first, self.passes[i].pos, STRAIGHT));
-            // Between passages the walks are known at no danger (`add_passes`).
+            legs.push((first, self.passes[i].pos, Leg::Straight));
             self.chain_legs(&chain, &mut legs);
             let last = side(j, self.walk_from_pass(j, b, level).1);
-            legs.push((self.passes[j].pos, last, STRAIGHT));
+            legs.push((self.passes[j].pos, last, Leg::Straight));
             self.ground_legs(&last, b, level, &mut legs);
         } else {
             self.ground_legs(a, b, level, &mut legs);
         }
         let mut path = vec![*a];
-        for (from, to, at) in legs {
-            if at != STRAIGHT {
-                path.extend(self.terrain.waypoints(&from, &to, at));
+        for (from, to, leg) in legs {
+            if leg == Leg::Terrain {
+                path.extend(self.terrain.waypoints(&from, &to));
             }
             path.push(to);
         }
@@ -1417,32 +1517,32 @@ impl World {
 
     /// The legs of a walk over the ground (`ground`): straight or around the steep terrain, or
     /// through the passages joining two areas the terrain does not connect.
-    fn ground_legs(&self, a: &Pos, b: &Pos, level: u8, legs: &mut Vec<(Pos, Pos, u8)>) {
+    fn ground_legs(&self, a: &Pos, b: &Pos, level: u8, legs: &mut Vec<(Pos, Pos, Leg)>) {
         match self.ground_way(a, b, level).1 {
             Way::Bridge(bridge) => {
                 let (i, ka) = bridge.from;
                 let (j, kb) = bridge.to;
                 let (near_a, near_b) = (self.passes[i].areas[ka].1, self.passes[j].areas[kb].1);
-                legs.push((*a, near_a, level));
-                legs.push((near_a, self.passes[i].pos, STRAIGHT));
-                self.chain_legs(&self.pass_path(i, j), legs);
-                legs.push((self.passes[j].pos, near_b, STRAIGHT));
-                legs.push((near_b, *b, level));
+                legs.push((*a, near_a, Leg::Terrain));
+                legs.push((near_a, self.passes[i].pos, Leg::Straight));
+                self.chain_legs(&self.pass_path_at(i, j, level), legs);
+                legs.push((self.passes[j].pos, near_b, Leg::Straight));
+                legs.push((near_b, *b, Leg::Terrain));
             }
-            Way::Terrain => legs.push((*a, *b, level)),
-            Way::Straight => legs.push((*a, *b, STRAIGHT)),
+            Way::Terrain => legs.push((*a, *b, Leg::Terrain)),
+            Way::Straight => legs.push((*a, *b, Leg::Straight)),
         }
     }
 
     /// The legs from passage to passage of a chain (`pass_path`): through their points in an
     /// area they share (`between_passes`), else straight.
-    fn chain_legs(&self, chain: &[usize], legs: &mut Vec<(Pos, Pos, u8)>) {
+    fn chain_legs(&self, chain: &[usize], legs: &mut Vec<(Pos, Pos, Leg)>) {
         for w in chain.windows(2) {
             let (a, b) = (&self.passes[w[0]], &self.passes[w[1]]);
             let straight = a.pos.dist(&b.pos) * UNKNOWN_DETOUR;
             let direct = self
                 .terrain
-                .distance(&a.pos, &b.pos, 0)
+                .distance(&a.pos, &b.pos)
                 .filter(|d| d.is_finite() && *d <= straight)
                 .map(|d| (d, a.pos, b.pos));
             let shared = (a.areas.iter())
@@ -1452,7 +1552,7 @@ impl World {
                         .map(move |(_, pb)| (pa, pb))
                 })
                 .filter_map(|(pa, pb)| {
-                    let d = self.terrain.distance(pa, pb, 0).filter(|d| d.is_finite())?;
+                    let d = self.terrain.distance(pa, pb).filter(|d| d.is_finite())?;
                     Some((a.pos.dist(pa) + d + pb.dist(&b.pos), *pa, *pb))
                 })
                 .chain(direct)
@@ -1460,11 +1560,11 @@ impl World {
                 .min_by(|x, y| x.0.total_cmp(&y.0));
             match shared {
                 Some((_, pa, pb)) => {
-                    legs.push((a.pos, pa, STRAIGHT));
-                    legs.push((pa, pb, 0));
-                    legs.push((pb, b.pos, STRAIGHT));
+                    legs.push((a.pos, pa, Leg::Straight));
+                    legs.push((pa, pb, Leg::Terrain));
+                    legs.push((pb, b.pos, Leg::Straight));
                 }
-                None => legs.push((a.pos, b.pos, STRAIGHT)),
+                None => legs.push((a.pos, b.pos, Leg::Straight)),
             }
         }
     }
@@ -1476,7 +1576,8 @@ impl World {
     /// the least straight trip up, and only walked to while that could beat the best (ties: the
     /// first pair in the order of `pa` then `pb`, after the walk across).
     fn through_passes(&self, a: &Pos, b: &Pos, pa: &[usize], pb: &[usize], level: u8) -> (f64, Option<(usize, usize)>) {
-        let mut best = (self.across(a, b, level), None);
+        let mut best = (self.across(a, b), None);
+        let dist = self.pass_graph_at(level).0;
         let mut best_order = (0, 0);
         let mut pairs: Vec<(f64, usize, usize)> = Vec::new();
         for (ki, &i) in pa.iter().enumerate() {
@@ -1486,7 +1587,7 @@ impl World {
             let la = a.dist(&self.passes[i].pos);
             for (kj, &j) in pb.iter().enumerate() {
                 if self.passes[j].leads_to(b.zone) {
-                    let least = la + self.pass_dist[i][j] + self.passes[j].pos.dist(b);
+                    let least = la + dist[i][j] + self.passes[j].pos.dist(b);
                     if least.is_finite() {
                         pairs.push((least, ki, kj));
                     }
@@ -1504,7 +1605,7 @@ impl World {
             let (i, j) = (pa[ki], pb[kj]);
             let da = *from_a[ki].get_or_insert_with(|| self.walk_to_pass(a, i, level).0);
             let db = *to_b[kj].get_or_insert_with(|| self.walk_from_pass(j, b, level).0);
-            let t = da + self.pass_dist[i][j] + db;
+            let t = da + dist[i][j] + db;
             let better = match t.partial_cmp(&best.0) {
                 Some(std::cmp::Ordering::Less) => true,
                 Some(std::cmp::Ordering::Equal) => best.1.is_some() && (ki, kj) < best_order,
@@ -1532,7 +1633,7 @@ impl World {
     /// `ground` and the way it goes.
     fn ground_way(&self, a: &Pos, b: &Pos, level: u8) -> (f64, Way) {
         let straight = a.dist(b);
-        let known = self.terrain.distance(a, b, level);
+        let known = self.terrain.distance(a, b);
         if known.is_some_and(f64::is_infinite) {
             // Another continent, or an enclosed area and another.
             return match self.bridge(a, b, level) {
@@ -1545,7 +1646,7 @@ impl World {
             // The floors' way round, much longer than a lift the passages know.
             if known.is_some()
                 && walk > straight * UNKNOWN_DETOUR
-                && let Some(lift) = self.lift(a, b, level, walk)
+                && let Some(lift) = self.lift(a, b, walk)
             {
                 return (lift.dist, Way::Bridge(lift));
             }
@@ -1577,74 +1678,16 @@ impl World {
     #[doc(hidden)]
     pub fn forget_walks(&self) {
         self.terrain.forget_walks();
-        BRIDGES.with(|m| m.borrow_mut().clear());
-        LIFTS.with(|m| m.borrow_mut().clear());
         WALKED.with(|m| m.borrow_mut().clear());
     }
 
-    /// The walk from `a` to `b`, in two large areas the terrain does not connect, through the
-    /// passages joining them: over the terrain to a side of a passage in `a`'s area, from
-    /// passage to passage (`pass_dist`), and from a side of a passage in `b`'s area. None when
-    /// no passage joins the areas.
-    pub fn bridge(&self, a: &Pos, b: &Pos, level: u8) -> Option<Bridge> {
-        if a.continent != b.continent || self.area_passes.is_empty() {
-            return None;
-        }
-        let level = if self.terrain.counts_danger() { level } else { 0 };
-        let key = (
-            self.bridge_id,
-            a.continent,
-            crate::terrain::Terrain::cell_of(a),
-            crate::terrain::Terrain::cell_of(b),
-            level,
-            a.height_key() << 32 | b.height_key(),
-        );
-        if let Some(known) = BRIDGES.with(|m| m.borrow().get(&key).copied()) {
-            return known;
-        }
-        let found = self.find_bridge(a, b, level);
-        BRIDGES.with(|m| {
-            let mut m = m.borrow_mut();
-            if m.len() >= BRIDGES_MAX {
-                m.clear();
-            }
-            m.insert(key, found);
-        });
-        found
-    }
-
     /// A way through a lift shorter than `walk`, the floors' way between two points of one
-    /// area (Undercity's elevators, down from the ruins), when the walk round is long.
-    fn lift(&self, a: &Pos, b: &Pos, level: u8, walk: f64) -> Option<Bridge> {
+    /// area (Undercity's elevators, down from the ruins), when the walk round is long: from `a`
+    /// to a side of a lift of its area, out by another side of the same lift and on to `b`.
+    fn lift(&self, a: &Pos, b: &Pos, walk: f64) -> Option<Bridge> {
         if a.continent != b.continent || self.area_lifts.is_empty() {
             return None;
         }
-        let level = if self.terrain.counts_danger() { level } else { 0 };
-        let key = (
-            self.bridge_id,
-            a.continent,
-            crate::terrain::Terrain::cell_of(a),
-            crate::terrain::Terrain::cell_of(b),
-            level,
-            a.height_key() << 32 | b.height_key(),
-        );
-        if let Some(known) = LIFTS.with(|m| m.borrow().get(&key).copied()) {
-            return known;
-        }
-        let found = self.find_lift(a, b, level, walk);
-        LIFTS.with(|m| {
-            let mut m = m.borrow_mut();
-            if m.len() >= BRIDGES_MAX {
-                m.clear();
-            }
-            m.insert(key, found);
-        });
-        found
-    }
-
-    /// `lift`: from `a` to a side of a lift of its area, out by another side of the same lift
-    /// and on to `b`, shorter than `walk`.
-    fn find_lift(&self, a: &Pos, b: &Pos, level: u8, walk: f64) -> Option<Bridge> {
         let (area, size) = self.terrain.area_of(a)?;
         if area == 0 || size < crate::terrain::LARGE_AREA {
             return None;
@@ -1664,7 +1707,7 @@ impl World {
             return None;
         }
         ways.sort_by(|x, y| x.0.total_cmp(&y.0).then((x.1, x.2, x.3).cmp(&(y.1, y.2, y.3))));
-        let known = |p: &Pos, q: &Pos| match self.terrain.distance(p, q, level) {
+        let known = |p: &Pos, q: &Pos| match self.terrain.distance(p, q) {
             Some(d) => d,
             None if self.terrain.disconnected(p, q) => f64::INFINITY,
             None => p.dist(q),
@@ -1688,7 +1731,14 @@ impl World {
         best
     }
 
-    fn find_bridge(&self, a: &Pos, b: &Pos, level: u8) -> Option<Bridge> {
+    /// The walk from `a` to `b`, in two large areas the terrain does not connect, through the
+    /// passages joining them: over the terrain to a side of a passage in `a`'s area, from
+    /// passage to passage (`pass_dist`), and from a side of a passage in `b`'s area. None when
+    /// no passage joins the areas.
+    pub fn bridge(&self, a: &Pos, b: &Pos, level: u8) -> Option<Bridge> {
+        if a.continent != b.continent || self.area_passes.is_empty() {
+            return None;
+        }
         let large = |p: &Pos| {
             self.terrain
                 .area_of(p)
@@ -1698,6 +1748,7 @@ impl World {
         let (area_a, area_b) = (large(a)?, large(b)?);
         let from = self.area_passes.get(&(a.continent, area_a))?;
         let to = self.area_passes.get(&(b.continent, area_b))?;
+        let dist = self.pass_graph_at(level).0;
         let point = |(i, k): (usize, usize)| (&self.passes[i].pos, &self.passes[i].areas[k].1);
         // Weighed from the least straight trip up, walked to while that could beat the best.
         let mut pairs: Vec<(f64, usize, usize)> = Vec::new();
@@ -1705,8 +1756,7 @@ impl World {
             let (pass_a, near_a) = point(from[ka]);
             for (kb, &(j, _)) in to.iter().enumerate() {
                 let (pass_b, near_b) = point(to[kb]);
-                let least =
-                    a.dist(near_a) + near_a.dist(pass_a) + self.pass_dist[i][j] + pass_b.dist(near_b) + near_b.dist(b);
+                let least = a.dist(near_a) + near_a.dist(pass_a) + dist[i][j] + pass_b.dist(near_b) + near_b.dist(b);
                 if least.is_finite() {
                     pairs.push((least, ka, kb));
                 }
@@ -1723,14 +1773,14 @@ impl World {
             let (pass_a, near_a) = point(from[ka]);
             let (pass_b, near_b) = point(to[kb]);
             // Over the terrain; straight from or to a place in no large area (a building).
-            let known = |p: &Pos, q: &Pos| match self.terrain.distance(p, q, level) {
+            let known = |p: &Pos, q: &Pos| match self.terrain.distance(p, q) {
                 Some(d) => d,
                 None if self.terrain.disconnected(p, q) => f64::INFINITY,
                 None => p.dist(q),
             };
             let da = *from_a[ka].get_or_insert_with(|| known(a, near_a));
             let db = *to_b[kb].get_or_insert_with(|| known(near_b, b));
-            let t = da + near_a.dist(pass_a) + self.pass_dist[from[ka].0][to[kb].0] + pass_b.dist(near_b) + db;
+            let t = da + near_a.dist(pass_a) + dist[from[ka].0][to[kb].0] + pass_b.dist(near_b) + db;
             if t.is_finite() && best.is_none_or(|b| t < b.dist) {
                 best = Some(Bridge {
                     dist: t,
@@ -1744,10 +1794,10 @@ impl World {
 
     /// Direct walk between close points of different zones when the terrain knows the way
     /// (a point filed under the neighbouring zone, whose map overlaps), else infinite.
-    fn across(&self, a: &Pos, b: &Pos, level: u8) -> f64 {
+    fn across(&self, a: &Pos, b: &Pos) -> f64 {
         if self.terrain.is_empty() || a.dist(b) > ACROSS_MAX {
             return f64::INFINITY;
         }
-        self.terrain.distance(a, b, level).unwrap_or(f64::INFINITY)
+        self.terrain.distance(a, b).unwrap_or(f64::INFINITY)
     }
 }

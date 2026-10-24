@@ -1,5 +1,5 @@
 # Walks the planner asked between zones, not through `World::bridge` (orc warrior 1-60, Forever, effort 0.1), spread
-# over the guide in the order asked: continent, zone, x, y of each end, danger level.
+# over the guide in the order asked: continent, zone, x, y of each end, level of the character.
 0 51 -6835.568508544922 -1167.444723739624 33 -12441.171055273437 215.20645368652322 20
 0 85 2054.7023642211916 241.64957736816405 3 -6682.432252294922 -2154.28900390625 55
 1 16 3537.504024397496 -5116.346735804967 17 -894.5900268554688 -3773.010009765625 60

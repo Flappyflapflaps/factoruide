@@ -59,6 +59,7 @@ pub fn run(
     let faction =
         fg_route::faction::Faction::parse(faction).ok_or_else(|| anyhow::anyhow!("unknown faction {faction}"))?;
     let mut world = World::load(conn, faction, params.flight_speed)?;
+    world.add_zone_levels(conn, params.zone_gap)?;
     for w in world.close(&overrides.closed) {
         eprintln!("{w}");
     }
@@ -84,7 +85,7 @@ pub fn run(
         println!("the planner walks {planned:.0} yd (straight line where the walk is unknown)");
     }
     if let (Some(ta), Some(tb)) = (world.terrain.area_of(&a), world.terrain.area_of(&b)) {
-        let how = match world.terrain.distance(&a, &b, 0) {
+        let how = match world.terrain.distance(&a, &b) {
             None | Some(f64::INFINITY) if world.bridge(&a, &b, 0).is_some() => "areas joined by passages",
             None if world.terrain.disconnected(&a, &b) => "way unknown (straight line, longer)",
             None => "way unknown (straight line assumed)",
@@ -113,13 +114,19 @@ pub fn run(
         );
     }
     // The way the planner draws it: the passages and the turns around the steep terrain.
-    let path = world.walk_path(&a, &b, 0);
+    // The same for a character of `level`, with the zones too strong for it closed.
+    let walk_level = level.map_or(0, |l| world.walk_level(l));
+    if let Some(level) = level {
+        let at = world.walk_distance_at(&a, &b, walk_level);
+        println!("level {level}: walking {at:.0} yd");
+    }
+    let path = world.walk_path(&a, &b, walk_level);
     // Every cell walked over, for `fgd terrain-walks-map` (a line: name, continent, the drawn
     // way, the cells).
     if let Some(out) = cells {
         let mut detailed: Vec<String> = vec![format!("{:.1},{:.1}", a.x, a.y)];
         for w in path.windows(2) {
-            for (p, f) in world.terrain.cell_path(&w[0], &w[1], 0) {
+            for (p, f) in world.terrain.cell_path(&w[0], &w[1]) {
                 detailed.push(if f == 0 {
                     format!("{:.1},{:.1}", p.x, p.y)
                 } else {

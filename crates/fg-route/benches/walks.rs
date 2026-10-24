@@ -35,7 +35,7 @@ fn world() -> World {
     let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Forever).unwrap();
     let params = &overrides.params;
     let mut world = World::load(&conn, Faction::parse("Horde").unwrap(), params.flight_speed).unwrap();
-    world.add_danger(&conn, params.danger_weight).unwrap();
+    world.add_zone_levels(&conn, params.zone_gap).unwrap();
     world.close(&overrides.closed);
     world.enclose(&overrides.enclosed);
     world.add_caves(&overrides.caves);
@@ -79,26 +79,12 @@ fn bench(c: &mut Criterion) {
             group.bench_function(format!("{name}/{k}"), |b| {
                 b.iter_batched(
                     || world.forget_walks(),
-                    |()| world.walk_distance_at(black_box(&a), black_box(&p), level),
+                    |()| world.walk_distance_at(black_box(&a), black_box(&p), world.walk_level(i64::from(level))),
                     BatchSize::PerIteration,
                 );
             });
         }
     }
-    group.finish();
-    // The walks within a tile, around the start of `bridged/3` (Ashenvale).
-    let (a, _, level) = walks("bridged")[3];
-    let mut group = c.benchmark_group("tiles");
-    group
-        .sample_size(10)
-        .warm_up_time(Duration::from_millis(500))
-        .measurement_time(Duration::from_secs(3));
-    group.bench_function("danger_graph", |b| {
-        b.iter(|| world.terrain.tile_danger_walks(black_box(&a), level));
-    });
-    group.bench_function("ends", |b| {
-        b.iter(|| world.terrain.tile_end_walks(black_box(&a), level));
-    });
     group.finish();
 }
 

@@ -135,11 +135,11 @@ fn at(r: f64, c: f64) -> Pos {
 fn walks_around_a_wall() {
     let t = terrain(&[60, 61, 62, 63]);
     let (a, b) = (at(10.0, 20.0), at(10.0, 44.0));
-    let d = t.distance(&a, &b, 0).unwrap();
+    let d = t.distance(&a, &b).unwrap();
     assert!(d > 2.0 * 40.0 * CELL, "around the wall through its gap: {d}");
     // Same side: straight.
     let c = at(30.0, 20.0);
-    assert!((t.distance(&a, &c, 0).unwrap() - a.dist(&c)).abs() < 1e-6);
+    assert!((t.distance(&a, &c).unwrap() - a.dist(&c)).abs() < 1e-6);
 }
 
 /// The points a walk turns at go through the gap of the wall, not across it; a walk with
@@ -148,8 +148,8 @@ fn walks_around_a_wall() {
 fn walk_turns_through_the_gap() {
     let t = terrain(&[60, 61, 62, 63]);
     let (a, b) = (at(10.0, 20.0), at(10.0, 44.0));
-    let d = t.distance(&a, &b, 0).unwrap();
-    let turns = t.waypoints(&a, &b, 0);
+    let d = t.distance(&a, &b).unwrap();
+    let turns = t.waypoints(&a, &b);
     assert_ne!(turns, []);
     let cells: Vec<(i32, i32)> = turns.iter().map(Terrain::cell).collect();
     let (r, c) = (32 * 64, 32 * 64);
@@ -167,7 +167,7 @@ fn walk_turns_through_the_gap() {
     points.push(b);
     let length: f64 = points.windows(2).map(|w| w[0].dist(&w[1])).sum();
     assert!((length - d).abs() < 0.1 * d, "{length} for a walk of {d}");
-    assert_eq!(t.waypoints(&a, &at(30.0, 20.0), 0), []);
+    assert_eq!(t.waypoints(&a, &at(30.0, 20.0)), []);
 }
 
 /// The memory of a terrain, saved (JSON) and given to another load of the same data, spares
@@ -176,7 +176,7 @@ fn walk_turns_through_the_gap() {
 fn saved_memory_spares_the_search() {
     let first = terrain(&[60, 61, 62, 63]);
     let (a, b) = (at(10.0, 20.0), at(10.0, 44.0));
-    let walk = first.distance(&a, &b, 0).unwrap();
+    let walk = first.distance(&a, &b).unwrap();
     let memory = first.memory();
     assert_eq!(memory.len(), 1);
     let saved: WalkMemory = serde_json::from_str(&serde_json::to_string(&memory).unwrap()).unwrap();
@@ -186,7 +186,7 @@ fn saved_memory_spares_the_search() {
     let mut second = terrain(&[60, 61, 62, 63]);
     second.share(Arc::clone(&walks));
     assert_eq!(walks.len(), 1);
-    assert!((second.distance(&a, &b, 0).unwrap() - walk).abs() < 1e-3);
+    assert!((second.distance(&a, &b).unwrap() - walk).abs() < 1e-3);
     assert_eq!(walks.len(), 1, "searched again");
 }
 
@@ -213,14 +213,14 @@ fn enclosed_area_is_not_walked_out_of() {
         }
     });
     let (west, east) = (at(10.0, 20.0), at(10.0, 64.0 + 20.0));
-    assert_eq!(t.distance(&west, &east, 0), None, "way unknown: straight line");
+    assert_eq!(t.distance(&west, &east), None, "way unknown: straight line");
     assert!(!t.separated(&west, &east));
     assert!(t.disconnected(&west, &east));
     assert!(t.enclose(&east, 0).is_some());
-    assert_eq!(t.distance(&west, &east, 0), Some(f64::INFINITY));
+    assert_eq!(t.distance(&west, &east), Some(f64::INFINITY));
     assert!(t.separated(&west, &east));
     assert!(
-        t.distance(&east, &at(30.0, 64.0 + 40.0), 0).unwrap().is_finite(),
+        t.distance(&east, &at(30.0, 64.0 + 40.0)).unwrap().is_finite(),
         "walked within"
     );
 }
@@ -237,7 +237,7 @@ fn valley_joined_by_a_narrow_way_stays_the_mainlands() {
     });
     let (plain, valley) = (at(10.0, 20.0), at(10.0, 64.0 + 20.0));
     assert!(
-        t.distance(&plain, &valley, 0).unwrap().is_finite(),
+        t.distance(&plain, &valley).unwrap().is_finite(),
         "through the narrow way"
     );
     assert!(!t.detach(&valley));
@@ -253,35 +253,32 @@ fn cave_is_walked_to_through_its_mouth() {
     let mut t = terrain(&[60, 61, 62, 63]);
     let (inside, mouth) = (at(10.0, 31.0), at(10.0, 37.0));
     let (west, east) = (at(10.0, 20.0), at(10.0, 44.0));
-    let before = (
-        t.distance(&west, &inside, 0).unwrap(),
-        t.distance(&east, &inside, 0).unwrap(),
-    );
+    let before = (t.distance(&west, &inside).unwrap(), t.distance(&east, &inside).unwrap());
     assert!(before.0 < before.1, "nearer the west side: {before:?}");
     assert!(t.add_cave(&mouth, &inside, 3.0 * CELL));
-    let from_east = t.distance(&east, &inside, 0).unwrap();
+    let from_east = t.distance(&east, &inside).unwrap();
     assert!(
         (from_east - (east.dist(&mouth) + mouth.dist(&inside))).abs() < CELL,
         "{from_east}"
     );
-    let from_west = t.distance(&west, &inside, 0).unwrap();
+    let from_west = t.distance(&west, &inside).unwrap();
     assert!(from_west > 2.0 * 40.0 * CELL, "around the wall: {from_west}");
-    let turns = t.waypoints(&west, &inside, 0);
+    let turns = t.waypoints(&west, &inside);
     assert!(
         turns.last().is_some_and(|p| p.dist(&mouth) < 1e-6),
         "through the mouth: {turns:?}"
     );
     // Two places of the cave: straight between them; places outside it are not moved.
     let deeper = at(12.0, 32.0);
-    assert!((t.distance(&inside, &deeper, 0).unwrap() - inside.dist(&deeper)).abs() < 1e-6);
-    assert!((t.distance(&east, &at(20.0, 44.0), 0).unwrap() - 10.0 * CELL).abs() < 1e-6);
+    assert!((t.distance(&inside, &deeper).unwrap() - inside.dist(&deeper)).abs() < 1e-6);
+    assert!((t.distance(&east, &at(20.0, 44.0)).unwrap() - 10.0 * CELL).abs() < 1e-6);
 }
 
 /// A memory of other terrain data (the game changed) is not used: its walks would be wrong.
 #[test]
 fn memory_of_other_terrain_is_dropped() {
     let old = terrain(&[60, 61, 62, 63]);
-    old.distance(&at(10.0, 20.0), &at(10.0, 44.0), 0).unwrap();
+    old.distance(&at(10.0, 20.0), &at(10.0, 44.0)).unwrap();
     let walks = Arc::new(Walks::default());
     walks.add(old.memory());
     let mut new = terrain(&[0, 1, 2, 3]);
@@ -302,7 +299,7 @@ fn continents_do_not_share_answers() {
     });
     let on = |continent, (a, b): (Pos, Pos)| {
         let p = |q: Pos| Pos { continent, ..q };
-        t.distance(&p(a), &p(b), 0).unwrap()
+        t.distance(&p(a), &p(b)).unwrap()
     };
     let pair = (at(10.0, 20.0), at(10.0, 44.0));
     let around = on(1, pair);
@@ -340,7 +337,7 @@ fn cell_of_a_point() {
 #[test]
 fn unconnected_sides() {
     let t = terrain(&[]);
-    assert!(t.distance(&at(10.0, 20.0), &at(10.0, 44.0), 0).is_none());
+    assert!(t.distance(&at(10.0, 20.0), &at(10.0, 44.0)).is_none());
 }
 
 /// A cliff (13 yards high from column 32: too high to climb, low enough to jump) is jumped down
@@ -364,8 +361,8 @@ fn cliff_jumped_down_not_climbed() {
         )
     });
     let (foot, top) = (at(10.0, 20.0), at(10.0, 44.0));
-    let down = t.distance(&top, &foot, 0).unwrap();
-    let up = t.distance(&foot, &top, 0).unwrap();
+    let down = t.distance(&top, &foot).unwrap();
+    let up = t.distance(&foot, &top).unwrap();
     assert!((down - top.dist(&foot)).abs() < CELL, "jumped straight down: {down}");
     assert!(up > 2.0 * down, "up by the ramp: {up} vs {down}");
 }
@@ -384,32 +381,13 @@ fn lakes_swum_slower_and_open_sea_avoided() {
         })
     };
     let (a, b) = (at(30.0, 20.0), at(30.0, 44.0));
-    let swum = lake(false).distance(&a, &b, 0).unwrap();
+    let swum = lake(false).distance(&a, &b).unwrap();
     assert!(
         swum > a.dist(&b) + 2.0 * CELL,
         "the lake costs more than walking: {swum}"
     );
-    let round = lake(true).distance(&a, &b, 0).unwrap();
+    let round = lake(true).distance(&a, &b).unwrap();
     assert!(round > swum, "the open sea is walked round: {round} vs {swum}");
-}
-
-/// Mobs well above the character make a walk past them dearer; for a character above them,
-/// or with the danger not counted, nothing changes.
-#[test]
-fn danger_counts_for_weaker_characters() {
-    let mut t = shaped(|_, _| (0, 0));
-    let (a, b) = (at(30.0, 4.0), at(30.0, 60.0));
-    let plain = t.distance(&a, &b, 10).unwrap();
-    let camp: Vec<(Pos, u8)> = (20..40).map(|r| (at(f64::from(r), 32.0), 30)).collect();
-    t.add_danger(camp, 1.0);
-    let weak = t.distance(&a, &b, 10).unwrap();
-    let strong = t.distance(&a, &b, 40).unwrap();
-    assert!(weak > plain + 2.0 * CELL, "around the camp: {weak} vs {plain}");
-    assert!((strong - plain).abs() < 1e-3, "a level 40 walks through: {strong}");
-    assert!((t.distance(&a, &b, 0).unwrap() - plain).abs() < 1e-3);
-    // Mobs a few levels above are the character's own zone: walked through.
-    let near = t.distance(&a, &b, 27).unwrap();
-    assert!((near - plain).abs() < 1e-3, "a level 27 walks among level 30s: {near}");
 }
 
 /// A ridge without a floor over it, a tunnel under it (a floor under the terrain): the walk
@@ -434,8 +412,8 @@ fn tunnel_under_a_ridge_is_walked_through() {
     });
     let (west, east) = (at(20.0, 20.0), at(20.0, 44.0));
     // A floor 30 yards down is not walked to from the valley: round the ridge.
-    assert!(t.distance(&west, &east, 0).unwrap() > 2.0 * west.dist(&east));
-    let through = t2.distance(&west, &east, 0).unwrap();
+    assert!(t.distance(&west, &east).unwrap() > 2.0 * west.dist(&east));
+    let through = t2.distance(&west, &east).unwrap();
     assert!(
         (through - west.dist(&east)).abs() < 1e-6,
         "straight through the tunnel: {through}"
@@ -480,7 +458,7 @@ fn bridge_over_a_road() {
     assert_eq!(grid.area(road), grid.area(deck), "one area: the ramps join them");
     // Along the road under the bridge: straight.
     let (a, b) = (at(20.0, 32.0), at(40.0, 32.0));
-    assert!((t.distance(&a, &b, 0).unwrap() - a.dist(&b)).abs() < 1e-6);
+    assert!((t.distance(&a, &b).unwrap() - a.dist(&b)).abs() < 1e-6);
 }
 
 /// A cell with two floors in two large areas, the ground and the streets of a city over it: a
@@ -538,20 +516,18 @@ fn far_walks_through_the_gates() {
     });
     let grid = &t.grids[&1];
     let (a, b) = (at(10.0, 10.0), at(120.0, 180.0));
-    let d = t.distance(&a, &b, 0).unwrap();
+    let d = t.distance(&a, &b).unwrap();
     let (na, nb) = (
         grid.snap(Terrain::cell(&a)).unwrap(),
         grid.snap(Terrain::cell(&b)).unwrap(),
     );
     let mut trace = Vec::new();
-    let cheapest = t.path(grid, na, nb, 240, 0, Some(&mut trace)).unwrap();
+    let cheapest = Terrain::path(grid, na, nb, 240, Some(&mut trace)).unwrap();
     assert!(d >= cheapest - 1e-3 && d <= cheapest * GATES_SLACK, "{d} vs {cheapest}");
     let bridge = Node::new(32 * 64 + 70, 32 * 64 + 100, 0);
     assert!(trace.contains(&bridge), "over the bridge: {trace:?}");
     let mut gates = Vec::new();
-    let through = grid
-        .through_gates(na, nb, gates::SAFE_FOR_TESTS, Some(&mut gates))
-        .unwrap();
+    let through = grid.through_gates(na, nb, Some(&mut gates)).unwrap();
     assert!((through - d).abs() < 1e-3);
     // Its legs from gate to gate are walks within a tile: the one across the river's tiles
     // goes from a side of the river to the other.
@@ -593,8 +569,8 @@ fn place_of_known_height_stands_on_its_floor() {
     let kobold = |z: Option<i16>| Pos { z, ..at(32.0, 26.0) };
     let floor = |p: &Pos| t.floors_at(p).unwrap().1;
     // Asked first without a height: the answers given for the cell are not those of a height.
-    let over = t.distance(&west, &kobold(None), 0).unwrap();
-    let inside = t.distance(&west, &kobold(Some(11)), 0).unwrap();
+    let over = t.distance(&west, &kobold(None)).unwrap();
+    let inside = t.distance(&west, &kobold(Some(11))).unwrap();
     assert_eq!(floor(&kobold(None)), Some(40), "on the hill without a height");
     assert_eq!(floor(&kobold(Some(11))), Some(10), "in the mine");
     assert_eq!(
@@ -607,13 +583,10 @@ fn place_of_known_height_stands_on_its_floor() {
         "straight in through the mouth: {inside}"
     );
     assert!(over > 2.0 * inside, "up the ramp and over the hill: {over} vs {inside}");
-    assert_eq!(t.distance(&kobold(Some(11)), &west, 0), Some(inside), "and back out");
+    assert_eq!(t.distance(&kobold(Some(11)), &west), Some(inside), "and back out");
     // On the ground (one floor), a height changes nothing.
     let ground = |z| Pos { z, ..at(10.0, 10.0) };
-    assert_eq!(
-        t.distance(&west, &ground(Some(90)), 0),
-        t.distance(&west, &ground(None), 0)
-    );
+    assert_eq!(t.distance(&west, &ground(Some(90))), t.distance(&west, &ground(None)));
 }
 
 /// The turns of a walk to a place of known height keep the heights of the floors they are on:
@@ -628,11 +601,11 @@ fn turns_keep_their_floors() {
             ..at(32.0, 26.0)
         },
     );
-    let turns = t.waypoints(&from, &kobold, 0);
+    let turns = t.waypoints(&from, &kobold);
     assert!(!turns.is_empty(), "round the hill to the mine's mouth");
     let last = turns.last().unwrap();
     assert!(
-        (t.distance(last, &kobold, 0).unwrap() - last.dist(&kobold)).abs() < 1e-6,
+        (t.distance(last, &kobold).unwrap() - last.dist(&kobold)).abs() < 1e-6,
         "from the last turn, straight in: {last:?}"
     );
 }

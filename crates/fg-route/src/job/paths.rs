@@ -72,7 +72,7 @@ pub fn add_walk_paths(world: &World, route: &mut Route) {
 }
 
 /// The walks of a route from one step to the next (`add_walk_paths`): the step walked to, from
-/// where, to where, and the character's level then.
+/// where, to where, and the walk level of the character then (`World::walk_level`).
 pub fn route_walks(world: &World, route: &Route) -> Vec<(usize, Pos, Pos, u8)> {
     let mut walks: Vec<(usize, Pos, Pos, u8)> = Vec::new();
     let mut from: Option<Pos> = None;
@@ -85,7 +85,7 @@ pub fn route_walks(world: &World, route: &Route) -> Vec<(usize, Pos, Pos, u8)> {
             && a.continent == b.continent
             && a.dist(b) >= SHORT
         {
-            walks.push((k, *a, *b, u8::try_from(step.level.clamp(0, 255)).unwrap_or(0)));
+            walks.push((k, *a, *b, world.walk_level(step.level)));
         }
         from = match step.kind {
             // Where the flight lands.

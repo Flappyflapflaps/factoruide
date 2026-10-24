@@ -261,9 +261,7 @@ fn load_world(
         .filter(|p| params.shortcuts || !p.shortcut)
         .cloned()
         .collect();
-    if params.danger_weight > 0.0 {
-        world.add_danger(conn, params.danger_weight)?;
-    }
+    world.add_zone_levels(conn, params.zone_gap)?;
     for warning in world.close(&overrides.closed) {
         progress(&warning);
     }

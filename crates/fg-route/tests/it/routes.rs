@@ -97,7 +97,8 @@ fn quests_at_start(n: usize) -> Prepared {
 
 /// `quests_at_start` for another race and class.
 fn quests_at_start_as(race: &str, class: &str, n: usize) -> Prepared {
-    let mut p = prepare(race, class, 2, &[]);
+    // Made-up quests anywhere for a level 1: the zones too strong for it do not count here.
+    let mut p = prepare(race, class, 2, &["zone_gap=0"]);
     let here = p.model.start.clone();
     let template = p.model.quests[0].clone();
     p.model.quests = (0..n)
@@ -1049,7 +1050,7 @@ fn coldridge_valley_is_left_by_its_tunnel() {
         let at = |x, y| w.to_world(1, x, y).unwrap();
         // Every cell walked over (the turns are the tiles' gates of a long walk).
         let (a, b) = (at(29.0, 66.0), at(46.0, 52.0));
-        let path: Vec<_> = w.terrain.cell_path(&a, &b, 0).into_iter().map(|(p, _)| p).collect();
+        let path: Vec<_> = w.terrain.cell_path(&a, &b).into_iter().map(|(p, _)| p).collect();
         assert!(!path.is_empty(), "{edition}: no way");
         // By the tunnel's mouth in the valley (the floors hold the tunnel).
         let near = distance_to_path(&path, &at(33.0, 69.3));
@@ -1094,6 +1095,26 @@ fn no_walk_between_the_south_and_north_of_the_eastern_kingdoms() {
     assert!(w.walk_distance(&at(12, 42.0, 65.0), &at(38, 35.0, 46.0)).is_infinite());
     assert!(w.walk_distance(&stormwind, &at(40, 56.0, 47.0)).is_finite());
     assert!(w.walk_distance(&at(1, 47.0, 52.0), &at(38, 35.0, 46.0)).is_finite());
+}
+
+/// A level 17 does not walk into a zone whose mobs are far above it (Stranglethorn Vale, to the
+/// boat of Booty Bay), nor across one on its way (Arathi, behind the Burning Steppes), but walks
+/// to Ashenvale and the Barrens; a level 50 walks to all of them.
+#[test]
+fn walks_do_not_go_into_zones_far_above_the_character() {
+    let p = prepare("human", "priest", 17, &[]);
+    let w = &p.world;
+    let at = |zone, x, y| w.to_world(zone, x, y).unwrap();
+    let westfall = at(40, 40.0, 70.0);
+    let booty_bay = at(33, 26.1, 73.4);
+    let (weak, strong) = (w.walk_level(17), w.walk_level(50));
+    assert!(w.walk_distance_at(&westfall, &booty_bay, weak).is_infinite());
+    assert!(w.walk_distance_at(&westfall, &booty_bay, strong).is_finite());
+    let darkshore = at(148, 36.0, 45.0);
+    assert!(w.walk_distance_at(&darkshore, &at(331, 34.0, 50.0), weak).is_finite());
+    assert!(w.walk_distance_at(&darkshore, &at(17, 63.0, 37.0), weak).is_finite());
+    // Out of a zone too strong for the character: yes.
+    assert!(w.walk_distance_at(&booty_bay, &westfall, weak).is_finite());
 }
 
 /// The mountain skip from Dun Morogh into the Wetlands is a drop: taken that way only, and a step
@@ -1795,7 +1816,8 @@ fn hearthstone_flight_paths_and_log_of_a_character_met_in_game() {
 
 /// The hearthstone is bound anew as the route moves on (more than one inn over 30 levels), each
 /// bind worth it: the route without them takes longer. Built with fixed construction weights (the
-/// defaults change with the measures): with others, as with any, this route can bind nowhere.
+/// defaults change with the measures, and no zone is closed to walks): with others, as with any,
+/// this route can bind nowhere.
 #[test]
 fn hearthstone_follows_the_route() {
     let p = &prepare(
@@ -1810,6 +1832,7 @@ fn hearthstone_follows_the_route() {
             "fit_penalty=0",
             "fit_above_penalty=0",
             "efficiency_power=0",
+            "zone_gap=0",
         ],
     );
     let planner = planner(p);
@@ -2577,7 +2600,8 @@ fn city_of_dalaran_has_a_door_for_each_faction() {
 fn library_book_is_looted_before_the_librarian() {
     let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Forever).unwrap();
     let request = PlanRequest {
-        params: Some(overrides.params.with_overrides(&[]).unwrap()),
+        // A level 1 walks to Silverpine for the book: the zones too strong for it count elsewhere.
+        params: Some(overrides.params.with_overrides(&["zone_gap=0".to_owned()]).unwrap()),
         ..request("human", "mage", 30, &[])
     };
     let p = job::prepare(&database_of("forever"), &overrides, &request, &|_| {}).unwrap();

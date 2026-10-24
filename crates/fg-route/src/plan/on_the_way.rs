@@ -15,7 +15,7 @@ pub(crate) const CAMP_LOG_MARGIN: usize = 2;
 /// Quests taken at hand: those the route takes within this many stops anyway.
 pub(crate) const CAMP_AHEAD: u32 = 30;
 
-/// A walk: in one word the level its danger counts at (0: none), the continent and its ends'
+/// A walk: in one word the walk level (0: no zone closed), the continent and its ends'
 /// zones (the passages taken between them), then the bits of its ends' coordinates and their
 /// heights.
 pub(crate) type FarmKey = (u64, [u64; 5]);
@@ -194,7 +194,7 @@ impl Planner<'_> {
         if budget <= 0 || s.level >= self.profile.to_level {
             return;
         }
-        let mobs = self.farm_walk(a, b, self.trips().danger_level(s.level));
+        let mobs = self.farm_walk(a, b, self.world.walk_level(s.level));
         let content = xp::content_at(a.continent, a.zone);
         let reach = p.reach(s.level, s.might());
         let share = p.farm_share_at(s.level);
@@ -244,8 +244,7 @@ impl Planner<'_> {
         );
     }
 
-    /// Normal mobs by level along a walk (the terrain's path for a character whose walks count
-    /// the danger at `level`), computed once per walk.
+    /// Normal mobs by level along a walk (the terrain's path for a character of the walk level `level`), computed once per walk.
     fn farm_walk(&self, a: &Pos, b: &Pos, level: u8) -> Rc<[Met]> {
         let farm = || -> Rc<[Met]> {
             let path = self.world.walk_path(a, b, level);

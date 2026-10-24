@@ -11,8 +11,6 @@
 //! not the same both ways.
 //!
 //! The walk is a little longer than the cheapest floor by floor (it goes through the gates).
-//! Where the danger counts, the walks between the gates of a tile near mobs strong enough are
-//! found again with it, once for all the levels that see the tile's mobs alike (`DangerKey`).
 
 use super::layers::DIRECTIONS;
 use super::{CELL, Grid, MOVE, MOVE_MORE, MOVE_NO_GO, Node, TileNodes, move_cost};
@@ -33,28 +31,9 @@ const SMALL_AREA: u32 = 4;
 /// starts over.
 const ENDS_MAX: usize = 1 << 12;
 
-/// The walks from a floor of a tile to its gates (or back), by floor, way and danger (None:
-/// none counts), shared by the threads.
-pub(super) type Ends = FxHashMap<(Node, bool, Option<DangerKey>), Arc<[u32]>>;
-
-/// The danger a walk counts: the character's level (0: none) and what entering a cell near a
-/// mob a few levels above, or far above, costs more (`Grid::danger_step`).
-pub(super) type Danger = (u8, [u32; 2]);
-const SAFE: Danger = (0, [0; 2]);
-#[cfg(test)]
-pub(super) const SAFE_FOR_TESTS: Danger = SAFE;
-/// What the danger makes the cells of a tile cost, the same for every level seeing its mobs
-/// alike: how many of the levels of its mobs (`Grid::danger_levels`) are below a few levels
-/// above the character's, how many below far above, and the danger costs.
-pub(super) type DangerKey = (u16, u16, [u32; 2]);
-/// The walks between the gates of a tile with the danger counted (`TileGraph::cost`), by danger.
-pub(super) type DangerGraphs = Vec<(DangerKey, Arc<DangerGraph>)>;
-
-/// The walks from each gate of a tile to the others with the danger counted, a gate's found the
-/// first time a walk goes through it (most walks cross a tile one way: few gates are left from).
-pub(super) struct DangerGraph {
-    rows: Box<[std::sync::OnceLock<Box<[u32]>>]>,
-}
+/// The walks from a floor of a tile to its gates (or back), by floor and way, shared by the
+/// threads.
+pub(super) type Ends = FxHashMap<(Node, bool), Arc<[u32]>>;
 
 const FROM_A: (usize, usize) = (usize::MAX, usize::MAX);
 
@@ -238,10 +217,9 @@ impl Grid {
     }
 
     /// Cheapest walks (tenths of a cell) within tile `t` from node `from` to each of its nodes,
-    /// or from each of them to `from` when `back`; the danger counted but around `from` when
-    /// `free` (an end of the walk, as floor by floor). Only the nodes of `wanted` are sure to
+    /// or from each of them to `from` when `back`. Only the nodes of `wanted` are sure to
     /// be found: the search ends once they are.
-    fn local(&self, t: usize, from: Node, back: bool, danger: Danger, free: bool, wanted: &[Node]) -> Vec<u32> {
+    fn local(&self, t: usize, from: Node, back: bool, wanted: &[Node]) -> Vec<u32> {
         let Some(tile) = self.nodes(t) else {
             return Vec::new();
         };
@@ -270,16 +248,6 @@ impl Grid {
         }
         if count == 0 {
             return cost;
-        }
-        // What entering each cell costs more for its danger (none around `from` when `free`).
-        let mut extra = [0u32; 4096];
-        if danger.0 != 0 && self.danger.get(t).is_some_and(Option::is_some) {
-            for (k, e) in extra.iter_mut().enumerate() {
-                let y = (tr + (k >> 6) as i32, tc + (k & 63) as i32);
-                if !(free && super::Terrain::near_end(y, from.cell(), from.cell())) {
-                    *e = self.danger_step(y, danger);
-                }
-            }
         }
         let cell_of = |k: usize| {
             if k < 4096 {
@@ -339,7 +307,6 @@ impl Grid {
                             continue;
                         }
                         let j = (pr * 64 + pc) as usize;
-                        let extra = if d == 8 { 0 } else { extra[ck] };
                         for f in 0..usize::from(tile.count[j]) {
                             let p = if f == 0 {
                                 j
@@ -352,12 +319,12 @@ impl Grid {
                             }
                             // The steps to a first floor are the moves' bits, the others edges.
                             if fk == 0 && d < 8 && moves >> d & MOVE != 0 {
-                                relax!(p, g + move_cost(moves, d) + extra);
+                                relax!(p, g + move_cost(moves, d));
                             }
                             if moves & MOVE_MORE != 0 {
                                 for &e in tile.edges(p) {
                                     if e.dir() == d && e.floor() == fk {
-                                        relax!(p, g + e.cost() + extra);
+                                        relax!(p, g + e.cost());
                                     }
                                 }
                             }
@@ -374,7 +341,7 @@ impl Grid {
                             continue;
                         }
                         let n = (nr * 64 + nc) as usize;
-                        relax!(n, g + move_cost(moves, d) + extra[n]);
+                        relax!(n, g + move_cost(moves, d));
                     }
                     if moves & MOVE_MORE != 0 {
                         for &e in tile.edges(k) {
@@ -384,7 +351,7 @@ impl Grid {
                             }
                             let i = (nr * 64 + nc) as usize;
                             let Some(n) = tile.local(i, e.floor()) else { continue };
-                            relax!(n, g + e.cost() + if i == ck { 0 } else { extra[i] });
+                            relax!(n, g + e.cost());
                         }
                     }
                 }
@@ -558,7 +525,7 @@ impl Grid {
             let n = gates.len();
             let mut cost = vec![NONE; n * n];
             for (i, &from) in gates.iter().enumerate() {
-                let walks = self.local(t, from, false, SAFE, false, &gates);
+                let walks = self.local(t, from, false, &gates);
                 for (j, &to) in gates.iter().enumerate() {
                     cost[i * n + j] = self
                         .locate(to)
@@ -569,90 +536,14 @@ impl Grid {
         })
     }
 
-    /// What the danger at `danger` makes the cells of tile `t` cost (`Grid::danger_step` only
-    /// tells the mobs within a few levels above, a few more, far more): None when no mob there
-    /// counts at its level.
-    fn danger_key(&self, t: usize, danger: Danger) -> Option<DangerKey> {
-        let (level, costs) = danger;
-        if level == 0
-            || self
-                .danger_max
-                .get(t)
-                .is_none_or(|&m| m < level.saturating_add(super::DANGER_GAP))
-        {
-            return None;
-        }
-        let levels = &self.danger_levels[t];
-        let below = |gap: u8| levels.partition_point(|&m| i32::from(m) - i32::from(level) < i32::from(gap)) as u16;
-        Some((below(super::DANGER_GAP), below(super::DANGER_GAP + 2), costs))
-    }
-
-    /// The walks between the gates of tile `t` (`TileGraph::cost`) with the danger counted,
-    /// found once for all the threads and the levels seeing its mobs alike; None when no mob
-    /// there counts at its level.
-    fn danger_graph(&self, t: usize, danger: Danger) -> Option<Arc<DangerGraph>> {
-        let key = self.danger_key(t, danger)?;
-        let mut graphs = self.danger_graphs[t].lock().unwrap();
-        if let Some((_, graph)) = graphs.iter().find(|(d, _)| *d == key) {
-            return Some(Arc::clone(graph));
-        }
-        let graph = Arc::new(DangerGraph {
-            rows: (0..self.graph(t).gates.len())
-                .map(|_| std::sync::OnceLock::new())
-                .collect(),
-        });
-        graphs.push((key, Arc::clone(&graph)));
-        Some(graph)
-    }
-
-    /// The walks from gate `i` of tile `t` to the others with the danger counted (a row of
-    /// `danger_costs`), found the first time.
-    fn danger_row<'a>(&self, t: usize, danger: Danger, graph: &'a DangerGraph, i: usize) -> &'a [u32] {
-        graph.rows[i].get_or_init(|| {
-            let gates = &self.graph(t).gates;
-            let walks = self.local(t, gates[i], false, danger, false, gates);
-            (gates.iter())
-                .map(|&to| {
-                    self.locate(to)
-                        .map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE))
-                })
-                .collect()
-        })
-    }
-
-    /// The walks between the gates of tile `t` with the danger counted, found anew.
-    pub(super) fn danger_costs(&self, t: usize, danger: Danger) -> Vec<u32> {
-        let gates = &self.graph(t).gates;
-        let n = gates.len();
-        let mut cost = vec![NONE; n * n];
-        for (i, &from) in gates.iter().enumerate() {
-            let walks = self.local(t, from, false, danger, false, gates);
-            for (j, &to) in gates.iter().enumerate() {
-                cost[i * n + j] = self
-                    .locate(to)
-                    .map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE));
-            }
-        }
-        cost
-    }
-
-    /// The walks from node `p` to the gates of its tile with the danger counted, found anew.
-    pub(super) fn ends_anew(&self, p: Node, danger: Danger) -> Vec<u32> {
-        self.tile(p.r(), p.c()).map_or_else(Vec::new, |(t, _)| {
-            self.local(t, p, false, danger, true, &self.graph(t).gates)
-        })
-    }
-
     /// Cheapest walks from node `p` of tile `t` to each of its gates (or from each of them to
-    /// `p`, `back`), the danger counted away from `p`, remembered for all the threads.
-    fn ends(&self, t: usize, p: Node, back: bool, danger: Danger) -> Arc<[u32]> {
-        let dkey = self.danger_key(t, danger);
-        let danger = if dkey.is_some() { danger } else { SAFE };
-        let key = (p, back, dkey);
+    /// `p`, `back`), remembered for all the threads.
+    fn ends(&self, t: usize, p: Node, back: bool) -> Arc<[u32]> {
+        let key = (p, back);
         if let Some(known) = self.ends[t].lock().unwrap().get(&key) {
             return Arc::clone(known);
         }
-        let walks = self.local(t, p, back, danger, true, &self.graph(t).gates);
+        let walks = self.local(t, p, back, &self.graph(t).gates);
         let costs: Arc<[u32]> = (self.graph(t).gates.iter())
             .map(|&g| {
                 self.locate(g)
@@ -667,12 +558,11 @@ impl Grid {
         costs
     }
 
-    /// Walk (yards) from node `a` to node `b` through the gates, the danger counted, None when
-    /// they do not lead there; its floors in `trace`: `a`, the gates it goes through, `b`.
-    pub(super) fn through_gates(&self, a: Node, b: Node, danger: Danger, trace: Option<&mut Vec<Node>>) -> Option<f64> {
+    /// Walk (yards) from node `a` to node `b` through the gates, None when they do not lead
+    /// there; its floors in `trace`: `a`, the gates it goes through, `b`.
+    pub(super) fn through_gates(&self, a: Node, b: Node, trace: Option<&mut Vec<Node>>) -> Option<f64> {
         let ((ta, _), (tb, _)) = (self.tile(a.r(), a.c())?, self.tile(b.r(), b.c())?);
-        let (start, goal) = (self.ends(ta, a, false, danger), self.ends(tb, b, true, danger));
-        let mut dangers: FxHashMap<usize, Option<Arc<DangerGraph>>> = FxHashMap::default();
+        let (start, goal) = (self.ends(ta, a, false), self.ends(tb, b, true));
         // Estimate: the length to `b`, as floor by floor.
         let (br, bc) = b.cell();
         let h = |n: Node| {
@@ -715,12 +605,8 @@ impl Grid {
             if g > best.gates[row + i].0 {
                 continue;
             }
-            let dg = dangers.entry(t).or_insert_with(|| self.danger_graph(t, danger)).clone();
             let n = graph.gates.len();
-            let cost = match &dg {
-                Some(dg) => self.danger_row(t, danger, dg, i),
-                None => &graph.cost[i * n..(i + 1) * n],
-            };
+            let cost = &graph.cost[i * n..(i + 1) * n];
             let gate = graph.gates[i];
             if t == tb {
                 let rest = goal.get(i).copied().unwrap_or(NONE);
@@ -748,11 +634,6 @@ impl Grid {
                 if u == t {
                     continue;
                 }
-                let step = if super::Terrain::near_end(next.cell(), a.cell(), b.cell()) {
-                    step
-                } else {
-                    step + self.danger_step(next.cell(), danger)
-                };
                 let gates = &self.graph(u).gates;
                 if let Ok(j) = gates.binary_search(&next) {
                     let row = best.row(u, gates.len());

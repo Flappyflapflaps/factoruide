@@ -63,7 +63,7 @@ impl Hop {
 }
 
 /// The key of point `p` (None when its continent or zone does not fit: not remembered), with a
-/// flag and a level (the danger's, 0 when it does not count).
+/// flag and a level (the walk level, or the band for the weight of gold; 0 when neither counts).
 fn pos_key(p: &Pos, flag: bool, level: u8) -> Option<PosKey> {
     let continent = u16::try_from(p.continent).ok()?;
     let zone = u32::try_from(p.zone).ok()?;
@@ -105,30 +105,18 @@ pub(crate) struct Trips<'t> {
 
 impl Trips<'_> {
     pub(crate) fn walk(&self, a: &Pos, b: &Pos, level: i64) -> f64 {
-        self.world.walk_distance_at(a, b, self.danger_level(level)) * self.params.detour / self.params.speed(level)
-    }
-
-    /// The level the danger of walks is counted at (0: it does not count): the top of its band
-    /// of 5 levels, so that the walks remembered serve the whole band.
-    pub(crate) fn danger_level(&self, level: i64) -> u8 {
-        if self.params.danger_weight > 0.0 {
-            ((level.clamp(1, 250) + 4) / 5 * 5) as u8
-        } else {
-            0
-        }
+        self.world.walk_distance_at(a, b, self.world.walk_level(level)) * self.params.detour / self.params.speed(level)
     }
 
     /// The level a trip is remembered at (`Legs`): what its time and choice depend on apart
-    /// from the speed, the danger's band (`danger_level`) and the weight of gold
-    /// (`Params::gold_weight_at`, by the same bands, the same up to level 30).
+    /// from the speed, the zones closed to walks (`World::walk_level`) and the weight of gold
+    /// (`Params::gold_weight_at`, by bands of 5 levels, the same up to level 30).
     fn leg_level(&self, level: i64) -> u8 {
         let band = ((level.clamp(1, 250) + 4) / 5 * 5) as u8;
-        if self.params.danger_weight > 0.0
-            || (self.params.gold_weight > 0.0 && f64::from(band) > crate::params::GOLD_WEIGHT_LEVEL)
-        {
+        if self.params.gold_weight > 0.0 && f64::from(band) > crate::params::GOLD_WEIGHT_LEVEL {
             band
         } else {
-            0
+            self.world.walk_level(level)
         }
     }
 

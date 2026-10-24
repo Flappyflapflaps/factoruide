@@ -116,7 +116,7 @@ pub struct Leg {
     /// the terrain and through the passages between zones, a flight's way.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub via: Vec<[f32; 2]>,
-    /// The character's level, for the way a walk takes (the danger on it).
+    /// The character's level, for the way a walk takes (the zones closed to it).
     #[serde(skip)]
     pub level: i64,
     /// The heights of `from` and `to` when known (`Pos::z`): the floors the walk joins.
@@ -296,7 +296,7 @@ impl Editor {
                         .map(|v| at(&[leg.from[0], f64::from(v[0]), f64::from(v[1])], None)),
                 );
                 stops.push(at(&leg.to, leg.heights[1]));
-                let level = planner.trips().danger_level(leg.level);
+                let level = planner.world.walk_level(leg.level);
                 let mut path: Vec<Pos> = vec![stops[0]];
                 for w in stops.windows(2) {
                     path.extend(world.walk_path(&w[0], &w[1], level).into_iter().skip(1));

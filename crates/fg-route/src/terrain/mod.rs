@@ -5,9 +5,7 @@
 //! it drops down to (one way: a ledge, a cliff jumped down).
 //!
 //! A walk goes from floor to floor (a node: a cell and one of its floors). A step costs its
-//! length, more swimming. It is never taken into magma nor the open sea (fatigue). With
-//! `add_danger`, the cells near hostile mobs stronger than the character cost more (not near
-//! the walk's ends: the quest's mobs are there).
+//! length, more swimming. It is never taken into magma nor the open sea (fatigue).
 //!
 //! A place of known height (`Pos::z`: a spawn of the server data, a flight master) in a cell of
 //! several floors stands on the floor of a large walkable area nearest to it in height, when one
@@ -72,17 +70,9 @@ const SWIM_DEPTH: u8 = 2;
 const WALKED: [u32; 2] = [10, 14];
 const SWUM: [u32; 2] = [15, 21];
 const DROPPED: u32 = 5;
-/// No danger counted this close to the ends of a walk (cells): the mobs of the quest are there.
-const DANGER_FREE: i32 = 6;
-/// Levels above the character a mob must be for walking near it to cost more: only the
-/// places too strong for the character (Western Plaguelands on a level 20's way to Hillsbrad),
-/// so the walks among mobs of its level keep the search and memory they had without danger.
-const DANGER_GAP: u8 = 4;
-/// Most a cell costs more for its danger (tenths of a cell).
-const DANGER_MAX: u32 = 400;
 /// Buckets of the path search's open floors: more than the largest rise of an estimate (the
-/// dearest step and its danger, plus 14).
-const BUCKETS: usize = 512;
+/// dearest step, plus 14).
+const BUCKETS: usize = 64;
 
 /// A floor of a cell (a node of the walks): the cell's row and column (from the north and the
 /// west, each under 4096) and the floor's index in the cell, packed (ordered by row, column,
@@ -112,9 +102,8 @@ impl Node {
     }
 }
 
-/// Continent and pair of floors of a walk, and the character's level when danger counts there
-/// (0: it does not).
-type Key = (i64, Node, Node, u8);
+/// Continent and pair of floors of a walk.
+type Key = (i64, Node, Node);
 
 /// Hash of the terrain data (its fingerprint, saved with the walking memories: must not change).
 #[derive(Default)]
@@ -137,10 +126,10 @@ impl Hasher for Packed {
     }
 }
 
-/// Answers already given in this thread, by terrain, continent, pair of cells and level: the
-/// planner asks the same walks millions of times. Negative: the straight line; infinite: not
-/// connected; NaN: not known.
-type MemoKey = (u32, i64, u128, u8);
+/// Answers already given in this thread, by terrain, continent and pair of cells: the planner
+/// asks the same walks millions of times. Negative: the straight line; infinite: not connected;
+/// NaN: not known.
+type MemoKey = (u32, i64, u128);
 type Memo = FxHashMap<MemoKey, f32>;
 thread_local! {
     static MEMO: RefCell<Memo> = RefCell::new(Memo::default());
@@ -167,10 +156,10 @@ type SnapKey = (u32, i64, i32, i32, Option<i16>);
 type Spot = ((i32, i32), Option<i16>);
 /// Cells `SNAPS` remembers, beyond which it starts over.
 const SNAPS_MAX: usize = 1 << 18;
-/// The turns of the walks already followed (`Terrain::waypoints`), by continent, pair of cells,
-/// level and pair of heights, in shards; a shard is emptied beyond `TURNS_MAX`. A turn: its cell
-/// and the height of the floor walked there.
-type TurnKey = (i64, i32, i32, i32, i32, u8, Option<i16>, Option<i16>);
+/// The turns of the walks already followed (`Terrain::waypoints`), by continent, pair of cells
+/// and pair of heights, in shards; a shard is emptied beyond `TURNS_MAX`. A turn: its cell and
+/// the height of the floor walked there.
+type TurnKey = (i64, i32, i32, i32, i32, Option<i16>, Option<i16>);
 type Turns = Vec<Mutex<FxHashMap<TurnKey, Arc<[(i32, i32, Option<i16>)]>>>>;
 const TURNS_MAX: usize = 1 << 16;
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
@@ -357,16 +346,8 @@ struct Grid {
     /// area (nodes).
     areas: Vec<TileAreas>,
     sizes: Vec<u32>,
-    /// The strongest hostile mob around each cell (its level, more for an elite; 0: none), by
-    /// tile (None: none in the tile), and the strongest of each tile.
-    danger: Vec<Option<Box<[u8; 4096]>>>,
-    danger_max: Vec<u8>,
-    /// The levels of the mobs of each tile (`danger`), sorted, each once.
-    danger_levels: Vec<Box<[u8]>>,
     /// The gates of each tile and the walks between them, found when first needed (`gates`).
     graphs: Vec<std::sync::OnceLock<gates::TileGraph>>,
-    /// The same walks with the danger counted, by danger (`gates`).
-    danger_graphs: Vec<Mutex<gates::DangerGraphs>>,
     /// The walks from nodes of each tile to its gates and back (`gates`).
     ends: Vec<Mutex<gates::Ends>>,
     /// The walkable areas within each tile, found when first needed (`gates`).
@@ -402,8 +383,6 @@ pub struct CellView {
     pub deep: bool,
     pub sea_edge: bool,
     pub hazard: bool,
-    /// The strongest hostile mob around (its level, more for an elite; 0: none).
-    pub danger: u8,
 }
 
 /// The areas of a tile's nodes: one for the whole tile, else each node's.
@@ -530,57 +509,6 @@ impl Grid {
     /// Whether two nodes of straight neighbour cells walk to each other: joined in an area.
     fn joined(&self, a: Node, b: Node) -> bool {
         self.walks_to(a, b) && self.walks_to(b, a)
-    }
-
-    /// The strongest hostile mob around a cell (0: none).
-    #[inline]
-    fn danger(&self, r: i32, c: i32) -> u8 {
-        self.tile(r, c)
-            .and_then(|(t, i)| Some(self.danger.get(t)?.as_ref()?[i]))
-            .unwrap_or(0)
-    }
-
-    /// Extra cost (tenths of a cell) of entering a cell for its danger, at `level` (0: none),
-    /// `costs` that of a mob a few levels above and far above.
-    #[inline]
-    fn danger_step(&self, (r, c): (i32, i32), (level, costs): gates::Danger) -> u32 {
-        if level == 0 {
-            return 0;
-        }
-        let mob = self.danger(r, c);
-        if mob == 0 {
-            return 0;
-        }
-        // Mobs up to a few levels above are the character's own zones; far above, they kill.
-        let gap = i32::from(mob) - i32::from(level);
-        if gap < i32::from(DANGER_GAP) {
-            0
-        } else if gap < i32::from(DANGER_GAP) + 2 {
-            costs[0]
-        } else {
-            costs[1]
-        }
-    }
-
-    /// Whether a mob of `level + DANGER_GAP` or more is in the tiles around the box of `a` and
-    /// `b` grown by `margin` cells: danger may count on a walk between them.
-    fn danger_near(&self, a: (i32, i32), b: (i32, i32), margin: i32, level: u8) -> bool {
-        if self.danger_max.is_empty() {
-            return false;
-        }
-        let at_least = level.saturating_add(DANGER_GAP);
-        let tile_of = |v: i32, origin: i32| (v - origin).div_euclid(64);
-        let rows = self.rows / 64;
-        let cols = self.tile_cols as i32;
-        let (t0, t1) = (
-            tile_of(a.0.min(b.0) - margin, self.r0).max(0),
-            tile_of(a.0.max(b.0) + margin, self.r0).min(rows - 1),
-        );
-        let (u0, u1) = (
-            tile_of(a.1.min(b.1) - margin, self.c0).max(0),
-            tile_of(a.1.max(b.1) + margin, self.c0).min(cols - 1),
-        );
-        (t0..=t1).any(|t| (u0..=u1).any(|u| self.danger_max[(t * cols + u) as usize] >= at_least))
     }
 
     /// The area of a node (0: none).
@@ -1089,7 +1017,6 @@ impl Grid {
             self.graphs[t] = std::sync::OnceLock::new();
             self.local_areas[t] = std::sync::OnceLock::new();
             self.ends[t].get_mut().unwrap().clear();
-            self.danger_graphs[t].get_mut().unwrap().clear();
         }
     }
 
@@ -1107,7 +1034,7 @@ impl Grid {
 }
 
 /// Shard of a pair of floors in the sharded maps.
-fn shard((_, a, b, _): Key) -> usize {
+fn shard((_, a, b): Key) -> usize {
     ((a.0 ^ b.0.rotate_left(13)).wrapping_mul(0x9e37_79b9) >> 20) as usize % SHARDS
 }
 
@@ -1237,39 +1164,33 @@ impl WalkMemory {
         self.paths.is_empty()
     }
 
-    /// Format 3: terrain fingerprint, count, then each path (continent, floors, level,
-    /// distance), little endian, compressed. Formats 1 and 2 (cells of the heightmap terrain)
-    /// are not read: their walks are searched again.
+    /// Format 4: terrain fingerprint, count, then each path (continent, floors, distance),
+    /// little endian, compressed. Formats 1 to 3 (cells of the heightmap terrain; walks with the
+    /// character's level) are not read: their walks are searched again.
     fn encode(&self) -> String {
-        let mut bytes = Vec::with_capacity(12 + self.paths.len() * 17);
+        let mut bytes = Vec::with_capacity(12 + self.paths.len() * 16);
         bytes.extend(self.terrain.to_le_bytes());
         bytes.extend((self.paths.len() as u32).to_le_bytes());
-        for &((map, a, b, level), d) in &self.paths {
+        for &((map, a, b), d) in &self.paths {
             bytes.extend((map as i32).to_le_bytes());
             bytes.extend(a.0.to_le_bytes());
             bytes.extend(b.0.to_le_bytes());
-            bytes.push(level);
             bytes.extend(d.to_le_bytes());
         }
         let packed = zstd::encode_all(bytes.as_slice(), 9).unwrap_or_default();
-        format!("3:{}", BASE64.encode(packed))
+        format!("4:{}", BASE64.encode(packed))
     }
 
     fn decode(text: &str) -> Option<Self> {
-        let bytes = zstd::decode_all(BASE64.decode(text.strip_prefix("3:")?).ok()?.as_slice()).ok()?;
+        let bytes = zstd::decode_all(BASE64.decode(text.strip_prefix("4:")?).ok()?.as_slice()).ok()?;
         let terrain = u64::from_le_bytes(bytes.get(..8)?.try_into().ok()?);
         let count = u32::from_le_bytes(bytes.get(8..12)?.try_into().ok()?) as usize;
         let word = |at: usize| Some(u32::from_le_bytes(bytes.get(at..at + 4)?.try_into().ok()?));
         let paths = (0..count)
             .map(|i| {
-                let at = 12 + i * 17;
-                let key = (
-                    i64::from(word(at)? as i32),
-                    Node(word(at + 4)?),
-                    Node(word(at + 8)?),
-                    *bytes.get(at + 12)?,
-                );
-                Some((key, f32::from_le_bytes(bytes.get(at + 13..at + 17)?.try_into().ok()?)))
+                let at = 12 + i * 16;
+                let key = (i64::from(word(at)? as i32), Node(word(at + 4)?), Node(word(at + 8)?));
+                Some((key, f32::from_le_bytes(bytes.get(at + 12..at + 16)?.try_into().ok()?)))
             })
             .collect::<Option<Vec<_>>>()?;
         Some(Self { terrain, paths })
@@ -1302,11 +1223,6 @@ pub struct Terrain {
     /// Large areas left only by boat, portal, lift or the passages joining them (continent,
     /// area), and the place each belongs to: `Terrain::enclose`.
     enclosed: HashMap<(i64, u32), u32>,
-    /// How much the danger counts (`add_danger`; 0: not at all).
-    danger_weight: f64,
-    /// What a dangerous cell costs more, a few levels and far above the character (tenths of a
-    /// cell): `danger_weight` times the base costs.
-    danger_costs: [u32; 2],
     /// The turns of the walks followed (`waypoints`), shared by the threads.
     turns: Turns,
 }
@@ -1370,8 +1286,6 @@ impl Terrain {
             walks: Arc::new(Walks::default()),
             used: (0..SHARDS).map(|_| Mutex::new(HashSet::new())).collect(),
             enclosed: HashMap::new(),
-            danger_weight: 0.0,
-            danger_costs: [0; 2],
             turns: (0..SHARDS).map(|_| Mutex::default()).collect(),
         };
         let exists: bool = conn.query_row(
@@ -1454,11 +1368,7 @@ impl Terrain {
                 extras,
                 areas: Vec::new(),
                 sizes: Vec::new(),
-                danger: Vec::new(),
-                danger_max: Vec::new(),
-                danger_levels: Vec::new(),
                 graphs: (0..count).map(|_| std::sync::OnceLock::new()).collect(),
-                danger_graphs: (0..count).map(|_| Mutex::default()).collect(),
                 ends: (0..count).map(|_| Mutex::default()).collect(),
                 local_areas: (0..count).map(|_| std::sync::OnceLock::new()).collect(),
                 caves: Vec::new(),
@@ -1585,18 +1495,11 @@ impl Terrain {
         node
     }
 
-    /// Extra cost (tenths of a cell) of entering a cell for its danger, at `level` (0: none).
-    #[inline]
-    fn danger_cost(&self, grid: &Grid, p: (i32, i32), level: u8) -> u32 {
-        grid.danger_step(p, (level, self.danger_costs))
-    }
-
-    /// The straight line between two floors when each of its steps can be taken on safe ground
-    /// (danger counted at `level` away from the ends), from floor to floor of the cells it
-    /// crosses (`b` in its cell, else the nearest in height, walked rather than dropped to):
+    /// The straight line between two floors when each of its steps can be taken, from floor to
+    /// floor of the cells it crosses (`b` in its cell, else the nearest in height, walked rather than dropped to):
     /// -1 when all are walked, else what its swum steps make it cost (yards). None when it
     /// cannot be followed.
-    fn line(&self, grid: &Grid, a: Node, b: Node, level: u8) -> Option<f64> {
+    fn line(grid: &Grid, a: Node, b: Node) -> Option<f64> {
         let (ca, cb) = (a.cell(), b.cell());
         let (dr, dc) = (cb.0 - ca.0, cb.1 - ca.1);
         let n = dr.abs().max(dc.abs()) * 2;
@@ -1637,9 +1540,6 @@ impl Terrain {
                 let (m, step, _) = next?;
                 (m, step)
             };
-            if !Self::near_end((r, c), ca, cb) && self.danger_cost(grid, (r, c), level) != 0 {
-                return None;
-            }
             swum |= step != WALKED[diagonal];
             cost += step;
             at = m;
@@ -1647,26 +1547,19 @@ impl Terrain {
         (at == b).then_some(if swum { f64::from(cost) / 10.0 * CELL } else { -1.0 })
     }
 
-    /// Whether a cell is close to an end of the walk (no danger counted there).
-    fn near_end(p: (i32, i32), a: (i32, i32), b: (i32, i32)) -> bool {
-        let close = |q: (i32, i32)| (p.0 - q.0).abs() <= DANGER_FREE && (p.1 - q.1).abs() <= DANGER_FREE;
-        close(a) || close(b)
-    }
-
     /// The key of a walk between two places in the thread memos.
-    fn memo_key(&self, map: i64, a: Spot, b: Spot, level: u8) -> MemoKey {
+    fn memo_key(&self, map: i64, a: Spot, b: Spot) -> MemoKey {
         let pack = |((r, c), z): Spot| {
             let z = z.map_or(0, |z| u64::from(z as u16) | 1 << 16);
             (u128::from(z) << 32) | (u128::from(r as u16) << 16) | u128::from(c as u16)
         };
-        (self.id, map, (pack(a) << 64) | pack(b), level)
+        (self.id, map, (pack(a) << 64) | pack(b))
     }
 
-    /// Walking distance (yards) between two points of the same continent (see the module), for
-    /// a character of `level` when the danger counts (0: it does not): the straight line when
-    /// nothing is in the way, infinite when no walk goes between them (`separated`), None when
+    /// Walking distance (yards) between two points of the same continent (see the module): the
+    /// straight line when nothing is in the way, infinite when no walk goes between them (`separated`), None when
     /// it does not know the way.
-    pub fn distance(&self, a: &Pos, b: &Pos, level: u8) -> Option<f64> {
+    pub fn distance(&self, a: &Pos, b: &Pos) -> Option<f64> {
         let straight = a.dist(b);
         let Some(grid) = self.grids.get(&a.continent) else {
             return Some(straight);
@@ -1674,13 +1567,12 @@ impl Terrain {
         if a.continent != b.continent || !straight.is_finite() {
             return Some(straight);
         }
-        let level = if self.danger_weight > 0.0 { level } else { 0 };
         let (sa, sb) = (Self::spot(a), Self::spot(b));
-        let key = self.memo_key(a.continent, sa, sb, level);
+        let key = self.memo_key(a.continent, sa, sb);
         let known = MEMO.with(|m| m.borrow().get(&key).copied());
         let walk = known.unwrap_or_else(|| {
             let w = self
-                .walk_cells(grid, a.continent, sa, sb, level)
+                .walk_cells(grid, a.continent, sa, sb)
                 .map_or(f32::NAN, |d| d as f32);
             MEMO.with(|m| m.borrow_mut().insert(key, w));
             w
@@ -1786,29 +1678,6 @@ impl Terrain {
         self.turns.iter().for_each(|t| t.lock().unwrap().clear());
     }
 
-    /// The walks between the gates of the tile at `p` with the danger counted at `level`, found
-    /// anew (benchmarks): their count.
-    #[doc(hidden)]
-    pub fn tile_danger_walks(&self, p: &Pos, level: u8) -> usize {
-        let Some(grid) = self.grids.get(&p.continent) else {
-            return 0;
-        };
-        let (r, c) = Self::cell(p);
-        grid.tile(r, c)
-            .map_or(0, |(t, _)| grid.danger_costs(t, (level, self.danger_costs)).len())
-    }
-
-    /// The walks from `p` to the gates of its tile with the danger counted, found anew
-    /// (benchmarks): their count.
-    #[doc(hidden)]
-    pub fn tile_end_walks(&self, p: &Pos, level: u8) -> usize {
-        let Some(grid) = self.grids.get(&p.continent) else {
-            return 0;
-        };
-        grid.snap_at(Self::cell(p), p.z)
-            .map_or(0, |n| grid.ends_anew(n, (level, self.danger_costs)).len())
-    }
-
     /// Took a valley out of the mainland the gaps of the heightmap terrain joined it to; the
     /// floors open no gaps: nothing to take out (false).
     pub fn detach(&mut self, _p: &Pos) -> bool {
@@ -1864,66 +1733,6 @@ impl Terrain {
         Some((area, size))
     }
 
-    /// Count the danger of hostile mobs (`spawns`: position and level, more for an elite) for a
-    /// character of the level given to `distance`, `weight` times the base costs (0: not at all).
-    /// Each mob makes the cells within its pull's reach (about 20 yards) as dangerous as it.
-    pub fn add_danger(&mut self, spawns: impl IntoIterator<Item = (Pos, u8)>, weight: f64) {
-        self.danger_weight = weight.max(0.0);
-        self.danger_costs = [20.0, 60.0].map(|base: f64| ((base * self.danger_weight).round() as u32).min(DANGER_MAX));
-        let mut stamped = 0u64;
-        for (p, level) in spawns {
-            let Some(grid) = self.grids.get_mut(&p.continent) else {
-                continue;
-            };
-            if grid.danger.is_empty() {
-                grid.danger = (0..grid.tiles.len()).map(|_| None).collect();
-                grid.danger_max = vec![0; grid.tiles.len()];
-            }
-            let (r, c) = Self::cell(&p);
-            for dr in -2..=2 {
-                for dc in -2..=2 {
-                    if dr * dr + dc * dc > 5 {
-                        continue;
-                    }
-                    let Some((t, i)) = grid.tile(r + dr, c + dc) else {
-                        continue;
-                    };
-                    let cells = grid.danger[t].get_or_insert_with(|| Box::new([0; 4096]));
-                    cells[i] = cells[i].max(level);
-                    grid.danger_max[t] = grid.danger_max[t].max(level);
-                }
-            }
-            stamped = stamped
-                .wrapping_mul(31)
-                .wrapping_add(u64::from(level) ^ (p.x.to_bits() >> 20));
-        }
-        for grid in self.grids.values_mut() {
-            grid.danger_levels = (grid.danger.iter())
-                .map(|cells| {
-                    let mut levels: Vec<u8> = cells
-                        .iter()
-                        .flat_map(|c| c.iter().copied())
-                        .filter(|&m| m != 0)
-                        .collect();
-                    levels.sort_unstable();
-                    levels.dedup();
-                    levels.into()
-                })
-                .collect();
-            // Walks found with the danger before are not this one's.
-            grid.danger_graphs.iter_mut().for_each(|g| g.get_mut().unwrap().clear());
-            grid.ends.iter_mut().for_each(|e| e.get_mut().unwrap().clear());
-        }
-        // Other paths: the memories of the terrain without danger are not this one's.
-        let mut h = Packed::default();
-        h.write_u64(self.danger_weight.to_bits());
-        h.write_u64(stamped);
-        self.fingerprint = self.fingerprint.wrapping_add(h.finish());
-        self.walks.bind(self.fingerprint);
-        self.id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        self.turns.iter_mut().for_each(|t| t.get_mut().unwrap().clear());
-    }
-
     /// The box of a continent's cells: first row and column, rows and columns (rows from the
     /// north, columns from the west).
     pub fn bounds(&self, continent: i64) -> Option<(i32, i32, i32, i32)> {
@@ -1948,16 +1757,7 @@ impl Terrain {
             deep: water & DEEP != 0,
             sea_edge: false,
             hazard: water & HAZARD != 0,
-            danger: grid.danger(r, c),
         })
-    }
-
-    /// What entering a cell costs more for its danger, for a character of `level` (tenths of a
-    /// cell, a step costing 10; 0: safe or the danger not counted).
-    pub fn danger_cost_at(&self, continent: i64, r: i32, c: i32, level: u8) -> u32 {
-        self.grids
-            .get(&continent)
-            .map_or(0, |grid| self.danger_cost(grid, (r, c), level))
     }
 
     /// Continents the terrain covers.
@@ -2001,7 +1801,7 @@ impl Terrain {
             return false;
         };
         let (sa, sb) = (Self::spot(a), Self::spot(b));
-        let (id, map, cells, _) = self.memo_key(a.continent, sa, sb, 0);
+        let (id, map, cells) = self.memo_key(a.continent, sa, sb);
         if let Some(known) = APART.with(|m| m.borrow().get(&(id, map, cells)).copied()) {
             return known;
         }
@@ -2024,11 +1824,6 @@ impl Terrain {
         Self::cell(p)
     }
 
-    /// Whether walks count the danger of the mobs (`add_danger`).
-    pub fn counts_danger(&self) -> bool {
-        self.danger_weight > 0.0
-    }
-
     /// Whether no walk goes between `a` and `b`: two areas the floors do not connect, one of
     /// them enclosed (no path searched).
     pub fn separated(&self, a: &Pos, b: &Pos) -> bool {
@@ -2048,13 +1843,13 @@ impl Terrain {
     /// Walk between two places (yards), negative for the straight line, infinite when no walk
     /// goes between them (`separated`), None when the floors do not know the way (two areas
     /// they do not connect, which a lift or a boat may; no path found).
-    fn walk_cells(&self, grid: &Grid, map: i64, sa: Spot, sb: Spot, level: u8) -> Option<f64> {
-        let (a, b, level) = self.walk_ends(grid, map, sa, sb, level)?;
+    fn walk_cells(&self, grid: &Grid, map: i64, sa: Spot, sb: Spot) -> Option<f64> {
+        let (a, b) = self.walk_ends(grid, map, sa, sb)?;
         if a == b {
             return Some(-1.0);
         }
         // A river or a lake on the way: swum straight across, as long as that can be done.
-        if let Some(d) = self.line(grid, a, b, level) {
+        if let Some(d) = Self::line(grid, a, b) {
             return Some(d);
         }
         let (area, other) = (grid.area(a), grid.area(b));
@@ -2065,46 +1860,38 @@ impl Terrain {
             return self.apart(grid, map, area, other).then_some(f64::INFINITY);
         }
         // The cheapest path is not the same both ways (drops): the key keeps the direction.
-        let key = (map, a, b, level);
+        let key = (map, a, b);
         if let Some(used) = self.used.get(shard(key)) {
             used.lock().unwrap().insert(key);
         }
         let d = self.walks.get_or_search(key, || {
-            self.search_walk(grid, a, b, level, None)
-                .map_or(f32::INFINITY, |d| d as f32)
+            Self::search_walk(grid, a, b, None).map_or(f32::INFINITY, |d| d as f32)
         });
         d.is_finite().then_some(f64::from(d))
     }
 
-    /// The floors a walk between two places goes from and to (`Grid::snap_at`), and the level
-    /// its danger counts at: none when no mob strong enough is around (one search for every
-    /// level). None when an end stands on no floor.
-    fn walk_ends(&self, grid: &Grid, map: i64, sa: Spot, sb: Spot, level: u8) -> Option<(Node, Node, u8)> {
-        let (a, b) = (self.snapped(grid, map, sa)?, self.snapped(grid, map, sb)?);
-        let level = if level > 0 && grid.danger_near(a.cell(), b.cell(), MARGINS[MARGINS.len() - 1], level) {
-            level
-        } else {
-            0
-        };
-        Some((a, b, level))
+    /// The floors a walk between two places goes from and to (`Grid::snap_at`). None when an end
+    /// stands on no floor.
+    fn walk_ends(&self, grid: &Grid, map: i64, sa: Spot, sb: Spot) -> Option<(Node, Node)> {
+        Some((self.snapped(grid, map, sa)?, self.snapped(grid, map, sb)?))
     }
 
     /// The walk between two floors of the same area that the straight line does not follow
     /// (yards), and its floors in `trace` (from `a` to `b`, given): far apart, through the
     /// tiles' gates; else floor by floor in the box around them, else through the gates.
-    fn search_walk(&self, grid: &Grid, a: Node, b: Node, level: u8, mut trace: Option<&mut Vec<Node>>) -> Option<f64> {
+    fn search_walk(grid: &Grid, a: Node, b: Node, mut trace: Option<&mut Vec<Node>>) -> Option<f64> {
         let far = (a.r() - b.r()).abs().max((a.c() - b.c()).abs()) > gates::FAR;
         if far {
-            match grid.through_gates(a, b, (level, self.danger_costs), trace.as_deref_mut()) {
+            match grid.through_gates(a, b, trace.as_deref_mut()) {
                 Some(d) => Some(d),
-                None => self.path(grid, a, b, MARGINS[MARGINS.len() - 1], level, trace),
+                None => Self::path(grid, a, b, MARGINS[MARGINS.len() - 1], trace),
             }
         } else {
             // Not in the box around: a long way round, through the gates rather than over a much
             // larger box.
-            self.path(grid, a, b, MARGINS[0], level, trace.as_deref_mut())
-                .or_else(|| grid.through_gates(a, b, (level, self.danger_costs), trace.as_deref_mut()))
-                .or_else(|| self.path(grid, a, b, MARGINS[1], level, trace))
+            Self::path(grid, a, b, MARGINS[0], trace.as_deref_mut())
+                .or_else(|| grid.through_gates(a, b, trace.as_deref_mut()))
+                .or_else(|| Self::path(grid, a, b, MARGINS[1], trace))
         }
     }
 
@@ -2113,7 +1900,7 @@ impl Terrain {
     /// Empty when it goes straight: nothing in the way (a river swum across), or the floors do
     /// not know the way. Searched once for all the threads (the walking memories keep distances
     /// only).
-    pub fn waypoints(&self, a: &Pos, b: &Pos, level: u8) -> Vec<Pos> {
+    pub fn waypoints(&self, a: &Pos, b: &Pos) -> Vec<Pos> {
         let Some(grid) = self.grids.get(&a.continent) else {
             return Vec::new();
         };
@@ -2128,32 +1915,27 @@ impl Terrain {
                 return Vec::new();
             }
             let mut points: Vec<Pos> = mouth_a.into_iter().collect();
-            points.extend(self.waypoints_between(grid, a, b, level));
+            points.extend(self.waypoints_between(grid, a, b));
             points.extend(mouth_b);
             return points;
         }
-        self.waypoints_between(grid, a, b, level)
+        self.waypoints_between(grid, a, b)
     }
 
     /// The floors a walk between two points goes over, each cell's centre and the floor's
     /// index, searched floor by floor (to draw it: the planner's walks only keep their turns).
     /// Empty when the floors do not know the way.
     #[doc(hidden)]
-    pub fn cell_path(&self, a: &Pos, b: &Pos, level: u8) -> Vec<(Pos, u8)> {
+    pub fn cell_path(&self, a: &Pos, b: &Pos) -> Vec<(Pos, u8)> {
         let Some(grid) = self.grids.get(&a.continent) else {
             return Vec::new();
         };
-        let level = if self.danger_weight > 0.0 { level } else { 0 };
-        let Some((na, nb, level)) = self.walk_ends(grid, a.continent, Self::spot(a), Self::spot(b), level) else {
+        let Some((na, nb)) = self.walk_ends(grid, a.continent, Self::spot(a), Self::spot(b)) else {
             return Vec::new();
         };
         let mut nodes = Vec::new();
         let span = (na.r() - nb.r()).abs().max((na.c() - nb.c()).abs());
-        if na != nb
-            && self
-                .path(grid, na, nb, MARGINS[1].max(span), level, Some(&mut nodes))
-                .is_none()
-        {
+        if na != nb && Self::path(grid, na, nb, MARGINS[1].max(span), Some(&mut nodes)).is_none() {
             return Vec::new();
         }
         (nodes.iter())
@@ -2170,24 +1952,23 @@ impl Terrain {
     }
 
     /// `waypoints` from a place to another (as snapped).
-    fn waypoints_between(&self, grid: &Grid, a: &Pos, b: &Pos, level: u8) -> Vec<Pos> {
-        let level = if self.danger_weight > 0.0 { level } else { 0 };
+    fn waypoints_between(&self, grid: &Grid, a: &Pos, b: &Pos) -> Vec<Pos> {
         let (sa, sb) = (Self::spot(a), Self::spot(b));
         let (ca, cb) = (sa.0, sb.0);
         // Most walks go straight, or the floors do not know the way: the distance asked before
         // tells it.
-        let distance = self.memo_key(a.continent, sa, sb, level);
+        let distance = self.memo_key(a.continent, sa, sb);
         if MEMO
             .with(|m| m.borrow().get(&distance).copied())
             .is_some_and(|w| !(w >= 0.0 && w.is_finite()))
         {
             return Vec::new();
         }
-        let key = (a.continent, ca.0, ca.1, cb.0, cb.1, level, a.z, b.z);
+        let key = (a.continent, ca.0, ca.1, cb.0, cb.1, a.z, b.z);
         let memo = self.turns.get(turn_shard(key));
         let known = memo.and_then(|m| m.lock().unwrap().get(&key).cloned());
         let turns = known.unwrap_or_else(|| {
-            let turns = self.turns(grid, a.continent, sa, sb, level);
+            let turns = self.turns(grid, a.continent, sa, sb);
             if let Some(memo) = memo {
                 let mut memo = memo.lock().unwrap();
                 if memo.len() >= TURNS_MAX {
@@ -2209,11 +1990,11 @@ impl Terrain {
 
     /// The cells a walk between two places turns at (`waypoints`), and the height of the floor
     /// walked there.
-    fn turns(&self, grid: &Grid, map: i64, sa: Spot, sb: Spot, level: u8) -> Arc<[(i32, i32, Option<i16>)]> {
-        let Some((a, b, level)) = self.walk_ends(grid, map, sa, sb, level) else {
+    fn turns(&self, grid: &Grid, map: i64, sa: Spot, sb: Spot) -> Arc<[(i32, i32, Option<i16>)]> {
+        let Some((a, b)) = self.walk_ends(grid, map, sa, sb) else {
             return Arc::new([]);
         };
-        if a == b || self.line(grid, a, b, level).is_some() {
+        if a == b || Self::line(grid, a, b).is_some() {
             return Arc::new([]);
         }
         let area = grid.area(a);
@@ -2221,7 +2002,7 @@ impl Terrain {
             return Arc::new([]);
         }
         let mut nodes = Vec::new();
-        if self.search_walk(grid, a, b, level, Some(&mut nodes)).is_none() {
+        if Self::search_walk(grid, a, b, Some(&mut nodes)).is_none() {
             return Arc::new([]);
         }
         let mut cells: Vec<((i32, i32), Option<i16>)> =
@@ -2237,17 +2018,9 @@ impl Terrain {
             .collect()
     }
 
-    /// Cheapest walk between two floors (yards, danger counted as more of them), within their
+    /// Cheapest walk between two floors (yards), within their
     /// box grown by `margin` cells, and its floors in `trace` (from `a` to `b`).
-    fn path(
-        &self,
-        grid: &Grid,
-        a: Node,
-        b: Node,
-        margin: i32,
-        level: u8,
-        trace: Option<&mut Vec<Node>>,
-    ) -> Option<f64> {
+    fn path(grid: &Grid, a: Node, b: Node, margin: i32, trace: Option<&mut Vec<Node>>) -> Option<f64> {
         let (r0, c0) = (a.r().min(b.r()) - margin, a.c().min(b.c()) - margin);
         let (rows, cols) = (a.r().max(b.r()) + margin - r0 + 1, a.c().max(b.c()) + margin - c0 + 1);
         let cells = (rows * cols) as usize;
@@ -2266,7 +2039,7 @@ impl Terrain {
             for bucket in &mut scratch.open {
                 bucket.clear();
             }
-            let found = self.search(grid, a, b, (r0, c0, rows, cols), level, scratch)?;
+            let found = Self::search(grid, a, b, (r0, c0, rows, cols), scratch)?;
             if let Some(trace) = trace {
                 trace.clear();
                 trace.push(b);
@@ -2284,11 +2057,6 @@ impl Terrain {
                 let mut q = b;
                 while q != a {
                     let g = cost_of(q)?;
-                    let danger = if Self::near_end(q.cell(), a.cell(), b.cell()) {
-                        0
-                    } else {
-                        self.danger_cost(grid, q.cell(), level)
-                    };
                     let mut from = None;
                     'cells: for (dr, dc) in DIRECTIONS.into_iter().chain([(0, 0)]) {
                         let (pr, pc) = (q.r() - dr, q.c() - dc);
@@ -2297,8 +2065,7 @@ impl Terrain {
                             let (Some(before), Some(step)) = (cost_of(p), grid.step(p, q)) else {
                                 continue;
                             };
-                            let extra = if (pr, pc) == q.cell() { 0 } else { danger };
-                            if before + step + extra == g {
+                            if before + step == g {
                                 from = Some(p);
                                 break 'cells;
                             }
@@ -2317,12 +2084,10 @@ impl Terrain {
     /// The A* of `path` in `scratch`, over the box of first row and column `r0`, `c0`, `rows` and
     /// `cols`.
     fn search(
-        &self,
         grid: &Grid,
         a: Node,
         b: Node,
         (r0, c0, rows, cols): (i32, i32, i32, i32),
-        level: u8,
         scratch: &mut Scratch,
     ) -> Option<f64> {
         let space = (r0, c0, cols, (rows * cols) as usize);
@@ -2332,13 +2097,12 @@ impl Terrain {
             let (cost, round) = best[k];
             if round == current { cost } else { u32::MAX }
         };
-        // Costs in tenths of a cell: 10 straight, 14 diagonal, more swimming or near danger.
+        // Costs in tenths of a cell: 10 straight, 14 diagonal, more swimming.
         let (br, bc) = b.cell();
         let h = |r: i32, c: i32| {
             let (dr, dc) = ((r - br).unsigned_abs(), (c - bc).unsigned_abs());
             10 * dr.max(dc) + 4 * dr.min(dc)
         };
-        let (ac, bcell) = (a.cell(), b.cell());
         // Open floors by estimate, in a ring of buckets: the heuristic is consistent (no step
         // costs less than its length), so a step raises the estimate by 0 to its cost plus 14
         // (fewer than `BUCKETS`) and the first time the goal comes out is the cheapest.
@@ -2375,10 +2139,7 @@ impl Terrain {
                 if nr < r0 || nc < c0 || nr >= r0 + rows || nc >= c0 + cols {
                     continue;
                 }
-                let mut ng = g + move_cost(moves, d);
-                if level != 0 && !Self::near_end((nr, nc), ac, bcell) {
-                    ng += self.danger_cost(grid, (nr, nc), level);
-                }
+                let ng = g + move_cost(moves, d);
                 let k = ((nr - r0) * cols + (nc - c0)) as usize;
                 if ng < get(best, k) {
                     best[k] = (ng, current);
@@ -2393,10 +2154,7 @@ impl Terrain {
                         continue;
                     }
                     let m = Node::new(nr, nc, e.floor());
-                    let mut ng = g + e.cost();
-                    if level != 0 && (nr, nc) != (r, c) && !Self::near_end((nr, nc), ac, bcell) {
-                        ng += self.danger_cost(grid, (nr, nc), level);
-                    }
+                    let ng = g + e.cost();
                     let Some(k) = grid.best_index(m, space) else { continue };
                     if ng < get(best, k) {
                         best[k] = (ng, current);

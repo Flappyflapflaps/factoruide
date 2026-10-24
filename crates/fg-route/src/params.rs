@@ -156,10 +156,11 @@ pub struct Params {
     pub common_item_time: f64,
     /// Use off-road shortcuts (climbs, jumps) declared in `passes.toml`.
     pub shortcuts: bool,
-    /// How much walking near hostile mobs 4 levels or more above the character costs (0: not at
-    /// all; 1: each yard near a mob 4-5 levels above counts three, further above seven): walks
-    /// go round zones far too strong (Western Plaguelands at 20 on the way to Hillsbrad).
-    pub danger_weight: f64,
+    /// Levels the median hostile mob of a zone may be above the character (the top of its band of
+    /// 5 levels) for walks to go into it (0: any zone is walked into). Walks go round the zones
+    /// above (Stranglethorn at 17 on the way to Booty Bay's boat), and a walk across one costs
+    /// five times more.
+    pub zone_gap: f64,
     /// Average wait before boarding a boat, zeppelin or tram (seconds).
     pub link_wait: f64,
     /// Kill time of an elite compared with a normal mob of the same level.
@@ -405,7 +406,7 @@ impl Default for Params {
             common_item_sources: 100,
             common_item_time: 60.0,
             shortcuts: true,
-            danger_weight: 1.0,
+            zone_gap: 8.0,
             link_wait: 120.0,
             elite_kill_factor: 3.0,
             approx_sources: false,

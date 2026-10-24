@@ -1,5 +1,5 @@
-//! `fg walks`: the walks of a guide from step to step as the planner walks them (the danger of
-//! the mobs counted, the passages between zones), to compare the walks of two versions.
+//! `fg walks`: the walks of a guide from step to step as the planner walks them (the zones closed
+//! to the character, the passages between zones), to compare the walks of two versions.
 
 use anyhow::{Context, Result};
 use fg_route::export::Route;
@@ -19,9 +19,7 @@ pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path, ce
     let route: Route =
         serde_json::from_str(&std::fs::read_to_string(route).with_context(|| format!("reading {}", route.display()))?)?;
     let mut world = World::load(conn, route.faction, params.flight_speed)?;
-    if params.danger_weight > 0.0 {
-        world.add_danger(conn, params.danger_weight)?;
-    }
+    world.add_zone_levels(conn, params.zone_gap)?;
     world.close(&overrides.closed);
     world.enclose(&overrides.enclosed);
     world.add_caves(&overrides.caves);
@@ -47,7 +45,7 @@ pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path, ce
                         if cells && path.len() >= 2 {
                             let (mut detailed, mut over) = (vec![path[0]], vec![0u8]);
                             for w in path.windows(2) {
-                                let leg = world.terrain.cell_path(&w[0], &w[1], level);
+                                let leg = world.terrain.cell_path(&w[0], &w[1]);
                                 if leg.len() >= 2 {
                                     for &(p, f) in &leg[1..leg.len() - 1] {
                                         detailed.push(p);
@@ -76,6 +74,20 @@ pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path, ce
                             if *f != 0 {
                                 let _ = write!(line, ",{f}");
                             }
+                        }
+                        // The zones closed to the character that the walk crosses (a walk into one is
+                        // never made; across one it costs more, and it is the way left).
+                        let mut crossed: Vec<i64> = path.iter().filter_map(|p| world.zone_at(p)).collect();
+                        crossed.dedup();
+                        for z in crossed.into_iter().filter(|&z| {
+                            d.is_finite() && a.zone != b.zone && z != a.zone && world.zone_closed(z, level)
+                        }) {
+                            eprintln!(
+                                "step {k}: walks across {} at walk level {level} (from {} to {})",
+                                world.zone_name(z),
+                                world.zone_name(a.zone),
+                                world.zone_name(b.zone)
+                            );
                         }
                         lines.push((k, line));
                     }
