@@ -210,7 +210,10 @@ fn the_addon_follows_the_walks_the_app_draws() {
                 assert_eq!(step.path.len(), leg.via.len() + 1, "step {k}");
                 assert!((step.path[0][0] - leg.from[1]).abs() <= 0.5 && (step.path[0][1] - leg.from[2]).abs() <= 0.5);
                 for (p, v) in step.path[1..].iter().zip(&leg.via) {
-                    assert!((p[0] - f64::from(v[0])).abs() <= 0.5 && (p[1] - f64::from(v[1])).abs() <= 0.5, "step {k}");
+                    assert!(
+                        (p[0] - f64::from(v[0])).abs() <= 0.5 && (p[1] - f64::from(v[1])).abs() <= 0.5,
+                        "step {k}"
+                    );
                 }
             }
             None => assert!(step.path.is_empty(), "step {k}: a walk the app does not draw"),
@@ -223,6 +226,14 @@ fn the_addon_follows_the_walks_the_app_draws() {
 #[test]
 fn a_new_character_has_no_start_to_choose() {
     let conn = database();
-    let preview = job::preview_starts(&conn, &overrides(), &request(), &|_| {}, &job::Interrupt::default(), None).unwrap();
+    let preview = job::preview_starts(
+        &conn,
+        &overrides(),
+        &request(),
+        &|_| {},
+        &job::Interrupt::default(),
+        None,
+    )
+    .unwrap();
     assert!(preview.options.len() < 2, "{} starts", preview.options.len());
 }

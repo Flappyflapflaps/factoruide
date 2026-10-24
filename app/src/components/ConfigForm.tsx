@@ -298,15 +298,15 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
   // Flight paths: what the addon recorded, what the quests done deduce; the player's ticks and unticks
   // are kept for the character (`fg.flights.<name>`).
   const [flightInfo, setFlightInfo] = useState<{ recorded: number[]; inferred: number[] }>({ recorded: initial?.start?.flights ?? [], inferred: [] });
-  const flightEdits = (name: string): { added: number[]; removed: number[] } => {
+  const flightEdits = (character: string): { added: number[]; removed: number[] } => {
     try {
-      return { added: [], removed: [], ...JSON.parse(localStorage.getItem(`fg.flights.${name}`) ?? "{}") };
+      return { added: [], removed: [], ...JSON.parse(localStorage.getItem(`fg.flights.${character}`) ?? "{}") };
     } catch {
       return { added: [], removed: [] };
     }
   };
-  const mergeFlights = (name: string, recorded: number[], inferred: number[]) => {
-    const edits = flightEdits(name);
+  const mergeFlights = (character: string, recorded: number[], inferred: number[]) => {
+    const edits = flightEdits(character);
     const removed = new Set(edits.removed);
     return [...new Set([...recorded, ...inferred, ...edits.added])].filter((id) => !removed.has(id)).sort((a, b) => a - b);
   };
@@ -317,8 +317,16 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
     const edits = flightEdits(start.name);
     const added = new Set(edits.added);
     const removed = new Set(edits.removed);
-    for (const id of after) if (!before.has(id)) (added.add(id), removed.delete(id));
-    for (const id of before) if (!after.has(id)) (removed.add(id), added.delete(id));
+    for (const id of after) {
+      if (before.has(id)) continue;
+      added.add(id);
+      removed.delete(id);
+    }
+    for (const id of before) {
+      if (after.has(id)) continue;
+      removed.add(id);
+      added.delete(id);
+    }
     localStorage.setItem(`fg.flights.${start.name}`, JSON.stringify({ added: [...added], removed: [...removed] }));
     setStart({ ...start, flights, flights_final: true });
   };

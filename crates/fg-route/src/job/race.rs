@@ -517,9 +517,7 @@ impl Searcher<'_> {
             return None;
         }
         let mutant = self.mutants.lock().unwrap().get(k).cloned().flatten();
-        let mut p = mutant
-            .as_ref()
-            .map_or_else(|| self.candidate(k), |m| m.params.clone());
+        let mut p = mutant.as_ref().map_or_else(|| self.candidate(k), |m| m.params.clone());
         if let Some((stage, search)) = slot.round {
             p.seed = round_seed(p.seed, stage, search);
         }
@@ -610,9 +608,7 @@ impl Searcher<'_> {
     /// route that is not `needed`).
     fn build_only(&self, k: usize, needed: bool) -> Option<(f64, Vec<Stop>)> {
         let mutant = self.mutants.lock().unwrap().get(k).cloned().flatten();
-        let p = mutant
-            .as_ref()
-            .map_or_else(|| self.candidate(k), |m| m.params.clone());
+        let p = mutant.as_ref().map_or_else(|| self.candidate(k), |m| m.params.clone());
         let give_up = || self.interrupt.cancelled() || (!needed && self.interrupt.stopping());
         let planner = Planner::new(self.model, self.world, &p, self.profile).abortable(&give_up);
         let route = self.build(k, &planner, mutant.as_ref(), |_| {})?;

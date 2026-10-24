@@ -236,7 +236,12 @@ impl World {
         let mut capitals = std::collections::HashSet::new();
         let mut stmt = conn.prepare("SELECT ID, AreaName_lang, ParentAreaID, Flags_0 FROM client_areatable")?;
         for row in stmt.query_map([], |r| {
-            Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?, r.get::<_, i64>(3)?))
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, i64>(2)?,
+                r.get::<_, i64>(3)?,
+            ))
         })? {
             let (id, name, parent, flags) = row?;
             if flags & 8 != 0 {

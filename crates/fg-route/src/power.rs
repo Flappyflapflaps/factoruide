@@ -493,7 +493,9 @@ impl PowerModel {
                 ids: Vec::new(),
             });
             let ids: String = r.get(8)?;
-            family.ids.extend(ids.split(',').filter_map(|id| id.parse::<i64>().ok()));
+            family
+                .ids
+                .extend(ids.split(',').filter_map(|id| id.parse::<i64>().ok()));
             family.list.push(Rank {
                 id: r.get(7)?,
                 name,
@@ -888,7 +890,10 @@ mod tests {
         assert_eq!(trained_level(&families, &known(&[30]), 28), Some(28));
         assert_eq!(trained_level(&families, &known(&[]), 28), None);
         // Learned at level 6 only (an id of another family): not trained since 5.
-        let other = vec![Family { ids: vec![99], ..families[0].clone() }];
+        let other = vec![Family {
+            ids: vec![99],
+            ..families[0].clone()
+        }];
         assert_eq!(trained_level(&other, &known(&[99]), 28), Some(28));
     }
 

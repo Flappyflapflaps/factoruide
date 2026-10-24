@@ -146,7 +146,10 @@ impl Planner<'_> {
                 && self.worth().worth_it(&s, i, s.level, 0.0)
             {
                 let zone = self.places().zone(accept);
-                if zone != s.zone && !self.world.is_capital(zone) && self.trips().fastest(&s, &self.places().pos(&s, accept)).0.is_finite() {
+                if zone != s.zone
+                    && !self.world.is_capital(zone)
+                    && self.trips().fastest(&s, &self.places().pos(&s, accept)).0.is_finite()
+                {
                     *counts.entry(zone).or_default() += 1;
                 }
             }

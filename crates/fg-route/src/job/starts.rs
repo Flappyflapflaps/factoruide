@@ -78,7 +78,11 @@ pub fn preview_starts(
         return Err(super::Cancelled.into());
     }
     if !params.preferred_zones.is_empty() || !params.forced_zones.is_empty() || params.start_zone != 0 {
-        return Ok(StartPreview { tried: 0, options: Vec::new(), details: Vec::new() });
+        return Ok(StartPreview {
+            tried: 0,
+            options: Vec::new(),
+            details: Vec::new(),
+        });
     }
     let give_up = || interrupt.cancelled();
     let base = Planner::new(&prepared.model, &prepared.world, params, &prepared.profile).abortable(&give_up);
@@ -97,7 +101,11 @@ pub fn preview_starts(
         progress(&format!("@starts {}", serde_json::to_string(&candidates)?));
     }
     if starts.len() < 2 {
-        return Ok(StartPreview { tried: 0, options: Vec::new(), details: Vec::new() });
+        return Ok(StartPreview {
+            tried: 0,
+            options: Vec::new(),
+            details: Vec::new(),
+        });
     }
     let mut found: Vec<StartOption> = Vec::new();
     let mut details = vec![format!(
@@ -172,10 +180,17 @@ pub fn preview_starts(
         if out.iter().any(|o| o.zone == option.zone) {
             continue;
         }
-        if out.first().is_some_and(|best| option.score > best.score * WORTH_SHOWING) {
+        if out
+            .first()
+            .is_some_and(|best| option.score > best.score * WORTH_SHOWING)
+        {
             continue;
         }
         out.push(option);
     }
-    Ok(StartPreview { tried, options: out, details })
+    Ok(StartPreview {
+        tried,
+        options: out,
+        details,
+    })
 }

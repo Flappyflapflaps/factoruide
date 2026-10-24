@@ -72,8 +72,19 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
     // FG_PREVIEW_STARTS: the starts the app offers to choose from, as JSON (not a guide).
     if std::env::var_os("FG_PREVIEW_STARTS").is_some() {
         let began = std::time::Instant::now();
-        let starts = job::preview_starts(conn, &overrides, &request, &|m| eprintln!("{m}"), &job::Interrupt::default(), None)?;
-        eprintln!("{} starts in {:.0} s", starts.options.len(), began.elapsed().as_secs_f64());
+        let starts = job::preview_starts(
+            conn,
+            &overrides,
+            &request,
+            &|m| eprintln!("{m}"),
+            &job::Interrupt::default(),
+            None,
+        )?;
+        eprintln!(
+            "{} starts in {:.0} s",
+            starts.options.len(),
+            began.elapsed().as_secs_f64()
+        );
         println!("{}", serde_json::to_string_pretty(&starts)?);
         return Ok(());
     }
@@ -347,7 +358,14 @@ pub fn replay(
         request.name.clone().unwrap_or_else(|| "request".into())
     ));
     if std::env::var_os("FG_PREVIEW_STARTS").is_some() {
-        let preview = job::preview_starts(conn, &overrides, &request, &|m| eprintln!("{m}"), &job::Interrupt::default(), None)?;
+        let preview = job::preview_starts(
+            conn,
+            &overrides,
+            &request,
+            &|m| eprintln!("{m}"),
+            &job::Interrupt::default(),
+            None,
+        )?;
         eprintln!("{} starts of {} tried", preview.options.len(), preview.tried);
         return Ok(());
     }

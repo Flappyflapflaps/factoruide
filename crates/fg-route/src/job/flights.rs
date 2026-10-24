@@ -27,7 +27,12 @@ pub fn inferred_flights(conn: &Connection, faction: Faction, completed: &[i64]) 
     // Quests with a giver or a turn-in in the town of each flight master.
     let mut towns: HashMap<usize, HashSet<i64>> = HashMap::new();
     for row in stmt.query_map([], |r| {
-        Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, f64>(2)?, r.get::<_, f64>(3)?))
+        Ok((
+            r.get::<_, i64>(0)?,
+            r.get::<_, i64>(1)?,
+            r.get::<_, f64>(2)?,
+            r.get::<_, f64>(3)?,
+        ))
     })? {
         let (quest, zone, x, y) = row?;
         if !done.contains(&quest) {

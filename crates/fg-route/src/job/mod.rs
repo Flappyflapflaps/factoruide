@@ -3,8 +3,8 @@
 
 mod character;
 mod draft;
-mod flights;
 mod edit;
+mod flights;
 mod group;
 mod notes;
 mod options;
@@ -19,13 +19,15 @@ mod start;
 mod starts;
 mod timeline;
 
-pub use flights::inferred_flights;
 pub use draft::{EditView, ObjectiveAt, PlaceAt, QuestAt, Request, Requests, Suggestions};
 pub use edit::{
     CatalogDungeon, CatalogLink, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef,
     RouteStep, StepReport,
 };
-pub use options::{FactionOption, FlightOption, NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes};
+pub use flights::inferred_flights;
+pub use options::{
+    FactionOption, FlightOption, NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes,
+};
 pub use overrides::{Overrides, RaceDef};
 pub use paths::{add_walk_paths, route_walks, walk_world};
 pub use race::{optimize, optimize_interruptible};
@@ -37,8 +39,8 @@ pub use routes::{
     write_data_addon, write_polestar_pack, write_polestar_source, write_polestar_strings,
 };
 pub use services::{Place, Service, places, services_lua};
-pub use starts::{StartOption, StartPreview, preview_starts};
 pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};
+pub use starts::{StartOption, StartPreview, preview_starts};
 pub use timeline::{InnInfo, Leg, LegMode, NodeInfo, ObjectiveInfo, QuestInfo, StartView, Timeline, TimelineStep};
 
 use crate::export;

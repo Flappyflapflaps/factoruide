@@ -129,12 +129,16 @@ fn each_guide_carries_its_format() {
 fn a_long_walk_follows_the_ground_between_gates() {
     let conn = database();
     let world = job::walk_world(&conn, &overrides(), Faction::Alliance).unwrap();
-    let a = world.to_world(world.zone_of_ui_map(1442).unwrap(), 58.99, 62.6).unwrap();
-    let b = world.to_world(world.zone_of_ui_map(1413).unwrap(), 62.98, 37.22).unwrap();
+    let a = world
+        .to_world(world.zone_of_ui_map(1442).unwrap(), 58.99, 62.6)
+        .unwrap();
+    let b = world
+        .to_world(world.zone_of_ui_map(1413).unwrap(), 62.98, 37.22)
+        .unwrap();
     let len = |pts: &[fg_route::world::Pos]| pts.windows(2).map(|w| w[0].dist(&w[1])).sum::<f64>();
     let walk = world.walk_path(&a, &b, 28);
     let cells: Vec<_> = world.terrain.cell_path(&a, &b).into_iter().map(|(p, _)| p).collect();
-    assert!(!cells.is_empty());
+    assert!(cells.len() > 1);
     assert!(
         len(&walk) >= len(&cells) * 0.97,
         "the walk cuts corners: {:.0} yd against {:.0}",
@@ -160,11 +164,18 @@ fn quests_done_in_a_town_give_its_flight_path() {
         .unwrap();
     assert!(in_stormwind.len() >= 2, "{in_stormwind:?}");
     let stormwind: i64 = conn
-        .query_row("SELECT ID FROM client_taxinodes WHERE Name_lang LIKE 'Stormwind%'", [], |r| r.get(0))
+        .query_row(
+            "SELECT ID FROM client_taxinodes WHERE Name_lang LIKE 'Stormwind%'",
+            [],
+            |r| r.get(0),
+        )
         .unwrap();
     let found = job::inferred_flights(&conn, Faction::Alliance, &in_stormwind).unwrap();
     assert!(found.contains(&stormwind), "{found:?}");
-    assert!(job::inferred_flights(&conn, Faction::Alliance, &[]).unwrap().is_empty());
+    assert_eq!(
+        job::inferred_flights(&conn, Faction::Alliance, &[]).unwrap(),
+        Vec::<i64>::new()
+    );
 }
 
 /// The capital cities are not starts to choose: every route passes through them.

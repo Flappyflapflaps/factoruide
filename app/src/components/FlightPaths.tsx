@@ -33,7 +33,10 @@ export function FlightPaths({ options, start, recorded, inferred, onChange }: Pr
   const continents = [...new Set(nodes.map((n) => n.continent))].sort((a, b) => a - b);
   const set = (ids: number[], on: boolean) => {
     const next = new Set(known);
-    for (const id of ids) (on ? next.add(id) : next.delete(id));
+    for (const id of ids) {
+      if (on) next.add(id);
+      else next.delete(id);
+    }
     onChange([...next].sort((a, b) => a - b));
   };
   return (
