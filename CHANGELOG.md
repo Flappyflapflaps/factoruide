@@ -40,6 +40,10 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 - Objectives done in the same area are shown together under Now; a level checkpoint between them comes after them.
 - Merchant, trainer, flight master and inn steps before the last quest you handed in are done on their own when a guide is loaded or reset, instead of each needing a right click.
 
+### WoW data
+
+- Quest, NPC and spawn data brought up to date, with 51 more contributions from players: WoW Forever gets quests it had wrongly left out or marked unavailable, and corrected XP, races, classes and zones; TBC gets 11 quests it lacked; Classic is unchanged.
+
 ## 0.14.0 (2026-10-21)
 
 > **Important: install the addons from CurseForge (or Wago) now.** The app no longer installs or updates them. Install [Factoruide Guide](https://www.curseforge.com/wow/addons/factoruide-guide) (it brings [Factoruide Profile](https://www.curseforge.com/wow/addons/factoruide-profile) with it) with the CurseForge app, then restart the game. The copy an older app installed stays at its old version: replace it, your settings and progress are kept.
