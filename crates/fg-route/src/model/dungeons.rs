@@ -160,6 +160,9 @@ pub(super) fn faction_entrances(conn: &Connection, faction: Faction) -> Result<H
     Ok(entrances)
 }
 
+/// Levels below its mobs the weakest of a group may be at the earliest for a dungeon.
+const DUNGEON_BELOW: i64 = 3;
+
 /// Dungeon levels from their quests, and default run time and kills. A dungeon without quests
 /// is not planned.
 pub(super) fn set_dungeon_levels(dungeons: &mut [Dungeon], quests: &[Quest]) {
@@ -174,13 +177,21 @@ pub(super) fn set_dungeon_levels(dungeons: &mut [Dungeon], quests: &[Quest]) {
         }
         let mut levels: Vec<i64> = qs.iter().map(|q| q.level).collect();
         levels.sort_unstable();
+        dungeon.mob_level = levels[levels.len() / 2];
+        // Not before the group can face the dungeon's mobs: the quests may start well below them
+        // (the Deadmines' first quest, level 14, for mobs of level 20).
         if dungeon.min_level == 0 {
-            dungeon.min_level = qs.iter().map(|q| q.min_level).min().unwrap().max(levels[0] - 2);
+            dungeon.min_level = qs
+                .iter()
+                .map(|q| q.min_level)
+                .min()
+                .unwrap()
+                .max(levels[0] - 2)
+                .max(dungeon.mob_level - DUNGEON_BELOW);
         }
         if dungeon.max_level == 0 {
             dungeon.max_level = levels[levels.len() - 1] + 3;
         }
-        dungeon.mob_level = levels[levels.len() / 2];
         if dungeon.minutes == 0.0 {
             dungeon.minutes = (40.0 + dungeon.mob_level as f64).clamp(50.0, 120.0);
         }
