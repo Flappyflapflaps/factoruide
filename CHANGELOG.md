@@ -43,6 +43,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 ### WoW data
 
 - Quest, NPC and spawn data brought up to date, with 51 more contributions from players: WoW Forever gets quests it had wrongly left out or marked unavailable, and corrected XP, races, classes and zones; TBC gets 11 quests it lacked; Classic is unchanged.
+- 206 contributed names, titles, levels and objectives checked against public pages and added: Spanish and French translations that were old or literal, minimum levels, a few objectives.
 
 ## 0.14.0 (2026-10-21)
 
