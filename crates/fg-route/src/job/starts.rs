@@ -113,8 +113,14 @@ pub fn preview_starts(
             continue;
         };
         let line = format!(
-            "start in zone {start_zone}: begins in zone {zone}, {:.1} h played, score {score:.0}",
-            route.total_time / 3600.0
+            "start in zone {start_zone}: begins in zone {zone}, {:.1} h played, score {score:.0}; first: {}",
+            route.total_time / 3600.0,
+            (route.steps.iter())
+                .filter(|s| s.kind != StepKind::Abandon)
+                .take(3)
+                .map(|s| s.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" / ")
         );
         progress(&line);
         details.push(line);

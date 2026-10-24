@@ -167,14 +167,28 @@ impl Planner<'_> {
         // Quest value only decides what is worth accepting. Weights favour finishing what
         // is in the log, and class quests.
         let mut candidates: Vec<Candidate> = Vec::new();
+        // Going to the chosen start zone first is not a matter of distance: the other stops weigh
+        // far more until the character is there.
+        let pull_weight = if self.params.start_zone != 0 && s.zone != self.params.start_zone {
+            1e4
+        } else {
+            self.params.zone_detour_pull
+        };
         let mut add = |stop: Stop, weight: f64, worth: Option<u32>, lower: f64| {
             let pos = self.places().pos(s, stop);
             let zone = self.places().zone(stop);
             // Finish the zone before leaving it (clear a zone, then move on).
             let stay = if zone == s.zone { 1.0 } else { self.params.zone_stay };
             let stay = match pull {
-                Some(z) if zone != z && !(zone == s.zone && stop.kind == Kind::TurnIn) => {
-                    stay * self.params.zone_detour_pull
+                // Turn-ins where the character stands are not pulled away from, except on the way to
+                // the chosen start zone (`Params::start_zone`): it begins there.
+                Some(z)
+                    if zone != z
+                        && !(zone == s.zone
+                            && stop.kind == Kind::TurnIn
+                            && (self.params.start_zone == 0 || s.zone == self.params.start_zone)) =>
+                {
+                    stay * pull_weight
                 }
                 _ => stay,
             };

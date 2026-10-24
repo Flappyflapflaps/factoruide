@@ -151,6 +151,10 @@ impl Planner<'_> {
             self.random_move(&mut candidate, &search.run, &mut search.rng)
         };
         let Some(change) = change else { return };
+        // The start chosen (`Params::start_zone`) is kept: the route begins in that zone.
+        if self.begins_in_start_zone(&search.route) && !self.begins_in_start_zone(&candidate) {
+            return;
+        }
         // Replayed up to a window past the change, the rest estimated; to the end only when the
         // estimate would keep it (and always when it changes the dungeons run).
         let dungeons = |r: &[Stop]| r.iter().filter(|s| s.kind == Kind::Dungeon).count();
@@ -205,6 +209,12 @@ impl Planner<'_> {
         if operator.is_some() {
             search.operators.adapt();
         }
+    }
+
+    /// Whether the route begins in `Params::start_zone` (always when none is chosen).
+    fn begins_in_start_zone(&self, route: &[Stop]) -> bool {
+        let zone = self.params.start_zone;
+        zone == 0 || route.first().is_none_or(|&stop| self.places().zone(stop) == zone)
     }
 
     /// Cost of a changed route, incremental (checked against a full replay when verifying).
