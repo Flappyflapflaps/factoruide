@@ -46,7 +46,7 @@ $spec
 EOF
         name=$edition-$race-$class
         echo "== $spec"
-        "$fg" diff --edition "$edition" --routes "$root/base" "$root/base/$name.json" "$root/new/$name.json" | head -${FG_DIFF_LINES:-12}
+        "$fg" diff --edition "$edition" --routes "$root/base" "$root/base/$name.json" "$root/new/$name.json" | head -"${FG_DIFF_LINES:-12}"
     done
     ;;
 *)

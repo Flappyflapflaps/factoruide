@@ -71,6 +71,8 @@ jobs:
         run: npm run build
       - name: Lint
         run: npx oxlint --deny-warnings
+      - name: Translations (every t("...") text is in the catalog)
+        run: npm run check:i18n
 
   addon:
     name: Addon (stylua, smoke test)
