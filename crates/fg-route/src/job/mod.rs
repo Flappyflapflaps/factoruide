@@ -279,7 +279,7 @@ fn load_world(
     params: &Params,
     progress: &(dyn Fn(&str) + Sync),
 ) -> Result<World> {
-    let mut world = World::load(conn, profile.faction, params.flight_speed)?;
+    let mut world = World::load(conn, profile.faction, params.flight_speed, params.drop_tier())?;
     let passes: Vec<_> = overrides
         .passes
         .iter()

@@ -19,7 +19,9 @@
 //!   its size (sixteenths of the cell, 1 to 16): a byte each, a stream each;
 //! - its straight walks (north, south, west, east), each XOR what `predict_straight` gives;
 //! - its diagonal walks, each XOR what the straight walks lead to (`derive_diagonals`);
-//! - its drops: a byte of the non-empty slots, then those slots' bytes.
+//! - its drops: a byte of the non-empty slots, then those slots' bytes;
+//! - from version 3, its farther drops (`DROP_HEIGHTS`) the same way, a stream of slots and a
+//!   stream of bytes for each tier after the first.
 //!
 //! Most cells have one floor that walks to the one floor of each neighbour: their predictions
 //! hold and the streams are mostly zeros. Version 1 (pass 1) stored the plain bytes.
@@ -45,6 +47,12 @@ pub const DIRECTIONS: [(i32, i32); 8] = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, 
 /// Drops: the 4 straight directions, then the same cell.
 pub const DROPS: usize = 5;
 pub const DROP_DIRECTIONS: [(i32, i32); DROPS] = [(-1, 0), (1, 0), (0, -1), (0, 1), (0, 0)];
+/// The highest drop (yards) of each tier of drops: `Floor::drops` holds the first tier, the safe
+/// fall (no damage); `Floor::farther` each next one (a fall that costs health: about 30 % at
+/// 30 yards, two thirds at 50).
+pub const DROP_HEIGHTS: [f64; 3] = [15.0, 30.0, 50.0];
+/// The tiers of drops after the first.
+pub const FARTHER: usize = DROP_HEIGHTS.len() - 1;
 /// Index in `DIRECTIONS` of the direction the other way.
 pub const OPPOSITE: [usize; 8] = [1, 0, 3, 2, 7, 6, 5, 4];
 /// The two ways to each diagonal neighbour (north-west, north-east, south-west, south-east)
@@ -52,7 +60,7 @@ pub const OPPOSITE: [usize; 8] = [1, 0, 3, 2, 7, 6, 5, 4];
 /// or east first).
 const VIAS: [[(usize, usize); 2]; 4] = [[(0, 2), (2, 0)], [(0, 3), (3, 0)], [(1, 2), (2, 1)], [(1, 3), (3, 1)]];
 /// The format `pack` writes.
-pub const VERSION: i64 = 2;
+pub const VERSION: i64 = 3;
 
 /// A floor of a cell.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -65,6 +73,8 @@ pub struct Floor {
     pub size: u8,
     pub walks: [u8; 8],
     pub drops: [u8; DROPS],
+    /// The drops of the next tiers (`DROP_HEIGHTS`), as `drops`.
+    pub farther: [[u8; DROPS]; FARTHER],
 }
 
 /// The floors of a tile's cells: `counts` for each of the 4096, then `floors` in that order.
@@ -277,19 +287,19 @@ impl TileLayers {
         out
     }
 
-    /// Version 2 (see the module).
+    /// Version 3 (see the module).
     pub fn pack(&self) -> Result<Vec<u8>> {
-        let mut raw = vec![2u8];
+        let mut raw = vec![4u8];
         for (_, stream) in self.streams(false)? {
             raw.extend(stream);
         }
         compress(&raw)
     }
 
-    /// Version 2 without what the planner does not read (`lean`): the heights of the cells of a
+    /// Version 3 without what the planner does not read (`lean`): the heights of the cells of a
     /// single floor and the floors' sizes (the app's databases).
     pub fn pack_lean(&self) -> Result<Vec<u8>> {
-        let mut raw = vec![3u8];
+        let mut raw = vec![5u8];
         for (_, stream) in self.lean().streams(true)? {
             raw.extend(stream);
         }
@@ -385,15 +395,30 @@ impl TileLayers {
         }
         out.push(("drop slots", slots));
         out.push(("drops", drops));
+        for tier in 0..FARTHER {
+            let (mut slots, mut drops) = (Vec::new(), Vec::new());
+            for f in &self.floors {
+                let mut s = 0u8;
+                for (k, &b) in f.farther[tier].iter().enumerate() {
+                    if b != 0 {
+                        s |= 1 << k;
+                        drops.push(b);
+                    }
+                }
+                slots.push(s);
+            }
+            out.push(("farther drop slots", slots));
+            out.push(("farther drops", drops));
+        }
         Ok(out)
     }
 
-    /// A tile's floors stored by `version` (1 or 2).
+    /// A tile's floors stored by `version` (1 to 3).
     pub fn unpack(data: &[u8], version: i64) -> Result<Self> {
         let raw = zstd::decode_all(data)?;
         match version {
             1 => Self::unpack_v1(&raw),
-            2 => Self::unpack_v2(&raw),
+            2 | 3 => Self::unpack_v2(&raw, version == 3),
             v => anyhow::bail!("layers: version {v}"),
         }
     }
@@ -432,12 +457,12 @@ impl TileLayers {
         Ok(Self { counts, floors })
     }
 
-    fn unpack_v2(raw: &[u8]) -> Result<Self> {
+    fn unpack_v2(raw: &[u8], farther: bool) -> Result<Self> {
         let mut rd = Reader { bytes: raw, at: 0 };
-        let lean = match rd.byte()? {
-            2 => false,
-            3 => true,
-            _ => anyhow::bail!("layers: not version 2"),
+        let lean = match (rd.byte()?, farther) {
+            (2, false) | (4, true) => false,
+            (3, false) | (5, true) => true,
+            _ => anyhow::bail!("layers: not version {}", if farther { 3 } else { 2 }),
         };
         let counts = rd.take(4096)?.to_vec();
         ensure!(
@@ -508,6 +533,18 @@ impl TileLayers {
                 }
             }
         }
+        if farther {
+            for tier in 0..FARTHER {
+                let slots = rd.take(n)?.to_vec();
+                for (f, s) in l.floors.iter_mut().zip(slots) {
+                    for (k, b) in f.farther[tier].iter_mut().enumerate() {
+                        if s >> k & 1 != 0 {
+                            *b = rd.byte()?;
+                        }
+                    }
+                }
+            }
+        }
         ensure!(rd.at == raw.len(), "layers: {} bytes left", raw.len() - rd.at);
         Ok(l)
     }
@@ -549,12 +586,30 @@ mod tests {
                     } else {
                         [0; DROPS]
                     },
+                    farther: if c == 9 {
+                        [[0, 0, 1, 0, 0], [0, 2, 0, 0, 0]]
+                    } else if k == 1 && c == 12 {
+                        [[0; DROPS], [0, 0, 0, 0, 1]]
+                    } else {
+                        [[0; DROPS]; FARTHER]
+                    },
                 });
             }
         }
         l.floors[100].walks = [0, 3, 0, 1, 255, 0, 1, 1];
-        for version in [1, 2] {
-            let packed = if version == 1 {
+        // What the versions before 3 hold: no farther drops.
+        let mut near = l.clone();
+        near.floors.iter_mut().for_each(|f| f.farther = [[0; DROPS]; FARTHER]);
+        assert_ne!(near, l);
+        for version in [1, 2, 3] {
+            let packed = if version == 2 {
+                let mut raw = vec![2u8];
+                let streams = near.streams(false).unwrap();
+                for (_, stream) in &streams[..streams.len() - 2 * FARTHER] {
+                    raw.extend(stream);
+                }
+                compress(&raw).unwrap()
+            } else if version == 1 {
                 let mut raw = l.counts.clone();
                 let mut previous = 0i16;
                 for f in &l.floors {
@@ -570,9 +625,14 @@ mod tests {
             } else {
                 l.pack().unwrap()
             };
-            assert_eq!(TileLayers::unpack(&packed, version).unwrap(), l, "version {version}");
+            let want = if version == 3 { &l } else { &near };
+            assert_eq!(
+                &TileLayers::unpack(&packed, version).unwrap(),
+                want,
+                "version {version}"
+            );
         }
         // Lean: the same but the heights of the cells of one floor and the sizes.
-        assert_eq!(TileLayers::unpack(&l.pack_lean().unwrap(), 2).unwrap(), l.lean());
+        assert_eq!(TileLayers::unpack(&l.pack_lean().unwrap(), 3).unwrap(), l.lean());
     }
 }

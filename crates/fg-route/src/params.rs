@@ -567,6 +567,17 @@ impl Params {
         (factor, self.progression_margin.unwrap_or(margin))
     }
 
+    /// The tier of drops the character jumps down (`terrain::layers::DROP_HEIGHTS`): "cautious"
+    /// only what the game does not hurt for (15 yards), "normal" what takes a third of its health
+    /// at most (30 yards), "risky" up to two thirds (50 yards).
+    pub fn drop_tier(&self) -> usize {
+        match self.progression {
+            Progression::Cautious => 0,
+            Progression::Normal => 1,
+            Progression::Risky => 2,
+        }
+    }
+
     /// Levels below its mobs (the median of its quests) the weakest of a group may be at the
     /// earliest for a dungeon: their elites and packs are not the solo content of the profile's
     /// margin.

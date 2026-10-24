@@ -18,7 +18,7 @@ pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path, ce
     let params = &overrides.params;
     let route: Route =
         serde_json::from_str(&std::fs::read_to_string(route).with_context(|| format!("reading {}", route.display()))?)?;
-    let mut world = World::load(conn, route.faction, params.flight_speed)?;
+    let mut world = World::load(conn, route.faction, params.flight_speed, params.drop_tier())?;
     world.add_zone_levels(conn, params.zone_gap)?;
     world.close(&overrides.closed);
     world.enclose(&overrides.enclosed);

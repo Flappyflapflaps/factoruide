@@ -35,7 +35,11 @@ level:
 
 - **Travel**: walking in a straight line within a zone, through the passes between zones; flight
   paths (once learned) and transports when they are faster, a flight to a boat or from where
-  it lands included; the hearthstone when it is the fastest way back.
+  it lands included; the hearthstone when it is the fastest way back. Walks jump down cliffs
+  up to a height that follows the progression profile (15 yards: no fall damage; 30 for
+  "normal", 50 for "risky"); a fall that hurts costs the time to rest the health back
+  (`DROP_COST` in `terrain/mod.rs`, a full heal a minute), so the walk goes round when the way
+  down saves less than that.
 - **Fights and loot**: kill time grows with the level difference and shrinks with the
   character's **power** (below); elites are slower (or need a group); items to loot take as many
   kills as their drop rate requires.

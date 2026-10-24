@@ -1,4 +1,4 @@
-use super::layers::{ABOVE, DROPS, Floor, SURFACE, UNDER};
+use super::layers::{ABOVE, DROPS, FARTHER, Floor, SURFACE, UNDER};
 use super::*;
 
 /// Highest rise walked between two neighbour floors, and highest drop (yards), as the floors of
@@ -12,6 +12,16 @@ const FALL: i32 = 15;
 /// the geometry): a walk both ways within `RISE` yards, a drop one way down to `FALL`, the
 /// diagonals through a straight neighbour.
 fn floors_terrain(tiles: &[(i64, i32, i32)], floors: impl Fn(i64, i32, i32) -> Vec<(i16, u8)>) -> Terrain {
+    floors_terrain_with(tiles, floors, 0)
+}
+
+/// `floors_terrain` taking drops up to the tier `tier` of `DROP_HEIGHTS` (a drop of 15 to 30
+/// yards is the second tier's, of 30 to 50 the third's).
+fn floors_terrain_with(
+    tiles: &[(i64, i32, i32)],
+    floors: impl Fn(i64, i32, i32) -> Vec<(i16, u8)>,
+    tier: usize,
+) -> Terrain {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(
         "CREATE TABLE client_terrain_layers (map_id INTEGER, tile_x INTEGER, tile_y INTEGER,
@@ -58,6 +68,7 @@ fn floors_terrain(tiles: &[(i64, i32, i32)], floors: impl Fn(i64, i32, i32) -> V
                     size: 16,
                     walks: [0; 8],
                     drops: [0; DROPS],
+                    farther: [[0; DROPS]; FARTHER],
                 };
                 let s = straight(r, c, h);
                 floor.walks[..4].copy_from_slice(&s);
@@ -77,6 +88,8 @@ fn floors_terrain(tiles: &[(i64, i32, i32)], floors: impl Fn(i64, i32, i32) -> V
                         let fall = i32::from(h) - i32::from(h2);
                         if fall > RISE && fall <= FALL {
                             floor.drops[d] |= 1 << k;
+                        } else if let Some(t) = far_tier(fall) {
+                            floor.farther[t][d] |= 1 << k;
                         }
                     }
                 }
@@ -84,18 +97,29 @@ fn floors_terrain(tiles: &[(i64, i32, i32)], floors: impl Fn(i64, i32, i32) -> V
                     let fall = i32::from(h) - i32::from(h2);
                     if k != f && fall > RISE && fall <= FALL {
                         floor.drops[4] |= 1 << k;
+                    } else if let (true, Some(t)) = (k != f, far_tier(fall)) {
+                        floor.farther[t][4] |= 1 << k;
                     }
                 }
                 l.floors.push(floor);
             }
         }
         conn.execute(
-            "INSERT INTO client_terrain_layers VALUES (?1, ?2, ?3, 2, ?4, ?5)",
-            rusqlite::params![map, tx, ty, l.floors.len() as i64, l.pack().unwrap()],
+            "INSERT INTO client_terrain_layers VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![map, tx, ty, layers::VERSION, l.floors.len() as i64, l.pack().unwrap()],
         )
         .unwrap();
     }
-    Terrain::load(&conn).unwrap()
+    Terrain::load(&conn, tier).unwrap()
+}
+
+/// The tier of the farther drops (`Floor::farther`) a fall of `fall` yards is in, if any.
+fn far_tier(fall: i32) -> Option<usize> {
+    match fall {
+        16..=30 => Some(0),
+        31..=50 => Some(1),
+        _ => None,
+    }
 }
 
 /// Tile (32, 32) of continent 1, a floor at height 0 on each cell but where `steep` (none).
@@ -607,5 +631,60 @@ fn turns_keep_their_floors() {
     assert!(
         (t.distance(last, &kobold).unwrap() - last.dist(&kobold)).abs() < 1e-6,
         "from the last turn, straight in: {last:?}"
+    );
+}
+
+/// A plateau `high` yards over the plain from column 32, reached by a ramp on the bottom rows
+/// only, as the terrain taking drops up to `tier`.
+fn plateau(high: i16, tier: usize) -> Terrain {
+    floors_terrain_with(
+        &[(1, 32, 32)],
+        |_, r, c| {
+            let (r, c) = ((r - 32 * 64) as usize, (c - 32 * 64) as usize);
+            let h = if c >= 32 && r < 56 {
+                high
+            } else if c >= 32 {
+                (((c - 32) * 5) as i16).min(high)
+            } else {
+                0
+            };
+            vec![(h, 0)]
+        },
+        tier,
+    )
+}
+
+/// How far down a plateau a walk goes from its top to the foot, and the ramp's way (the foot to
+/// the top), with each tier of drops.
+fn down_and_up(high: i16, tier: usize) -> (f64, f64) {
+    let t = plateau(high, tier);
+    let (foot, top) = (at(10.0, 20.0), at(10.0, 44.0));
+    (t.distance(&top, &foot).unwrap(), t.distance(&foot, &top).unwrap())
+}
+
+/// A drop beyond the safe fall is taken only by a character that takes the next tier, and it
+/// costs the rest the health needs: more than the straight way down, less than the ramp's.
+#[test]
+fn farther_drops_follow_the_tier() {
+    let straight = at(10.0, 44.0).dist(&at(10.0, 20.0));
+    // 25 yards: the second tier's.
+    let (safe, _) = down_and_up(25, 0);
+    let (hurt, up) = down_and_up(25, 1);
+    assert!(
+        safe > 2.0 * straight,
+        "round by the ramp without the tier: {safe} vs {straight}"
+    );
+    assert!(
+        hurt > straight + 100.0 && hurt < safe / 2.0,
+        "jumped with the tier, resting paid: {hurt}"
+    );
+    assert!(up > 2.0 * straight, "never climbed back: {up}");
+    // 40 yards: only the third tier's.
+    let (second, _) = down_and_up(40, 1);
+    let (third, _) = down_and_up(40, 2);
+    assert!(second > 2.0 * straight, "too far for the second tier: {second}");
+    assert!(
+        third > hurt && third < 0.7 * second,
+        "jumped with the third: {third} vs {hurt} and {second}"
     );
 }

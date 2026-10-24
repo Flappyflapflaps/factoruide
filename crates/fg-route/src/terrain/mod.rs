@@ -70,9 +70,14 @@ const SWIM_DEPTH: u8 = 2;
 const WALKED: [u32; 2] = [10, 14];
 const SWUM: [u32; 2] = [15, 21];
 const DROPPED: u32 = 5;
+/// What a drop of each tier (`layers::DROP_HEIGHTS`) costs more than the step: the health it
+/// takes (`0,018 × yards − 0,2426` of it, past the safe fall) got back by resting, a full heal
+/// taking a minute, at a tenth of a cell every 0,12 s: 30 yards take 30 % (18 s), 50 yards two
+/// thirds (40 s).
+const DROP_COST: [u32; layers::DROP_HEIGHTS.len()] = [0, 150, 330];
 /// Buckets of the path search's open floors: more than the largest rise of an estimate (the
-/// dearest step, plus 14).
-const BUCKETS: usize = 64;
+/// dearest step, a swum diagonal drop of the farthest tier, plus 14).
+const BUCKETS: usize = 512;
 
 /// A floor of a cell (a node of the walks): the cell's row and column (from the north and the
 /// west, each under 4096) and the floor's index in the cell, packed (ordered by row, column,
@@ -200,13 +205,18 @@ const NO_GO: u8 = 1;
 const SWIM: u8 = 2;
 
 /// A step to a floor of a neighbour cell other than its first, or within the cell: the
-/// direction (`DIRECTIONS`, 8: the same cell), the floor, swum, a drop; packed.
+/// direction (`DIRECTIONS`, 8: the same cell), the floor, swum, a drop and its tier
+/// (`layers::DROP_HEIGHTS`); packed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Edge(u16);
 
 impl Edge {
-    fn new(d: usize, f: usize, swum: bool, drop: bool) -> Self {
-        Self(d as u16 | (f as u16) << 4 | u16::from(swum) << 7 | u16::from(drop) << 8)
+    fn new(d: usize, f: usize, swum: bool, drop: bool, tier: usize) -> Self {
+        Self(d as u16 | (f as u16) << 4 | u16::from(swum) << 7 | u16::from(drop) << 8 | (tier as u16) << 9)
+    }
+
+    fn tier(self) -> usize {
+        usize::from(self.0 >> 9 & 3)
     }
 
     fn dir(self) -> usize {
@@ -232,13 +242,14 @@ impl Edge {
     /// Its cost (tenths of a cell).
     fn cost(self) -> u32 {
         let swum = self.0 >> 7 & 1 != 0;
-        match self.dir() {
-            8 => DROPPED,
-            d => {
-                let diagonal = usize::from(d >= 4);
-                if swum { SWUM[diagonal] } else { WALKED[diagonal] }
+        DROP_COST[self.tier()]
+            + match self.dir() {
+                8 => DROPPED,
+                d => {
+                    let diagonal = usize::from(d >= 4);
+                    if swum { SWUM[diagonal] } else { WALKED[diagonal] }
+                }
             }
-        }
     }
 }
 
@@ -354,6 +365,8 @@ struct Grid {
     local_areas: Vec<std::sync::OnceLock<gates::LocalAreas>>,
     /// The caves the floors miss (`Terrain::add_cave`).
     caves: Vec<Cave>,
+    /// The tiers of drops taken after the first (`layers::DROP_HEIGHTS`): 0 only the safe fall.
+    drop_tier: usize,
 }
 
 /// A cave (`[[cave]]` of `overrides/passes.toml`) the floors miss: the places on no large
@@ -879,7 +892,7 @@ impl Grid {
                     let floor = &l.floors[first as usize + f];
                     let mut m = 0u32;
                     let mut more: Vec<Edge> = Vec::new();
-                    let mut add = |d: usize, bits: u8, drop: bool| {
+                    let mut add = |d: usize, bits: u8, drop: bool, tier: usize| {
                         if bits == 0 {
                             return;
                         }
@@ -908,7 +921,7 @@ impl Grid {
                                 continue;
                             }
                             let swum = target.flags[k] & SWIM != 0;
-                            if b == 0 && d < 8 {
+                            if b == 0 && d < 8 && tier == 0 {
                                 if m >> d & MOVE == 0 {
                                     m |= MOVE << d;
                                     if swum {
@@ -919,15 +932,20 @@ impl Grid {
                                     }
                                 }
                             } else {
-                                more.push(Edge::new(d, b, swum, drop));
+                                more.push(Edge::new(d, b, swum, drop, tier));
                             }
                         }
                     };
                     for (d, &bits) in floor.walks.iter().enumerate() {
-                        add(d, bits, false);
+                        add(d, bits, false, 0);
                     }
                     for (s, &bits) in floor.drops.iter().enumerate() {
-                        add(DROP_DIRECTION[s], bits, true);
+                        add(DROP_DIRECTION[s], bits, true, 0);
+                    }
+                    for tier in 1..=self.drop_tier {
+                        for (s, &bits) in floor.farther[tier - 1].iter().enumerate() {
+                            add(DROP_DIRECTION[s], bits, true, tier);
+                        }
                     }
                     if !more.is_empty() {
                         m |= MOVE_MORE;
@@ -1278,7 +1296,10 @@ fn tile_nodes(l: &TileLayers) -> Box<TileNodes> {
 }
 
 impl Terrain {
-    pub fn load(conn: &Connection) -> rusqlite::Result<Self> {
+    /// The terrain of the database's floors, taking drops up to the tier `drop_tier` of
+    /// `layers::DROP_HEIGHTS` (0: only the safe fall).
+    pub fn load(conn: &Connection, drop_tier: usize) -> rusqlite::Result<Self> {
+        let drop_tier = drop_tier.min(layers::FARTHER);
         let mut terrain = Self {
             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             fingerprint: 0,
@@ -1315,6 +1336,7 @@ impl Terrain {
         let workers = std::thread::available_parallelism()
             .map_or(4, std::num::NonZero::get)
             .min(8);
+        let stored = rows.len();
         let unpacked: Vec<(i64, TileRow)> = std::thread::scope(|scope| {
             let parts: Vec<_> = rows
                 .chunks(rows.len().div_ceil(workers).max(1))
@@ -1332,6 +1354,13 @@ impl Terrain {
             parts.into_iter().flat_map(|p| p.join().unwrap_or_default()).collect()
         });
         drop(rows);
+        if unpacked.len() < stored {
+            // Without them the walks cross what they should not: never silently.
+            eprintln!(
+                "terrain: {} of {stored} tiles of floors unreadable (left out)",
+                stored - unpacked.len()
+            );
+        }
         let mut tiles: HashMap<i64, Vec<TileRow>> = HashMap::new();
         for (map, tile) in unpacked {
             tiles.entry(map).or_default().push(tile);
@@ -1372,29 +1401,46 @@ impl Terrain {
                 ends: (0..count).map(|_| Mutex::default()).collect(),
                 local_areas: (0..count).map(|_| std::sync::OnceLock::new()).collect(),
                 caves: Vec::new(),
+                drop_tier,
             };
             grid.link(&layers);
             drop(layers);
             grid.label();
             terrain.grids.insert(map, grid);
         }
-        // The gates' graphs the databases hold (made when they were built): none to make.
+        // The gates' graphs the databases hold (made when they were built): none to make. Each
+        // tier of drops has its own (databases from before them have the first tier's only).
         let stored: bool = conn.query_row(
             "SELECT count(*) > 0 FROM sqlite_schema WHERE name = 'client_terrain_gates'",
             [],
             |r| r.get(0),
         )?;
-        if stored {
-            let mut stmt = conn.prepare("SELECT map_id, tile_x, tile_y, graph FROM client_terrain_gates")?;
-            for row in stmt.query_map([], |r| {
+        let tiered: bool = stored
+            && conn.query_row(
+                "SELECT count(*) > 0 FROM pragma_table_info('client_terrain_gates') WHERE name = 'tier'",
+                [],
+                |r| r.get(0),
+            )?;
+        if stored && (tiered || drop_tier == 0) {
+            let mut stmt = conn.prepare(&format!(
+                "SELECT map_id, tile_x, tile_y, graph FROM client_terrain_gates{}",
+                if tiered { " WHERE tier = ?1" } else { "" }
+            ))?;
+            let row = |r: &rusqlite::Row<'_>| {
                 Ok((
                     r.get::<_, i64>(0)?,
                     r.get::<_, i32>(1)?,
                     r.get::<_, i32>(2)?,
                     r.get::<_, Vec<u8>>(3)?,
                 ))
-            })? {
-                let (map, x, y, blob) = row?;
+            };
+            let rows: Vec<_> = if tiered {
+                stmt.query_map([drop_tier as i64], row)?
+                    .collect::<rusqlite::Result<_>>()?
+            } else {
+                stmt.query_map([], row)?.collect::<rusqlite::Result<_>>()?
+            };
+            for (map, x, y, blob) in rows {
                 if let Some(grid) = terrain.grids.get(&map)
                     && let Some((t, _)) = grid.tile(y * 64, x * 64)
                 {
@@ -1407,6 +1453,13 @@ impl Terrain {
         terrain.fingerprint = terrain
             .fingerprint
             .wrapping_add(u64::from(GATES_VERSION).wrapping_mul(0x9e37_79b9_7f4a_7c15));
+        // Memories of walks with other drops are not this terrain's (the first tier's are as
+        // they were before the others).
+        if drop_tier > 0 {
+            terrain.fingerprint = terrain
+                .fingerprint
+                .wrapping_add((drop_tier as u64).wrapping_mul(0xc2b2_ae3d_27d4_eb4f));
+        }
         terrain.walks.bind(terrain.fingerprint);
         Ok(terrain)
     }

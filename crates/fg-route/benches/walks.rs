@@ -34,7 +34,13 @@ fn world() -> World {
     let conn = database();
     let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Forever).unwrap();
     let params = &overrides.params;
-    let mut world = World::load(&conn, Faction::parse("Horde").unwrap(), params.flight_speed).unwrap();
+    let mut world = World::load(
+        &conn,
+        Faction::parse("Horde").unwrap(),
+        params.flight_speed,
+        params.drop_tier(),
+    )
+    .unwrap();
     world.add_zone_levels(&conn, params.zone_gap).unwrap();
     world.close(&overrides.closed);
     world.enclose(&overrides.enclosed);

@@ -208,7 +208,7 @@ const LANDMARK_NAME_RADIUS: f64 = 400.0;
 
 impl World {
     /// Load zones and the flight network usable by a faction ("Alliance" / "Horde").
-    pub fn load(conn: &Connection, faction: Faction, flight_speed: f64) -> Result<Self> {
+    pub fn load(conn: &Connection, faction: Faction, flight_speed: f64, drop_tier: usize) -> Result<Self> {
         let mut zones = HashMap::new();
         let mut stmt = conn.prepare(
             "SELECT AreaID, UiMapID, MapID, Region_0, Region_3, Region_1, Region_4 \
@@ -389,7 +389,7 @@ impl World {
             pass_closed: FxHashMap::default(),
             zone_passes: FxHashMap::default(),
             taxi_by_x: Vec::new(),
-            terrain: crate::terrain::Terrain::load(conn)?,
+            terrain: crate::terrain::Terrain::load(conn, drop_tier)?,
             landmarks: Vec::new(),
             area_passes: FxHashMap::default(),
             area_lifts: FxHashMap::default(),

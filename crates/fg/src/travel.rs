@@ -58,7 +58,7 @@ pub fn run(
     let params = &overrides.params;
     let faction =
         fg_route::faction::Faction::parse(faction).ok_or_else(|| anyhow::anyhow!("unknown faction {faction}"))?;
-    let mut world = World::load(conn, faction, params.flight_speed)?;
+    let mut world = World::load(conn, faction, params.flight_speed, params.drop_tier())?;
     world.add_zone_levels(conn, params.zone_gap)?;
     for w in world.close(&overrides.closed) {
         eprintln!("{w}");
@@ -220,7 +220,7 @@ pub fn overrides(conn: &Connection, overrides_dir: &Path, faction: &str) -> Resu
     let params = &overrides.params;
     let faction =
         fg_route::faction::Faction::parse(faction).ok_or_else(|| anyhow::anyhow!("unknown faction {faction}"))?;
-    let mut world = World::load(conn, faction, params.flight_speed)?;
+    let mut world = World::load(conn, faction, params.flight_speed, params.drop_tier())?;
     for w in world.close(&overrides.closed) {
         println!("{w}");
     }

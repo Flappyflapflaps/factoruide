@@ -17,7 +17,7 @@ const MIN_QUESTS: usize = 2;
 /// The flight paths (TaxiNodes IDs, usable by `faction`) of the towns where at least
 /// `MIN_QUESTS` of the `completed` quests were given or turned in.
 pub fn inferred_flights(conn: &Connection, faction: Faction, completed: &[i64]) -> Result<Vec<i64>> {
-    let world = World::load(conn, faction, 1.0)?;
+    let world = World::load(conn, faction, 1.0, 0)?;
     let done: HashSet<i64> = completed.iter().copied().collect();
     let mut stmt = conn.prepare(
         "SELECT r.quest_id, s.zone_id, s.x, s.y FROM m_quest_relation r
