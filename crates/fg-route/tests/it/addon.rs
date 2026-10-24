@@ -142,3 +142,27 @@ fn a_long_walk_follows_the_ground_between_gates() {
         len(&cells)
     );
 }
+
+/// The flight path of a town counts as learned once quests were done there; no quest done, none.
+#[test]
+fn quests_done_in_a_town_give_its_flight_path() {
+    let conn = database();
+    let in_stormwind: Vec<i64> = conn
+        .prepare(
+            "SELECT DISTINCT r.quest_id FROM m_quest_relation r JOIN m_spawn s
+             ON s.entity_type = r.entity_type AND s.entity_id = r.entity_id
+             WHERE s.zone_id = 1519 AND r.role = 'start' LIMIT 6",
+        )
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert!(in_stormwind.len() >= 2, "{in_stormwind:?}");
+    let stormwind: i64 = conn
+        .query_row("SELECT ID FROM client_taxinodes WHERE Name_lang LIKE 'Stormwind%'", [], |r| r.get(0))
+        .unwrap();
+    let found = job::inferred_flights(&conn, Faction::Alliance, &in_stormwind).unwrap();
+    assert!(found.contains(&stormwind), "{found:?}");
+    assert!(job::inferred_flights(&conn, Faction::Alliance, &[]).unwrap().is_empty());
+}

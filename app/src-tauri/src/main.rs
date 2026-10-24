@@ -807,6 +807,20 @@ async fn plan_route(app: AppHandle, request: PlanRequest) -> CmdResult<VersionMe
     .map_err(err)?
 }
 
+/// The flight paths a character probably knows from the quests it did in their towns
+/// (`job::inferred_flights`), besides those its addon recorded.
+#[tauri::command]
+async fn inferred_flights(app: AppHandle, start: StartState) -> CmdResult<Vec<i64>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let conn = open_db(&state.db_path(state.edition())?)?;
+        let side = fg_route::faction::Faction::parse(&start.faction).ok_or("unknown faction")?;
+        job::inferred_flights(&conn, side, &start.completed).map_err(err)
+    })
+    .await
+    .map_err(err)?
+}
+
 /// A new guide of no steps from the request's character and settings, saved as a version
 /// edited by hand: its steps are then added in the editor.
 #[tauri::command]
@@ -1916,6 +1930,7 @@ fn main() {
             set_settings,
             get_options,
             plan_route,
+            inferred_flights,
             manual_route,
             stop_plan,
             cancel_plan,

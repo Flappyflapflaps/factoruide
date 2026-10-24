@@ -1151,6 +1151,19 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
             }
             to_json(plan_route(&args::<A>(a)?.request))
         }
+        "inferred_flights" => {
+            #[derive(Deserialize)]
+            struct A {
+                start: StartState,
+            }
+            let start = args::<A>(a)?.start;
+            let edition = edition();
+            to_json(
+                fg_route::faction::Faction::parse(&start.faction)
+                    .ok_or_else(|| "unknown faction".to_owned())
+                    .and_then(|side| job::inferred_flights(&open_db(edition)?, side, &start.completed).map_err(err)),
+            )
+        }
         "manual_route" => {
             #[derive(Deserialize)]
             struct A {

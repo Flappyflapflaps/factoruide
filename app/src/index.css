@@ -4500,3 +4500,24 @@ button.link.cmp-jump {
   stroke: var(--text-muted);
   stroke-dasharray: 4 3;
 }
+
+/* The flight paths a character knows, by continent. */
+.flight-paths {
+  margin-top: 8px;
+}
+.flight-continent {
+  margin: 8px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.flight-actions {
+  display: flex;
+  gap: 12px;
+  margin: 4px 0;
+}
+.flight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  columns: 2 220px;
+}

@@ -8,6 +8,10 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ## Unreleased
 
+### App
+
+- A new guide's character shows the flight paths it knows, by continent, and you can tick or untick them: the game only gives the addon those of the continent where a flight master's map is open, so the others are deduced from the quests done in their towns (marked as such), and what you change is kept for the character.
+
 ### Guides
 
 - The walks the addon follows are the ones the guide shows, whole: long walks follow the ground between the tiles instead of cutting across it, and the guide no longer simplifies a walk (only the addon gets a lighter one).

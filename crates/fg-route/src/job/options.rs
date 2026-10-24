@@ -13,6 +13,8 @@ pub struct Options {
     pub races: Vec<RaceOption>,
     pub classes: Vec<NamedId>,
     pub zones: Vec<ZoneOption>,
+    /// The flight paths of the game version, to tick those a character knows.
+    pub flights: Vec<FlightOption>,
     pub dungeons: Vec<DungeonOption>,
     /// Factions quests give reputation with, for the guides' reputation goals.
     pub factions: Vec<FactionOption>,
@@ -23,6 +25,16 @@ pub struct Options {
     pub params: Params,
     /// Level cap of the game version.
     pub max_level: i64,
+}
+
+/// A flight path (TaxiNodes ID), the continent it is on (map ID) and the sides that can use it.
+#[derive(Debug, Clone, Serialize)]
+pub struct FlightOption {
+    pub id: i64,
+    pub name: String,
+    pub continent: i64,
+    pub alliance: bool,
+    pub horde: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -241,10 +253,34 @@ pub fn options(conn: &Connection, overrides: &Overrides) -> Result<Options> {
         list
     };
     let factions = factions(conn, &races)?;
+    // As the planner takes them (`World::load`): a mount of the side, shown on its flight map.
+    let flights: Vec<FlightOption> = conn
+        .prepare(
+            "SELECT ID, Name_lang, ContinentID, MountCreatureID_0 != 0 AND (Flags & 2) != 0,
+                    MountCreatureID_1 != 0 AND (Flags & 1) != 0
+             FROM client_taxinodes ORDER BY ContinentID, Name_lang",
+        )
+        .and_then(|mut stmt| {
+            stmt.query_map([], |r| {
+                Ok(FlightOption {
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    continent: r.get(2)?,
+                    horde: r.get(3)?,
+                    alliance: r.get(4)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()
+        })
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|f| f.alliance || f.horde)
+        .collect();
     Ok(Options {
         races,
         classes,
         zones,
+        flights,
         dungeons,
         factions,
         class_quests: class_quests(conn, overrides)?,

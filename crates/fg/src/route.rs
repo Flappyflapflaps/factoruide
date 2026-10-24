@@ -66,7 +66,22 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
         required_class_quests: None,
         professions: opts.professions.clone(),
         locale: opts.locale.clone(),
-        start: opts.start.as_deref().map(read_profile).transpose()?,
+        start: opts
+            .start
+            .as_deref()
+            .map(read_profile)
+            .transpose()?
+            .map(|mut start| {
+                // The flight paths of the towns it did quests in count as learned.
+                if let Some(side) = fg_route::faction::Faction::parse(&start.faction)
+                    && let Ok(found) = job::inferred_flights(conn, side, &start.completed)
+                {
+                    start.flights.extend(found);
+                    start.flights.sort_unstable();
+                    start.flights.dedup();
+                }
+                start
+            }),
         mates: opts.mates.iter().map(|p| read_profile(p)).collect::<Result<_>>()?,
     };
     let outcome = job::plan(conn, &overrides, &request, &|m| {

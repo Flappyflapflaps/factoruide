@@ -1,4 +1,5 @@
-import type { CharacterInfo, StartState } from "../api";
+import type { CharacterInfo, Options, StartState } from "../api";
+import { FlightPaths } from "./FlightPaths";
 import { useDate, useGameName, useT } from "../i18n";
 import { Hint } from "./Hint";
 import { IS_WEB } from "../web/mode";
@@ -11,13 +12,18 @@ interface Props {
   /** The character the guide starts from (null: a new character). */
   start: StartState | null;
   onPick: (character: CharacterInfo | null) => void;
+  /** The game version's flight paths, those its addon recorded for the character and those deduced from its quests, and the list edited. */
+  options?: Options;
+  recorded?: number[];
+  inferred?: number[];
+  onFlights?: (flights: number[]) => void;
   /** Web build: a character's export was pasted (its "Name-Realm"). */
   onImported?: (name: string) => void;
 }
 
 /** Start the guide from a character recorded in game ("Save the profile now", or at each logout): its
  * level, quests done and in the log, position, hearthstone and flight paths. */
-export function CharacterPicker({ characters, start, onPick, onImported }: Props) {
+export function CharacterPicker({ characters, start, onPick, options, recorded, inferred, onFlights, onImported }: Props) {
   const t = useT();
   const date = useDate();
   const gameName = useGameName();
@@ -81,6 +87,9 @@ export function CharacterPicker({ characters, start, onPick, onImported }: Props
             {t("Utiliser le plus récent")}
           </button>
         </small>
+      )}
+      {start && options && onFlights && (
+        <FlightPaths options={options} start={start} recorded={recorded ?? []} inferred={inferred ?? []} onChange={onFlights} />
       )}
       {start && start.flights.length === 0 && (
         <small className="field-error">{t("Aucun trajet aérien connu : ouvrez la carte d'un maître de vol en jeu pour les enregistrer.")}</small>

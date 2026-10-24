@@ -386,6 +386,8 @@ export interface Options {
   races: { key: string; id: number; name: string; faction: string; classes: string[] }[];
   classes: NamedId[];
   zones: { id: number; name: string; names?: Record<string, string>; continent: number }[];
+  /** The flight paths of the game version (TaxiNodes), and the sides that can use them. */
+  flights: { id: number; name: string; continent: number; alliance: boolean; horde: boolean }[];
   dungeons: DungeonOption[];
   /** Factions quests give reputation with, most quests first. */
   factions: FactionOption[];
@@ -503,6 +505,8 @@ export const api = {
   getOptions: () => invoke<Options>("get_options"),
   /** Computes a guide and saves it as a new version of the guide of the request's name. */
   planRoute: (request: PlanRequest) => invoke<VersionMeta>("plan_route", { request }),
+  /** The flight paths a character probably knows from its quests done in their towns. */
+  inferredFlights: (start: StartState) => invoke<number[]>("inferred_flights", { start }),
   /** Saves a guide of no steps from the request's character and settings (edited by hand), to fill in the editor. */
   manualRoute: (request: PlanRequest) => invoke<VersionMeta>("manual_route", { request }),
   /** Ends the optimization under way now: `planRoute` saves and returns the best guide so far. */

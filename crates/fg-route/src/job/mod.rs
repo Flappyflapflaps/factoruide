@@ -3,6 +3,7 @@
 
 mod character;
 mod draft;
+mod flights;
 mod edit;
 mod group;
 mod notes;
@@ -17,12 +18,13 @@ mod services;
 mod start;
 mod timeline;
 
+pub use flights::inferred_flights;
 pub use draft::{EditView, ObjectiveAt, PlaceAt, QuestAt, Request, Requests, Suggestions};
 pub use edit::{
     CatalogDungeon, CatalogLink, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef,
     RouteStep, StepReport,
 };
-pub use options::{FactionOption, NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes};
+pub use options::{FactionOption, FlightOption, NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes};
 pub use overrides::{Overrides, RaceDef};
 pub use paths::{add_walk_paths, route_walks, walk_world};
 pub use race::{optimize, optimize_interruptible};
