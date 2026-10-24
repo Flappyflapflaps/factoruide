@@ -205,3 +205,6 @@ export const efforts: { label: string; effort: number }[] = [
   { label: "Normal", effort: 1 },
   { label: "Poussé", effort: 3 },
 ];
+
+/** Below this starting level there is no choice of start to offer (the engine agrees). */
+export const MIN_CHOICE_LEVEL = 10;

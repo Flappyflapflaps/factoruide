@@ -15,6 +15,8 @@ use std::sync::Arc;
 const PREVIEW_EFFORT: f64 = 0.02;
 /// Starts shown at most, the planner's own included.
 const MAX_STARTS: usize = 8;
+/// Below this level the character's first quests are in one place: no choice of start is offered.
+const MIN_CHOICE_LEVEL: i64 = 10;
 /// A start whose score is this much above the best one is not worth showing.
 const WORTH_SHOWING: f64 = 1.25;
 
@@ -58,7 +60,8 @@ pub struct StartPreview {
 }
 
 /// The starts the character can choose from, the best score first; fewer than two when there
-/// is nothing to choose (a guide with zones imposed, or no other zone worth starting in).
+/// is nothing to choose (a guide with zones imposed, a start below level 10, or no other zone
+/// worth starting in).
 /// `progress` gets `@starts <candidates as JSON>` once the zones are known, then `@start
 /// <option as JSON>` as each start is computed, so that the app shows them as they come.
 pub fn preview_starts(
@@ -77,7 +80,11 @@ pub fn preview_starts(
     if interrupt.cancelled() {
         return Err(super::Cancelled.into());
     }
-    if !params.preferred_zones.is_empty() || !params.forced_zones.is_empty() || params.start_zone != 0 {
+    if !params.preferred_zones.is_empty()
+        || !params.forced_zones.is_empty()
+        || params.start_zone != 0
+        || prepared.profile.from_level < MIN_CHOICE_LEVEL
+    {
         return Ok(StartPreview {
             tried: 0,
             options: Vec::new(),

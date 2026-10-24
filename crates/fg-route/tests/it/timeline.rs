@@ -238,6 +238,16 @@ fn a_new_character_has_no_start_to_choose() {
     assert!(preview.options.len() < 2, "{} starts", preview.options.len());
 }
 
+/// Below level 10 the first quests are in one place: no start is tried, whatever the zones.
+#[test]
+fn no_start_is_compared_before_level_10() {
+    let conn = database();
+    let mut req = request();
+    req.from_level = 9;
+    let preview = job::preview_starts(&conn, &overrides(), &req, &|_| {}, &job::Interrupt::default(), None).unwrap();
+    assert_eq!((preview.tried, preview.options.len()), (0, 0));
+}
+
 /// A quest of the log with nothing done is left aside (planned as any other); one done or begun
 /// is held, to be turned in or finished.
 #[test]

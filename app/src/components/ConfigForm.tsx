@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type CharacterInfo, type Options, type Params, type PlanRequest, type ProfessionGoal, type StartState } from "../api";
-import { SIMPLE_KEYS, efforts, presets, sections, type Field, type Section } from "../paramSchema";
+import { MIN_CHOICE_LEVEL, SIMPLE_KEYS, efforts, presets, sections, type Field, type Section } from "../paramSchema";
 import { ClassName } from "./Character";
 import { CharacterPicker } from "./CharacterPicker";
 import { DungeonPanel } from "./DungeonPanel";
@@ -519,7 +519,7 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
             value={params.effort}
             onChange={(effort) => set("effort", effort)}
           />
-          {onCompareStarts && (start || fromLevel > 1) && (
+          {onCompareStarts && (start || fromLevel > 1) && (start?.level ?? fromLevel) >= MIN_CHOICE_LEVEL && (
             <label className="compare-starts" title={t("Avant de calculer le guide, calcule rapidement quelques départs différents (zone, vol, pierre de foyer) et vous les présente pour que vous choisissiez. N'apparaît que s'il y a vraiment plusieurs départs possibles.")}>
               <input type="checkbox" checked={compareStarts ?? true} onChange={(e) => onCompareStarts(e.target.checked)} /> {t("Comparer les départs")}
             </label>

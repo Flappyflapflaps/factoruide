@@ -3,6 +3,7 @@ import { api, type Options, type PlanRequest, type StartCandidate, type StartOpt
 import { ConfigForm } from "../components/ConfigForm";
 import { RACE_COLORS, type OptimizeState, type RaceMark, type RaceSeries } from "../components/OptimizeProgress";
 import { RunView } from "../components/RunView";
+import { MIN_CHOICE_LEVEL } from "../paramSchema";
 import { StartsChoice } from "../components/StartsChoice";
 import type { WorldPoint } from "../components/WorldMap";
 import { gameLocale, useLang, useT } from "../i18n";
@@ -134,7 +135,7 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
 
   /** Compare the starts first when the character has several (a choice to make), else compute. */
   const begin = async (given: PlanRequest) => {
-    if (!compareStarts || running.current) return run(given);
+    if (!compareStarts || running.current || (given.start?.level ?? given.from_level) < MIN_CHOICE_LEVEL) return run(given);
     // A start chosen before is offered again among the others, not kept.
     const before = given.params?.start_zone ?? 0;
     const request: PlanRequest = given.params ? { ...given, params: { ...given.params, start_zone: 0 } } : given;
