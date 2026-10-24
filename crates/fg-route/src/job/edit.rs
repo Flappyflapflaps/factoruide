@@ -633,14 +633,16 @@ impl Editor {
             total,
             edited.breakdown,
         );
-        Ok(PlanOutcome {
+        let mut outcome = PlanOutcome {
             route,
             notes,
             walks: Some(self.prepared.world.terrain.memory()),
             plan: steps,
             explicit: true,
             end: None,
-        })
+        };
+        self.set_walks(&mut outcome);
+        Ok(outcome)
     }
 
     /// What can be added to the guide, named in the language of `names`.

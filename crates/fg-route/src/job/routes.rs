@@ -163,7 +163,10 @@ pub fn addon_walks(
             std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
             std::collections::hash_map::Entry::Vacant(e) => e.insert(walk_world(conn, overrides, route.faction)?),
         };
-        add_walk_paths(world, route);
+        // A guide made before its walks were saved (`Editor::set_walks`).
+        if route.steps.iter().all(|s| s.path.is_empty()) {
+            add_walk_paths(world, route);
+        }
     }
     // Where a place is does not depend on the faction.
     let world = match worlds.into_values().next() {

@@ -204,9 +204,10 @@ pub struct Step {
     pub height: Option<i16>,
     /// The walk to the step from the step before when it does not go straight (world x, y on
     /// the step's continent): where it starts, then where it turns, around the steep ground and
-    /// through the passages between zones. Worked out when the addon is installed
-    /// (`job::add_walk_paths`), not saved.
-    #[serde(default, skip)]
+    /// through the passages between zones. The walk the guide's replay makes (`Editor::set_walks`),
+    /// the one the app draws; a guide saved without it gets one when the addon is installed
+    /// (`job::add_walk_paths`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub path: Vec<[f64; 2]>,
     /// Profession skill a profession quest needs (its accept step is optional: skipped without
     /// it); in routes made before professions left the guide, the skill to reach (practice) or

@@ -168,14 +168,17 @@ pub fn plan_interruptible(
             });
         start.after(&prepared.model, &prepared.world, prepared.params.edition.rules(), &end)
     });
-    Ok(PlanOutcome {
+    let mut outcome = PlanOutcome {
         plan: edit::route_steps(&planner, &best),
         explicit: true,
         end,
         route,
-        notes: prepared.notes,
+        notes: prepared.notes.clone(),
         walks: walks.map(|_| prepared.world.terrain.memory()),
-    })
+    };
+    let editor = Editor { prepared };
+    editor.set_walks(&mut outcome);
+    Ok(outcome)
 }
 
 /// A guide of no steps, to write by hand in the guide editor: the character starts as `plan`

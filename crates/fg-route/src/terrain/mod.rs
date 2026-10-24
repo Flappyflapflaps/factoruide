@@ -2005,6 +2005,7 @@ impl Terrain {
         if Self::search_walk(grid, a, b, Some(&mut nodes)).is_none() {
             return Arc::new([]);
         }
+        let nodes = Self::between_gates(grid, &nodes);
         let mut cells: Vec<((i32, i32), Option<i16>)> =
             nodes.iter().map(|&n| (n.cell(), grid.known_height(n))).collect();
         cells.dedup_by_key(|c| c.0);
@@ -2016,6 +2017,29 @@ impl Terrain {
             })
             .map(|k| (cells[k].0.0, cells[k].0.1, cells[k].1))
             .collect()
+    }
+
+    /// The floors of a walk found through the tiles' gates (`a`, the gates, `b`) with the cells
+    /// between two gates, searched floor by floor: the walk as it goes, not as lines from gate to
+    /// gate. Two floors it cannot join stay as they are.
+    fn between_gates(grid: &Grid, gates: &[Node]) -> Vec<Node> {
+        let mut out: Vec<Node> = gates.first().copied().into_iter().collect();
+        for w in gates.windows(2) {
+            let (p, q) = (w[0], w[1]);
+            let gap = (p.r() - q.r()).abs().max((p.c() - q.c()).abs());
+            if gap > 1 {
+                let mut sub = Vec::new();
+                if MARGINS
+                    .iter()
+                    .any(|&m| Self::path(grid, p, q, m.max(gap), Some(&mut sub)).is_some())
+                {
+                    out.extend(sub.into_iter().skip(1));
+                    continue;
+                }
+            }
+            out.push(q);
+        }
+        out
     }
 
     /// Cheapest walk between two floors (yards), within their

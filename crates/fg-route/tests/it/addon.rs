@@ -122,3 +122,23 @@ fn each_guide_carries_its_format() {
         assert_eq!(lua.matches(&line).count(), 1, "{name}: its format once");
     }
 }
+
+/// A long walk is drawn as it goes, not as lines from one tile gate to the next: the points of
+/// the walk give the floor by floor path's length (Ziz Fizziks in Stonetalon to Ratchet).
+#[test]
+fn a_long_walk_follows_the_ground_between_gates() {
+    let conn = database();
+    let world = job::walk_world(&conn, &overrides(), Faction::Alliance).unwrap();
+    let a = world.to_world(world.zone_of_ui_map(1442).unwrap(), 58.99, 62.6).unwrap();
+    let b = world.to_world(world.zone_of_ui_map(1413).unwrap(), 62.98, 37.22).unwrap();
+    let len = |pts: &[fg_route::world::Pos]| pts.windows(2).map(|w| w[0].dist(&w[1])).sum::<f64>();
+    let walk = world.walk_path(&a, &b, 28);
+    let cells: Vec<_> = world.terrain.cell_path(&a, &b).into_iter().map(|(p, _)| p).collect();
+    assert!(!cells.is_empty());
+    assert!(
+        len(&walk) >= len(&cells) * 0.97,
+        "the walk cuts corners: {:.0} yd against {:.0}",
+        len(&walk),
+        len(&cells)
+    );
+}

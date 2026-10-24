@@ -164,11 +164,12 @@ pub fn to_lua(routes: &[Route]) -> String {
                 fields.push(format!("m = {}, x = {}, y = {}", m.ui_map, m.x, m.y));
             }
             // The walk to it (world x, y): where it starts and turns, for the compass.
-            if !s.path.is_empty() {
+            // The guide keeps the whole walk; the addon gets it lightened (the only place it is).
+            let walk = lighten_walk(s);
+            if !walk.is_empty() {
                 fields.push(format!(
                     "wp = {{ {} }}",
-                    s.path
-                        .iter()
+                    walk.iter()
                         .map(|[x, y]| format!("{x}, {y}"))
                         .collect::<Vec<_>>()
                         .join(", ")
@@ -271,4 +272,53 @@ pub fn to_lua(routes: &[Route]) -> String {
         out.push_str("} }\n");
     }
     out
+}
+
+/// Yards a walk may stray from the one the guide keeps once written for the addon.
+const WALK_TOLERANCE: f64 = 6.0;
+
+/// The walk of a step for the addon: its points farther than `WALK_TOLERANCE` from the line
+/// between their neighbours (Douglas-Peucker, the step's place the last end), in whole yards.
+/// This is the only place a walk is simplified.
+fn lighten_walk(step: &Step) -> Vec<[f64; 2]> {
+    fn keep(path: &[[f64; 2]], out: &mut Vec<[f64; 2]>) {
+        let (a, b) = (path[0], path[path.len() - 1]);
+        let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+        let len = dx.hypot(dy);
+        let far = (1..path.len() - 1)
+            .map(|i| {
+                let p = path[i];
+                let d = if len < 1e-9 {
+                    (p[0] - a[0]).hypot(p[1] - a[1])
+                } else {
+                    ((p[0] - a[0]) * dy - (p[1] - a[1]) * dx).abs() / len
+                };
+                (i, d)
+            })
+            .max_by(|x, y| x.1.total_cmp(&y.1));
+        match far {
+            Some((i, d)) if d > WALK_TOLERANCE => {
+                keep(&path[..=i], out);
+                out.pop();
+                keep(&path[i..], out);
+            }
+            _ => {
+                out.push(a);
+                out.push(b);
+            }
+        }
+    }
+    let Some(end) = step.world else {
+        return step.path.clone();
+    };
+    let mut path = step.path.clone();
+    path.push([end[1], end[2]]);
+    let mut kept = Vec::new();
+    if path.len() > 2 {
+        keep(&path, &mut kept);
+    } else {
+        kept = path;
+    }
+    kept.pop();
+    kept.iter().map(|[x, y]| [x.round(), y.round()]).collect()
 }

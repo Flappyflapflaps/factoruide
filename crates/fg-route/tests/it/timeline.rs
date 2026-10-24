@@ -183,3 +183,38 @@ fn walks_go_around_the_terrain() {
     }
     assert!(bent > 0, "some walks go around the terrain");
 }
+
+/// The walk written in a step for the addon is the one the app draws: every step with a way
+/// around the terrain has it from the replay's leg, and no walk the app draws is lost.
+#[test]
+fn the_addon_follows_the_walks_the_app_draws() {
+    let (guide, _, timeline) = setup();
+    let steps = &guide.route.steps;
+    let mut walks = 0;
+    for (k, (step, shown)) in steps.iter().zip(&timeline.steps).enumerate() {
+        let Some(at) = step.world else {
+            assert!(step.path.is_empty(), "step {k}: a walk to a step without a place");
+            continue;
+        };
+        let leg = timeline.legs.iter().rev().find(|l| {
+            matches!(l.mode, LegMode::Walk | LegMode::Mount)
+                && !l.via.is_empty()
+                && l.end > shown.start - 0.05
+                && l.end <= shown.end + 0.05
+                && (l.to[1] - at[1]).abs() < 1.0
+                && (l.to[2] - at[2]).abs() < 1.0
+        });
+        match leg {
+            Some(leg) => {
+                walks += 1;
+                assert_eq!(step.path.len(), leg.via.len() + 1, "step {k}");
+                assert!((step.path[0][0] - leg.from[1]).abs() <= 0.5 && (step.path[0][1] - leg.from[2]).abs() <= 0.5);
+                for (p, v) in step.path[1..].iter().zip(&leg.via) {
+                    assert!((p[0] - f64::from(v[0])).abs() <= 0.5 && (p[1] - f64::from(v[1])).abs() <= 0.5, "step {k}");
+                }
+            }
+            None => assert!(step.path.is_empty(), "step {k}: a walk the app does not draw"),
+        }
+    }
+    assert!(walks > 10, "the guide has walks around the terrain: {walks}");
+}

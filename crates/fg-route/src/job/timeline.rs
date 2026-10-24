@@ -204,9 +204,6 @@ const COMBAT: usize = 1;
 const INTERACT: usize = 2;
 const WAIT: usize = 3;
 
-/// A walk path keeps the points farther than this from the line between its neighbours (yards).
-const SIMPLIFY: f64 = 6.0;
-
 /// A point for the frontend: continent, x, y (a tenth of a yard).
 fn point(p: &Pos) -> [f64; 3] {
     [p.continent as f64, round1(p.x), round1(p.y)]
@@ -255,6 +252,34 @@ impl Editor {
         timeline
     }
 
+    /// Write into each step of the guide the walk the replay makes to it (where it starts, then
+    /// where it turns), so that the app, which draws the replay's legs, and the addon, which
+    /// follows `path`, show the same way.
+    pub fn set_walks(&self, outcome: &mut PlanOutcome) {
+        let timeline = self.timeline(outcome, &Names::new("enUS"));
+        for step in &mut outcome.route.steps {
+            step.path.clear();
+        }
+        for (step, shown) in outcome.route.steps.iter_mut().zip(&timeline.steps) {
+            let Some(at) = step.world else { continue };
+            let leg = timeline.legs.iter().rev().find(|l| {
+                matches!(l.mode, LegMode::Walk | LegMode::Mount)
+                    && !l.via.is_empty()
+                    && l.end > shown.start - 0.05
+                    && l.end <= shown.end + 0.05
+                    && (l.to[0] - at[0]).abs() < 0.5
+                    && (l.to[1] - at[1]).abs() < 1.0
+                    && (l.to[2] - at[2]).abs() < 1.0
+            });
+            if let Some(leg) = leg {
+                step.path = std::iter::once([leg.from[1], leg.from[2]])
+                    .chain(leg.via.iter().map(|v| [f64::from(v[0]), f64::from(v[1])]))
+                    .map(|[x, y]| [round1(x), round1(y)])
+                    .collect();
+            }
+        }
+    }
+
     /// The ways the walks of `timeline` take around the terrain. False when `request` is
     /// superseded on the way (the timeline is then left half done).
     pub(super) fn add_walk_paths(&self, timeline: &mut Timeline, request: Option<&Request<'_>>) -> bool {
@@ -269,7 +294,7 @@ impl Editor {
         true
     }
 
-    /// The ways the walks of a timeline take around the terrain (simplified), by leg: empty
+    /// The ways the walks of a timeline take around the terrain , by leg: empty
     /// for the legs that are no walk or go straight. None when `request` is superseded.
     fn walk_paths(&self, legs: &[Leg], request: Option<&Request<'_>>) -> Option<Vec<Vec<[f32; 2]>>> {
         let world = &self.prepared.world;
@@ -301,7 +326,6 @@ impl Editor {
                 for w in stops.windows(2) {
                     path.extend(world.walk_path(&w[0], &w[1], level).into_iter().skip(1));
                 }
-                let path = simplify(&path, SIMPLIFY);
                 if path.len() <= 2 {
                     return Some(Vec::new());
                 }
@@ -314,44 +338,6 @@ impl Editor {
             })
             .collect()
     }
-}
-
-/// Douglas-Peucker: the points of `path` that stay within `tolerance` yards of the line drawn
-/// through the ones kept (its ends always kept).
-fn simplify(path: &[Pos], tolerance: f64) -> Vec<Pos> {
-    fn keep(path: &[Pos], tolerance: f64, out: &mut Vec<Pos>) {
-        let (a, b) = (path[0], path[path.len() - 1]);
-        let (dx, dy) = (b.x - a.x, b.y - a.y);
-        let len = dx.hypot(dy);
-        let far = (1..path.len() - 1)
-            .map(|i| {
-                let p = path[i];
-                let d = if len < 1e-9 {
-                    (p.x - a.x).hypot(p.y - a.y)
-                } else {
-                    ((p.x - a.x) * dy - (p.y - a.y) * dx).abs() / len
-                };
-                (i, d)
-            })
-            .max_by(|x, y| x.1.total_cmp(&y.1));
-        match far {
-            Some((i, d)) if d > tolerance => {
-                keep(&path[..=i], tolerance, out);
-                out.pop();
-                keep(&path[i..], tolerance, out);
-            }
-            _ => {
-                out.push(a);
-                out.push(b);
-            }
-        }
-    }
-    if path.len() <= 2 {
-        return path.to_vec();
-    }
-    let mut out = Vec::new();
-    keep(path, tolerance, &mut out);
-    out
 }
 
 /// Which steps a replay writes: the guide's (checkpoints added, grinds moved where mobs of the
