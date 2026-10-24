@@ -15,6 +15,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ### Guides
 
+- Quests in your log with nothing done are no longer tied to the guide: it takes them like any other, or abandons them first. The ones you can turn in, and those you have begun, are still kept.
 - The walks the addon follows are the ones the guide shows, whole: long walks follow the ground between the tiles instead of cutting across it, and the guide no longer simplifies a walk (only the addon gets a lighter one).
 - Guides leave a zone with almost nothing left to do sooner, and a few of the routes compared at the start begin in another zone rich in quests.
 - The inn your hearthstone is bound to is found whatever the language of your game (the guide no longer starts with a trip back to your starting place).

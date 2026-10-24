@@ -163,6 +163,13 @@ impl StartState {
         // those it wants (only the turn-in left for one complete), the others are abandoned at
         // its start.
         for q in &self.log {
+            // A quest with nothing done is left aside: the guide takes it, or not, as any other (its
+            // giver's step is done in a moment when it is already in the log), instead of being tied
+            // to a quest the character has not begun. Done or begun ones are finished or given up.
+            let begun = q.complete || q.objectives.iter().any(|o| o.finished || o.done > 0);
+            if !begun {
+                continue;
+            }
             if let Some(&i) = model.index.get(&q.id) {
                 init.accepted.push(i);
                 for (k, share) in objective_progress(&model.quests[i], q) {

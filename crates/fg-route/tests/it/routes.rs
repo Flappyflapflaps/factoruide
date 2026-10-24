@@ -1685,10 +1685,13 @@ fn objectives_done_in_the_log_are_not_done_again() {
             Some(orc_met_in_game(log(done), false, 0)),
         );
         let scorpids = quest(&p, 789).unwrap();
-        let route = [
-            Stop::quest(scorpids, Kind::Objective(0)),
-            Stop::quest(scorpids, Kind::TurnIn),
-        ];
+        // Nothing done: not held, the guide takes the quest itself.
+        let mut route = vec![];
+        if done == 0 {
+            route.push(Stop::quest(scorpids, Kind::Accept));
+        }
+        route.push(Stop::quest(scorpids, Kind::Objective(0)));
+        route.push(Stop::quest(scorpids, Kind::TurnIn));
         planner(&p).simulate_full(&route, None).unwrap().1.mob_xp
     };
     let (none, half, all) = (mob_xp(0), mob_xp(5), mob_xp(10));
@@ -1730,7 +1733,14 @@ fn rested_xp_doubles_kill_xp() {
 /// at its start (the quest the model does not have too).
 #[test]
 fn quests_of_the_log_the_guide_does_not_finish_are_abandoned_first() {
-    let mut start = orc_met_in_game(vec![], false, 0);
+    // Scorpids begun (2 of 10), a quest the model does not have with nothing done.
+    let begun = vec![LogObjective {
+        text: "Scorpid Worker Tail: 2/10".into(),
+        done: 2,
+        need: 10,
+        finished: false,
+    }];
+    let mut start = orc_met_in_game(begun, false, 0);
     start.log.push(LogQuest {
         id: 999_999,
         ..LogQuest::default()

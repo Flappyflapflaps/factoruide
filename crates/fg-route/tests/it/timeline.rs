@@ -237,3 +237,57 @@ fn a_new_character_has_no_start_to_choose() {
     .unwrap();
     assert!(preview.options.len() < 2, "{} starts", preview.options.len());
 }
+
+/// A quest of the log with nothing done is left aside (planned as any other); one done or begun
+/// is held, to be turned in or finished.
+#[test]
+fn log_quests_with_nothing_done_are_not_held() {
+    use fg_route::job::{LogObjective, LogQuest, StartState};
+    let conn = database();
+    let base = job::prepare(&conn, &overrides(), &request(), &|_| {}).unwrap();
+    let ids: Vec<i64> = base.model.quests.iter().take(3).map(|q| q.id).collect();
+    let mut req = request();
+    req.start = Some(StartState {
+        name: "Test-Realm".into(),
+        race: 2,
+        class: "WARLOCK".into(),
+        faction: "Horde".into(),
+        level: 5,
+        xp_max: 1000,
+        log: vec![
+            LogQuest {
+                id: ids[0],
+                complete: false,
+                objectives: vec![],
+            },
+            LogQuest {
+                id: ids[1],
+                complete: false,
+                objectives: vec![LogObjective {
+                    text: "x".into(),
+                    done: 2,
+                    need: 8,
+                    finished: false,
+                }],
+            },
+            LogQuest {
+                id: ids[2],
+                complete: true,
+                objectives: vec![],
+            },
+        ],
+        ..StartState::default()
+    });
+    let prepared = job::prepare(&conn, &overrides(), &req, &|_| {}).unwrap();
+    let held: Vec<i64> = prepared
+        .model
+        .initial
+        .accepted
+        .iter()
+        .map(|&i| prepared.model.quests[i].id)
+        .collect();
+    assert!(!held.contains(&ids[0]), "nothing done: {held:?}");
+    assert!(held.contains(&ids[1]) && held.contains(&ids[2]), "{held:?}");
+    // All three stay in the log, to be abandoned or not by the guide.
+    assert_eq!(prepared.model.initial.log.len(), 3);
+}

@@ -79,7 +79,17 @@ pub fn build_traced(
         .left_at_start(&planner.planned(route))
         .map(|i| model.quests[i].id)
         .collect();
-    let kept = |id: &i64| model.index.get(id).is_some_and(|i| model.initial.accepted.contains(i)) && !left.contains(id);
+    // Those it holds are kept; one with nothing done (not held) too when the guide takes it itself.
+    let planned = planner.planned(route);
+    let kept = |id: &i64| {
+        model.index.get(id).is_some_and(|i| {
+            if model.initial.accepted.contains(i) {
+                !left.contains(id)
+            } else {
+                planned.flags[*i] & 1 != 0
+            }
+        })
+    };
     if let Some(first) = trace.first() {
         for (id, name) in model.initial.log.iter().filter(|(id, _)| !kept(id)) {
             steps.push(writer.abandon_unused(first, *id, name));
