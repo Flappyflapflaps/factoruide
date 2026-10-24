@@ -7,6 +7,7 @@ import { useT } from "../i18n";
 
 /** Why a step is not possible or does nothing (`fg_route` editor, English as sent), French key of the catalog. */
 export const REASONS: Record<string, string> = {
+  "walks through a zone too strong for the character": "la route passe par une zone trop forte pour le personnage",
   "quest not available": "quête indisponible pour ce personnage",
   "unknown flight path": "point de vol inconnu",
   "unknown inn": "auberge inconnue",

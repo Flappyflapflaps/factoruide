@@ -3831,6 +3831,10 @@ button.link.cmp-jump {
 .sl-row.skipped {
   opacity: 0.6;
 }
+.sl-row.warned {
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  border-left-color: var(--warn);
+}
 .sl-row.pending {
   background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--wash) 6%, transparent) 0 5px, transparent 5px 10px);
 }
@@ -3936,6 +3940,9 @@ button.link.cmp-jump {
 }
 .sl-tip-why.error {
   color: var(--bad);
+}
+.sl-tip-why.warn {
+  color: var(--warn-text);
 }
 /* Killing the mobs on the way to an objective: a small toggle, what it gives on hover. */
 .sl-farm-toggle {

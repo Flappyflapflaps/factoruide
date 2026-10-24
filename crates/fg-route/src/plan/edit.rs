@@ -69,6 +69,9 @@ pub struct EditedStep {
     pub farm: Option<Farmed>,
     /// An objective done without `farm`: what killing every mob on the way to it would give.
     pub farm_all: Option<Farmed>,
+    /// Done, but through a zone too strong for the character (the walk there is allowed to an
+    /// edited step, not to the planner).
+    pub warning: Option<&'static str>,
 }
 
 /// An edited route as replayed.
@@ -139,75 +142,89 @@ impl Planner<'_> {
             let (start, xp, first) = (s.time, self.total_xp(&s), trace.len());
             let farm_xp = s.spent.farm_xp;
             let mut farm_all = None;
-            let outcome = if self.ended(&s) {
-                Outcome::Skipped("target level reached")
-            } else {
-                match *edit {
-                    Edit::Stop { stop, farm, spot } => {
-                        s.at = at;
-                        s.next = nexts[e].map(|next| self.places().pos(&s, next));
-                        s.spot = match stop.kind {
-                            Kind::Objective(k) => spot.map(|i| (stop.index, k, i)),
-                            _ => None,
-                        };
-                        if !farm && let Kind::Objective(_) = stop.kind {
-                            farm_all = self.farm_all_estimate(&s, stop);
+            let mut warning = None;
+            let outcome = loop {
+                let outcome = if self.ended(&s) {
+                    Outcome::Skipped("target level reached")
+                } else {
+                    match *edit {
+                        Edit::Stop { stop, farm, spot } => {
+                            s.at = at;
+                            s.next = nexts[e].map(|next| self.places().pos(&s, next));
+                            s.spot = match stop.kind {
+                                Kind::Objective(k) => spot.map(|i| (stop.index, k, i)),
+                                _ => None,
+                            };
+                            if !farm && let Kind::Objective(_) = stop.kind {
+                                farm_all = self.farm_all_estimate(&s, stop);
+                            }
+                            let outcome = self.edit_stop(&mut s, stop, farm, &mut trace);
+                            s.spot = None;
+                            if !matches!(outcome, Outcome::Invalid(_)) {
+                                route.push(stop);
+                            }
+                            outcome
                         }
-                        let outcome = self.edit_stop(&mut s, stop, farm, &mut trace);
-                        s.spot = None;
-                        if !matches!(outcome, Outcome::Invalid(_)) {
-                            route.push(stop);
+                        Edit::Fly { from, to } => self.edit_fly(&mut s, from, to, &mut trace),
+                        Edit::Link { first, last } => self.edit_link(&mut s, first, last, &mut trace),
+                        Edit::Teleport { to } => self.edit_teleport(&mut s, to, &mut trace),
+                        Edit::Train { trainer } => self.edit_train(&mut s, trainer, &mut trace),
+                        Edit::Sell { vendor } => self.edit_sell(&mut s, vendor, &mut trace),
+                        Edit::Abandon { quest } => {
+                            let i = quest as usize;
+                            if s.accepted[i] && !s.turned[i] {
+                                self.abandon(&mut s, quest, &mut recorder(&mut Some(&mut trace)));
+                                Outcome::Done
+                            } else {
+                                Outcome::Invalid("quest not in the log")
+                            }
                         }
-                        outcome
+                        Edit::Grind { mobs } => {
+                            if mobs == 0 {
+                                Outcome::Invalid("no mob to kill")
+                            } else {
+                                let mut trace = Some(&mut trace);
+                                let mut record = recorder(&mut trace);
+                                let (near, zone) = (s.pos, s.zone);
+                                let seconds = self.growth().grind_mobs(&mut s, mobs);
+                                record(
+                                    &s,
+                                    Event::GrindMobs {
+                                        mobs,
+                                        seconds,
+                                        near,
+                                        zone,
+                                    },
+                                );
+                                self.train(&mut s, &mut record);
+                                Outcome::Done
+                            }
+                        }
+                        Edit::GrindTo { level } => {
+                            if level <= s.level {
+                                Outcome::Skipped("level reached")
+                            } else {
+                                let mut trace = Some(&mut trace);
+                                let mut record = recorder(&mut trace);
+                                self.grind_at_camps(&mut s, level, &mut record);
+                                self.train(&mut s, &mut record);
+                                Outcome::Done
+                            }
+                        }
                     }
-                    Edit::Fly { from, to } => self.edit_fly(&mut s, from, to, &mut trace),
-                    Edit::Link { first, last } => self.edit_link(&mut s, first, last, &mut trace),
-                    Edit::Teleport { to } => self.edit_teleport(&mut s, to, &mut trace),
-                    Edit::Train { trainer } => self.edit_train(&mut s, trainer, &mut trace),
-                    Edit::Sell { vendor } => self.edit_sell(&mut s, vendor, &mut trace),
-                    Edit::Abandon { quest } => {
-                        let i = quest as usize;
-                        if s.accepted[i] && !s.turned[i] {
-                            self.abandon(&mut s, quest, &mut recorder(&mut Some(&mut trace)));
-                            Outcome::Done
-                        } else {
-                            Outcome::Invalid("quest not in the log")
-                        }
-                    }
-                    Edit::Grind { mobs } => {
-                        if mobs == 0 {
-                            Outcome::Invalid("no mob to kill")
-                        } else {
-                            let mut trace = Some(&mut trace);
-                            let mut record = recorder(&mut trace);
-                            let (near, zone) = (s.pos, s.zone);
-                            let seconds = self.growth().grind_mobs(&mut s, mobs);
-                            record(
-                                &s,
-                                Event::GrindMobs {
-                                    mobs,
-                                    seconds,
-                                    near,
-                                    zone,
-                                },
-                            );
-                            self.train(&mut s, &mut record);
-                            Outcome::Done
-                        }
-                    }
-                    Edit::GrindTo { level } => {
-                        if level <= s.level {
-                            Outcome::Skipped("level reached")
-                        } else {
-                            let mut trace = Some(&mut trace);
-                            let mut record = recorder(&mut trace);
-                            self.grind_at_camps(&mut s, level, &mut record);
-                            self.train(&mut s, &mut record);
-                            Outcome::Done
-                        }
-                    }
+                };
+                // A step that cannot be made only because a zone is closed to the character: the
+                // editor goes there (the planner never does), and says so.
+                if self.explicit && !self.open_walks.get() && outcome == Outcome::Invalid("unreachable") {
+                    self.open_walks.set(true);
+                    warning = Some("walks through a zone too strong for the character");
+                    continue;
                 }
+                break outcome;
             };
+            if self.open_walks.replace(false) && matches!(outcome, Outcome::Invalid(_)) {
+                warning = None;
+            }
             let actions: Vec<usize> = (first..trace.len()).filter(|&n| is_action(&trace[n].event)).collect();
             // Each step of the guide editor does one thing: anything else is a step of its own.
             // Grinding up several levels is one step, recorded at each camp it moves to.
@@ -230,6 +247,7 @@ impl Planner<'_> {
                 xp: (self.total_xp(&s) - xp) as i64,
                 farm: farmed(&trace[first..], s.spent.farm_xp - farm_xp),
                 farm_all,
+                warning,
             });
             if !observe(&s) {
                 return None;

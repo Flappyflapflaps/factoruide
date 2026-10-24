@@ -317,6 +317,9 @@ pub struct StepReport {
     pub farm: Option<Farmed>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub farm_all: Option<Farmed>,
+    /// Done, but not as the planner would (a walk through a zone too strong for the character).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub warning: Option<&'static str>,
 }
 
 /// A line of the guide.
@@ -528,6 +531,7 @@ impl Editor {
                         line: None,
                         farm: None,
                         farm_all: None,
+                        warning: None,
                     };
                 }
                 let step = done.next().expect("a replayed step per resolved one");
@@ -554,6 +558,7 @@ impl Editor {
                     line,
                     farm: step.farm,
                     farm_all: step.farm_all,
+                    warning: step.warning,
                 }
             })
             .collect::<Vec<_>>();

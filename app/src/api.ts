@@ -897,6 +897,8 @@ export interface StepReport {
   farm?: Farmed;
   /** An objective without `farm`: what killing every mob on the way would give. */
   farm_all?: Farmed;
+  /** Done, but not as the planner would (see the editor's REASONS). */
+  warning?: string;
 }
 
 /** An edited guide as replayed. */

@@ -103,6 +103,9 @@ pub struct Planner<'a> {
     near_camps: NearCamps,
     /// The next walk kills every normal mob met, beyond `farm_cap` (a step of an edited route).
     farm_all: Cell<bool>,
+    /// Walks go into the zones too strong for the character (a step of an edited route that cannot
+    /// be made otherwise: the editor allows it, with a warning).
+    open_walks: Cell<bool>,
     /// Where `while_here` looked for quests at hand, recorded while `run` replays a route (see
     /// `Run::heres`).
     heres: RefCell<Option<Vec<Pos>>>,
@@ -166,6 +169,7 @@ impl<'a> Planner<'a> {
             farm_walks: FarmWalks::default(),
             near_camps: NearCamps::default(),
             farm_all: Cell::new(false),
+            open_walks: Cell::new(false),
             heres: RefCell::new(None),
             zone_changes: RefCell::new(Vec::new()),
             mode: Mode::Plan,
@@ -425,6 +429,17 @@ impl<'a> Planner<'a> {
             flights: &self.flights,
             legs: &self.legs,
             explicit: self.explicit,
+            open_walks: self.open_walks.get(),
+        }
+    }
+
+    /// The level a walk at `level` is made at: the zones closed to it (`World::walk_level`), none
+    /// when the walks are open.
+    pub(crate) fn walk_level(&self, level: i64) -> u8 {
+        if self.open_walks.get() {
+            0
+        } else {
+            self.world.walk_level(level)
         }
     }
 

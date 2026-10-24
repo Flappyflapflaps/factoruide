@@ -321,7 +321,14 @@ impl Editor {
                         .map(|v| at(&[leg.from[0], f64::from(v[0]), f64::from(v[1])], None)),
                 );
                 stops.push(at(&leg.to, leg.heights[1]));
-                let level = planner.world.walk_level(leg.level);
+                // A walk the planner could not make (an edited step through a zone too strong for
+                // the character) is drawn as it goes, the zones open.
+                let mut level = planner.world.walk_level(leg.level);
+                if let [first, .., last] = &stops[..]
+                    && !world.walk_distance_at(first, last, level).is_finite()
+                {
+                    level = 0;
+                }
                 let mut path: Vec<Pos> = vec![stops[0]];
                 for w in stops.windows(2) {
                     path.extend(world.walk_path(&w[0], &w[1], level).into_iter().skip(1));

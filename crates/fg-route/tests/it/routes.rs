@@ -2951,3 +2951,70 @@ fn a_group_guide_tells_the_addon_its_players() {
         }
     }
 }
+
+/// A step of an edited guide that only a zone too strong for the character makes possible is
+/// done, with a warning (the planner itself keeps out of such zones): Gadgetzan's flight path
+/// from Thousand Needles at level 34, Tanaris closed to it.
+#[test]
+fn an_edited_step_may_walk_into_a_closed_zone_with_a_warning() {
+    use fg_route::plan::{Edit, Outcome};
+    let probe = prepare_from("human", "warrior", 40, &["progression=cautious"], None);
+    let needles = 400;
+    let zherin = probe.world.to_world(needles, 81.63, 77.95).unwrap();
+    let start = StartState {
+        name: "Test-Realm".into(),
+        race: 1,
+        class: "WARRIOR".into(),
+        faction: "Alliance".into(),
+        level: 34,
+        xp_max: 10_000,
+        position: Some(map_pos(&probe, &zherin, needles)),
+        ..StartState::default()
+    };
+    let p = prepare_from("human", "warrior", 40, &["progression=cautious"], Some(start));
+    let node = p
+        .world
+        .taxi_nodes
+        .iter()
+        .position(|n| n.name.starts_with("Gadgetzan"))
+        .unwrap();
+    let learn = Edit::Stop {
+        stop: Stop {
+            index: node as u32,
+            kind: Kind::LearnFlight,
+        },
+        farm: false,
+        spot: None,
+    };
+    // The planner's own walks cannot go there at that level.
+    let gadgetzan = p.world.taxi_nodes[node].pos;
+    assert!(
+        p.world
+            .walk_distance_at(&zherin, &gadgetzan, p.world.walk_level(34))
+            .is_infinite()
+    );
+    let edited = planner(&p).explicit().edit(&[learn]);
+    assert_eq!(edited.steps[0].outcome, Outcome::Done);
+    assert!(edited.steps[0].warning.is_some());
+    assert_eq!(edited.errors(), 0);
+    // Once the character is strong enough, nothing to warn of.
+    let strong = prepare_from(
+        "human",
+        "warrior",
+        45,
+        &["progression=cautious"],
+        Some(StartState {
+            level: 40,
+            position: Some(map_pos(&probe, &zherin, needles)),
+            name: "Test-Realm".into(),
+            race: 1,
+            class: "WARRIOR".into(),
+            faction: "Alliance".into(),
+            xp_max: 10_000,
+            ..StartState::default()
+        }),
+    );
+    let edited = planner(&strong).explicit().edit(&[learn]);
+    assert_eq!(edited.steps[0].outcome, Outcome::Done);
+    assert!(edited.steps[0].warning.is_none());
+}

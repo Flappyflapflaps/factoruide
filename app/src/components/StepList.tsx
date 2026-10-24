@@ -254,6 +254,7 @@ function StepTip({ i, at, steps, card, title, spans, quests, edit }: TipProps) {
   const parts = (["travel", "combat", "interact", "wait"] as const).filter((k) => split[k] > 0);
   const r = edit?.reports[i];
   const reason = r?.reason ? t(REASONS[r.reason] ?? r.reason) : null;
+  const warning = r?.warning ? t(REASONS[r.warning] ?? r.warning) : null;
   return createPortal(
     <div ref={box} className={`sl-tip kind-${s.kind} obj-${kind}`} role="tooltip" style={pos ?? { left: 0, top: 0, visibility: "hidden" }}>
       <div className="sl-tip-head">
@@ -287,6 +288,7 @@ function StepTip({ i, at, steps, card, title, spans, quests, edit }: TipProps) {
       )}
       {span?.estimate && <div className="sl-tip-note">{t("Durée estimée : cette étape n'a pas été retrouvée en rejouant le guide")}</div>}
       {s.farm ? <div className="sl-tip-note">{t("× {n} mobs tués en chemin", { n: s.farm })}</div> : null}
+      {warning && <div className="sl-tip-why warn">{t("Attention : {warning}", { warning })}</div>}
       {reason && <div className={r?.status === "error" ? "sl-tip-why error" : "sl-tip-why"}>{r?.status === "error" ? t("Impossible : {reason}", { reason }) : t("Rien à faire : {reason}", { reason })}</div>}
     </div>,
     document.body,
@@ -362,6 +364,7 @@ function Row({ top, i, steps, card, spans, quests, active, onSelect, checked, on
     edit && "edit",
     r?.status === "error" && "invalid",
     r?.status === "skipped" && "skipped",
+    r?.warning && "warned",
     edit?.pending[i] && "pending",
     drop === i && "drop-before",
     drop === steps.length && i === steps.length - 1 && "drop-after",

@@ -101,11 +101,18 @@ pub(crate) struct Trips<'t> {
     pub(crate) legs: &'t Legs,
     /// On foot only: flights, boats and teleports are steps of their own (`Planner::explicit`).
     pub(crate) explicit: bool,
+    /// Walks go into the zones closed to the character (`Planner::open_walks`).
+    pub(crate) open_walks: bool,
 }
 
 impl Trips<'_> {
     pub(crate) fn walk(&self, a: &Pos, b: &Pos, level: i64) -> f64 {
-        self.world.walk_distance_at(a, b, self.world.walk_level(level)) * self.params.detour / self.params.speed(level)
+        let closed = if self.open_walks {
+            0
+        } else {
+            self.world.walk_level(level)
+        };
+        self.world.walk_distance_at(a, b, closed) * self.params.detour / self.params.speed(level)
     }
 
     /// The level a trip is remembered at (`Legs`): what its time and choice depend on apart
@@ -136,6 +143,10 @@ impl Trips<'_> {
 
     /// Fastest trip from `from` to `b` without the hearthstone, with the links of `open`.
     pub(crate) fn leg(&self, from: &Pos, b: &Pos, level: i64, known: u128, open: u8) -> (f64, Leg) {
+        // Walks open to the closed zones are not remembered with the others.
+        if self.open_walks {
+            return self.compute_leg(from, b, level, known, open);
+        }
         // The level only matters through the speed: mounted or not.
         let mounted = level >= self.params.mount_level;
         let (Some(mut a), Some(z)) = (pos_key(from, mounted, self.leg_level(level)), pos_key(b, false, 0)) else {

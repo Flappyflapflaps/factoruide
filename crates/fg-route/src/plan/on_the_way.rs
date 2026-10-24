@@ -194,7 +194,7 @@ impl Planner<'_> {
         if budget <= 0 || s.level >= self.profile.to_level {
             return;
         }
-        let mobs = self.farm_walk(a, b, self.world.walk_level(s.level));
+        let mobs = self.farm_walk(a, b, self.walk_level(s.level));
         let content = xp::content_at(a.continent, a.zone);
         let reach = p.reach(s.level, s.might());
         let share = p.farm_share_at(s.level);
