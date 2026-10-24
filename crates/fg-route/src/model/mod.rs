@@ -52,7 +52,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
     chains::narrow_class_quests_to_spells(&mut quests);
     chains::require_prerequisites(&mut quests);
     chains::release_impossible_class_quests(&mut quests);
-    dungeons::set_dungeon_levels(&mut sources.dungeons, &quests);
+    dungeons::set_dungeon_levels(&mut sources.dungeons, &quests, params.dungeon_below());
     let index: FxHashMap<i64, usize> = quests.iter().enumerate().map(|(i, q)| (q.id, i)).collect();
     let mut teleports = places.teleports;
     teleports.extend(places::quest_teleports(world, profile, &quests));

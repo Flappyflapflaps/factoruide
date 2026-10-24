@@ -12,7 +12,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 - Walks no longer go into a zone whose monsters are far above the character (Stranglethorn Vale at level 17 on the way to Booty Bay's boat): the guide goes round, by Ashenvale for the Barrens, or takes a boat or a flight.
 - Guides are computed about 40 % faster.
-- Dungeons are run later: not before the weakest of the group is within 3 levels of the dungeon's monsters (the Deadmines at 18, not 15).
+- Dungeons are run later: not before the weakest of the group is within 3 levels of the dungeon's monsters (the Deadmines at 18, not 15), at their level in the cautious profile, 5 levels below in the risky one.
 - WoW Forever: City of Dalaran is entered from the Alliance's own quarter (the pipe in the Alterac Mountains) in Alliance guides, and by the tunnel at the west edge only in Horde guides.
 - Profession quests turned in at a city trainer (Camping 101: Skinning, Leatherworking in Orgrimmar) are planned too, even once they are gray.
 - Guides are computed about a third faster again (walks between zones had slowed them down in 0.14.0).

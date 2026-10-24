@@ -553,6 +553,17 @@ impl Params {
         (factor, self.progression_margin.unwrap_or(margin))
     }
 
+    /// Levels below its mobs (the median of its quests) the weakest of a group may be at the
+    /// earliest for a dungeon: their elites and packs are not the solo content of the profile's
+    /// margin.
+    pub fn dungeon_below(&self) -> i64 {
+        match self.progression {
+            Progression::Cautious => 0,
+            Progression::Normal => 3,
+            Progression::Risky => 5,
+        }
+    }
+
     /// How much a minute of grinding weighs for the optimizer (see `allow_grind`).
     pub fn grind_weight(&self) -> f64 {
         if self.allow_grind {
