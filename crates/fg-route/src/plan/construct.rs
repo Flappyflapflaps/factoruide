@@ -36,8 +36,14 @@ impl Planner<'_> {
         let mut held: Option<i64> = None;
         let mut detoured = false;
         let n = self.model.quests.len() as u32;
+        // `Params::start_zone`: the zone gone to first, whatever is nearer.
+        let mut arrived = self.params.start_zone == 0;
         while !self.ended(&s) && !self.aborted() {
+            if !arrived && s.zone == self.params.start_zone {
+                arrived = true;
+            }
             let pull = match self.params.zone_detour[..] {
+                _ if !arrived => Some(self.params.start_zone),
                 [after, level, zone] if !detoured && changes.len() as i64 >= after => {
                     if s.level < level {
                         Some(*held.get_or_insert(s.zone))

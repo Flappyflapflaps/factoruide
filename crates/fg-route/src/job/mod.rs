@@ -16,6 +16,7 @@ mod request;
 mod routes;
 mod services;
 mod start;
+mod starts;
 mod timeline;
 
 pub use flights::inferred_flights;
@@ -36,6 +37,7 @@ pub use routes::{
     write_data_addon, write_polestar_pack, write_polestar_source, write_polestar_strings,
 };
 pub use services::{Place, Service, places, services_lua};
+pub use starts::{StartOption, preview_starts};
 pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};
 pub use timeline::{InnInfo, Leg, LegMode, NodeInfo, ObjectiveInfo, QuestInfo, StartView, Timeline, TimelineStep};
 

@@ -218,3 +218,11 @@ fn the_addon_follows_the_walks_the_app_draws() {
     }
     assert!(walks > 10, "the guide has walks around the terrain: {walks}");
 }
+
+/// A character starting at level 1 has one place to begin: nothing to choose from.
+#[test]
+fn a_new_character_has_no_start_to_choose() {
+    let conn = database();
+    let starts = job::preview_starts(&conn, &overrides(), &request(), &|_| {}, &job::Interrupt::default(), None).unwrap();
+    assert!(starts.len() < 2, "{} starts", starts.len());
+}

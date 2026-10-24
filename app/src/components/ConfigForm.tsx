@@ -24,6 +24,9 @@ interface Props {
   /** Guide language when the configuration has none (the app language). */
   defaultLocale: string;
   onRun: (request: PlanRequest) => void;
+  /** Compare the ways the guide can begin before computing it (when there are several), and the switch. */
+  compareStarts?: boolean;
+  onCompareStarts?: (on: boolean) => void;
   /** A guide of no steps from this configuration, its steps added by hand. */
   onManual?: (request: PlanRequest) => void;
   onExport?: (request: PlanRequest) => void;
@@ -228,7 +231,7 @@ function GroupRow({
  * Step 1. The simple view holds the choices that matter (character, pace, dungeons, zones,
  * professions); the advanced view every setting of the planner.
  */
-export function ConfigForm({ options, initial, startCharacter, defaultLocale, onRun, onManual, onExport, onChange }: Props) {
+export function ConfigForm({ options, initial, startCharacter, defaultLocale, onRun, compareStarts, onCompareStarts, onManual, onExport, onChange }: Props) {
   const t = useT();
   const gameName = useGameName();
   const defaults = options.params;
@@ -508,6 +511,11 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
             value={params.effort}
             onChange={(effort) => set("effort", effort)}
           />
+          {onCompareStarts && (start || fromLevel > 1) && (
+            <label className="compare-starts" title={t("Avant de calculer le guide, calcule rapidement quelques départs différents (zone, vol, pierre de foyer) et vous les présente pour que vous choisissiez. N'apparaît que s'il y a vraiment plusieurs départs possibles.")}>
+              <input type="checkbox" checked={compareStarts ?? true} onChange={(e) => onCompareStarts(e.target.checked)} /> {t("Comparer les départs")}
+            </label>
+          )}
           {onManual && (
             <button onClick={() => launch(onManual)} title={t("Un guide sans étape, qui part du même personnage avec les mêmes réglages : vous ajoutez ses étapes une à une dans l'éditeur.")}>
               {t("Création manuelle")}

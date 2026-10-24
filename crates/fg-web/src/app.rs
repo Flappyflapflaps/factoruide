@@ -707,6 +707,28 @@ fn plan_route(request: &PlanRequest) -> CmdResult<VersionMeta> {
     add_version(edition, request, &outcome, data_version(&conn), (false, false), now()?)
 }
 
+/// The starts the character can choose from before the guide is computed.
+fn preview_starts(request: &PlanRequest) -> CmdResult<Vec<job::StartOption>> {
+    PLAN_INTERRUPT.reset();
+    let edition = request_edition(request);
+    let progress = |m: &str| host::event("plan-progress", &serde_json::Value::String(m.to_owned()));
+    job::preview_starts(
+        &open_db(edition)?,
+        &overrides(edition)?,
+        request,
+        &progress,
+        &PLAN_INTERRUPT,
+        Some(&walks(edition)),
+    )
+    .map_err(|e| {
+        if e.is::<job::Cancelled>() {
+            job::Cancelled.to_string()
+        } else {
+            err(e)
+        }
+    })
+}
+
 /// A new guide of no steps from the request's character and settings, saved as a version
 /// edited by hand: its steps are then added in the editor.
 fn manual_route(request: &PlanRequest) -> CmdResult<VersionMeta> {
@@ -1163,6 +1185,13 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
                     .ok_or_else(|| "unknown faction".to_owned())
                     .and_then(|side| job::inferred_flights(&open_db(edition)?, side, &start.completed).map_err(err)),
             )
+        }
+        "preview_starts" => {
+            #[derive(Deserialize)]
+            struct A {
+                request: PlanRequest,
+            }
+            to_json(preview_starts(&args::<A>(a)?.request))
         }
         "manual_route" => {
             #[derive(Deserialize)]

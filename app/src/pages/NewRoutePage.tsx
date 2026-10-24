@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Options, type PlanRequest, type VersionMeta } from "../api";
+import { api, type Options, type PlanRequest, type StartOption, type VersionMeta } from "../api";
 import { ConfigForm } from "../components/ConfigForm";
 import { RACE_COLORS, type OptimizeState, type RaceMark, type RaceSeries } from "../components/OptimizeProgress";
 import { RunView } from "../components/RunView";
+import { StartsChoice } from "../components/StartsChoice";
 import type { WorldPoint } from "../components/WorldMap";
 import { gameLocale, useLang, useT } from "../i18n";
 
@@ -15,10 +16,15 @@ export interface WizardStart {
   character?: string;
 }
 
-type Step = "config" | "run";
+type Step = "config" | "preview" | "starts" | "run";
+
+const COMPARE_KEY = "fg.compareStarts";
+/** Whether the starts are compared before a guide is computed (on unless turned off). */
+const compareStartsSaved = () => localStorage.getItem(COMPARE_KEY) !== "off";
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "config", label: "Configuration" },
+  { id: "starts", label: "Départ" },
   { id: "run", label: "Génération" },
 ];
 
@@ -40,6 +46,10 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
   const t = useT();
   const lang = useLang();
   const [step, setStep] = useState<Step>("config");
+  const [compareStarts, setCompareStarts] = useState(compareStartsSaved);
+  // The starts to choose from, and how far their comparison is.
+  const [starts, setStarts] = useState<StartOption[]>([]);
+  const [preview, setPreview] = useState<[number, number] | null>(null);
   const [initial, setInitial] = useState<PlanRequest | null>(start.initial);
   const [optimize, setOptimize] = useState<OptimizeState | null>(null);
   // Time of each followed route over the optimization, and its color slot.
@@ -95,6 +105,9 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
           setMarks((prev) => (prev.some((mark) => mark.round === round) ? prev : [...prev, { round, at: prev.length ? at : begin, width: next.width ?? routes.length }]));
         }
         setOptimize(next);
+      } else if (m.startsWith("@preview ")) {
+        const [done, total] = m.slice(9).split(" ").map(Number);
+        setPreview([done, total]);
       } else if (m.startsWith("@route ")) {
         setRoute((JSON.parse(m.slice(7)) as { points: WorldPoint[] }).points);
       } else {
@@ -105,6 +118,38 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
       off.then((f) => f());
     };
   }, []);
+
+  /** Compare the starts first when the character has several (a choice to make), else compute. */
+  const begin = async (request: PlanRequest) => {
+    if (!compareStarts || running.current) return run(request);
+    running.current = true;
+    onBusy?.(true);
+    setInitial(request);
+    setStep("preview");
+    setError(null);
+    setMessage(null);
+    setNotice(null);
+    setPreview(null);
+    interrupted.current = null;
+    let found: StartOption[] = [];
+    try {
+      found = await api.previewStarts(request);
+    } catch (e) {
+      // Cancelled: back to the configuration. Any other failure: the guide is computed as usual.
+      if (String(e) === "cancelled") {
+        setNotice(t("Comparaison annulée : la configuration est conservée."));
+        setStep("config");
+        running.current = false;
+        onBusy?.(false);
+        return;
+      }
+    }
+    running.current = false;
+    if (found.length < 2) return run(request);
+    onBusy?.(false);
+    setStarts(found);
+    setStep("starts");
+  };
 
   const run = async (request: PlanRequest) => {
     if (running.current) return;
@@ -182,14 +227,15 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
   return (
     <div className="wizard">
       <ol className="wizard-steps">
-        {STEPS.map((s, i) => {
-          const done = STEPS.findIndex((x) => x.id === step) > i;
+        {STEPS.filter((s) => s.id !== "starts" || step === "preview" || step === "starts").map((s, i, shown) => {
+          const current = step === "preview" ? "starts" : step;
+          const done = shown.findIndex((x) => x.id === current) > i;
           return (
-            <li key={s.id} className={s.id === step ? "active" : done ? "done" : ""} aria-current={s.id === step ? "step" : undefined}>
+            <li key={s.id} className={s.id === current ? "active" : done ? "done" : ""} aria-current={s.id === current ? "step" : undefined}>
               <span className="step-num" aria-hidden>
                 {done ? "✓" : i + 1}
               </span>
-              {s.id === "config" && step === "run" ? (
+              {s.id === "config" && (step === "run" || step === "preview") ? (
                 <button className="link" onClick={cancel} disabled={interrupting === "cancel"} title={t("Abandonne la génération et revient à la configuration")}>
                   {t(s.label)}
                 </button>
@@ -215,7 +261,12 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
           initial={initial}
           startCharacter={initial ? undefined : start.character}
           defaultLocale={gameLocale(lang)}
-          onRun={(r) => run(r)}
+          onRun={(r) => begin(r)}
+          compareStarts={compareStarts}
+          onCompareStarts={(on) => {
+            setCompareStarts(on);
+            localStorage.setItem(COMPARE_KEY, on ? "on" : "off");
+          }}
           onManual={(r) => manual(r)}
           onChange={onDraft}
           onExport={async (r) => {
@@ -225,6 +276,23 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
               setError(String(e));
             }
           }}
+        />
+      )}
+      {step === "preview" && (
+        <div className="notice">
+          <span className="spinner" role="status" aria-hidden />{" "}
+          {preview ? t("Comparaison des départs : {done} sur {total}…", { done: Math.min(preview[0] + 1, preview[1]), total: preview[1] }) : t("Comparaison des départs…")}{" "}
+          <button className="link" onClick={cancel}>
+            {t("Annuler")}
+          </button>
+        </div>
+      )}
+      {step === "starts" && initial && (
+        <StartsChoice
+          starts={starts}
+          zones={options.zones}
+          onBack={() => setStep("config")}
+          onPick={(pick) => run({ ...initial, params: initial.params ? { ...initial.params, start_zone: pick.start_zone } : initial.params })}
         />
       )}
       {step === "run" && <RunView state={optimize} series={series} marks={marks} colors={colors} route={route} log={log} onStop={() => interrupt("stop")} onCancel={cancel} interrupting={interrupting} />}

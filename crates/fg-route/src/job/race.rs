@@ -495,7 +495,7 @@ impl Searcher<'_> {
         if k >= 1
             && let Some(&zone) = self.starts.get(k - 1)
         {
-            p.zone_detour = vec![0, 0, zone];
+            p.start_zone = zone;
         }
         p
     }

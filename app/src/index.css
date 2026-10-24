@@ -4521,3 +4521,87 @@ button.link.cmp-jump {
   padding: 0;
   columns: 2 220px;
 }
+
+/* The starts to choose from before a guide is computed. */
+.starts h2 {
+  margin: 0 0 4px;
+}
+.starts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.start-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: inherit;
+}
+.start-card.chosen {
+  border-color: var(--accent-text);
+  box-shadow: 0 0 0 2px var(--accent-edge);
+}
+.start-picture {
+  height: 120px;
+  background: var(--surface-0);
+}
+.start-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.start-body {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px 12px;
+}
+.start-zone {
+  font-weight: 600;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.start-best {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-fill);
+  color: #fff;
+}
+.start-time {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.start-score,
+.start-counts {
+  font-size: 0.8rem;
+  color: var(--muted, inherit);
+  opacity: 0.8;
+}
+.start-first {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+.starts-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.compare-starts {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}

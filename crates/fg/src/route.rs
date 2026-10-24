@@ -84,6 +84,14 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
             }),
         mates: opts.mates.iter().map(|p| read_profile(p)).collect::<Result<_>>()?,
     };
+    // FG_PREVIEW_STARTS: the starts the app offers to choose from, as JSON (not a guide).
+    if std::env::var_os("FG_PREVIEW_STARTS").is_some() {
+        let began = std::time::Instant::now();
+        let starts = job::preview_starts(conn, &overrides, &request, &|m| eprintln!("{m}"), &job::Interrupt::default(), None)?;
+        eprintln!("{} starts in {:.0} s", starts.len(), began.elapsed().as_secs_f64());
+        println!("{}", serde_json::to_string_pretty(&starts)?);
+        return Ok(());
+    }
     let outcome = job::plan(conn, &overrides, &request, &|m| {
         if !m.starts_with('@') {
             eprintln!("{m}");

@@ -37,6 +37,8 @@ export interface ProfileImported {
 
 /** Planner tunables, mirror of `fg_route::Params`. */
 export interface Params {
+  /** The zone the route begins in (AreaTable zone), chosen on the starts' preview; 0 or unset: the planner's choice. */
+  start_zone?: number;
   run_speed: number;
   mount_level: number;
   mount_bonus: number;
@@ -507,6 +509,8 @@ export const api = {
   planRoute: (request: PlanRequest) => invoke<VersionMeta>("plan_route", { request }),
   /** The flight paths a character probably knows from its quests done in their towns. */
   inferredFlights: (start: StartState) => invoke<number[]>("inferred_flights", { start }),
+  /** The starts the character can choose from (fewer than two: nothing to choose), the best score first. */
+  previewStarts: (request: PlanRequest) => invoke<StartOption[]>("preview_starts", { request }),
   /** Saves a guide of no steps from the request's character and settings (edited by hand), to fill in the editor. */
   manualRoute: (request: PlanRequest) => invoke<VersionMeta>("manual_route", { request }),
   /** Ends the optimization under way now: `planRoute` saves and returns the best guide so far. */
@@ -614,6 +618,22 @@ export function fmtTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return "—";
   const m = Math.round(seconds / 60);
   return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`;
+}
+
+/** A way to begin the guide (`previewStarts`): a route computed lightly from a zone. */
+export interface StartOption {
+  /** The zone it begins in (AreaTable zone) and its map. */
+  zone: number;
+  ui_map: number;
+  /** What to set as `params.start_zone` to get it (0: the planner's own choice). */
+  start_zone: number;
+  /** Play time of the guide it leads to, and its score (the time the planner ranks by), in seconds. */
+  time: number;
+  score: number;
+  steps: number;
+  quests: number;
+  /** Its first steps. */
+  first: string[];
 }
 
 /** One computation of a guide. */

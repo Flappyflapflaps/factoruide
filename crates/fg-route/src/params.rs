@@ -116,6 +116,10 @@ pub struct Params {
     /// Race: the first candidates after the first begin in this many of the zones richest in
     /// quests (`Planner::start_zones`) rather than where the character stands; 0 = none.
     pub forced_starts: usize,
+    /// Greedy construction: the zone the route begins in (an AreaTable zone): it goes there first,
+    /// whatever is nearer (the choice made on the starts' preview, `job::preview_starts`); 0 = the
+    /// zone the planner finds best.
+    pub start_zone: i64,
     /// Race: candidates built after those above as the best of them with one zone change done
     /// otherwise (`zone_detour`), fewer with a low `effort`.
     pub race_mutants: usize,
@@ -400,6 +404,7 @@ impl Default for Params {
             zone_detour: vec![],
             zone_detour_pull: 10.0,
             forced_starts: 0,
+            start_zone: 0,
             race_mutants: 224,
             screen: 8,
             continent_stay: 1.0,

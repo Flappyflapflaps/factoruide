@@ -821,6 +821,40 @@ async fn inferred_flights(app: AppHandle, start: StartState) -> CmdResult<Vec<i6
     .map_err(err)?
 }
 
+/// The starts the character can choose from before the guide is computed (`job::preview_starts`),
+/// streaming `plan-progress` events (`@preview <done> <total>`). Fewer than two: nothing to choose.
+/// `cancel_plan` ends it with "cancelled".
+#[tauri::command]
+async fn preview_starts(app: AppHandle, request: PlanRequest) -> CmdResult<Vec<job::StartOption>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        state.plan_interrupt.reset();
+        let edition = request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
+        let conn = open_db(&state.db_path(edition)?)?;
+        let walks = state.walks(edition);
+        let progress = |m: &str| {
+            let _ = app.emit("plan-progress", m.to_owned());
+        };
+        job::preview_starts(
+            &conn,
+            &overrides(edition)?,
+            &request,
+            &progress,
+            &state.plan_interrupt,
+            Some(&walks),
+        )
+        .map_err(|e| {
+            if e.is::<job::Cancelled>() {
+                job::Cancelled.to_string()
+            } else {
+                err(e)
+            }
+        })
+    })
+    .await
+    .map_err(err)?
+}
+
 /// A new guide of no steps from the request's character and settings, saved as a version
 /// edited by hand: its steps are then added in the editor.
 #[tauri::command]
@@ -1931,6 +1965,7 @@ fn main() {
             get_options,
             plan_route,
             inferred_flights,
+            preview_starts,
             manual_route,
             stop_plan,
             cancel_plan,
