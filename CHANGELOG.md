@@ -10,6 +10,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ### Guides
 
+- A spell you know a higher rank of (Seal of the Crusader, Divine Protection, Hammer of Justice) no longer sends you back to the trainer: the spell book only shows the best rank.
 - Walks no longer go into a zone whose monsters are far above the character (Stranglethorn Vale at level 17 on the way to Booty Bay's boat): the guide goes round, by Ashenvale for the Barrens, or takes a boat or a flight.
 - Guides are computed about 40 % faster.
 - Dungeons are run later: not before the weakest of the group is within 3 levels of the dungeon's monsters (the Deadmines at 18, not 15), at their level in the cautious profile, 5 levels below in the risky one.

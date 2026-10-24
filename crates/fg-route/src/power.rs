@@ -102,6 +102,9 @@ struct Family {
     weight: f64,
     ranks: bool,
     list: Vec<Rank>,
+    /// Every spell ID of the family, all ranks (the list keeps only the first when `ranks` is off,
+    /// the spell book only shows the best rank learned).
+    ids: Vec<i64>,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -470,7 +473,7 @@ impl PowerModel {
         // Spells.
         let mut families: HashMap<String, Family> = HashMap::new();
         let mut stmt = conn.prepare(
-            "SELECT name, rank, min(level), min(cost), max(value), max(weapon), max(cast_time), min(spell_id)
+            "SELECT name, rank, min(level), min(cost), max(value), max(weapon), max(cast_time), min(spell_id), group_concat(spell_id)
              FROM m_class_spell
              WHERE class_id = ?1 GROUP BY name, rank ORDER BY min(level)",
         )?;
@@ -487,7 +490,10 @@ impl PowerModel {
                 weight: w.weight(),
                 ranks: w.ranks(),
                 list: Vec::new(),
+                ids: Vec::new(),
             });
+            let ids: String = r.get(8)?;
+            family.ids.extend(ids.split(',').filter_map(|id| id.parse::<i64>().ok()));
             family.list.push(Rank {
                 id: r.get(7)?,
                 name,
@@ -731,21 +737,7 @@ impl PowerModel {
     /// before the first rank it lacks (a rank counts as learned when a higher one of its family
     /// is). `None` when none of its spells is one of the ranks (other data).
     pub fn trained_level(&self, spells: &std::collections::HashSet<i64>, level: i64) -> Option<i64> {
-        let mut trained = level;
-        let mut matched = false;
-        for f in &self.families {
-            let top = f.list.iter().rposition(|r| spells.contains(&r.id));
-            matched |= top.is_some();
-            let missing = f
-                .list
-                .iter()
-                .enumerate()
-                .find(|(k, r)| r.level <= level && top.is_none_or(|t| *k > t));
-            if let Some((_, r)) = missing {
-                trained = trained.min(r.level - 1);
-            }
-        }
-        matched.then_some(trained.max(1))
+        trained_level(&self.families, spells, level)
     }
 
     /// Spell ranks that count learned when training at `level` after training at `trained`.
@@ -769,6 +761,29 @@ impl PowerModel {
     pub fn ranks(&self) -> impl Iterator<Item = &Rank> {
         self.families.iter().flat_map(|f| f.list.iter())
     }
+}
+
+/// `PowerModel::trained_level` over the spell families.
+fn trained_level(families: &[Family], spells: &std::collections::HashSet<i64>, level: i64) -> Option<i64> {
+    let mut trained = level;
+    let mut matched = false;
+    for f in families {
+        let mut top = f.list.iter().rposition(|r| spells.contains(&r.id));
+        // A family without ranks keeps only its first in `list`: a higher rank known counts.
+        if top.is_none() && !f.ranks && f.ids.iter().any(|id| spells.contains(id)) {
+            top = Some(0);
+        }
+        matched |= top.is_some();
+        let missing = f
+            .list
+            .iter()
+            .enumerate()
+            .find(|(k, r)| r.level <= level && top.is_none_or(|t| *k > t));
+        if let Some((_, r)) = missing {
+            trained = trained.min(r.level - 1);
+        }
+    }
+    matched.then_some(trained.max(1))
 }
 
 const SINGLE: [&[usize]; SLOTS] = [
@@ -861,11 +876,29 @@ mod tests {
     }
 
     #[test]
+    fn a_higher_rank_of_a_spell_without_ranks_counts_as_learned() {
+        // The spell book shows the best rank only: rank 3 known, rank 1 (the one listed) not.
+        let families = vec![Family {
+            weight: 0.1,
+            ranks: false,
+            list: vec![rank(6, 10.0)],
+            ids: vec![6, 20, 30],
+        }];
+        let known = |ids: &[i64]| ids.iter().copied().collect::<std::collections::HashSet<_>>();
+        assert_eq!(trained_level(&families, &known(&[30]), 28), Some(28));
+        assert_eq!(trained_level(&families, &known(&[]), 28), None);
+        // Learned at level 6 only (an id of another family): not trained since 5.
+        let other = vec![Family { ids: vec![99], ..families[0].clone() }];
+        assert_eq!(trained_level(&other, &known(&[99]), 28), Some(28));
+    }
+
+    #[test]
     fn spells_behind_lose_their_share() {
         let families = vec![Family {
             weight: 0.4,
             ranks: true,
             list: vec![rank(1, 10.0), rank(10, 40.0)],
+            ids: vec![],
         }];
         assert!((spell_factor(&families, 10, 12) - 1.0).abs() < 1e-9);
         // Rank 1 is a quarter of rank 2: 3/4 of the 40% share lost.
