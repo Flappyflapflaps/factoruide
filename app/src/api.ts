@@ -630,6 +630,15 @@ export interface StartPreview {
   details: string[];
 }
 
+/** A zone a start can be forced to, known before any route is computed. */
+export interface StartCandidate {
+  /** What to set as `params.start_zone` (0: the planner's own choice). */
+  start_zone: number;
+  ui_map: number;
+  /** Quests worth doing there from the start. */
+  quests: number;
+}
+
 /** A way to begin the guide (`previewStarts`): a route computed lightly from a zone. */
 export interface StartOption {
   /** The zone it begins in (AreaTable zone) and its map. */

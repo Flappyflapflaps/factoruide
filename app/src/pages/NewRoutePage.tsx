@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Options, type PlanRequest, type StartOption, type VersionMeta } from "../api";
+import { api, type Options, type PlanRequest, type StartCandidate, type StartOption, type VersionMeta } from "../api";
 import { ConfigForm } from "../components/ConfigForm";
 import { RACE_COLORS, type OptimizeState, type RaceMark, type RaceSeries } from "../components/OptimizeProgress";
 import { RunView } from "../components/RunView";
@@ -49,11 +49,14 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
   const [compareStarts, setCompareStarts] = useState(compareStartsSaved);
   // The starts to choose from, and how far their comparison is.
   const [starts, setStarts] = useState<StartOption[]>([]);
+  const [candidates, setCandidates] = useState<StartCandidate[]>([]);
+  // Every start is computed; the start chosen before they all were.
+  const [startsDone, setStartsDone] = useState(false);
+  const pickedEarly = useRef<number | null>(null);
   const [tried, setTried] = useState(0);
   // The start chosen when the guide was computed before (a rerun), marked on the choice.
   const [previousStart, setPreviousStart] = useState(0);
   const [startDetails, setStartDetails] = useState<string[]>([]);
-  const [preview, setPreview] = useState<[number, number] | null>(null);
   const [initial, setInitial] = useState<PlanRequest | null>(start.initial);
   const [optimize, setOptimize] = useState<OptimizeState | null>(null);
   // Time of each followed route over the optimization, and its color slot.
@@ -109,9 +112,15 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
           setMarks((prev) => (prev.some((mark) => mark.round === round) ? prev : [...prev, { round, at: prev.length ? at : begin, width: next.width ?? routes.length }]));
         }
         setOptimize(next);
-      } else if (m.startsWith("@preview ")) {
-        const [done, total] = m.slice(9).split(" ").map(Number);
-        setPreview([done, total]);
+      } else if (m.startsWith("@starts ")) {
+        // The zones a start can be forced to: the choice is shown, each start filling in.
+        setCandidates(JSON.parse(m.slice(8)) as StartCandidate[]);
+        setStarts([]);
+        setStartsDone(false);
+        setStep((s) => (s === "preview" ? "starts" : s));
+      } else if (m.startsWith("@start ")) {
+        const option = JSON.parse(m.slice(7)) as StartOption;
+        setStarts((prev) => [...prev.filter((o) => o.start_zone !== option.start_zone), option]);
       } else if (m.startsWith("@route ")) {
         setRoute((JSON.parse(m.slice(7)) as { points: WorldPoint[] }).points);
       } else {
@@ -137,8 +146,12 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
     setError(null);
     setMessage(null);
     setNotice(null);
-    setPreview(null);
+    setCandidates([]);
+    setStarts([]);
+    setStartsDone(false);
+    pickedEarly.current = null;
     interrupted.current = null;
+    const withStart = (zone: number): PlanRequest => (request.params ? { ...request, params: { ...request.params, start_zone: zone } } : request);
     let found: StartOption[] = [];
     let count = 0;
     let lines: string[] = [];
@@ -148,7 +161,13 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
       count = preview.tried;
       lines = preview.details;
     } catch (e) {
-      // Cancelled: back to the configuration. Any other failure: the guide is computed as usual.
+      // Cancelled: a start chosen before the end goes on with it; else back to the configuration.
+      // Any other failure: the guide is computed as usual.
+      if (String(e) === "cancelled" && pickedEarly.current != null) {
+        running.current = false;
+        onBusy?.(false);
+        return run(withStart(pickedEarly.current));
+      }
       if (String(e) === "cancelled") {
         setNotice(t("Comparaison annulée : la configuration est conservée."));
         setStep("config");
@@ -158,11 +177,13 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
       }
     }
     running.current = false;
+    if (pickedEarly.current != null) return run(withStart(pickedEarly.current));
     if (found.length < 2) return run(request);
     onBusy?.(false);
-    setStarts(found);
+    setStarts((prev) => (prev.length ? prev : found));
     setTried(count);
     setStartDetails(lines);
+    setStartsDone(true);
     setStep("starts");
   };
 
@@ -295,8 +316,7 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
       )}
       {step === "preview" && (
         <div className="notice">
-          <span className="spinner" role="status" aria-hidden />{" "}
-          {preview ? t("Comparaison des départs : {done} sur {total}…", { done: Math.min(preview[0] + 1, preview[1]), total: preview[1] }) : t("Comparaison des départs…")}{" "}
+          <span className="spinner" role="status" aria-hidden /> {t("Comparaison des départs…")}{" "}
           <button className="link" onClick={cancel}>
             {t("Annuler")}
           </button>
@@ -304,13 +324,21 @@ export function NewRoutePage({ options, start, onBusy, onDraft, onDone }: Props)
       )}
       {step === "starts" && initial && (
         <StartsChoice
-          starts={starts}
+          candidates={candidates}
+          results={starts}
+          finished={startsDone}
           tried={tried}
           previous={previousStart}
           details={startDetails}
           zones={options.zones}
-          onBack={() => setStep("config")}
-          onPick={(pick) => run({ ...initial, params: initial.params ? { ...initial.params, start_zone: pick.start_zone } : initial.params })}
+          onBack={() => (startsDone ? setStep("config") : cancel())}
+          onPick={(zone) => {
+            const request: PlanRequest = { ...initial, params: initial.params ? { ...initial.params, start_zone: zone } : initial.params };
+            if (startsDone) return run(request);
+            // Chosen while the others are still computed: they are given up, then the guide goes on.
+            pickedEarly.current = zone;
+            interrupt("cancel");
+          }}
         />
       )}
       {step === "run" && <RunView state={optimize} series={series} marks={marks} colors={colors} route={route} log={log} onStop={() => interrupt("stop")} onCancel={cancel} interrupting={interrupting} />}

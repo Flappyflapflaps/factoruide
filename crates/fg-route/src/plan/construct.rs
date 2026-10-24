@@ -132,9 +132,10 @@ impl Planner<'_> {
     }
 
     /// Zones other than the character's with the most quests worth doing from the start, the
-    /// richest first (at least `MIN_START_QUESTS`, in reach): where a candidate of the race may
-    /// begin instead of in the zone it stands in, `Params::zone_detour` [0, 0, zone].
-    pub fn start_zones(&self) -> Vec<i64> {
+    /// richest first with their number of quests (at least `MIN_START_QUESTS`, in reach, the
+    /// capital cities left out: every route passes through them): where a candidate of the race
+    /// may begin instead of in the zone it stands in, `Params::start_zone`.
+    pub fn start_zones(&self) -> Vec<(i64, usize)> {
         const MIN_START_QUESTS: usize = 5;
         let s = self.initial_state();
         let mut counts: std::collections::HashMap<i64, usize> = std::collections::HashMap::new();
@@ -145,14 +146,14 @@ impl Planner<'_> {
                 && self.worth().worth_it(&s, i, s.level, 0.0)
             {
                 let zone = self.places().zone(accept);
-                if zone != s.zone && self.trips().fastest(&s, &self.places().pos(&s, accept)).0.is_finite() {
+                if zone != s.zone && !self.world.is_capital(zone) && self.trips().fastest(&s, &self.places().pos(&s, accept)).0.is_finite() {
                     *counts.entry(zone).or_default() += 1;
                 }
             }
         }
         let mut zones: Vec<(i64, usize)> = counts.into_iter().filter(|&(_, n)| n >= MIN_START_QUESTS).collect();
         zones.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
-        zones.into_iter().map(|(z, _)| z).collect()
+        zones
     }
 
     /// The stop the greedy construction takes next from `s` (None: nothing worth doing at this

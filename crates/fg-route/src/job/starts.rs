@@ -12,7 +12,7 @@ use serde::Serialize;
 use std::sync::Arc;
 
 /// How much a start is improved (`Params::effort`): enough to rank it fairly, not to finish it.
-const PREVIEW_EFFORT: f64 = 0.06;
+const PREVIEW_EFFORT: f64 = 0.02;
 /// Starts shown at most, the planner's own included.
 const MAX_STARTS: usize = 8;
 /// A start whose score is this much above the best one is not worth showing.
@@ -37,6 +37,16 @@ pub struct StartOption {
     pub first: Vec<String>,
 }
 
+/// A zone a start can be forced to, known before any route is computed.
+#[derive(Debug, Clone, Serialize)]
+pub struct StartCandidate {
+    /// What to set as `Params::start_zone` (0: the planner's own choice).
+    pub start_zone: i64,
+    pub ui_map: i64,
+    /// Quests worth doing there from the start.
+    pub quests: usize,
+}
+
 /// The starts offered, and how many were tried (those that begin in the same zone count once).
 #[derive(Debug, Clone, Serialize)]
 pub struct StartPreview {
@@ -49,7 +59,8 @@ pub struct StartPreview {
 
 /// The starts the character can choose from, the best score first; fewer than two when there
 /// is nothing to choose (a guide with zones imposed, or no other zone worth starting in).
-/// `progress` gets `@preview <done> <total>` lines.
+/// `progress` gets `@starts <candidates as JSON>` once the zones are known, then `@start
+/// <option as JSON>` as each start is computed, so that the app shows them as they come.
 pub fn preview_starts(
     conn: &Connection,
     overrides: &Overrides,
@@ -71,8 +82,20 @@ pub fn preview_starts(
     }
     let give_up = || interrupt.cancelled();
     let base = Planner::new(&prepared.model, &prepared.world, params, &prepared.profile).abortable(&give_up);
+    let zones = base.start_zones();
     let mut starts = vec![0];
-    starts.extend(base.start_zones().into_iter().take(MAX_STARTS - 1));
+    starts.extend(zones.iter().map(|&(zone, _)| zone).take(MAX_STARTS - 1));
+    if starts.len() >= 2 {
+        let candidates: Vec<StartCandidate> = starts
+            .iter()
+            .map(|&start_zone| StartCandidate {
+                start_zone,
+                ui_map: prepared.world.ui_map_of_zone(start_zone).unwrap_or(0),
+                quests: zones.iter().find(|z| z.0 == start_zone).map_or(0, |z| z.1),
+            })
+            .collect();
+        progress(&format!("@starts {}", serde_json::to_string(&candidates)?));
+    }
     if starts.len() < 2 {
         return Ok(StartPreview { tried: 0, options: Vec::new(), details: Vec::new() });
     }
@@ -82,8 +105,7 @@ pub fn preview_starts(
         prepared.model.initial.known.count_ones(),
         starts.len()
     )];
-    for (i, &start_zone) in starts.iter().enumerate() {
-        progress(&format!("@preview {i} {}", starts.len()));
+    for &start_zone in &starts {
         let mut p = params.clone();
         p.start_zone = start_zone;
         p.effort = PREVIEW_EFFORT;
@@ -124,7 +146,7 @@ pub fn preview_starts(
         );
         progress(&line);
         details.push(line);
-        found.push(StartOption {
+        let option = StartOption {
             zone,
             ui_map: map.ui_map,
             start_zone,
@@ -137,9 +159,10 @@ pub fn preview_starts(
                 .take(4)
                 .map(|s| s.text.clone())
                 .collect(),
-        });
+        };
+        progress(&format!("@start {}", serde_json::to_string(&option)?));
+        found.push(option);
     }
-    progress(&format!("@preview {} {}", starts.len(), starts.len()));
     // One per zone (two starts that begin in the same zone are the same start), the best first,
     // those far behind the best left out.
     let tried = found.len();

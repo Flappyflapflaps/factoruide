@@ -42,7 +42,7 @@ pub fn optimize_interruptible(planner: &Planner<'_>, progress: Progress<'_>, int
         changes: Mutex::new(Vec::new()),
         mutants: Mutex::new(Vec::new()),
         starts: if plan.race && planner.params.construction_random && planner.params.forced_starts > 0 {
-            let mut zones = planner.start_zones();
+            let mut zones: Vec<i64> = planner.start_zones().into_iter().map(|(z, _)| z).collect();
             zones.truncate(planner.params.forced_starts);
             zones
         } else {

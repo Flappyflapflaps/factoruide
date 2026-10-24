@@ -139,6 +139,8 @@ pub struct World {
     pub zone_names: HashMap<i64, String>,
     /// AreaTable parent of each subzone (a tavern, a valley), to find its zone.
     area_parents: HashMap<i64, i64>,
+    /// The capital cities (AreaTable flag 8): towns every route passes through.
+    capitals: std::collections::HashSet<i64>,
     pub taxi_nodes: Vec<TaxiNode>,
     /// Direct flight time in seconds between node indexes, INFINITY when no direct path.
     pub direct: Vec<Vec<f64>>,
@@ -231,11 +233,15 @@ impl World {
 
         let mut zone_names = HashMap::new();
         let mut area_parents = HashMap::new();
-        let mut stmt = conn.prepare("SELECT ID, AreaName_lang, ParentAreaID FROM client_areatable")?;
+        let mut capitals = std::collections::HashSet::new();
+        let mut stmt = conn.prepare("SELECT ID, AreaName_lang, ParentAreaID, Flags_0 FROM client_areatable")?;
         for row in stmt.query_map([], |r| {
-            Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?))
+            Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, i64>(2)?, r.get::<_, i64>(3)?))
         })? {
-            let (id, name, parent) = row?;
+            let (id, name, parent, flags) = row?;
+            if flags & 8 != 0 {
+                capitals.insert(id);
+            }
             zone_names.insert(id, name);
             if parent != 0 {
                 area_parents.insert(id, parent);
@@ -360,6 +366,7 @@ impl World {
             zones,
             zone_names,
             area_parents,
+            capitals,
             taxi_nodes,
             direct: flight,
             direct_cost: cost,
@@ -398,6 +405,11 @@ impl World {
     }
 
     /// Zone (AreaTable ID) shown by a UiMap.
+    /// The map (UiMap ID) of a zone.
+    pub fn ui_map_of_zone(&self, zone: i64) -> Option<i64> {
+        self.zones.get(&zone).map(|z| z.ui_map)
+    }
+
     pub fn zone_of_ui_map(&self, ui_map: i64) -> Option<i64> {
         self.zones.iter().find(|(_, z)| z.ui_map == ui_map).map(|(id, _)| *id)
     }
@@ -428,6 +440,11 @@ impl World {
             x: ((z.max_y - p.y) / (z.max_y - z.min_y) * 100.0 * 100.0).round() / 100.0,
             y: ((z.max_x - p.x) / (z.max_x - z.min_x) * 100.0 * 100.0).round() / 100.0,
         })
+    }
+
+    /// Whether a zone is a capital city.
+    pub fn is_capital(&self, zone: i64) -> bool {
+        self.capitals.contains(&zone)
     }
 
     pub fn zone_name(&self, zone: i64) -> &str {

@@ -4611,3 +4611,11 @@ button.link.cmp-jump {
   border-radius: 999px;
   border: 1px solid var(--border-strong);
 }
+.start-card.pending {
+  opacity: 0.75;
+}
+.spinner.inline {
+  display: inline-block;
+  margin-left: 0;
+  vertical-align: middle;
+}

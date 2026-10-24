@@ -166,3 +166,16 @@ fn quests_done_in_a_town_give_its_flight_path() {
     assert!(found.contains(&stormwind), "{found:?}");
     assert!(job::inferred_flights(&conn, Faction::Alliance, &[]).unwrap().is_empty());
 }
+
+/// The capital cities are not starts to choose: every route passes through them.
+#[test]
+fn capitals_are_known_from_the_area_flags() {
+    let conn = database();
+    let world = job::walk_world(&conn, &overrides(), Faction::Alliance).unwrap();
+    for capital in [1519, 1537, 1657, 1637, 1497, 1638] {
+        assert!(world.is_capital(capital), "{}", world.zone_name(capital));
+    }
+    for zone in [12, 10, 331, 406] {
+        assert!(!world.is_capital(zone), "{}", world.zone_name(zone));
+    }
+}
