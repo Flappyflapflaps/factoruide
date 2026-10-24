@@ -188,7 +188,7 @@ enum Command {
         /// and with the route's weights (gold, flight overhead)
         #[arg(long)]
         level: Option<i64>,
-        /// Write the walk's cells there (a line for `fgd terrain-walks-map`)
+        /// Write the walk's cells there (a line for the walks map drawing tool)
         #[arg(long)]
         cells: Option<PathBuf>,
     },

@@ -121,7 +121,7 @@ pub fn run(
         println!("level {level}: walking {at:.0} yd");
     }
     let path = world.walk_path(&a, &b, walk_level);
-    // Every cell walked over, for `fgd terrain-walks-map` (a line: name, continent, the drawn
+    // Every cell walked over, for the walks map drawing tool (a line: name, continent, the drawn
     // way, the cells).
     if let Some(out) = cells {
         let mut detailed: Vec<String> = vec![format!("{:.1},{:.1}", a.x, a.y)];
