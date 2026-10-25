@@ -24,10 +24,6 @@ pub struct ImportOptions {
     pub addon_dir: PathBuf,
 }
 
-/// Credit kept with a saved guide.
-const CREDIT: &str =
-    "Quest order from Polestar's leveling guides (github.com/fitzforge/polestar, GPL-3.0), replayed by Factoruide";
-
 pub fn run(conn: &Connection, opts: &ImportOptions) -> Result<()> {
     let overrides = Overrides::load_edition(&opts.overrides, crate::edition())?;
     let params = overrides.params.with_overrides(&opts.params)?;
@@ -133,7 +129,7 @@ pub fn run(conn: &Connection, opts: &ImportOptions) -> Result<()> {
     }
 
     if opts.save.is_some() {
-        let outcome = editor.save_import(&report.steps, vec![CREDIT.to_owned()])?;
+        let outcome = editor.save_import(&report.steps, vec![job::POLESTAR_CREDIT.to_owned()])?;
         job::save_route(&opts.routes_dir, &outcome.route)?;
         eprintln!(
             "saved {} ({})",

@@ -910,6 +910,48 @@ async fn import_rxp(app: AppHandle, race: String, class: String, first: Option<S
     .map_err(err)?
 }
 
+/// A guide made from Polestar's leveling guides (WoW Forever): `dir`, the `guides` folder of a
+/// download of Polestar (its `.guide` sources), the chain a race and class follows from level 1
+/// replayed and saved as a version imported and edited by hand, credited to Polestar in its
+/// notes with how many of its steps were left out.
+#[tauri::command]
+async fn import_polestar(app: AppHandle, race: String, class: String, dir: String) -> CmdResult<VersionMeta> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let settings = state.settings();
+        if settings.edition != Edition::Forever {
+            return Err("Polestar is for WoW Forever only".into());
+        }
+        let conn = open_db(&state.db_path(Edition::Forever)?)?;
+        let walks = state.walks(Edition::Forever);
+        let what = job::PolestarImport {
+            race,
+            class,
+            from_level: 1,
+            to_level: None,
+            name: None,
+            locale: settings.guide_locale.clone(),
+        };
+        let imported = job::import_polestar(
+            &conn,
+            &overrides(Edition::Forever)?,
+            Path::new(&dir),
+            &what,
+            Some(&walks),
+        )
+        .map_err(err)?;
+        state.add_version(
+            &imported.request,
+            &imported.outcome,
+            data_version(&conn),
+            (true, true),
+            now()?,
+        )
+    })
+    .await
+    .map_err(err)?
+}
+
 /// Version of the quest data imported in a database.
 fn data_version(conn: &Connection) -> Option<String> {
     conn.query_row("SELECT detail FROM import_run WHERE source = 'questie'", [], |r| {
@@ -2000,6 +2042,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             updates_enabled,
             import_rxp,
+            import_polestar,
             get_settings,
             set_settings,
             get_options,

@@ -11,6 +11,7 @@
 //! runs neither unless asked), the others are kept and the replay drops what is not possible.
 
 use crate::export::polestar::{class_file, race_file};
+use crate::faction::Faction;
 use crate::job::ImportStep;
 use crate::model::Profile;
 use anyhow::{Context, Result, bail};
@@ -65,10 +66,15 @@ pub struct Character {
 impl Character {
     /// The character of a guide of ours, in Polestar's names.
     pub fn of(profile: &Profile) -> Option<Self> {
+        Self::new(profile.race_id, profile.class_id, profile.faction)
+    }
+
+    /// A race and class by game IDs, in Polestar's names.
+    pub fn new(race_id: i64, class_id: i64, faction: Faction) -> Option<Self> {
         Some(Self {
-            race: race_file(profile.race_id)?.to_owned(),
-            class: class_file(profile.class_id)?.to_owned(),
-            faction: profile.faction.name().to_owned(),
+            race: race_file(race_id)?.to_owned(),
+            class: class_file(class_id)?.to_owned(),
+            faction: faction.name().to_owned(),
         })
     }
 }

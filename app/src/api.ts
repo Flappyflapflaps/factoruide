@@ -540,6 +540,8 @@ export const api = {
   importGuide: (content: string) => invoke<VersionMeta>("import_guide", { content }),
   /** A guide made from the RestedXP guides of the game's RXPGuides addon for a race and class (desktop app only). */
   importRxp: (race: string, klass: string) => invoke<VersionMeta>("import_rxp", { race, class: klass, first: null }),
+  /** WoW Forever: a guide made from Polestar's leveling guides in `dir` (the guides folder of a Polestar download). */
+  importPolestar: (race: string, klass: string, dir: string) => invoke<VersionMeta>("import_polestar", { race, class: klass, dir }),
   mapIndex: () => invoke<MapInfo[]>("map_index"),
   /** Characters the addon recorded in the game client of the current game version, most recently played first. */
   listCharacters: () => invoke<CharacterInfo[]>("list_characters"),

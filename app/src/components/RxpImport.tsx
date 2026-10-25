@@ -7,10 +7,12 @@ interface Props {
   /** Make the guide of this race and class (the import runs and says how it went). */
   onImport: (race: string, klass: string) => void;
   onClose: () => void;
+  /** What the import makes (default: RestedXP's). */
+  intro?: string;
 }
 
-/** The race and class a guide is made for from the RestedXP guides of the player's RXPGuides addon. */
-export function RxpImport({ options, onImport, onClose }: Props) {
+/** The race and class a guide is made for from the RestedXP guides of the player's RXPGuides addon (or from another addon's, said in `intro`). */
+export function RxpImport({ options, onImport, onClose, intro }: Props) {
   const t = useT();
   const gameName = useGameName();
   const [race, setRace] = useState(options.races[0]?.key ?? "");
@@ -22,9 +24,10 @@ export function RxpImport({ options, onImport, onClose }: Props) {
   return (
     <div className="rxp-import">
       <p>
-        {t(
-          "Fait un guide des guides RestedXP gratuits de l'addon RestedXP Guides installé dans le jeu (RestedXP, CC BY-NC-SA 4.0), rejoués avec les données de Factoruide : les étapes impossibles sont retirées.",
-        )}
+        {intro ??
+          t(
+            "Fait un guide des guides RestedXP gratuits de l'addon RestedXP Guides installé dans le jeu (RestedXP, CC BY-NC-SA 4.0), rejoués avec les données de Factoruide : les étapes impossibles sont retirées.",
+          )}
       </p>
       <label className="field">
         <span>{t("Race")}</span>
