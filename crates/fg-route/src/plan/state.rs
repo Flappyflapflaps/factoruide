@@ -60,6 +60,9 @@ pub(crate) enum Leg {
     FlyLink(usize, usize, usize, usize),
     /// Boats, then a flight from near where they land (links, then flight paths).
     LinkFly(usize, usize, usize, usize),
+    /// A flight to a port, its boats, then a flight from near where they land (flight paths,
+    /// links, flight paths).
+    FlyLinkFly(usize, usize, usize, usize, usize, usize),
 }
 
 #[derive(Debug, Clone, Copy)]

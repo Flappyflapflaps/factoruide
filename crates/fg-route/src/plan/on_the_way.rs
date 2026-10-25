@@ -129,6 +129,22 @@ impl Planner<'_> {
                 let flight = self.trips().flight_table(s.known).0[a][b] + self.params.flight_overhead;
                 ride(s, flight, true, &mut left);
             }
+            Leg::FlyLinkFly(a, b, first, last, c, d) => {
+                walk_to(s, &from, &nodes[a].pos, &mut left);
+                pay(s, a, b);
+                record(s, Event::Fly { from: a, to: b });
+                let flight = self.trips().flight_table(s.known).0[a][b] + self.params.flight_overhead;
+                ride(s, flight, true, &mut left);
+                walk_to(s, &nodes[b].pos, &links[first].from, &mut left);
+                record(s, Event::Link { first, last });
+                let boats = self.world.link_chain(self.trips().open_links(s))[first][last];
+                ride(s, boats, false, &mut left);
+                walk_to(s, &links[last].to, &nodes[c].pos, &mut left);
+                pay(s, c, d);
+                record(s, Event::Fly { from: c, to: d });
+                let flight = self.trips().flight_table(s.known).0[c][d] + self.params.flight_overhead;
+                ride(s, flight, true, &mut left);
+            }
             Leg::Walk => {
                 // A climb or a jump is a step of the guide, recorded on reaching it.
                 if let Some(&pass) = self.world.walk_shortcuts(&from, target).first() {
