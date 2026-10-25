@@ -90,7 +90,7 @@ fn lua(text: &str) -> String {
 }
 
 /// The race's file name in the game (Polestar's `races`).
-fn race_file(id: i64) -> Option<&'static str> {
+pub(crate) fn race_file(id: i64) -> Option<&'static str> {
     Some(match id {
         1 => "Human",
         2 => "Orc",
@@ -108,7 +108,7 @@ fn race_file(id: i64) -> Option<&'static str> {
 }
 
 /// The class's file name in the game (Polestar's `classes`).
-fn class_file(id: i64) -> Option<&'static str> {
+pub(crate) fn class_file(id: i64) -> Option<&'static str> {
     Some(match id {
         1 => "WARRIOR",
         2 => "PALADIN",

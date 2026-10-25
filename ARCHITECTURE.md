@@ -237,6 +237,12 @@ that wins. A longer calculation gives a shorter guide.
 also go to Polestar as a guide pack (`export/polestar/`, its pack format 3, Polestar 0.2.5; `source.rs` writes the same steps as Polestar's own `.guide` source, which the app and `fg polestar --source` write into a pack folder, `job::add_polestar_source`): a goal per step,
 the goals at one NPC in one step, and travels and notes in the step of the goal after them, since
 Polestar counts a travel done once a later goal of its step is (place names differ by language).
+Polestar's own guides come the other way (`import/polestar.rs`, `job/imported.rs`, `fg
+polestar-import`): their `.guide` sources are read as quest steps by game IDs (taken, objectives by
+their slot in the game's order, turn-ins, levels to reach), the chain a character follows from its
+start by each guide's default `next`, and replayed by `Planner::follow` in their order, the trips,
+training and grinding between them as the optimizer chooses them; the replay expanded into the
+editor's steps is saved as an explicit guide by a planner replaying as imposed.
 
 A saved guide has no language. Each step keeps its sentences as phrases: a template key
 (`accept`, `objective.kill`, `grind.xp`...) and its arguments (quests, NPCs, objects, items and

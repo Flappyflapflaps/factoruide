@@ -6,6 +6,7 @@ mod draft;
 mod edit;
 mod flights;
 mod group;
+mod imported;
 mod notes;
 mod options;
 mod overrides;
@@ -26,6 +27,7 @@ pub use edit::{
     RouteStep, StepReport,
 };
 pub use flights::inferred_flights;
+pub use imported::{ImportStep, ReplayReport};
 pub use options::{
     FactionOption, FlightOption, NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes,
 };

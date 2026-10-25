@@ -1,5 +1,6 @@
 mod audit;
 mod diff;
+mod polestar_import;
 mod ready;
 mod route;
 mod talents;
@@ -158,6 +159,34 @@ enum Command {
         /// Plan nothing: pack the ready-made guides of --routes as they are
         #[arg(long)]
         pack_only: bool,
+        /// Planner parameters, as key=value (repeatable)
+        #[arg(long = "param")]
+        params: Vec<String>,
+    },
+    /// Replay Polestar's leveling guides (github.com/fitzforge/polestar, GPL-3.0) for a race and
+    /// class under our time model, compared with a guide of ours (routes/<race>-<class>.json, or
+    /// --against); with --save, keep the replayed route as a guide of ours
+    PolestarImport {
+        /// Polestar's guides: its repository's guides/ folder, or any folder of .guide files
+        #[arg(long)]
+        guides: PathBuf,
+        /// Race key from overrides/races.toml (gnome, human, orc...)
+        #[arg(long)]
+        race: String,
+        /// Class (warrior, mage...)
+        #[arg(long)]
+        class: String,
+        #[arg(long, default_value_t = 1)]
+        from_level: i64,
+        /// Default: the edition's level cap
+        #[arg(long)]
+        to_level: Option<i64>,
+        /// A route of ours to compare with (a name in the routes folder)
+        #[arg(long)]
+        against: Option<String>,
+        /// Save the replayed route under this name (routes folder and data addon)
+        #[arg(long)]
+        save: Option<String>,
         /// Planner parameters, as key=value (repeatable)
         #[arg(long = "param")]
         params: Vec<String>,
@@ -402,6 +431,31 @@ fn main() -> Result<()> {
             let n = write(&open()?, &cli.routes, &out, env!("CARGO_PKG_VERSION"))?;
             eprintln!("wrote {} ({n} guides)", out.display());
         }
+        Command::PolestarImport {
+            guides,
+            race,
+            class,
+            from_level,
+            to_level,
+            against,
+            save,
+            params,
+        } => polestar_import::run(
+            &open()?,
+            &polestar_import::ImportOptions {
+                guides,
+                race,
+                class,
+                from_level,
+                to_level: to_level.unwrap_or(edition.rules().max_level),
+                against,
+                save,
+                params,
+                overrides,
+                routes_dir: cli.routes.clone(),
+                addon_dir: cli.addon_dir.clone(),
+            },
+        )?,
         Command::Replay { file, effort } => route::replay(&open()?, &overrides, &file, effort, &cli.routes)?,
         Command::Share {
             race,

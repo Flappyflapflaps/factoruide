@@ -5,5 +5,6 @@ mod addon;
 mod common;
 mod draft;
 mod edit;
+mod imported;
 mod routes;
 mod timeline;
