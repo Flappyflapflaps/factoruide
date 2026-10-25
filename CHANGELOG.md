@@ -52,6 +52,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 - Quest, NPC and spawn data brought up to date, with 51 more contributions from players: WoW Forever gets quests it had wrongly left out or marked unavailable, and corrected XP, races, classes and zones; TBC gets 11 quests it lacked; Classic is unchanged.
 - 206 contributed names, titles, levels and objectives checked against public pages and added: Spanish and French translations that were old or literal, minimum levels, a few objectives.
+- WoW Forever, Zephras Isle: Skyborne guides leave the island by its zeppelin (Alliance, to Dalaran) or airship (Horde, to Mulgore) without its last quests, take In Service of Zephras alongside Avenged Tenfold and Unfortunate News before Al'Aketh Assassins is done, and gather Restocking the Larders' eggs and meat on the island's Galestriders instead of the Barrens.
 
 ## 0.14.0 (2026-10-21)
 

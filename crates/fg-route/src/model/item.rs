@@ -314,22 +314,27 @@ impl QuestBuilder<'_> {
 
     /// With known drop rates, farm the mobs that drop it well: ignore those that almost never
     /// do, and those far below the best around the quest giver (Defias at 10% when others nearby
-    /// give 33%; a better rate in another zone doesn't count).
+    /// give 33%; a better rate in another zone doesn't count). Droppers around the giver whose
+    /// rate no source knows are kept when none around it has a known one: an item of the old
+    /// world dropped by the mobs of a new zone (Zephras Isle's Galestriders and Strider Meat)
+    /// is farmed there, not where the old mobs' rates are known.
     fn keep_good_droppers(&self, quest: &QuestContext<'_>, target: i64, mob_ids: &mut Vec<i64>) {
         let chance = |id: &i64| self.sources.drop_chance.get(&(target, *id)).copied();
         if !mob_ids.iter().any(|id| chance(id).is_some()) {
             return;
         }
+        let around = |id: &i64| {
+            (self.sources.entities.points(self.world, EntityKind::Npc, *id).iter())
+                .any(|(p, _)| p.dist(&quest.anchor) <= AROUND)
+        };
+        if mob_ids.iter().any(around) && !mob_ids.iter().any(|id| around(id) && chance(id).is_some()) {
+            mob_ids.retain(around);
+            return;
+        }
         let best_where = |near: bool| {
             mob_ids
                 .iter()
-                .filter(|id| {
-                    self.sources
-                        .entities
-                        .points(self.world, EntityKind::Npc, **id)
-                        .iter()
-                        .any(|(p, _)| !near || p.dist(&quest.anchor) <= AROUND)
-                })
+                .filter(|id| !near || around(id))
                 .filter_map(chance)
                 .fold(0.0, f64::max)
         };

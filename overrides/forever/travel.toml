@@ -74,6 +74,42 @@ seconds = 30
 one_way = true
 after_quest = 95349
 
+# The island's own transports, taken without the last island quest: a zeppelin between Zephras
+# Isle and Dalaran (path 11398) and an airship to Mulgore (path 11457), their docks and courses
+# from the client's transport paths (TaxiPathNode), rides from their length at the boats' speed
+# (about 9.3 yards a second). Each sails a loop, a leg longer one way than the other.
+[[link]]
+name = "Zeppelin Zephras Isle - Dalaran"
+faction = "Alliance"
+from = { zone = 16593, x = 65.84, y = 83.81 } # path 11398
+to = { zone = 36, x = 12.83, y = 51.17 }
+seconds = 350
+one_way = true
+
+[[link]]
+name = "Zeppelin Dalaran - Zephras Isle"
+faction = "Alliance"
+from = { zone = 36, x = 12.83, y = 51.17 } # path 11398
+to = { zone = 16593, x = 65.84, y = 83.81 }
+seconds = 290
+one_way = true
+
+[[link]]
+name = "Airship Zephras Isle - Mulgore"
+faction = "Horde"
+from = { zone = 16593, x = 57.75, y = 81.0 } # path 11457
+to = { zone = 215, x = 34.33, y = 26.05 }
+seconds = 460
+one_way = true
+
+[[link]]
+name = "Airship Mulgore - Zephras Isle"
+faction = "Horde"
+from = { zone = 215, x = 34.33, y = 26.05 } # path 11457
+to = { zone = 16593, x = 57.75, y = 81.0 }
+seconds = 240
+one_way = true
+
 # Dalaran and Stormwind's Wizard's Sanctum: portals for the Skyborne only (players report that
 # other races cannot take them; not checked in game).
 [[link]]
