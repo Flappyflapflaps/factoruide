@@ -17,6 +17,7 @@ pub struct Profile {
     pub to_level: i64,
     /// Names of class quests that must be done (see overrides/class_quests.toml).
     pub required_class_quests: Vec<String>,
+    pub quest_overrides: Vec<QuestOverride>,
     /// Class quests that make the character stronger: name and power gained.
     pub class_powers: Vec<(String, f64)>,
     /// Class trainer spells that count for power (see overrides/spells.toml).
@@ -494,6 +495,14 @@ pub struct TeleportDef {
     /// Name of the quests teaching it.
     pub quest: String,
     pub to: crate::world::ZonePoint,
+}
+
+/// Edition-specific quest corrections, applied over the bundled database.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct QuestOverride {
+    pub id: i64,
+    pub pre_all: Option<Vec<i64>>,
+    pub pre_any: Option<Vec<i64>>,
 }
 
 /// An area that gives XP the first time the character enters it.
