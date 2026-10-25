@@ -962,6 +962,31 @@ frostbolt = 5
 assert(FG.Talents:Next().name == "Elemental Precision", "next talent after 5/5: Elemental Precision")
 print("talents ok")
 
+-- Gear advice per spec: a druid's points in Balance want intellect and spell damage, in Feral
+-- strength and agility; before any point, the guide's plan (Feral). A balance druid does not
+-- take the rewards a feral plan chose.
+do
+    local unitClass, getStats, points = UnitClass, GetItemStats, {}
+    UnitClass = function() return "Druid", "DRUID", 11 end
+    GetNumTalents = function() return 1 end
+    GetTalentInfo = function(tab) return "Talent", nil, 1, 1, points[tab] or 0, 5 end
+    local stats = {
+        caster = { ITEM_MOD_INTELLECT_SHORT = 10, ITEM_MOD_SPELL_DAMAGE_DONE_SHORT = 12 },
+        feral = { ITEM_MOD_STRENGTH_SHORT = 10, ITEM_MOD_AGILITY_SHORT = 8 },
+    }
+    GetItemStats = function(link) return stats[link] end
+    local Gear = FG.Gear
+    assert(Gear:Tree() == nil and Gear:Score("feral") > Gear:Score("caster"), "no points: the plan's feral")
+    assert(not Gear:OffPlan(), "no points: on the plan")
+    points[1] = 5
+    assert(Gear:Tree() == 1 and Gear:Score("caster") > Gear:Score("feral"), "balance wants caster gear")
+    assert(Gear:OffPlan(), "balance is off the feral plan")
+    points[2] = 10
+    assert(Gear:Score("feral") > Gear:Score("caster") and not Gear:OffPlan(), "feral again")
+    UnitClass, GetItemStats = unitClass, getStats
+end
+print("gear per spec ok")
+
 -- Leveling time against the plan.
 playerLevel = 3
 FG.Routes["timing-test"] = {
