@@ -2292,6 +2292,27 @@ do
     IsResting, GetXPExhaustion, FG.ProfessionSkill, print = realResting, realExhaustion, realSkill, realPrint
 end
 print("xp buffs ok")
+-- Legacy perks: the advice in the chat at the first Legacy point (level 25), translated, not at
+-- another level, nor with the advice off or on Classic.
+do
+    local lines = {}
+    local realPrint = print
+    print = function(text) lines[#lines + 1] = text end
+    fire("PLAYER_LEVEL_UP", 24)
+    assert(#lines == 0, "no advice at 24")
+    fire("PLAYER_LEVEL_UP", 25)
+    assert(#lines == 1 + #FG.Legacy.PERKS, "the advice at 25: " .. #lines)
+    assert(lines[2]:find("1. Frequent Flier (1 rangs) : vols 20 % plus rapides", 1, true), "translated: " .. lines[2])
+    FG:Set("legacyAdvice", false)
+    fire("PLAYER_LEVEL_UP", 25)
+    FG:Set("legacyAdvice", nil)
+    FG.Edition = "classic"
+    fire("PLAYER_LEVEL_UP", 25)
+    FG.Edition = "forever"
+    assert(#lines == 1 + #FG.Legacy.PERKS, "none when off or on Classic")
+    print = realPrint
+end
+print("legacy ok")
 
 -- The compass's places (tests/fixtures/Services.lua): for a gnome mage, the mage trainer, not
 -- another class's nor the Horde's, the flight masters; not the trainer of a profession neither
@@ -4149,6 +4170,36 @@ local function ExportImport()
     assert(FG.DataGuide == nil and FG.DataFailed, "functions refused in the data")
     FG.DataFailed = nil
 
+    -- Factoruide_Ready, the published ready-made guides: only the character's race and class
+    -- (gnome mage, "7:8") is decoded, with the pack's places; followed by itself only when the
+    -- character has no guide of its own for it.
+    local kept = { guides = FactoruideDB.guides, file = FG.Import.file, data = FG.Import.data }
+    local places =
+        'local FG = Factoruide\nFG.Services = { { "trainer", "A", 8, 0, 1, 2, 1429, 50, 50, "Trainer", 1 } }\n'
+    FactoruideReady = {
+        [FG.Edition] = {
+            time = 8000,
+            services = Encode(places),
+            guides = { ["7:8"] = Encode(GuideLua("ready-mage", 8000)), ["1:1"] = "FGG1:never decoded" },
+        },
+    }
+    FG.Import:ApplySaved()
+    assert(FactoruideReady == nil and FG.Import.readyPack == nil, "pack let go")
+    assert(FG.Routes["ready-mage"] and FG.Import.info["ready-mage"].source == "ready", "ready-made guide offered")
+    assert(FG.Import.ready.ns.Services[1][10] == "Trainer", "its places")
+    useRoute(nil)
+    assert(char.guide.route ~= "ready-mage", "own guides first: " .. tostring(char.guide.route))
+    FG.Options:Refresh()
+    assert(Row("ready-mage").details:GetText():find(FG.T("ready-made (Factoruide Ready addon)"), 1, true), "labelled")
+    assert(not Row("ready-mage").delete:IsShown(), "not deleted in game")
+    FactoruideDB.guides, FG.Import.file, FG.Import.data = {}, { routes = {}, assignments = {} }, nil
+    FG.Import:ApplySaved()
+    useRoute(nil)
+    assert(char.guide.route == "ready-mage", "no own guide: the ready-made one: " .. tostring(char.guide.route))
+    FactoruideDB.guides, FG.Import.file, FG.Import.data, FG.Import.ready = kept.guides, kept.file, kept.data, nil
+    FG.Import:ApplySaved()
+    assert(not FG.Routes["ready-mage"], "gone with the addon")
+
     -- An older app's text: the whole text kept before (guideImport) moves to one guide each, its
     -- assignments are the first choice of the characters they name when several guides fit.
     FG.Import.data = nil
@@ -4506,6 +4557,7 @@ local function SettingsTest()
         "the macro's button: " .. After("targetMark").name
     )
     assert(After("compassShown").name == "Remettre la boussole en haut", "the compass's button")
+    assert(After("legacyAdvice").name == "Avantages d'Héritage à prendre d'abord", "the Legacy perks' button")
 
     -- The key bindings: each has its name (translated) and does what it says.
     local names = 0

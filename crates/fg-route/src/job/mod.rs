@@ -35,9 +35,10 @@ pub use race::{optimize, optimize_interruptible};
 pub use reputation::race_base;
 pub use request::{GROUP_MAX, GROUP_MIN_LEVEL, PlanOutcome, PlanRequest, Prepared};
 pub use routes::{
-    DATA_ADDON, GUIDE_FORMAT, POLESTAR_SOURCE_FOLDER, add_polestar_source, addon_walks, data_addon_files, guides_lua,
-    load_routes, lua_long_string, polestar_source_dir, render_routes, save_route, slug, write_addon_routes,
-    write_data_addon, write_polestar_pack, write_polestar_source, write_polestar_strings,
+    DATA_ADDON, GUIDE_FORMAT, POLESTAR_SOURCE_FOLDER, READY_ADDON, add_polestar_source, addon_walks, data_addon_files,
+    guides_lua, load_routes, lua_long_string, polestar_source_dir, ready_pack_lua, render_routes, save_route, slug,
+    write_addon_routes, write_data_addon, write_polestar_pack, write_polestar_source, write_polestar_strings,
+    write_ready_addon,
 };
 pub use rxp::{
     Import as RxpImport, ImportReport, Imported as RxpImported, LICENSE as RXP_LICENSE, RxpGuide,

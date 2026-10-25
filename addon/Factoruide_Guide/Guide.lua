@@ -1439,22 +1439,27 @@ local function UseRoute(name)
 end
 
 --- The guide a character follows without having chosen one: the only guide made for its race
---- and class; else the one an older app assigned to it (FG.Assignments); else none.
+--- and class; else the one an older app assigned to it (FG.Assignments); else, with no guide of
+--- its own for it, the ready-made one (Factoruide_Ready); else none.
 local function AutoRoute()
     local routes = FG.Routes or {}
-    local found
+    local found, several, ready
     for name, r in pairs(routes) do
         if FG.Import.Fits(r) then
-            if found then
-                found = nil
-                break
+            local info = FG.Import.info and FG.Import.info[name]
+            if info and info.source == "ready" then
+                ready = name
+            elseif found then
+                several = true
+            else
+                found = name
             end
-            found = name
         end
     end
-    if found then return found end
+    if found and not several then return found end
     local assigned = FG.Assignments and FG.Assignments[FG:CharacterKey()]
     if assigned and routes[assigned] then return assigned end
+    if not found then return ready end
 end
 
 --- The guide the character chose (kept in its state), while it is there; else the automatic one.

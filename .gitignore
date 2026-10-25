@@ -3,6 +3,9 @@
 /data/*.sqlite
 debug/
 /routes/
+# The ready-made guides addon (scripts/ready-guides.sh).
+/dist/
+/Factoruide_Ready/
 /*Zone.Identifier
 # Written by the app when it installs the addon.
 /addon/Factoruide_Guide/Routes.lua

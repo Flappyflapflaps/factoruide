@@ -41,6 +41,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ### Addon
 
+- With the new Factoruide_Ready addon installed, a character with no guide of its own follows the ready-made guide of its race and class: no app needed. A guide made in the app for it still comes first.
 - A step's tooltip says why it is in the guide: the XP its quest gives, the reward planned for you, the quests it opens, or what a trainer, flight, inn or grind step is for.
 - Off the guide's planned walk (after a death, a detour or a hearth), the compass and the 3D arrow lead you back to the walk a bit ahead of where it is closest, up to 1000 yards away, instead of straight at the step across the ground the walk goes round; close to the step, they still go straight to it.
 - Gear advice follows your talents: a balance or restoration druid, an elemental or restoration shaman, a holy or protection paladin, a holy or discipline priest and a protection warrior are told about the gear their spec wants (intellect, spell damage, healing, mana or stamina), not the leveling spec's; a reward the guide picked for another spec is no longer chosen for you.
@@ -53,6 +54,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 - Quest, NPC and spawn data brought up to date, with 51 more contributions from players: WoW Forever gets quests it had wrongly left out or marked unavailable, and corrected XP, races, classes and zones; TBC gets 11 quests it lacked; Classic is unchanged.
 - 206 contributed names, titles, levels and objectives checked against public pages and added: Spanish and French translations that were old or literal, minimum levels, a few objectives.
+- WoW Forever, Zephras Isle: Skyborne guides leave the island by its zeppelin (Alliance, to Dalaran) or airship (Horde, to Mulgore) without its last quests, take In Service of Zephras alongside Avenged Tenfold and Unfortunate News before Al'Aketh Assassins is done, and gather Restocking the Larders' eggs and meat on the island's Galestriders instead of the Barrens.
 
 ## 0.14.0 (2026-10-21)
 
