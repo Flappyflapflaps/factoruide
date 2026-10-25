@@ -52,6 +52,8 @@ Safety.lua
 Party.lua
 Timing.lua
 XpPlan.lua
+Rested.lua
+XpBuffs.lua
 Bank.lua
 MapPins.lua
 PathLines.lua

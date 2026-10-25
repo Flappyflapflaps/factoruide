@@ -25,6 +25,9 @@ pub(crate) type Legs = RefCell<FxHashMap<(PosKey, PosKey, u128), (f64, Hop)>>;
 /// What a table of 2^18 buckets holds (7/8 of them): it never grows past them.
 const LEGS_MAX: usize = (1 << 18) / 8 * 7;
 
+/// The best flight between two sets of flight paths: its time, weighted time, from and to.
+type Flight = Option<(f64, f64, usize, usize)>;
+
 /// A `Leg` as remembered (flight path and link indexes on 16 bits).
 #[derive(Clone, Copy)]
 pub(crate) enum Hop {
@@ -33,6 +36,7 @@ pub(crate) enum Hop {
     Link(u16, u16),
     FlyLink([u16; 4]),
     LinkFly([u16; 4]),
+    FlyLinkFly([u16; 6]),
 }
 
 impl Hop {
@@ -48,6 +52,10 @@ impl Hop {
             Leg::Link(a, b) => pair(a, b).map(|(a, b)| Self::Link(a, b))?,
             Leg::FlyLink(a, b, c, d) => Self::FlyLink(four(a, b, c, d)?),
             Leg::LinkFly(a, b, c, d) => Self::LinkFly(four(a, b, c, d)?),
+            Leg::FlyLinkFly(a, b, c, d, e, f) => {
+                let ([a, b, c, d], (e, f)) = (four(a, b, c, d)?, pair(e, f)?);
+                Self::FlyLinkFly([a, b, c, d, e, f])
+            }
         })
     }
 
@@ -58,6 +66,9 @@ impl Hop {
             Self::Link(a, b) => Leg::Link(a.into(), b.into()),
             Self::FlyLink([a, b, c, d]) => Leg::FlyLink(a.into(), b.into(), c.into(), d.into()),
             Self::LinkFly([a, b, c, d]) => Leg::LinkFly(a.into(), b.into(), c.into(), d.into()),
+            Self::FlyLinkFly([a, b, c, d, e, f]) => {
+                Leg::FlyLinkFly(a.into(), b.into(), c.into(), d.into(), e.into(), f.into())
+            }
         }
     }
 }
@@ -271,8 +282,10 @@ impl Trips<'_> {
         if links.is_empty() || (from.continent == b.continent && walk <= 240.0) {
             return best;
         }
-        // A flight and a boat (or a zeppelin, a portal): flown to the port, or flown on from
-        // where it lands. Each tried only when the straight lines could make the trip shorter.
+        // A flight and a boat (or a zeppelin, a portal): flown to the port, flown on from where
+        // it lands, or both (Ironforge to Gadgetzan: the flight to Menethil Harbor, the boat to
+        // Theramore, the flight to Gadgetzan). Each tried only when the straight lines could
+        // make the trip shorter.
         let line = |p: &Pos, q: &Pos| p.dist(q) * self.params.detour / self.params.speed(level);
         let least = |v: &[(usize, f64)]| v.iter().map(|x| x.1).fold(f64::INFINITY, f64::min);
         let (from_least, b_least) = (least(&near_from), least(&near_b));
@@ -280,6 +293,9 @@ impl Trips<'_> {
         let mut from_a: Vec<Option<f64>> = vec![None; links.len()];
         let mut ports: Vec<Option<Vec<(usize, f64)>>> = vec![None; links.len()];
         let mut docks: Vec<Option<Vec<(usize, f64)>>> = vec![None; links.len()];
+        // The best flights to the port of each link, and from where each lands.
+        let mut to_port: Vec<Option<Flight>> = vec![None; links.len()];
+        let mut from_dock: Vec<Option<Flight>> = vec![None; links.len()];
         for (k, lk) in links.iter().enumerate() {
             for (l, ll) in links.iter().enumerate() {
                 let ride = chain[k][l];
@@ -310,6 +326,29 @@ impl Trips<'_> {
                             weighted = wa + ride + w;
                             best = (wa + ride + t, Leg::LinkFly(k, l, i, j));
                         }
+                    }
+                }
+                // Flown to the port of `k`, by boat to `l`'s landing, flown on to `b`.
+                if from_least + overhead + ride + overhead + b_least < weighted {
+                    let first = *to_port[k].get_or_insert_with(|| {
+                        let port = ports[k].get_or_insert_with(|| nearest(&lk.from, true));
+                        fly(&near_from, port)
+                    });
+                    let Some((t1, w1, i, j)) = first else {
+                        continue;
+                    };
+                    if w1 + ride + overhead + b_least >= weighted {
+                        continue;
+                    }
+                    let second = *from_dock[l].get_or_insert_with(|| {
+                        let dock = docks[l].get_or_insert_with(|| nearest(&ll.to, false));
+                        fly(dock, &near_b)
+                    });
+                    if let Some((t2, w2, m, n)) = second
+                        && w1 + ride + w2 < weighted
+                    {
+                        weighted = w1 + ride + w2;
+                        best = (t1 + ride + t2, Leg::FlyLinkFly(i, j, k, l, m, n));
                     }
                 }
             }
@@ -360,7 +399,8 @@ impl Trips<'_> {
         }
         // Where a boat, a portal or a flight lands, and the least time to get there: flights
         // first, boats from where the trip starts or a flight lands, then flights from where
-        // a boat lands (a trip takes a flight and boats, in either order, `compute_leg`).
+        // a boat lands (a trip takes a flight and boats in either order, or flights before and
+        // after them, `compute_leg`).
         // The least time to stand at each of `boardings` from `origins` (points and the time
         // to be there).
         let arrive = |origins: &[(Pos, f64)], boardings: &[Pos]| -> Vec<f64> {

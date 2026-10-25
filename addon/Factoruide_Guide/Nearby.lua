@@ -132,6 +132,38 @@ function Nearby:Around(continent, north, west)
     return found
 end
 
+--- The closest place of `service` ("inn"...) for the character's faction on `continent`, at any
+--- distance and whatever its compass setting, as `Nearby:Around` gives places; and its yards.
+function Nearby:Closest(service, continent, north, west)
+    local faction = UnitFactionGroup("player") == "Horde" and "H" or "A"
+    local best, bestD2
+    for _, p in ipairs(FG.Services or {}) do
+        if p[1] == service and p[4] == continent and p[2]:find(faction, 1, true) then
+            local d2 = (p[5] - north) ^ 2 + (p[6] - west) ^ 2
+            if not best or d2 < bestD2 then
+                best, bestD2 = p, d2
+            end
+        end
+    end
+    if not best then return nil end
+    local kind = Nearby.KINDS[service]
+    return {
+        continent = best[4],
+        north = best[5],
+        west = best[6],
+        m = best[7],
+        x = best[8],
+        y = best[9],
+        name = best[10],
+        sub = kind and kind.label,
+        icon = kind and kind.icon,
+        service = service,
+        npc = best[11] ~= 0 and best[11] or nil,
+        place = true,
+    },
+        math.sqrt(bestD2)
+end
+
 --- Look again at the next call (a setting changed).
 function Nearby:Forget() foundAt = nil end
 
