@@ -948,6 +948,21 @@ assert(macros[index].body:find("SetRaidTarget", 1, true), "skull on Classic")
 FG.Edition = "forever"
 print("target macro ok")
 
+-- Kill XP of mobs below the character, against one of its level: WoW Forever takes the base at
+-- the mob's level (measured at level 25: a level 22 mob gives 113 XP, one of level 25 170).
+do
+    local share = FG.Guide.MobXpShare
+    local function near(a, b) return math.abs(a - b) < 0.005 end
+    assert(share(25, 25) == 1 and share(25, 27) == 1, "same level or above: full XP")
+    assert(near(share(25, 22), 113 / 170), "forever, 3 below: " .. share(25, 22))
+    assert(near(share(10, 5), 20 / 95), "forever, 5 below at 10: " .. share(10, 5))
+    assert(share(25, 18) == 0, "gray: no XP")
+    FG.Edition = "classic"
+    assert(near(share(25, 22), 8 / 11), "classic, 3 below: " .. share(25, 22))
+    FG.Edition = "forever"
+end
+print("mob xp share ok")
+
 -- Talent plan: the next talent follows the class plan (mage: Improved Frostbolt x5, then
 -- Elemental Precision).
 local frostbolt = 2
@@ -2249,8 +2264,10 @@ end
 print("compass places ok")
 
 -- The planned walk (`wp`: its start and turns, world yards): the compass points along it, a bit
--- ahead of its closest point; going back to it when beside it; not when far from it, nor on its
--- last leg (straight to the place), nor with the setting off.
+-- ahead of its closest point; beside it (a death, a detour, a hearth), back to the point of it
+-- still ahead with the shortest way to the place, not straight across the ground it goes round;
+-- not when very far from it, nor on its last leg or close to the place (straight to it), nor
+-- with the setting off.
 FG.Routes["walk-test"] = {
     race = 7,
     class = 8,
@@ -2290,8 +2307,11 @@ do
     local n, w, back = FG.Pathing:Aim(0, 299.3, 712)
     assert(n and math.abs(n - 299) < 1 and math.abs(w - 742) < 1 and not back, "along the first leg")
     n, w, back = FG.Pathing:Aim(0, 240, 712)
-    assert(n and math.abs(w - 742) < 1 and back, "beside the walk: back to it")
-    assert(FG.Pathing:Aim(0, 0, 712) == nil, "far from the walk")
+    assert(n and math.abs(n - 299) < 1 and math.abs(w - 732.9) < 1 and back, "beside the walk: back to it, ahead")
+    n, w, back = FG.Pathing:Aim(0, 0, 712)
+    assert(n and math.abs(n - 299) < 1 and math.abs(w - 800) < 1 and back, "far from the walk: back to its turn")
+    assert(FG.Pathing:Aim(0, -1000, 712) == nil, "very far from the walk: straight")
+    assert(FG.Pathing:Aim(0, 450, 712) == nil, "beside the walk, close to the place: straight to it")
     FG:Set("pathMode", "off")
     assert(FG.Pathing:Aim(0, 299.3, 712) == nil, "the walk turned off")
     FG:Set("pathMode", nil)
@@ -2374,6 +2394,9 @@ do
     assert(left[2][2] == 800 and left[3][1] == 400 and math.abs(left[4][1] - 400) < 1, "its turns, then the place")
     left = FG.Pathing:Remaining(0, 240, 712)
     assert(left[1][1] == 240 and #left == 5, "beside it: from the character")
+    assert(math.abs(left[2][1] - 299) < 1 and math.abs(left[2][2] - 732.9) < 1, "then where it goes back to it")
+    left = FG.Pathing:Remaining(0, 450, 712)
+    assert(#left == 2 and left[1][1] == 450 and left[2][1] == 400, "close to the place: straight to it")
     FG:Set("pathMode", "off")
     assert(FG.Pathing:Remaining(0, 299.3, 712) == nil, "not drawn when off")
     FG:Set("pathMode", nil)
