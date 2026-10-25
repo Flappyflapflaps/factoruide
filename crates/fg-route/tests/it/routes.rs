@@ -1597,6 +1597,34 @@ fn outleveled_dungeon_run_without_quests_is_dropped() {
     assert_eq!(planner(&p).drop_idle_runs(&[run]), None);
 }
 
+/// A dungeon the player gives a level to is run at that level or the next one (issue #48: a
+/// group met at 22 for the Deadmines); the others keep the levels of their quests.
+#[test]
+fn a_dungeon_level_chosen_by_the_player_replaces_its_quests_levels() {
+    let auto = prepare("human", "warrior", 30, &["progression=cautious"]);
+    let deadmines = auto
+        .model
+        .dungeons
+        .iter()
+        .position(|d| d.name == "The Deadmines")
+        .unwrap();
+    let area = auto.model.dungeons[deadmines].area;
+    assert_ne!(auto.model.dungeons[deadmines].min_level, 22, "not 22 already");
+    let chosen = prepare(
+        "human",
+        "warrior",
+        30,
+        &["progression=cautious", &format!("dungeon_levels=[[{area}, 22]]")],
+    );
+    let d = &chosen.model.dungeons[deadmines];
+    assert_eq!((d.min_level, d.max_level), (22, 23));
+    for (a, b) in auto.model.dungeons.iter().zip(&chosen.model.dungeons) {
+        if a.area != area {
+            assert_eq!((a.min_level, a.max_level), (b.min_level, b.max_level), "{}", a.name);
+        }
+    }
+}
+
 /// Where an entity of the model stands, as the addon records it.
 fn map_pos(p: &Prepared, pos: &fg_route::world::Pos, zone: i64) -> MapPos {
     let m = p.world.to_map(zone, pos).unwrap();
