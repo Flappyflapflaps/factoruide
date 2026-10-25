@@ -1021,6 +1021,41 @@ FG.Guide:State().levelTimes = { [3] = 240 }
 assert(FG.Timing:Short():find("1 min", 1, true), "timing ahead of plan: " .. FG.Timing:Short())
 print("timing ok")
 
+-- Why a step is there: what its quest gives (XP at the turn-in, the quests it opens), what a
+-- visit is for, nothing for a step with nothing to say.
+FG.Routes["why-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    steps = {
+        { k = "accept", t = "Accept", q = 7301, lvl = 1 },
+        { k = "turnin", t = "Turn in", q = 7301, rx = 1250, lvl = 2 },
+        { k = "accept", t = "Accept", q = 7302, pre = { 7301 }, lvl = 2 },
+        { k = "train", t = "Trainer", lvl = 2 },
+        { k = "grind", t = "Grind", kp = true, lvl = 3 },
+        { k = "accept", t = "Accept", q = 7303, lvl = 3 },
+    },
+}
+useRoute("why-test")
+do
+    local T, why = FG.T, function(i) return FG.Guide:Why(i) end
+    for _, i in ipairs({ 1, 2 }) do
+        assert(
+            why(i):find("1", 1, true) and why(i):find(T("opens the next quest"), 1, true),
+            "quest: " .. tostring(why(i))
+        )
+    end
+    assert(
+        why(4) == string.format(T("Why: %s"), T("new spells that make fights faster")),
+        "trainer: " .. tostring(why(4))
+    )
+    assert(why(5) == string.format(T("Why: %s"), T("keeps you at the planned XP")), "checkpoint: " .. tostring(why(5)))
+    assert(why(6) == nil and why(99) == nil, "nothing to say")
+end
+print("why this step ok")
+
 -- Flight master: the current fly step's destination is taken.
 local taken
 Enum = Enum or {}
