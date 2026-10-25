@@ -173,4 +173,9 @@ FG.Locales.ptBR = {
     ["profile sent to the party (%d messages, about %d s)"] = "perfil enviado ao grupo (%d mensagens, cerca de %d s)",
     ["profile of %s received: reload the interface (/reload) for the Factoruide app to make a group guide with it"] = "perfil de %s recebido: recarregue a interface (/reload) para o aplicativo Factoruide fazer um guia de grupo com ele",
     ["not in a party: nobody to send the profile to"] = "sem grupo: ninguém para receber o perfil",
+    ["Arrow"] = "Seta",
+    ["/fg: hide it, or put it back in its place"] = "/fg: ocultá-la ou devolvê-la ao lugar",
+    ["arrow back in its place, at its first size"] = "seta de volta ao lugar, no tamanho original",
+    ["Arrow back in its place"] = "Devolver a seta ao lugar",
+    ["Under the compass, at its first size."] = "Abaixo da bússola, no tamanho original.",
 }

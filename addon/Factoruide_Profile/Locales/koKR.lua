@@ -173,4 +173,9 @@ FG.Locales.koKR = {
     ["profile sent to the party (%d messages, about %d s)"] = "파티에 프로필 전송 (메시지 %d개, 약 %d초)",
     ["profile of %s received: reload the interface (/reload) for the Factoruide app to make a group guide with it"] = "%s 님의 프로필 수신: Factoruide 앱에서 그룹 가이드를 만들려면 UI를 다시 불러오세요 (/reload)",
     ["not in a party: nobody to send the profile to"] = "파티 없음: 프로필을 보낼 대상이 없습니다",
+    ["Arrow"] = "화살표",
+    ["/fg: hide it, or put it back in its place"] = "/fg: 숨기거나 원래 자리로 되돌리기",
+    ["arrow back in its place, at its first size"] = "화살표를 원래 자리와 크기로 되돌렸습니다",
+    ["Arrow back in its place"] = "화살표를 원래 자리로",
+    ["Under the compass, at its first size."] = "나침반 아래, 원래 크기로.",
 }

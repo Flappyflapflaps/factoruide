@@ -271,4 +271,9 @@ FG.Locales.frFR = {
     ["%s follows another version of the guide"] = "%s suit une autre version du guide",
     ["Train at your class trainer"] = "Entraînez-vous chez votre maître de classe",
     ["done, waiting for %s"] = "fait, en attente de %s",
+    ["Arrow"] = "Flèche",
+    ["/fg: hide it, or put it back in its place"] = "/fg : la masquer, ou la remettre à sa place",
+    ["arrow back in its place, at its first size"] = "flèche remise à sa place, à sa taille d'origine",
+    ["Arrow back in its place"] = "Remettre la flèche à sa place",
+    ["Under the compass, at its first size."] = "Sous la boussole, à sa taille d'origine.",
 }
