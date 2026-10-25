@@ -2249,8 +2249,10 @@ end
 print("compass places ok")
 
 -- The planned walk (`wp`: its start and turns, world yards): the compass points along it, a bit
--- ahead of its closest point; going back to it when beside it; not when far from it, nor on its
--- last leg (straight to the place), nor with the setting off.
+-- ahead of its closest point; beside it (a death, a detour, a hearth), back to the point of it
+-- still ahead with the shortest way to the place, not straight across the ground it goes round;
+-- not when very far from it, nor on its last leg or close to the place (straight to it), nor
+-- with the setting off.
 FG.Routes["walk-test"] = {
     race = 7,
     class = 8,
@@ -2290,8 +2292,11 @@ do
     local n, w, back = FG.Pathing:Aim(0, 299.3, 712)
     assert(n and math.abs(n - 299) < 1 and math.abs(w - 742) < 1 and not back, "along the first leg")
     n, w, back = FG.Pathing:Aim(0, 240, 712)
-    assert(n and math.abs(w - 742) < 1 and back, "beside the walk: back to it")
-    assert(FG.Pathing:Aim(0, 0, 712) == nil, "far from the walk")
+    assert(n and math.abs(n - 299) < 1 and math.abs(w - 732.9) < 1 and back, "beside the walk: back to it, ahead")
+    n, w, back = FG.Pathing:Aim(0, 0, 712)
+    assert(n and math.abs(n - 299) < 1 and math.abs(w - 800) < 1 and back, "far from the walk: back to its turn")
+    assert(FG.Pathing:Aim(0, -1000, 712) == nil, "very far from the walk: straight")
+    assert(FG.Pathing:Aim(0, 450, 712) == nil, "beside the walk, close to the place: straight to it")
     FG:Set("pathMode", "off")
     assert(FG.Pathing:Aim(0, 299.3, 712) == nil, "the walk turned off")
     FG:Set("pathMode", nil)
@@ -2374,6 +2379,9 @@ do
     assert(left[2][2] == 800 and left[3][1] == 400 and math.abs(left[4][1] - 400) < 1, "its turns, then the place")
     left = FG.Pathing:Remaining(0, 240, 712)
     assert(left[1][1] == 240 and #left == 5, "beside it: from the character")
+    assert(math.abs(left[2][1] - 299) < 1 and math.abs(left[2][2] - 732.9) < 1, "then where it goes back to it")
+    left = FG.Pathing:Remaining(0, 450, 712)
+    assert(#left == 2 and left[1][1] == 450 and left[2][1] == 400, "close to the place: straight to it")
     FG:Set("pathMode", "off")
     assert(FG.Pathing:Remaining(0, 299.3, 712) == nil, "not drawn when off")
     FG:Set("pathMode", nil)
