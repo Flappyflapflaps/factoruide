@@ -20,6 +20,13 @@ of the databases keeps the sources it comes from (`sources` columns, `import_run
 Used to build the databases but not included in them: [WoWDBDefs](https://github.com/wowdev/WoWDBDefs)
 (client table definitions, CC BY-SA 4.0) and [TACTKeys](https://github.com/wowdev/TACTKeys).
 
+## Polestar
+
+`fg polestar-import` reads [Polestar](https://github.com/fitzforge/polestar)'s leveling guides
+(GPL-3.0, by the Polestar authors) from a copy the user gives it; nothing of Polestar is included
+in this repository. A guide saved from them (`--save`) takes their quest order and says so in its
+notes; it is a work based on Polestar's guides, to be shared under the GPL version 3 like them.
+
 ## Questie
 
 Questie and QuestieDB have no license file. Their maintainers explain in

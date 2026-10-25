@@ -198,6 +198,14 @@ pack). Exporting another guide adds its `.guide` file to the pack and keeps the 
 a guide again replaces its file. `fg polestar --source --out <dir>` writes such a pack from the
 planned routes.
 
+The other way, `fg polestar-import --guides <polestar>/guides --race human --class mage` reads
+Polestar's own leveling guides (the `guides/` folder of a checkout of its repository, GPL-3.0) and
+replays the chain a character follows, its quests in Polestar's order, under Factoruide's time
+model: the time and level at each of its guides, the steps our data cannot replay and why, and
+level by level against our guide for the same race and class (`--against <route>`). With
+`--save <name>` the replayed route becomes a guide of ours (routes folder and data addon), credited
+to Polestar, to follow, edit or compare with `fg diff`.
+
 - Guide: follows the guide chosen for the character (in the options' guides; the only one of
   its race and class by itself) and advances by itself; previous and next step, start over on the
   guide's buttons, mark a step done with a right click or a key binding. Two modes: full (a card with the current tasks, the next steps and

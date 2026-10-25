@@ -587,10 +587,20 @@ impl Editor {
 
     /// The guide of edited steps, to save (with `notes`); refused when a step is not possible.
     pub fn save(&self, steps: &[RouteStep], notes: Vec<String>) -> Result<PlanOutcome> {
-        let planner = self.planner();
+        self.save_by(&self.planner(), steps, notes)
+    }
+
+    /// The guide of `steps` as `planner` replays them (`Editor::planner`, or one replaying an
+    /// imported guide).
+    pub(super) fn save_by(
+        &self,
+        planner: &Planner<'_>,
+        steps: &[RouteStep],
+        notes: Vec<String>,
+    ) -> Result<PlanOutcome> {
         let edits = steps
             .iter()
-            .map(|s| s.resolve(&planner))
+            .map(|s| s.resolve(planner))
             .collect::<Result<Vec<_>, _>>()
             .map_err(anyhow::Error::msg)?;
         let edited = planner.edit(&edits);
@@ -631,7 +641,7 @@ impl Editor {
         let edited = planner.edit(&edits);
         let total = edited.breakdown.total;
         let route = export::build_traced(
-            &planner,
+            planner,
             &self.prepared.profile,
             &edited.route,
             &edited.trace,
