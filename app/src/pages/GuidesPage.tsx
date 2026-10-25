@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { open as pickFolder } from "@tauri-apps/plugin-dialog";
 import { api, type Edition, type GuideSummary, type GuideVersion, type Options, type VersionMeta } from "../api";
 import { ExportMenu, GlobalExport, type ExportResult } from "../components/ExportMenu";
 import "./guides.css";
@@ -66,6 +67,8 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
   const fileRef = useRef<HTMLInputElement>(null);
   // The race and class asked of a guide made from RestedXP's (desktop app: it reads the game's addons).
   const [rxp, setRxp] = useState(false);
+  // The same, from Polestar's leveling guides (WoW Forever, desktop app: it reads a folder).
+  const [polestar, setPolestar] = useState(false);
 
   const load = useCallback(() => {
     api.listGuides().then(setGuides).catch((e) => setError(String(e)));
@@ -192,8 +195,25 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
           {t("Importer un guide…")}
         </button>
         {!IS_WEB && options && (
-          <button onClick={() => setRxp(!rxp)} title={t("Fait un guide des guides RestedXP de l'addon RestedXP Guides installé dans le jeu")}>
+          <button
+            onClick={() => {
+              setRxp(!rxp);
+              setPolestar(false);
+            }}
+            title={t("Fait un guide des guides RestedXP de l'addon RestedXP Guides installé dans le jeu")}
+          >
             {t("Importer de RestedXP…")}
+          </button>
+        )}
+        {!IS_WEB && options && edition === "forever" && (
+          <button
+            onClick={() => {
+              setPolestar(!polestar);
+              setRxp(false);
+            }}
+            title={t("Fait un guide des guides de montée de niveau de Polestar (le dossier guides d'un téléchargement de Polestar)")}
+          >
+            {t("Importer de Polestar…")}
           </button>
         )}
         {!!guides?.length && <GlobalExport edition={edition} count={guides.length} onDone={exported} />}
@@ -205,6 +225,21 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
           onImport={(race, klass) => {
             setRxp(false);
             act(async () => t("Guide « {name} » importé", { name: (await api.importRxp(race, klass)).name }));
+          }}
+        />
+      )}
+      {polestar && options && (
+        <RxpImport
+          options={options}
+          intro={t(
+            "Fait un guide des guides de montée de niveau de Polestar (GPL-3.0), rejoués avec les données de Factoruide : choisissez ensuite le dossier guides d'un téléchargement de Polestar (github.com/fitzforge/polestar). Les étapes impossibles sont retirées et le guide crédite Polestar.",
+          )}
+          onClose={() => setPolestar(false)}
+          onImport={async (race, klass) => {
+            const dir = await pickFolder({ directory: true, title: t("Dossier guides de Polestar") });
+            if (typeof dir !== "string") return;
+            setPolestar(false);
+            act(async () => t("Guide « {name} » importé", { name: (await api.importPolestar(race, klass, dir)).name }));
           }}
         />
       )}

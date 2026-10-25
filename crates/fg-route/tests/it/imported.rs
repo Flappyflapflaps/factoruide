@@ -3,7 +3,7 @@
 
 use crate::common::{database_of, repo};
 use fg_route::import::polestar::{self, Character};
-use fg_route::job::{Editor, ImportStep, Overrides, PlanRequest};
+use fg_route::job::{self, Editor, ImportStep, Overrides, PlanRequest, PolestarImport};
 use fg_route::xp::Edition;
 
 const NORTHSHIRE: &str = r"guide test/northshire
@@ -69,4 +69,48 @@ fn polestar_guide_replays_and_saves() {
         "saved {ours} s, replayed {theirs} s"
     );
     assert_eq!(saved.notes, ["credit"]);
+}
+
+/// From a folder of Polestar guides, as the app does: the guide ends where the chain does, and
+/// its notes credit Polestar and count what was left out.
+#[test]
+fn polestar_folder_makes_a_guide() {
+    let dir = std::env::temp_dir().join(format!("fg-polestar-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("forever")).unwrap();
+    std::fs::write(dir.join("forever/northshire.guide"), NORTHSHIRE).unwrap();
+    let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Forever).unwrap();
+    let what = PolestarImport {
+        race: "human".into(),
+        class: "mage".into(),
+        from_level: 1,
+        to_level: None,
+        name: None,
+        locale: None,
+    };
+    let imported = job::import_polestar(&database_of("forever"), &overrides, &dir, &what, None).unwrap();
+    std::fs::remove_dir_all(&dir).unwrap();
+    assert_eq!(imported.request.to_level, 3);
+    assert_eq!(imported.request.name.as_deref(), Some("Polestar 1-3 Human Mage"));
+    assert_eq!(imported.guides, ["Northshire Valley 1-3"]);
+    assert_eq!(imported.outcome.notes[0], job::POLESTAR_CREDIT);
+    assert!(
+        imported.outcome.notes[1].starts_with("1 of Polestar's steps left out"),
+        "{:?}",
+        imported.outcome.notes
+    );
+    let warlock = PolestarImport {
+        class: "warlock".into(),
+        ..what
+    };
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("northshire.guide"),
+        NORTHSHIRE.replace("race Human", "race Orc"),
+    )
+    .unwrap();
+    let err = job::import_polestar(&database_of("forever"), &overrides, &dir, &warlock, None)
+        .err()
+        .unwrap();
+    std::fs::remove_dir_all(&dir).unwrap();
+    assert!(err.to_string().starts_with("no Polestar leveling guide"), "{err}");
 }

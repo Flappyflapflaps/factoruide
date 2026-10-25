@@ -4,11 +4,16 @@
 //! as a guide of ours to follow or edit.
 
 use super::edit::{RouteStep, route_steps};
-use super::{Editor, PlanOutcome};
+use super::{Editor, Overrides, PlanOutcome, PlanRequest};
+use crate::import::polestar::{self, Character};
 use crate::model::Profile;
 use crate::plan::{Breakdown, Kind, Planner, Stop, Want, fmt_time};
-use anyhow::Result;
+use crate::terrain::Walks;
+use anyhow::{Context, Result};
+use rusqlite::Connection;
 use serde::Serialize;
+use std::path::Path;
+use std::sync::Arc;
 
 /// A step of another addon's guide, by game IDs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,6 +55,103 @@ pub struct ReplayReport {
 }
 
 const END: &str = "end";
+
+/// Credit kept in the notes of a guide made from Polestar's.
+pub const POLESTAR_CREDIT: &str =
+    "Quest order from Polestar's leveling guides (github.com/fitzforge/polestar, GPL-3.0), replayed by Factoruide";
+
+/// What to make a guide of from Polestar's leveling guides.
+#[derive(Debug, Clone)]
+pub struct PolestarImport {
+    pub race: String,
+    pub class: String,
+    pub from_level: i64,
+    /// Default: where the character's last guide ends.
+    pub to_level: Option<i64>,
+    /// The guide's name (default: "Polestar <levels> <race> <class>").
+    pub name: Option<String>,
+    pub locale: Option<String>,
+}
+
+/// A guide made from Polestar's leveling guides.
+pub struct PolestarImported {
+    pub request: PlanRequest,
+    pub outcome: PlanOutcome,
+    /// Polestar's guides followed, with their levels.
+    pub guides: Vec<String>,
+    pub report: ReplayReport,
+}
+
+/// A guide of ours from Polestar's leveling guides in `dir` (their `.guide` sources): the chain
+/// the character follows from `from_level`, replayed (`Editor::follow`) and saved as imposed,
+/// credited to Polestar, with how many of its steps were left out.
+pub fn import_polestar(
+    conn: &Connection,
+    overrides: &Overrides,
+    dir: &Path,
+    what: &PolestarImport,
+    walks: Option<&Arc<Walks>>,
+) -> Result<PolestarImported> {
+    let params = overrides.params.clone();
+    let max_level = params.edition.rules().max_level;
+    let options = super::options(conn, overrides)?;
+    let race = (overrides.races.get(&what.race)).with_context(|| format!("unknown race {}", what.race))?;
+    let class = (options.classes.iter())
+        .find(|c| c.key == what.class)
+        .with_context(|| format!("unknown class {}", what.class))?;
+    let who = Character::new(race.id, class.id, race.faction).context("a race or class Polestar has no name for")?;
+    let guides = polestar::read_dir(dir)?;
+    let chain = polestar::chain(&guides, &who, what.from_level, what.to_level.unwrap_or(max_level));
+    anyhow::ensure!(
+        !chain.is_empty(),
+        "no Polestar leveling guide for a {} {} ({}) in {}",
+        who.race,
+        who.class,
+        who.faction,
+        dir.display()
+    );
+    let to_level = (what.to_level)
+        .unwrap_or_else(|| (chain.iter().map(|g| g.levels.1.ceil() as i64).max()).unwrap_or(max_level))
+        .clamp(what.from_level + 1, max_level);
+    let names: Vec<String> = (chain.iter())
+        .map(|g| format!("{} {}-{}", g.title, g.levels.0, g.levels.1))
+        .collect();
+    let name = what.name.clone().unwrap_or_else(|| {
+        let race = (options.races.iter())
+            .find(|r| r.key == what.race)
+            .map_or(what.race.as_str(), |r| r.name.as_str());
+        format!("Polestar {}-{to_level} {race} {}", what.from_level, class.name)
+    });
+    let request = PlanRequest {
+        race: what.race.clone(),
+        class: what.class.clone(),
+        from_level: what.from_level,
+        to_level,
+        name: Some(name),
+        params: Some(params),
+        required_class_quests: None,
+        professions: vec![],
+        locale: what.locale.clone(),
+        mates: vec![],
+        start: None,
+    };
+    let editor = Editor::open(conn, overrides, &request, walks)?;
+    let report = editor.follow(&polestar::steps(&chain, &who));
+    let mut notes = vec![POLESTAR_CREDIT.to_owned()];
+    if !report.dropped.is_empty() {
+        notes.push(format!(
+            "{} of Polestar's steps left out: quests this database does not have for the character, or not possible when the guide gets there.",
+            report.dropped.len()
+        ));
+    }
+    let outcome = editor.save_import(&report.steps, notes)?;
+    Ok(PolestarImported {
+        request,
+        outcome,
+        guides: names,
+        report,
+    })
+}
 
 impl Editor {
     /// An imported guide's replayed steps (`ReplayReport::steps`) saved as a guide of ours, with

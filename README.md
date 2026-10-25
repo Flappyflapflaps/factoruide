@@ -204,7 +204,9 @@ replays the chain a character follows, its quests in Polestar's order, under Fac
 model: the time and level at each of its guides, the steps our data cannot replay and why, and
 level by level against our guide for the same race and class (`--against <route>`). With
 `--save <name>` the replayed route becomes a guide of ours (routes folder and data addon), credited
-to Polestar, to follow, edit or compare with `fg diff`.
+to Polestar, to follow, edit or compare with `fg diff`. In the app (WoW Forever), **Import from
+Polestar…** on the Guides page does the same from level 1: pick the race and class, then that
+`guides` folder, and the guide is added to your guides.
 
 - Guide: follows the guide chosen for the character (in the options' guides; the only one of
   its race and class by itself) and advances by itself; previous and next step, start over on the

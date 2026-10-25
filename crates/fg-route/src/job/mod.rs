@@ -27,7 +27,7 @@ pub use edit::{
     RouteStep, StepReport,
 };
 pub use flights::inferred_flights;
-pub use imported::{ImportStep, ReplayReport};
+pub use imported::{ImportStep, POLESTAR_CREDIT, PolestarImport, PolestarImported, ReplayReport, import_polestar};
 pub use options::{
     FactionOption, FlightOption, NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes,
 };
