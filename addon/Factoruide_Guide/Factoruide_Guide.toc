@@ -54,6 +54,7 @@ Timing.lua
 XpPlan.lua
 Rested.lua
 XpBuffs.lua
+Legacy.lua
 Bank.lua
 MapPins.lua
 PathLines.lua

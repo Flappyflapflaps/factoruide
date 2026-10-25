@@ -2292,6 +2292,27 @@ do
     IsResting, GetXPExhaustion, FG.ProfessionSkill, print = realResting, realExhaustion, realSkill, realPrint
 end
 print("xp buffs ok")
+-- Legacy perks: the advice in the chat at the first Legacy point (level 25), translated, not at
+-- another level, nor with the advice off or on Classic.
+do
+    local lines = {}
+    local realPrint = print
+    print = function(text) lines[#lines + 1] = text end
+    fire("PLAYER_LEVEL_UP", 24)
+    assert(#lines == 0, "no advice at 24")
+    fire("PLAYER_LEVEL_UP", 25)
+    assert(#lines == 1 + #FG.Legacy.PERKS, "the advice at 25: " .. #lines)
+    assert(lines[2]:find("1. Frequent Flier (1 rangs) : vols 20 % plus rapides", 1, true), "translated: " .. lines[2])
+    FG:Set("legacyAdvice", false)
+    fire("PLAYER_LEVEL_UP", 25)
+    FG:Set("legacyAdvice", nil)
+    FG.Edition = "classic"
+    fire("PLAYER_LEVEL_UP", 25)
+    FG.Edition = "forever"
+    assert(#lines == 1 + #FG.Legacy.PERKS, "none when off or on Classic")
+    print = realPrint
+end
+print("legacy ok")
 
 -- The compass's places (tests/fixtures/Services.lua): for a gnome mage, the mage trainer, not
 -- another class's nor the Horde's, the flight masters; not the trainer of a profession neither
@@ -4506,6 +4527,7 @@ local function SettingsTest()
         "the macro's button: " .. After("targetMark").name
     )
     assert(After("compassShown").name == "Remettre la boussole en haut", "the compass's button")
+    assert(After("legacyAdvice").name == "Avantages d'Héritage à prendre d'abord", "the Legacy perks' button")
 
     -- The key bindings: each has its name (translated) and does what it says.
     local names = 0

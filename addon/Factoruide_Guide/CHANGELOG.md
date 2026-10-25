@@ -12,6 +12,7 @@ under Unreleased; `scripts/release.sh` gives them the release's version.
 - Gear advice follows your talents: a balance or restoration druid, an elemental or restoration shaman, a holy or protection paladin, a holy or discipline priest and a protection warrior are told about the gear their spec wants (intellect, spell damage, healing, mana or stamina), not the leveling spec's; a reward the guide picked for another spec is no longer chosen for you.
 - Logging out away from an inn or a city warns that it banks no rested XP and points the compass at the closest innkeeper (Advice, "Rested XP reminder at logout").
 - WoW Forever: after a fight, a reminder of each XP bonus you are missing (Well Fed from cooked food, your Cozy Sleeping Bag when ready, a leatherworker's Camp Tent), at most every 10 minutes each (Advice, "Reminder of missing XP buffs").
+- WoW Forever: at your first Legacy point (level 25), the Legacy perks that save the most leveling time, best first, in the chat; again any time with a button in the options (Advice, "Legacy perk advice").
 - The wind guide (a gust of wind towards the step instead of the compass) is gone, with its settings and key binding; the compass stays.
 - Objectives done in the same area (mobs next to each other) are shown together in Now, and a level checkpoint between them no longer cuts them apart: it comes after them (GitHub #41).
 - Merchant, trainer, flight master and inn steps before the last quest you handed in are done on their own when a guide is loaded or reset, instead of each needing a right click.
