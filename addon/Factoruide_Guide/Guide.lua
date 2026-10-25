@@ -49,6 +49,23 @@ local L = {
     stepUnskipped = T("step to do again"),
     spot = T("spot %d/%d (next: the “Next spot” key)"),
     noSpot = T("this step has no other spot"),
+    why = T("Why: %s"),
+    whyXP = T("+%s XP"),
+    whyUpgrade = T("a planned upgrade"),
+    whyUpgradeOf = T("a planned upgrade: %s"),
+    whyOpensOne = T("opens the next quest"),
+    whyOpens = T("opens %d quests"),
+    whyProfession = T("for your profession"),
+    whyInside = T("in the dungeon run"),
+    whyTrain = T("new spells that make fights faster"),
+    whyFlightPath = T("a flight path for the trips ahead"),
+    whyFly = T("faster than walking"),
+    whyBind = T("your hearthstone brings you back here later"),
+    whyHearth = T("the fastest way there"),
+    whyGrind = T("no quest nearby gives as much XP"),
+    whyCheckpoint = T("keeps you at the planned XP"),
+    whySell = T("room in your bags"),
+    whyDungeon = T("its quests and its gear"),
 }
 
 local KINDS = {
@@ -796,12 +813,85 @@ end
 --- Switch between the full guide and the minimal one (kept for the next sessions).
 function Guide:ToggleMode() FG:Save("guideMode", FG:Get("guideMode") == "minimal" and "full" or "minimal") end
 
---- Tooltip of a step's line: its full text, then what clicks do.
+-- Why a step is in the guide: what its quest gives (XP, a planned reward, the quests it opens),
+-- or what the visit is for.
+local WHY = {
+    train = L.whyTrain,
+    flight_master = L.whyFlightPath,
+    fly = L.whyFly,
+    link = L.whyFly,
+    teleport = L.whyFly,
+    bind = L.whyBind,
+    hearth = L.whyHearth,
+    grind = L.whyGrind,
+    sell = L.whySell,
+    dungeon = L.whyDungeon,
+}
+
+local facts = setmetatable({}, { __mode = "k" }) -- route -> { turnin = { [q] = step }, opens = { [q] = n } }
+
+--- A route's quest facts: each quest's turn-in step, and how many quests taking it opens (the
+--- accept steps needing it).
+local function QuestFacts(r)
+    if facts[r] then return facts[r] end
+    local f = { turnin = {}, opens = {} }
+    for _, s in ipairs(r.steps) do
+        if s.k == "turnin" and s.q and not f.turnin[s.q] then f.turnin[s.q] = s end
+        if s.k == "accept" then
+            local needs = {}
+            for _, q in ipairs(s.pre or {}) do
+                needs[q] = true
+            end
+            for _, q in ipairs(s.pa or {}) do
+                needs[q] = true
+            end
+            for q in pairs(needs) do
+                f.opens[q] = (f.opens[q] or 0) + 1
+            end
+        end
+    end
+    facts[r] = f
+    return f
+end
+
+--- The "Why: ..." line of step `index` of the guide in use, nil when there is nothing to say.
+function Guide:Why(index)
+    local step = index and route and route.steps[index]
+    if not step then return nil end
+    local parts = {}
+    if step.q and (step.k == "accept" or step.k == "objective" or step.k == "turnin") then
+        local f = QuestFacts(route)
+        local turnin = f.turnin[step.q]
+        if turnin and (turnin.rx or 0) > 0 then parts[#parts + 1] = string.format(L.whyXP, Thousands(turnin.rx)) end
+        if turnin and turnin.rw then
+            local name = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(turnin.rw)
+            parts[#parts + 1] = name and string.format(L.whyUpgradeOf, name) or L.whyUpgrade
+        end
+        local opens = f.opens[step.q]
+        if opens == 1 then
+            parts[#parts + 1] = L.whyOpensOne
+        elseif opens then
+            parts[#parts + 1] = string.format(L.whyOpens, opens)
+        end
+        if step.sk then parts[#parts + 1] = L.whyProfession end
+        if step.di then parts[#parts + 1] = L.whyInside end
+        if step.bg then parts[#parts + 1] = L.alongTheWay end
+    else
+        local reason = (step.k == "grind" and step.kp) and L.whyCheckpoint or WHY[step.k]
+        if reason then parts[#parts + 1] = reason end
+    end
+    if #parts == 0 then return nil end
+    return string.format(L.why, table.concat(parts, ", "))
+end
+
+--- Tooltip of a step's line: its full text, why it is there, then what clicks do.
 function Guide:StepTooltip(owner, index)
     local step = index and route and route.steps[index]
     if not step then return end
     GameTooltip:SetOwner(owner, "ANCHOR_LEFT")
     GameTooltip:AddLine(step.t, 1, 1, 1, true)
+    local why = self:Why(index)
+    if why then GameTooltip:AddLine(why, 1, 0.82, 0, true) end
     if step.fx or step.fk then GameTooltip:AddLine(L.farmTip, 0.75, 0.5, 1, true) end
     GameTooltip:AddLine(L.pointHint, 0.6, 0.6, 0.6, true)
     GameTooltip:AddLine(L.skipHint, 0.6, 0.6, 0.6, true)
