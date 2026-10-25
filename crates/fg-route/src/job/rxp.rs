@@ -207,6 +207,8 @@ impl Reader {
     /// Whether a condition (`<< Alliance/!Shaman`, `<< Horde Shaman`) holds: alternatives split
     /// by `/`, each a list of words all true, `!` a word that must not be, `( )` groups.
     pub fn applies(&self, tags: &str) -> bool {
+        // A comment after the tags (`<< Rogue -- Quickblade's Dagger`) is not a tag.
+        let tags = tags.split_once("--").map_or(tags, |(tags, _)| tags);
         let mut text = tags.to_owned();
         // The innermost groups first, each replaced by a word true or false.
         while let Some(open) = text.rfind('(') {
@@ -830,6 +832,7 @@ mod tests {
         assert!(r.applies("!NightElf !Hunter/!Dwarf !Hunter"));
         assert!(!r.applies("none Human"));
         assert!(r.applies("!(Dwarf Hunter)"));
+        assert!(r.applies("Warrior -- Quickblade's Dagger"));
         assert!(r.applies("FOREVER"));
         assert!(!r.applies("SoD"));
         let undead = Reader::new("undead", "mage", Faction::Horde, Edition::Forever);
