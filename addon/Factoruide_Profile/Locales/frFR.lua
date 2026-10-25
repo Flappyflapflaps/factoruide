@@ -294,4 +294,7 @@ FG.Locales.frFR = {
     ["keeps you at the planned XP"] = "vous garde à l'XP prévue",
     ["room in your bags"] = "de la place dans vos sacs",
     ["its quests and its gear"] = "ses quêtes et son équipement",
+    ["No rested XP here: the closest inn is %s, %d yards away."] = "Pas d'XP de repos ici : l'auberge la plus proche est %s, à %d mètres.",
+    ["No rested XP here: log out in an inn or a city."] = "Pas d'XP de repos ici : déconnectez-vous dans une auberge ou une ville.",
+    ["Or lie on your Cozy Sleeping Bag before logging out."] = "Ou allongez-vous sur votre Sac de couchage douillet avant de vous déconnecter.",
 }

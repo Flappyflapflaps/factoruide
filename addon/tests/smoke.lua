@@ -2280,6 +2280,41 @@ do
     assert(first.main and not first.place and first.index, "reached: back to the guide's step")
     C_Map.GetPlayerMapPosition = realPosition
 
+    -- Logging out away from an inn, with room in the rested XP: a warning, and the compass on the
+    -- closest innkeeper (its kind off on the compass), with a Cozy Sleeping Bag the hint to lie
+    -- on it. In an inn, with the rested XP full, or the reminder off: nothing.
+    local warned = {}
+    local realResting, realExhaustion, realPrint = IsResting, GetXPExhaustion, print
+    UIErrorsFrame = { AddMessage = function(_, text) warned[#warned + 1] = text end }
+    print = function() end
+    IsResting = function() return false end
+    GetXPExhaustion = function() return nil end
+    bags[211527] = 1
+    fire("PLAYER_CAMPING")
+    first = FG.Compass:Points()[1]
+    assert(first.main and first.place and first.name == "Innkeeper", "logout: the compass on the inn")
+    assert(#warned == 2 and warned[1]:find("Innkeeper", 1, true), "logout: warned, " .. tostring(warned[1]))
+    bags[211527] = nil
+    IsResting = realResting
+    fire("PLAYER_CAMPING")
+    IsResting = function() return false end
+    GetXPExhaustion = function() return 600 end
+    fire("PLAYER_QUITING")
+    GetXPExhaustion = function() return 0 end
+    FG:Set("restedReminder", false)
+    fire("PLAYER_CAMPING")
+    FG:Set("restedReminder", nil)
+    assert(#warned == 2, "no warning in an inn, rested XP full or the reminder off: " .. #warned)
+    fire("PLAYER_QUITING")
+    assert(#warned == 3 and warned[3]:find("Innkeeper", 1, true), "quitting: warned")
+    C_Map.GetPlayerMapPosition = function()
+        return { GetXY = function() return 0.33, 0.712 end }
+    end
+    FG.Guide:Refresh()
+    assert(not FG.Compass:Points()[1].place, "at the inn: back to the guide's step")
+    C_Map.GetPlayerMapPosition = realPosition
+    UIErrorsFrame, IsResting, GetXPExhaustion, print = nil, realResting, realExhaustion, realPrint
+
     -- The compass turned off.
     FG:Set("compassShown", false)
     assert(#FG.Compass:Points() == 0, "no compass")

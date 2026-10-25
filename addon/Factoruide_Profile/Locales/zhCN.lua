@@ -196,4 +196,7 @@ FG.Locales.zhCN = {
     ["keeps you at the planned XP"] = "让你保持在计划的经验",
     ["room in your bags"] = "背包空间",
     ["its quests and its gear"] = "它的任务和装备",
+    ["No rested XP here: the closest inn is %s, %d yards away."] = "此处没有休息经验：最近的旅店是%s，距离%d码。",
+    ["No rested XP here: log out in an inn or a city."] = "此处没有休息经验：请在旅店或城市里下线。",
+    ["Or lie on your Cozy Sleeping Bag before logging out."] = "或者在下线前躺到你的舒适的睡袋上。",
 }
