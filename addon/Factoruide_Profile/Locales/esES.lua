@@ -48,6 +48,7 @@ FG.Locales.esES = {
     ["You reached this checkpoint's level earlier than planned: the steps up to it are skipped, except chains going on after it, class quests, planned rewards and training."] = "Has alcanzado el nivel de este hito antes de lo previsto: se saltan los pasos hasta él, salvo las cadenas que siguen después, las misiones de clase, las recompensas previstas y el entrenamiento.",
     ["along the way"] = "de paso",
     ["elite"] = "élite",
+    ["%d%% XP"] = "%d%% XP",
     ["Right-click: mark as already done (or undo)"] = "Clic derecho: marcar como ya hecho (o deshacer)",
     ["quest to do again: %s"] = "misión de nuevo por hacer: %s",
     ["step marked as done"] = "paso marcado como hecho",

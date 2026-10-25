@@ -48,6 +48,7 @@ FG.Locales.frFR = {
     ["You reached this checkpoint's level earlier than planned: the steps up to it are skipped, except chains going on after it, class quests, planned rewards and training."] = "Vous avez atteint le niveau de ce palier plus tôt que prévu : les étapes jusqu'à lui sont passées, sauf les chaînes qui continuent après, les quêtes de classe, les récompenses prévues et l'entraînement.",
     ["along the way"] = "en parallèle",
     ["elite"] = "élite",
+    ["%d%% XP"] = "%d %% XP",
     ["Right-click: mark as already done (or undo)"] = "Clic droit : marquer comme déjà fait (ou annuler)",
     ["quest marked as done: %s (to undo: the “Undo the last mark” key)"] = "quête marquée comme faite : %s (pour annuler : la touche « Annuler la dernière marque »)",
     ["quest to do again: %s"] = "quête de nouveau à faire : %s",
