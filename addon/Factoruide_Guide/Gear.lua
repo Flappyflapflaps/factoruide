@@ -1,11 +1,12 @@
--- Gear advisor: a score per class from item stats, compared with what is equipped in the same
--- slot. Shown in item tooltips and on quest rewards; the automatic reward choice takes the
+-- Gear advisor: a score per class and spec from item stats, compared with what is equipped in
+-- the same slot. Shown in item tooltips and on quest rewards; the automatic reward choice takes the
 -- best upgrade first.
 
 local FG = Factoruide
 local T = FG.T
 
--- Stat weights per class (leveling, rough): GetItemStats keys.
+-- Stat weights per class (leveling, rough): GetItemStats keys. A class whose talent trees want
+-- other gear has weights per tree (SPEC_WEIGHTS), chosen by where the character's points are.
 local S, A, ST, I, SP =
     "ITEM_MOD_STRENGTH_SHORT",
     "ITEM_MOD_AGILITY_SHORT",
@@ -14,6 +15,7 @@ local S, A, ST, I, SP =
     "ITEM_MOD_SPIRIT_SHORT"
 local AR, DPS, AP = "RESISTANCE0_NAME", "ITEM_MOD_DAMAGE_PER_SECOND_SHORT", "ITEM_MOD_ATTACK_POWER_SHORT"
 local SD = "ITEM_MOD_SPELL_DAMAGE_DONE_SHORT"
+local HEAL, MP5 = "ITEM_MOD_SPELL_HEALING_DONE_SHORT", "ITEM_MOD_POWER_REGEN0_SHORT"
 local WEIGHTS = {
     WARRIOR = { [S] = 1, [A] = 0.6, [ST] = 0.5, [AR] = 0.02, [DPS] = 3, [AP] = 0.5 },
     PALADIN = { [S] = 1, [A] = 0.4, [ST] = 0.5, [I] = 0.4, [SP] = 0.1, [AR] = 0.02, [DPS] = 3, [AP] = 0.4 },
@@ -24,6 +26,33 @@ local WEIGHTS = {
     MAGE = { [I] = 1, [SP] = 0.8, [ST] = 0.5, [AR] = 0.005, [DPS] = 0.5, [SD] = 1 },
     WARLOCK = { [I] = 1, [SP] = 0.8, [ST] = 0.6, [AR] = 0.005, [DPS] = 0.5, [SD] = 1 },
     DRUID = { [S] = 0.8, [A] = 0.7, [I] = 0.5, [ST] = 0.5, [SP] = 0.3, [AR] = 0.01, [DPS] = 1 },
+}
+
+-- By talent tree, in the game's order of the trees (GetTalentInfo's tab): a tree left out keeps
+-- the class's weights. Healers want healing and mana, casters spell damage, the feral druid
+-- strength and agility (its weapon hardly counts in forms), tanks stamina and armor.
+local SPEC_WEIGHTS = {
+    WARRIOR = {
+        [3] = { [S] = 0.8, [A] = 0.6, [ST] = 1, [AR] = 0.04, [DPS] = 2, [AP] = 0.4 },
+    },
+    PALADIN = {
+        [1] = { [I] = 1, [SP] = 0.6, [ST] = 0.5, [HEAL] = 0.8, [SD] = 0.4, [MP5] = 1.5, [AR] = 0.01, [S] = 0.2 },
+        [2] = { [S] = 0.7, [A] = 0.3, [ST] = 1, [I] = 0.4, [SD] = 0.6, [AR] = 0.04, [DPS] = 1.5, [AP] = 0.3 },
+    },
+    PRIEST = {
+        [1] = { [I] = 1, [SP] = 1, [ST] = 0.5, [AR] = 0.005, [DPS] = 0.5, [SD] = 0.6, [HEAL] = 0.8, [MP5] = 1.5 },
+        [2] = { [I] = 1, [SP] = 1, [ST] = 0.5, [AR] = 0.005, [DPS] = 0.5, [SD] = 0.6, [HEAL] = 0.8, [MP5] = 1.5 },
+    },
+    SHAMAN = {
+        [1] = { [I] = 1, [SD] = 1, [ST] = 0.5, [SP] = 0.3, [MP5] = 1.2, [AR] = 0.01, [DPS] = 0.5 },
+        [2] = { [S] = 1, [A] = 0.6, [ST] = 0.5, [I] = 0.3, [AR] = 0.015, [DPS] = 3, [AP] = 0.5 },
+        [3] = { [I] = 1, [HEAL] = 1, [MP5] = 1.5, [ST] = 0.5, [SP] = 0.4, [SD] = 0.3, [AR] = 0.01 },
+    },
+    DRUID = {
+        [1] = { [I] = 1, [SD] = 1, [SP] = 0.6, [ST] = 0.5, [MP5] = 1, [AR] = 0.005 },
+        [2] = { [S] = 1, [A] = 0.9, [ST] = 0.6, [AP] = 0.5, [AR] = 0.03, [I] = 0.2, [DPS] = 0.2 },
+        [3] = { [I] = 1, [HEAL] = 1, [SP] = 0.8, [MP5] = 1.5, [ST] = 0.5, [AR] = 0.005 },
+    },
 }
 
 -- Armor (item class 4) subclasses a class wears (cloth 1, leather 2, mail 3, plate 4, shield 6),
@@ -83,9 +112,55 @@ FG.Gear = Gear
 
 local function Class() return select(2, UnitClass("player")) end
 
+--- The talent tree of the guide's leveling plan for the class (TalentBuilds: the tree most of
+--- its picks are in), nil when none.
+local function PlannedTree()
+    local builds = FG.TalentBuilds and FG.TalentBuilds[FG.Edition]
+    local build = builds and builds[Class()]
+    local count, best = {}, nil
+    for _, pick in ipairs(build and build.picks or {}) do
+        count[pick[1]] = (count[pick[1]] or 0) + 1
+        if not best or count[pick[1]] > count[best] then best = pick[1] end
+    end
+    return best
+end
+
+--- The talent tree the character spent the most points in (nil before any): its spec.
+function Gear:Tree()
+    if not GetNumTalentTabs or not GetTalentInfo then return nil end
+    local best, most = nil, 0
+    for tab = 1, GetNumTalentTabs() do
+        local points = 0
+        for i = 1, (GetNumTalents(tab) or 0) do
+            points = points + (select(5, GetTalentInfo(tab, i)) or 0)
+        end
+        if points > most then
+            best, most = tab, points
+        end
+    end
+    return best
+end
+
+--- The weights for the character: those of its spec (its talents, else the guide's plan), else
+--- the class's.
+function Gear:Weights()
+    local class = Class()
+    local tree = self:Tree() or PlannedTree()
+    return (SPEC_WEIGHTS[class] or {})[tree] or WEIGHTS[class]
+end
+
+--- Whether the character's spec wants other gear than the guide's plan (a balance druid on a
+--- guide planned feral): its planned rewards are then not followed.
+function Gear:OffPlan()
+    local specs = SPEC_WEIGHTS[Class()]
+    local tree, planned = self:Tree(), PlannedTree()
+    if not specs or not tree or not planned or tree == planned then return false end
+    return (specs[tree] or WEIGHTS[Class()]) ~= (specs[planned] or WEIGHTS[Class()])
+end
+
 --- Score of an item for the character (nil: unknown yet or not for it).
 function Gear:Score(link)
-    local weights = WEIGHTS[Class()]
+    local weights = self:Weights()
     local stats = link and weights and GetItemStats and GetItemStats(link)
     if not stats then return nil end
     local score = 0
@@ -134,11 +209,11 @@ function Gear:Upgrade(link)
 end
 
 --- Index of the reward choice the guide planned for the quest being turned in (the route was
---- computed with that item worn), if any.
+--- computed with that item worn), if any: none when the character's spec is not the plan's.
 function Gear:PlannedChoice(choices)
     local route = FG.Guide and FG.Guide:Route()
     local quest = GetQuestID and GetQuestID()
-    if not route or not quest or quest == 0 then return nil end
+    if not route or not quest or quest == 0 or self:OffPlan() then return nil end
     for _, s in ipairs(route.steps) do
         if s.k == "turnin" and s.q == quest and s.rw then
             for i = 1, choices do
