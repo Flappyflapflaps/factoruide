@@ -42,6 +42,7 @@ local L = {
     ),
     alongTheWay = T("along the way"),
     elite = T("elite"),
+    mobXp = T("%d%% XP"),
     skipHint = T("Right-click: mark as already done (or undo)"),
     skipped = T("quest marked as done: %s (to undo: the “Undo the last mark” key)"),
     unskipped = T("quest to do again: %s"),
@@ -661,6 +662,48 @@ end
 
 local function Chip(v, text, color) table.insert(v.chips, { text = text, color = color }) end
 
+--- Highest level of the mobs gray for a character of `level` (they give no XP).
+local function GrayLevel(level)
+    if level <= 5 then return 0 end
+    if level <= 39 then return level - 5 - math.floor(level / 10) end
+    if level <= 59 then return level - 1 - math.floor(level / 5) end
+    return level - 9
+end
+
+-- Levels below the character where a mob's XP reaches 0 (the game's "zero difference"), by level.
+local ZERO_DIFFERENCE = {
+    { 7, 5 },
+    { 9, 6 },
+    { 11, 7 },
+    { 15, 8 },
+    { 19, 9 },
+    { 29, 11 },
+    { 39, 12 },
+    { 44, 13 },
+    { 49, 14 },
+    { 54, 15 },
+    { 59, 16 },
+}
+
+--- XP of killing a mob of level `mob` at `level`, as a share of a mob of the character's level
+--- (the planner's xp.rs rules): 1 at or above it, 0 once gray; in between, cut by the level
+--- difference, and on WoW Forever taken from the mob's own level (base 5 x level + 45), not the
+--- character's.
+function Guide.MobXpShare(level, mob)
+    if mob >= level then return 1 end
+    if mob <= GrayLevel(level) then return 0 end
+    local zd = 17
+    for _, row in ipairs(ZERO_DIFFERENCE) do
+        if level <= row[1] then
+            zd = row[2]
+            break
+        end
+    end
+    local share = 1 - (level - mob) / zd
+    if FG.Edition == "forever" then share = share * (mob * 5 + 45) / (level * 5 + 45) end
+    return share
+end
+
 --- A number with its thousands apart, as the game writes them in the client's language.
 local function Thousands(n)
     n = math.floor(n + 0.5)
@@ -725,6 +768,11 @@ local function TaskView(step, index, withProgress)
         -- Danger: elite mobs, or mobs well above the character.
         if step.el then Chip(v, L.elite, "red") end
         if step.ml and step.ml >= UnitLevel("player") + 3 then Chip(v, L.level .. " " .. step.ml, "orange") end
+        -- Mobs below the character: the XP each kill gives, against a mob of its level.
+        if step.ml and step.ml < UnitLevel("player") then
+            local share = Guide.MobXpShare(UnitLevel("player"), step.ml)
+            Chip(v, string.format(L.mobXp, math.floor(share * 100 + 0.5)), share > 0 and "green" or "muted")
+        end
     elseif step.k == "abandon" then
         -- The quest's name as the game says it, then the label and why: "Abandon (not in this
         -- guide)" of the guide's text without its verb.

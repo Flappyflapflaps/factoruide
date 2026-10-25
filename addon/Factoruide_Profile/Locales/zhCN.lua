@@ -48,6 +48,7 @@ FG.Locales.zhCN = {
     ["You reached this checkpoint's level earlier than planned: the steps up to it are skipped, except chains going on after it, class quests, planned rewards and training."] = "你比计划更早达到了此节点的等级：到此为止的步骤将被跳过，但之后仍继续的任务链、职业任务、计划的奖励和训练除外。",
     ["along the way"] = "顺路",
     ["elite"] = "精英",
+    ["%d%% XP"] = "%d%% 经验",
     ["Right-click: mark as already done (or undo)"] = "右键：标记为已完成（或撤销）",
     ["quest to do again: %s"] = "任务重新待做：%s",
     ["step marked as done"] = "步骤已标记为完成",

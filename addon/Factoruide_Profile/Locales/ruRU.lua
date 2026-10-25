@@ -48,6 +48,7 @@ FG.Locales.ruRU = {
     ["You reached this checkpoint's level earlier than planned: the steps up to it are skipped, except chains going on after it, class quests, planned rewards and training."] = "Вы достигли уровня этого этапа раньше плана: шаги до него пропускаются, кроме цепочек, продолжающихся после него, классовых заданий, запланированных наград и обучения.",
     ["along the way"] = "попутно",
     ["elite"] = "элита",
+    ["%d%% XP"] = "%d%% опыта",
     ["Right-click: mark as already done (or undo)"] = "ПКМ: отметить как выполненное (или отменить)",
     ["quest to do again: %s"] = "задание снова к выполнению: %s",
     ["step marked as done"] = "шаг отмечен выполненным",

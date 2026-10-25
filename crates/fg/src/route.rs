@@ -288,6 +288,18 @@ pub fn share(conn: &Connection, overrides_dir: &Path, opts: &ShareOptions, out: 
     for note in &outcome.notes {
         eprintln!("  {note}");
     }
+    write_shared(conn, &request, &outcome, false, out)
+}
+
+/// Write a guide as the .fgguide file the apps share: one version with its configuration and
+/// computed guide (its plan too, for the guide editor); `edited`: made in the guide editor.
+fn write_shared(
+    conn: &Connection,
+    request: &PlanRequest,
+    outcome: &job::PlanOutcome,
+    edited: bool,
+    out: &Path,
+) -> Result<()> {
     let route = &outcome.route;
     let created = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
@@ -314,7 +326,7 @@ pub fn share(conn: &Connection, overrides_dir: &Path, opts: &ShareOptions, out: 
         "quests": route.quests,
         "data": data,
         "imported": false,
-        "edited": false,
+        "edited": edited,
         "character": null,
     });
     // The apps' share format (`SharedGuide` in app/src-tauri and crates/fg-web).
@@ -380,4 +392,64 @@ pub fn replay(
     job::save_route(routes_dir, &outcome.route)?;
     eprintln!("saved {} (fg show {} --full)", outcome.route.name, outcome.route.name);
     Ok(())
+}
+
+/// What `fg rxp` reads: RestedXP guide files, and the character they are read for.
+pub struct RxpOptions {
+    pub guides: Vec<PathBuf>,
+    pub race: String,
+    pub class: String,
+    pub first: Option<String>,
+    pub name: Option<String>,
+    pub locale: String,
+}
+
+/// Turn RestedXP guides into a guide of the editor (`job::import_rxp`) for a race and class,
+/// written as a .fgguide file, telling what was left out. A folder is the RXPGuides addon's (its
+/// guide list for the edition) or a folder of guide files.
+pub fn rxp(conn: &Connection, overrides_dir: &Path, opts: &RxpOptions, out: &Path) -> Result<()> {
+    let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
+    let mut files = Vec::new();
+    for path in &opts.guides {
+        if path.join("Guides").is_dir() {
+            files.extend(job::rxp_guide_files(path, crate::edition()));
+        } else if path.is_dir() {
+            files.extend(job::lua_files(path));
+        } else {
+            files.push(path.clone());
+        }
+    }
+    let texts = (files.iter())
+        .map(|f| std::fs::read_to_string(f).with_context(|| format!("reading {}", f.display())))
+        .collect::<Result<Vec<_>>>()?;
+    let walks = std::sync::Arc::new(fg_route::terrain::Walks::default());
+    let what = job::RxpImport {
+        race: opts.race.clone(),
+        class: opts.class.clone(),
+        first: opts.first.clone(),
+        name: opts.name.clone(),
+        locale: Some(opts.locale.clone()),
+    };
+    let imported = job::import_rxp(conn, &overrides, &texts, &what, Some(&walks))?;
+    let report = &imported.report;
+    eprintln!("guides: {}", imported.guides.join(" > "));
+    eprintln!(
+        "{} actions read ({} prerequisites added), {} steps kept, {} left out, {} quests not in the database, {} places not found",
+        report.read,
+        report.added.len(),
+        imported.outcome.plan.len(),
+        report.dropped.len(),
+        report.unknown_quests.len(),
+        report.unknown_places.len()
+    );
+    for (step, why) in &report.dropped {
+        eprintln!("  left out: {step:?} ({why})");
+    }
+    if !report.unknown_quests.is_empty() {
+        eprintln!("  quests not in the database: {:?}", report.unknown_quests);
+    }
+    for place in &report.unknown_places {
+        eprintln!("  not found: {place}");
+    }
+    write_shared(conn, &imported.request, &imported.outcome, true, out)
 }

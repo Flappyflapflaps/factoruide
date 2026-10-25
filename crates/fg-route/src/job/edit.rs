@@ -112,7 +112,7 @@ pub(super) fn route_steps(planner: &Planner<'_>, route: &[Stop]) -> Vec<RouteSte
 
 impl RouteStep {
     /// The step of a planner's edit, by game IDs.
-    fn of(edit: Edit, planner: &Planner<'_>) -> Self {
+    pub(super) fn of(edit: Edit, planner: &Planner<'_>) -> Self {
         let (model, world) = (planner.model, planner.world);
         let link = |i: usize| LinkRef {
             name: world.links[i].name.clone(),
