@@ -1,5 +1,6 @@
 mod audit;
 mod diff;
+mod ready;
 mod route;
 mod talents;
 mod travel;
@@ -140,6 +141,26 @@ enum Command {
         /// Write the guides as import strings for Polestar's Import page instead, a <guide>.txt each
         #[arg(long)]
         strings: bool,
+    },
+    /// Plan the ready-made guides (every race and class from level 1, the app's default
+    /// settings) into --routes, then write this edition's pack of the Factoruide_Ready addon.
+    /// Guides already in --routes are kept: run it again to go on after a stop
+    Ready {
+        /// The Factoruide_Ready addon folder (its other editions' packs are kept)
+        #[arg(long, default_value = "Factoruide_Ready")]
+        out: PathBuf,
+        /// How much the optimization tries (see `route --effort`)
+        #[arg(long)]
+        effort: Option<f64>,
+        /// Only these, as race-class keys (human-warrior); repeatable
+        #[arg(long)]
+        only: Vec<String>,
+        /// Plan nothing: pack the ready-made guides of --routes as they are
+        #[arg(long)]
+        pack_only: bool,
+        /// Planner parameters, as key=value (repeatable)
+        #[arg(long = "param")]
+        params: Vec<String>,
     },
     /// Replay a request exported by the app (debug/request-*.json)
     Replay {
@@ -352,6 +373,24 @@ fn main() -> Result<()> {
         Command::Diff { a, b, json } => diff::run(&cli.routes, &a, b.as_deref(), json)?,
         Command::Addon { lua: None } => route::write_addon_routes(&open()?, &overrides, &cli.routes, &cli.addon_dir)?,
         Command::Addon { lua: Some(out) } => route::write_guides_lua(&open()?, &overrides, &cli.routes, &out)?,
+        Command::Ready {
+            out,
+            effort,
+            only,
+            pack_only,
+            params,
+        } => ready::run(
+            &open()?,
+            &ready::ReadyOptions {
+                effort,
+                only,
+                pack_only,
+                params,
+                overrides: overrides.clone(),
+                routes_dir: cli.routes.clone(),
+                out,
+            },
+        )?,
         Command::Polestar { out, source, strings } => {
             let write = if source {
                 fg_route::job::write_polestar_source

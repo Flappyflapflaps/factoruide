@@ -179,6 +179,7 @@ FG.Locales.deDE = {
     ["arrow back in its place, at its first size"] = "Pfeil zurück an seinem Platz, in seiner ursprünglichen Größe",
     ["Arrow back in its place"] = "Pfeil an seinen Platz zurücksetzen",
     ["Under the compass, at its first size."] = "Unter dem Kompass, in seiner ursprünglichen Größe.",
+    ["ready-made (Factoruide Ready addon)"] = "vorgefertigt (Addon Factoruide Ready)",
     ["Why: %s"] = "Warum: %s",
     ["+%s XP"] = "+%s EP",
     ["a planned upgrade"] = "eine geplante Verbesserung",

@@ -179,6 +179,7 @@ FG.Locales.koKR = {
     ["arrow back in its place, at its first size"] = "화살표를 원래 자리와 크기로 되돌렸습니다",
     ["Arrow back in its place"] = "화살표를 원래 자리로",
     ["Under the compass, at its first size."] = "나침반 아래, 원래 크기로.",
+    ["ready-made (Factoruide Ready addon)"] = "기본 제공 (Factoruide Ready 애드온)",
     ["Why: %s"] = "이유: %s",
     ["+%s XP"] = "+%s 경험치",
     ["a planned upgrade"] = "계획된 장비 향상",

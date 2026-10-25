@@ -179,6 +179,7 @@ FG.Locales.ruRU = {
     ["arrow back in its place, at its first size"] = "стрелка возвращена на место, в исходном размере",
     ["Arrow back in its place"] = "Вернуть стрелку на место",
     ["Under the compass, at its first size."] = "Под компасом, в исходном размере.",
+    ["ready-made (Factoruide Ready addon)"] = "готовый (аддон Factoruide Ready)",
     ["Why: %s"] = "Зачем: %s",
     ["+%s XP"] = "+%s опыта",
     ["a planned upgrade"] = "запланированное улучшение",

@@ -15,8 +15,9 @@
 -- the same name, unless it was computed before it: then the player is asked.
 --
 -- The guides in use (FG.Routes) are the union of the imported ones, Factoruide_Data's (FG.DataGuide,
--- run by the profile part) and those an older app wrote into Routes.lua: of two with the same name,
--- the one computed last. Each character chooses its guide in the addon's options (main page, Guides;
+-- run by the profile part), those an older app wrote into Routes.lua and the ready-made one of the
+-- character's race and class (the published addon Factoruide_Ready, see Import:Ready): of two with
+-- the same name, the one computed last. Each character chooses its guide in the addon's options (main page, Guides;
 -- Guide.lua keeps the choice).
 --
 -- The addon updates on its own (an addon site), apart from the apps: it reads every guide an older
@@ -144,8 +145,44 @@ local function Imported(name, entry)
     return r
 end
 
---- Build FG.Routes, FG.Services... from the guides kept, those of Factoruide_Data and the files'.
---- `Import.info[name]` = { source = "import" or "app", created, version } of the guide in use.
+--- The ready-made guide of the character's race and class, from the published addon
+--- Factoruide_Ready (`FactoruideReady[edition] = { time, services, guides = { ["race:class"] =
+--- "FGG1:..." } }`, written by `fg ready`): { ns, time } once decoded and run, nil while the
+--- character is not known yet or when there is none. Only that guide is decoded; the pack is let
+--- go once it is.
+function Import:Ready()
+    if type(FactoruideReady) == "table" then
+        self.readyPack = FactoruideReady[FG.Edition]
+        FactoruideReady = nil
+    end
+    local pack = self.readyPack
+    if type(pack) ~= "table" or type(pack.guides) ~= "table" then return self.ready end
+    local race = select(3, UnitRace("player"))
+    local class = select(3, UnitClass("player"))
+    if not race or not class then return nil end
+    self.readyPack = nil
+    local text = pack.guides[race .. ":" .. class]
+    if type(text) ~= "string" then return nil end
+    local lua, err = Import.Decode(text)
+    local ns, runErr
+    if lua then
+        ns, runErr = Import.Run(lua)
+    end
+    -- The places of the trainers, vendors...: the same for every guide, once in the pack.
+    local services = ns and type(pack.services) == "string" and Import.Decode(pack.services)
+    local placesNs = services and Import.Run(services)
+    if ns and placesNs then ns.Services = placesNs.Services end
+    if not ns then
+        FG:Error("Factoruide_Ready", tostring(err or runErr))
+        return nil
+    end
+    self.ready = { ns = ns, time = tonumber(pack.time) or 0 }
+    return self.ready
+end
+
+--- Build FG.Routes, FG.Services... from the guides kept, those of Factoruide_Data, the files' and
+--- the ready-made one. `Import.info[name]` = { source = "import", "app" or "ready", created,
+--- version } of the guide in use.
 function Import:Apply()
     local db = DB()
     -- What the files set (Routes.lua and Services.lua ship empty; older apps wrote them), taken once.
@@ -165,6 +202,7 @@ function Import:Apply()
         FG.DataGuide = nil
     end
     local data = self.data
+    local ready = self:Ready()
 
     local routes, info, tooNew = {}, {}, {}
     -- Of two with the same name, the one computed last (the later offer when the same). Those
@@ -192,6 +230,11 @@ function Import:Apply()
         local r = type(entry) == "table" and Imported(name, entry)
         if r then Offer(name, r, "import", entry.created) end
     end
+    if ready and type(ready.ns.Routes) == "table" then
+        for name, r in pairs(ready.ns.Routes) do
+            Offer(name, r, "ready", type(r) == "table" and r.created or ready.time)
+        end
+    end
     FG.Routes, self.info = routes, info
     self.tooNew = {}
     for name in pairs(tooNew) do
@@ -201,6 +244,8 @@ function Import:Apply()
 
     -- The other data (the places): the most recent of each.
     local extras = { { time = -1, ns = { Services = self.file.services } } }
+    -- The ready-made guide's places: under any the app wrote or a guide imported brought.
+    if ready then extras[#extras + 1] = { time = -0.5, ns = { Services = ready.ns.Services } } end
     if data then extras[#extras + 1] = { time = data.time, ns = data.ns } end
     local kept = db.guideExtras
     if type(kept) == "table" then
@@ -308,6 +353,10 @@ end
 
 local tried = FactoruideDB ~= nil
 if tried then Import:ApplySaved() end
+-- The ready-made guide waits for the character to be known.
+FG:On("PLAYER_LOGIN", function()
+    if Import.readyPack or type(FactoruideReady) == "table" then Import:Apply() end
+end)
 -- Without the saved variables yet (outside the game), as soon as they are there.
 FG:On("ADDON_LOADED", function(name)
     if name ~= "Factoruide_Guide" or tried then return end
@@ -328,7 +377,7 @@ function Import.Fits(r)
     return not (r.faction and faction) or r.faction == faction
 end
 
---- The guides in use: { name, route, source ("import" or "app"), created, version, fits }, those
+--- The guides in use: { name, route, source ("import", "app" or "ready"), created, version, fits }, those
 --- made for this character first, then by name.
 function Import:List()
     local out = {}

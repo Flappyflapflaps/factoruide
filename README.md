@@ -74,6 +74,12 @@ zones to do, the level to reach before moving on from each, and where the XP is.
 
 ## Getting started
 
+**No app at all**: install the `Factoruide_Ready` addon next to Factoruide Profile and Factoruide
+Guide. It holds a ready-made guide for every race and class from level 1, planned with the app's
+default settings: a new character follows its own at once. A guide you make in the app for that
+character comes first. `scripts/ready-guides.sh` plans the guides and writes the addon (about 5
+minutes a guide).
+
 1. Download the app from the [latest release](https://github.com/brouznouf/factoruide/releases/latest)
    and install it. New versions are then offered by the app at startup.
    - **Windows**: run the `_x64-setup.exe` installer. Windows may warn about an unknown publisher

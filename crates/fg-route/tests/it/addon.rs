@@ -123,6 +123,45 @@ fn each_guide_carries_its_format() {
     }
 }
 
+/// The ready-made pack (Factoruide_Ready): a guide per race and class, keyed "race:class", each
+/// the text of an import of that guide alone with its format, and the places once for all.
+#[test]
+fn the_ready_made_pack_keys_each_guide_by_race_and_class() {
+    use fg_route::export::fgstring::{GUIDE_PREFIX, decode};
+    let conn = database();
+    let mut mage = route(&[("accept", 30.87, 66.2)]);
+    (mage.name, mage.class_id) = ("mage".into(), 8);
+    let lua = job::ready_pack_lua(
+        &conn,
+        &overrides(),
+        Edition::Classic,
+        &[route(&[("accept", 30.23, 71.61)]), mage],
+        1000,
+    )
+    .unwrap();
+    assert!(lua.contains("FactoruideReady.classic = {"), "{}", &lua[..200]);
+    let text_of = |key: &str| {
+        let start = lua
+            .find(&format!("[\"{key}\"] = \""))
+            .unwrap_or_else(|| panic!("{key} in the pack"))
+            + key.len()
+            + 8;
+        let end = start + lua[start..].find('"').unwrap();
+        String::from_utf8(decode(GUIDE_PREFIX, &lua[start..end]).unwrap()).unwrap()
+    };
+    let (warrior, mage) = (text_of("5:1"), text_of("5:8"));
+    assert!(
+        warrior.contains("FG.Routes[\"walks\"]") && !warrior.contains("FG.Routes[\"mage\"]"),
+        "one guide each"
+    );
+    assert!(
+        mage.contains(&format!("FG.Routes[\"mage\"].format = {}", job::GUIDE_FORMAT)),
+        "with its format"
+    );
+    assert!(!mage.contains("FG.Services"), "the places apart");
+    assert_eq!(lua.matches("services = \"FGG1:").count(), 1, "the places once");
+}
+
 /// A long walk is drawn as it goes, not as lines from one tile gate to the next: the points of
 /// the walk give the floor by floor path's length (Ziz Fizziks in Stonetalon to Ratchet).
 #[test]

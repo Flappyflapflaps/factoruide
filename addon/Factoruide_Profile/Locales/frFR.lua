@@ -277,6 +277,7 @@ FG.Locales.frFR = {
     ["arrow back in its place, at its first size"] = "flèche remise à sa place, à sa taille d'origine",
     ["Arrow back in its place"] = "Remettre la flèche à sa place",
     ["Under the compass, at its first size."] = "Sous la boussole, à sa taille d'origine.",
+    ["ready-made (Factoruide Ready addon)"] = "tout fait (addon Factoruide Ready)",
     ["Why: %s"] = "Pourquoi : %s",
     ["+%s XP"] = "+%s XP",
     ["a planned upgrade"] = "une amélioration prévue",

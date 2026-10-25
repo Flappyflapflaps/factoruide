@@ -179,6 +179,7 @@ FG.Locales.ptBR = {
     ["arrow back in its place, at its first size"] = "seta de volta ao lugar, no tamanho original",
     ["Arrow back in its place"] = "Devolver a seta ao lugar",
     ["Under the compass, at its first size."] = "Abaixo da bússola, no tamanho original.",
+    ["ready-made (Factoruide Ready addon)"] = "pronto (addon Factoruide Ready)",
     ["Why: %s"] = "Por quê: %s",
     ["+%s XP"] = "+%s XP",
     ["a planned upgrade"] = "uma melhoria prevista",
