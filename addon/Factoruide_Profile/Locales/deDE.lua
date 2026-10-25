@@ -196,4 +196,7 @@ FG.Locales.deDE = {
     ["keeps you at the planned XP"] = "hält dich bei den geplanten EP",
     ["room in your bags"] = "Platz in deinen Taschen",
     ["its quests and its gear"] = "seine Quests und seine Ausrüstung",
+    ["No rested XP here: the closest inn is %s, %d yards away."] = "Hier keine Ruhe-EP: das nächste Gasthaus ist %s, %d Meter entfernt.",
+    ["No rested XP here: log out in an inn or a city."] = "Hier keine Ruhe-EP: logge dich in einem Gasthaus oder einer Stadt aus.",
+    ["Or lie on your Cozy Sleeping Bag before logging out."] = "Oder leg dich vor dem Ausloggen auf deinen gemütlichen Schlafsack.",
 }

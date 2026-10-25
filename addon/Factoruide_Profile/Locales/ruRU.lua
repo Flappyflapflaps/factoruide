@@ -196,4 +196,7 @@ FG.Locales.ruRU = {
     ["keeps you at the planned XP"] = "держит вас на запланированном опыте",
     ["room in your bags"] = "место в сумках",
     ["its quests and its gear"] = "его задания и снаряжение",
+    ["No rested XP here: the closest inn is %s, %d yards away."] = "Здесь нет опыта отдыха: ближайшая таверна — %s, в %d м.",
+    ["No rested XP here: log out in an inn or a city."] = "Здесь нет опыта отдыха: выходите из игры в таверне или городе.",
+    ["Or lie on your Cozy Sleeping Bag before logging out."] = "Или ложитесь на свой уютный спальный мешок перед выходом.",
 }
