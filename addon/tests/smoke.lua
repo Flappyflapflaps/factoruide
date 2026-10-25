@@ -962,6 +962,31 @@ frostbolt = 5
 assert(FG.Talents:Next().name == "Elemental Precision", "next talent after 5/5: Elemental Precision")
 print("talents ok")
 
+-- Gear advice per spec: a druid's points in Balance want intellect and spell damage, in Feral
+-- strength and agility; before any point, the guide's plan (Feral). A balance druid does not
+-- take the rewards a feral plan chose.
+do
+    local unitClass, getStats, points = UnitClass, GetItemStats, {}
+    UnitClass = function() return "Druid", "DRUID", 11 end
+    GetNumTalents = function() return 1 end
+    GetTalentInfo = function(tab) return "Talent", nil, 1, 1, points[tab] or 0, 5 end
+    local stats = {
+        caster = { ITEM_MOD_INTELLECT_SHORT = 10, ITEM_MOD_SPELL_DAMAGE_DONE_SHORT = 12 },
+        feral = { ITEM_MOD_STRENGTH_SHORT = 10, ITEM_MOD_AGILITY_SHORT = 8 },
+    }
+    GetItemStats = function(link) return stats[link] end
+    local Gear = FG.Gear
+    assert(Gear:Tree() == nil and Gear:Score("feral") > Gear:Score("caster"), "no points: the plan's feral")
+    assert(not Gear:OffPlan(), "no points: on the plan")
+    points[1] = 5
+    assert(Gear:Tree() == 1 and Gear:Score("caster") > Gear:Score("feral"), "balance wants caster gear")
+    assert(Gear:OffPlan(), "balance is off the feral plan")
+    points[2] = 10
+    assert(Gear:Score("feral") > Gear:Score("caster") and not Gear:OffPlan(), "feral again")
+    UnitClass, GetItemStats = unitClass, getStats
+end
+print("gear per spec ok")
+
 -- Leveling time against the plan.
 playerLevel = 3
 FG.Routes["timing-test"] = {
@@ -2259,8 +2284,10 @@ end
 print("compass places ok")
 
 -- The planned walk (`wp`: its start and turns, world yards): the compass points along it, a bit
--- ahead of its closest point; going back to it when beside it; not when far from it, nor on its
--- last leg (straight to the place), nor with the setting off.
+-- ahead of its closest point; beside it (a death, a detour, a hearth), back to the point of it
+-- still ahead with the shortest way to the place, not straight across the ground it goes round;
+-- not when very far from it, nor on its last leg or close to the place (straight to it), nor
+-- with the setting off.
 FG.Routes["walk-test"] = {
     race = 7,
     class = 8,
@@ -2300,8 +2327,11 @@ do
     local n, w, back = FG.Pathing:Aim(0, 299.3, 712)
     assert(n and math.abs(n - 299) < 1 and math.abs(w - 742) < 1 and not back, "along the first leg")
     n, w, back = FG.Pathing:Aim(0, 240, 712)
-    assert(n and math.abs(w - 742) < 1 and back, "beside the walk: back to it")
-    assert(FG.Pathing:Aim(0, 0, 712) == nil, "far from the walk")
+    assert(n and math.abs(n - 299) < 1 and math.abs(w - 732.9) < 1 and back, "beside the walk: back to it, ahead")
+    n, w, back = FG.Pathing:Aim(0, 0, 712)
+    assert(n and math.abs(n - 299) < 1 and math.abs(w - 800) < 1 and back, "far from the walk: back to its turn")
+    assert(FG.Pathing:Aim(0, -1000, 712) == nil, "very far from the walk: straight")
+    assert(FG.Pathing:Aim(0, 450, 712) == nil, "beside the walk, close to the place: straight to it")
     FG:Set("pathMode", "off")
     assert(FG.Pathing:Aim(0, 299.3, 712) == nil, "the walk turned off")
     FG:Set("pathMode", nil)
@@ -2384,6 +2414,9 @@ do
     assert(left[2][2] == 800 and left[3][1] == 400 and math.abs(left[4][1] - 400) < 1, "its turns, then the place")
     left = FG.Pathing:Remaining(0, 240, 712)
     assert(left[1][1] == 240 and #left == 5, "beside it: from the character")
+    assert(math.abs(left[2][1] - 299) < 1 and math.abs(left[2][2] - 732.9) < 1, "then where it goes back to it")
+    left = FG.Pathing:Remaining(0, 450, 712)
+    assert(#left == 2 and left[1][1] == 450 and left[2][1] == 400, "close to the place: straight to it")
     FG:Set("pathMode", "off")
     assert(FG.Pathing:Remaining(0, 299.3, 712) == nil, "not drawn when off")
     FG:Set("pathMode", nil)

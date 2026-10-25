@@ -277,6 +277,10 @@ pub struct Params {
     pub forced_dungeons: Vec<i64>,
     /// ...and never run.
     pub excluded_dungeons: Vec<i64>,
+    /// The player's own level for dungeons, (instance area ID, level): the run is planned at
+    /// that level or the next one instead of the levels of its quests (a group met at 20 for the
+    /// Deadmines). The other dungeons keep theirs.
+    pub dungeon_levels: Vec<(i64, i64)>,
     /// Dungeon quests are picked up when passing by, up to this many levels before the dungeon.
     pub dungeon_pickup_ahead: i64,
     /// Share of the solo XP of a dungeon's kills earned in a 5-man group (elites included).
@@ -487,6 +491,7 @@ impl Default for Params {
             dungeons: true,
             forced_dungeons: vec![],
             excluded_dungeons: vec![],
+            dungeon_levels: vec![],
             dungeon_pickup_ahead: 8,
             construction: Construction::Greedy,
             threads: 8,

@@ -16,7 +16,9 @@ FG.Pathing = Pathing
 local OWNER = "Factoruide"
 -- On the walk closer than this (yards); off it beyond REJOIN, where it is not shown any more.
 -- The compass points AHEAD yards further along the walk than its point closest to the character.
-local CORRIDOR, REJOIN, AHEAD = 45, 220, 30
+-- Beside it, back to the point of the walk still ahead that is the shortest way to the place, a
+-- yard off the walk (straight, over ground the walk may go round) counting as OFF along it.
+local CORRIDOR, REJOIN, AHEAD, OFF = 45, 1000, 30, 3
 -- Objective areas: Shortest Path Forever stays on them (held) and stops guiding inside this many
 -- yards.
 local AREA = 50
@@ -59,8 +61,9 @@ end
 -- The walk ---------------------------------------------------------------------------------
 
 -- { continent, points = { { north, west }, ..., the place } } (the place alone when the walk
--- goes straight), the place it leads to, and the leg reached (only goes on: a walk going back on
--- itself is not pointed backwards).
+-- goes straight), left = { yards from each point to the place along the walk } }, the place it
+-- leads to, and the leg reached (only goes on: a walk going back on itself is not pointed
+-- backwards).
 local walk, walkPlace, reached
 
 --- The closest point of the leg from `a` to `b` to (`n`, `w`), and how far it is.
@@ -86,7 +89,12 @@ local function SetWalk(place, step)
         end
     end
     points[#points + 1] = { north, west }
-    walk = { continent = continent, points = points }
+    local left = { [#points] = 0 }
+    for k = #points - 1, 1, -1 do
+        local a, b = points[k], points[k + 1]
+        left[k] = left[k + 1] + math.sqrt((b[1] - a[1]) ^ 2 + (b[2] - a[2]) ^ 2)
+    end
+    walk = { continent = continent, points = points, left = left }
 end
 
 --- The leg of the walk closest to (`north`, `west`) from the one reached on, the closest point on
@@ -103,15 +111,47 @@ local function Closest(north, west)
     return best, bestDistance, bestN, bestW
 end
 
+--- Where a character at (`north`, `west`) beside the walk goes back to it: the leg from the one
+--- reached on and the point on it with the shortest way to the place, OFF times the straight
+--- yards to it plus the walk's yards left from it (on a leg, that point is h / sqrt(OFF^2 - 1)
+--- further than the closest one, h how far the leg is). Third value: true when it is the place.
+local function Rejoin(north, west)
+    local points, left = walk.points, walk.left
+    local slide = 1 / math.sqrt(OFF * OFF - 1)
+    local best, bestCost, bestN, bestW, bestT, bestLength
+    for k = reached, #points - 1 do
+        local a, b = points[k], points[k + 1]
+        local dn, dw = b[1] - a[1], b[2] - a[2]
+        local length = math.sqrt(dn * dn + dw * dw)
+        local t = 0
+        if length > 0 then
+            local along = ((north - a[1]) * dn + (west - a[2]) * dw) / length
+            local h = math.abs((north - a[1]) * dw - (west - a[2]) * dn) / length
+            t = math.max(0, math.min(length, along + h * slide))
+        end
+        local qn, qw = a[1] + (length > 0 and dn * t / length or 0), a[2] + (length > 0 and dw * t / length or 0)
+        local cost = OFF * math.sqrt((north - qn) ^ 2 + (west - qw) ^ 2) + left[k] - t
+        if not bestCost or cost < bestCost then
+            best, bestCost, bestN, bestW, bestT, bestLength = k, cost, qn, qw, t, length
+        end
+    end
+    return best, bestN, bestW, best == #points - 1 and bestT >= bestLength
+end
+
 --- Where the compass shows the way for a character at (`north`, `west`) of `continent`: AHEAD
---- yards along the walk from its closest point; nil without a walk, off it, or on its last leg
---- (straight to the place). Second value: true when the character is beside the walk, going
---- back to it.
+--- yards along the walk from its closest point; beside it, the point to go back to it (Rejoin);
+--- nil without a walk, far off it, on its last leg or going back to it at the place (straight
+--- to the place). Third value: true when the character is beside the walk, going back to it.
 function Pathing:Aim(continent, north, west)
     if not walk or walk.continent ~= continent or not self:PathShown() then return nil end
     local points = walk.points
     local best, bestDistance, bestN, bestW = Closest(north, west)
     if not best or bestDistance > REJOIN then return nil end
+    if bestDistance > CORRIDOR then
+        local _, n, w, atPlace = Rejoin(north, west)
+        if atPlace then return nil end
+        return n, w, true
+    end
     reached = best
     if best == #points - 1 then return nil end
     local n, w, left, k = bestN, bestW, AHEAD, best
@@ -124,12 +164,13 @@ function Pathing:Aim(continent, north, west)
             n, w, left, k = to[1], to[2], left - leg, k + 1
         end
     end
-    return n, w, bestDistance > CORRIDOR
+    return n, w, false
 end
 
 --- The walk left to the place for a character at (`north`, `west`) of `continent`, to draw it:
---- { { north, west }, ... } from the character (or from the walk's closest point when on it) to
---- the place; the whole walk left when far from it; nil without a walk or with it not shown.
+--- { { north, west }, ... } from the walk's closest point when on it (from the character, then
+--- the point it goes back to it when beside it) to the place; the whole walk left when far from
+--- it; nil without a walk or with it not shown.
 function Pathing:Remaining(continent, north, west)
     if not walk or walk.continent ~= continent or not self:PathShown() then return nil end
     local points = walk.points
@@ -142,8 +183,12 @@ function Pathing:Remaining(continent, north, west)
             out[#out + 1] = points[k]
         end
     else
-        if bestDistance > CORRIDOR then out[1] = { north, west } end
-        out[#out + 1] = { bestN, bestW }
+        local atPlace = false
+        if bestDistance > CORRIDOR then
+            out[1] = { north, west }
+            best, bestN, bestW, atPlace = Rejoin(north, west)
+        end
+        if not atPlace then out[#out + 1] = { bestN, bestW } end
         for k = best + 1, #points - 1 do
             out[#out + 1] = points[k]
         end
