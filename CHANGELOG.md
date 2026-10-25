@@ -11,6 +11,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 ### App
 
 - **Import from RestedXP…** on the Guides page makes a guide from the free RestedXP guides of the RestedXP Guides addon installed in the game, for the race and class you choose: their quests in their order, replayed with Factoruide's data (the steps it finds impossible are left out, and said in the guide's notes). Nothing of RestedXP is shipped with Factoruide (their guides are CC BY-NC-SA 4.0). `fg rxp` does the same from the command line.
+- A forced dungeon can be given your own level (Dungeons panel, under its name): the guide runs it at that level or the next one, for a group met at 22 for the Deadmines (GitHub #48).
 - In the guide editor, a step that only a zone too strong for the character makes possible (the flight path of Gadgetzan from Thousand Needles at level 34) is accepted, with a warning on the step, instead of being impossible. Computed guides still keep out of those zones.
 - A new guide's character shows the flight paths it knows, by continent, and you can tick or untick them: the game only gives the addon those of the continent where a flight master's map is open, so the others are deduced from the quests done in their towns (marked as such), and what you change is kept for the character.
 - Before a guide is computed for a character already on its way, the app can show a few ways to begin (a zone, a flight, the hearthstone) with their estimated time, steps and quests, and you choose; the fastest is chosen at first. It is only shown when there is really a choice, and can be turned off ("Compare the starts").
@@ -38,9 +39,11 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ### Addon
 
+- Gear advice follows your talents: a balance or restoration druid, an elemental or restoration shaman, a holy or protection paladin, a holy or discipline priest and a protection warrior are told about the gear their spec wants (intellect, spell damage, healing, mana or stamina), not the leveling spec's; a reward the guide picked for another spec is no longer chosen for you.
 - The wind guide (a gust of wind towards the step instead of the compass) is gone, with its settings and key binding; the compass stays.
 - Objectives done in the same area are shown together under Now; a level checkpoint between them comes after them.
 - Merchant, trainer, flight master and inn steps before the last quest you handed in are done on their own when a guide is loaded or reset, instead of each needing a right click.
+- The 3D arrow next to the compass has its own size (a setting, or Ctrl + mouse wheel over it), can turn green, yellow or red as you head towards or away from the step, shows how to move it on mouse-over, and can be put back in its place from the options.
 
 ### WoW data
 

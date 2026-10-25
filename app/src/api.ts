@@ -134,6 +134,8 @@ export interface Params {
   zone_stay: number;
   forced_dungeons: number[];
   excluded_dungeons: number[];
+  /** The player's own level for dungeons: (instance area, level). */
+  dungeon_levels?: [number, number][];
   dungeon_quest_weight: number;
   construction_random: boolean;
   continent_stay: number;

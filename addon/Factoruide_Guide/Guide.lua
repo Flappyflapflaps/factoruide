@@ -1357,7 +1357,7 @@ FG:On("PLAYER_LOGIN", function()
     end
     -- Any other setting chosen in the options shows at once.
     FG:OnSetting("*", function(key)
-        if key ~= "uiShown" and key ~= "scale" then Guide:Refresh() end
+        if key ~= "uiShown" and key ~= "scale" and key ~= "arrowScale" then Guide:Refresh() end
     end)
     -- Hidden: the game's map pin goes too, and comes back with the guide.
     FG:OnSetting("uiShown", function(shown)

@@ -173,4 +173,9 @@ FG.Locales.zhCN = {
     ["profile sent to the party (%d messages, about %d s)"] = "已向队伍发送档案（%d条消息，约%d秒）",
     ["profile of %s received: reload the interface (/reload) for the Factoruide app to make a group guide with it"] = "已收到%s的档案：请重载界面（/reload），以便Factoruide应用用它生成队伍指南",
     ["not in a party: nobody to send the profile to"] = "不在队伍中：无人可接收档案",
+    ["Arrow"] = "箭头",
+    ["/fg: hide it, or put it back in its place"] = "/fg：隐藏，或放回原位",
+    ["arrow back in its place, at its first size"] = "箭头已放回原位，恢复原始大小",
+    ["Arrow back in its place"] = "将箭头放回原位",
+    ["Under the compass, at its first size."] = "放在指南针下方，恢复原始大小。",
 }

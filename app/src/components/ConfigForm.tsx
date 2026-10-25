@@ -700,7 +700,10 @@ export function ConfigForm({ options, initial, startCharacter, defaultLocale, on
                 dungeons={options.dungeons}
                 forced={params.forced_dungeons}
                 excluded={params.excluded_dungeons}
-                onChange={(forced_dungeons, excluded_dungeons) => setParams((p) => ({ ...p, forced_dungeons, excluded_dungeons }))}
+                levels={params.dungeon_levels ?? []}
+                onChange={(forced_dungeons, excluded_dungeons, dungeon_levels) =>
+                  setParams((p) => ({ ...p, forced_dungeons, excluded_dungeons, dungeon_levels }))
+                }
               />
               <section className="panel zones-layout">
                 <WorldMap zoneStates={zoneStates} onZoneClick={cycleZone} height={420} />

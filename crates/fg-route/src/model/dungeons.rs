@@ -161,8 +161,9 @@ pub(super) fn faction_entrances(conn: &Connection, faction: Faction) -> Result<H
 }
 
 /// Dungeon levels from their quests, and default run time and kills. A dungeon without quests
-/// is not planned.
-pub(super) fn set_dungeon_levels(dungeons: &mut [Dungeon], quests: &[Quest], below: i64) {
+/// is not planned. `chosen`: the player's own level for some (area, level), run at that level or
+/// the next one.
+pub(super) fn set_dungeon_levels(dungeons: &mut [Dungeon], quests: &[Quest], below: i64, chosen: &[(i64, i64)]) {
     for (d, dungeon) in dungeons.iter_mut().enumerate() {
         let qs: Vec<&Quest> = quests
             .iter()
@@ -195,6 +196,10 @@ pub(super) fn set_dungeon_levels(dungeons: &mut [Dungeon], quests: &[Quest], bel
         }
         if dungeon.kills == 0.0 {
             dungeon.kills = 60.0 + 2.0 * dungeon.mob_level as f64;
+        }
+        if let Some(&(_, level)) = chosen.iter().find(|(area, _)| *area == dungeon.area) {
+            dungeon.min_level = level.max(1);
+            dungeon.max_level = dungeon.min_level + 1;
         }
     }
 }
