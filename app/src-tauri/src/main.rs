@@ -871,6 +871,45 @@ async fn manual_route(app: AppHandle, request: PlanRequest) -> CmdResult<Version
     .map_err(err)?
 }
 
+/// The RestedXP Guides addon's folder (RXPGuides), where the game version's client has it.
+const RXP_ADDON: &str = "RXPGuides";
+
+/// A guide made from the RestedXP guides of the player's RXPGuides addon for a race and class
+/// (from its guide from level 1, or `first`), saved as a version imported and edited by hand:
+/// what the replay left out is said in its notes.
+#[tauri::command]
+async fn import_rxp(app: AppHandle, race: String, class: String, first: Option<String>) -> CmdResult<VersionMeta> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let settings = state.settings();
+        let edition = settings.edition;
+        let addon = settings.addons_dir(edition).join(RXP_ADDON);
+        let files = job::rxp_guide_files(&addon, edition);
+        if files.is_empty() {
+            return Err(format!(
+                "RestedXP Guides not found in {}: install the RestedXP Guides addon (free, CurseForge) in the game first",
+                addon.display()
+            ));
+        }
+        let texts = (files.iter())
+            .map(|f| std::fs::read_to_string(f).map_err(|e| format!("{}: {e}", f.display())))
+            .collect::<CmdResult<Vec<_>>>()?;
+        let conn = open_db(&state.db_path(edition)?)?;
+        let walks = state.walks(edition);
+        let what = job::RxpImport {
+            race,
+            class,
+            first,
+            name: None,
+            locale: settings.guide_locale.clone(),
+        };
+        let imported = job::import_rxp(&conn, &overrides(edition)?, &texts, &what, Some(&walks)).map_err(err)?;
+        state.add_version(&imported.request, &imported.outcome, data_version(&conn), (true, true), now()?)
+    })
+    .await
+    .map_err(err)?
+}
+
 /// Version of the quest data imported in a database.
 fn data_version(conn: &Connection) -> Option<String> {
     conn.query_row("SELECT detail FROM import_run WHERE source = 'questie'", [], |r| {
@@ -1960,6 +1999,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             updates_enabled,
+            import_rxp,
             get_settings,
             set_settings,
             get_options,

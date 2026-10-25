@@ -199,6 +199,34 @@ enum Command {
         #[arg(long)]
         out: PathBuf,
     },
+    /// Turn RestedXP guides (the .lua guide files of the player's RXPGuides addon, or a guide's
+    /// text) into a guide for a race and class, written as a .fgguide file the apps import: the
+    /// guides from the character's first one (or --first) followed by their #next, replayed and
+    /// kept where they hold
+    Rxp {
+        /// Guide files, or folders read for every .lua file in them (e.g. the addon's
+        /// Guides/forever)
+        #[arg(required = true)]
+        guides: Vec<PathBuf>,
+        /// Race key from overrides/races.toml (gnome, human, orc...)
+        #[arg(long)]
+        race: String,
+        /// Class (warrior, mage...)
+        #[arg(long)]
+        class: String,
+        /// The first guide, by its #name (default: the character's guide from level 1)
+        #[arg(long)]
+        first: Option<String>,
+        /// The guide's name in the apps (default: "RestedXP <levels> <race> <class>")
+        #[arg(long)]
+        name: Option<String>,
+        /// Language the guide is written in (default enUS)
+        #[arg(long, default_value = "enUS")]
+        locale: String,
+        /// The .fgguide file written
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Walking distance and passages between two points (Zone,x,y)
     Travel {
         from: String,
@@ -396,6 +424,27 @@ fn main() -> Result<()> {
                 effort,
                 name,
                 params,
+                locale,
+            },
+            &out,
+        )?,
+        Command::Rxp {
+            guides,
+            race,
+            class,
+            first,
+            name,
+            locale,
+            out,
+        } => route::rxp(
+            &open()?,
+            &overrides,
+            &route::RxpOptions {
+                guides,
+                race,
+                class,
+                first,
+                name,
                 locale,
             },
             &out,

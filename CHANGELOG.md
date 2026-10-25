@@ -10,6 +10,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ### App
 
+- **Import from RestedXP…** on the Guides page makes a guide from the free RestedXP guides of the RestedXP Guides addon installed in the game, for the race and class you choose: their quests in their order, replayed with Factoruide's data (the steps it finds impossible are left out, and said in the guide's notes). Nothing of RestedXP is shipped with Factoruide (their guides are CC BY-NC-SA 4.0). `fg rxp` does the same from the command line.
 - A forced dungeon can be given your own level (Dungeons panel, under its name): the guide runs it at that level or the next one, for a group met at 22 for the Deadmines (GitHub #48).
 - In the guide editor, a step that only a zone too strong for the character makes possible (the flight path of Gadgetzan from Thousand Needles at level 34) is accepted, with a warning on the step, instead of being impossible. Computed guides still keep out of those zones.
 - A new guide's character shows the flight paths it knows, by continent, and you can tick or untick them: the game only gives the addon those of the continent where a flight master's map is open, so the others are deduced from the quests done in their towns (marked as such), and what you change is kept for the character.
@@ -39,6 +40,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 ### Addon
 
 - With the new Factoruide_Ready addon installed, a character with no guide of its own follows the ready-made guide of its race and class: no app needed. A guide made in the app for it still comes first.
+- A step's tooltip says why it is in the guide: the XP its quest gives, the reward planned for you, the quests it opens, or what a trainer, flight, inn or grind step is for.
 - Off the guide's planned walk (after a death, a detour or a hearth), the compass and the 3D arrow lead you back to the walk a bit ahead of where it is closest, up to 1000 yards away, instead of straight at the step across the ground the walk goes round; close to the step, they still go straight to it.
 - Gear advice follows your talents: a balance or restoration druid, an elemental or restoration shaman, a holy or protection paladin, a holy or discipline priest and a protection warrior are told about the gear their spec wants (intellect, spell damage, healing, mana or stamina), not the leveling spec's; a reward the guide picked for another spec is no longer chosen for you.
 - The wind guide (a gust of wind towards the step instead of the compass) is gone, with its settings and key binding; the compass stays.

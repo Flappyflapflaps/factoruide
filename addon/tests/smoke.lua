@@ -948,6 +948,21 @@ assert(macros[index].body:find("SetRaidTarget", 1, true), "skull on Classic")
 FG.Edition = "forever"
 print("target macro ok")
 
+-- Kill XP of mobs below the character, against one of its level: WoW Forever takes the base at
+-- the mob's level (measured at level 25: a level 22 mob gives 113 XP, one of level 25 170).
+do
+    local share = FG.Guide.MobXpShare
+    local function near(a, b) return math.abs(a - b) < 0.005 end
+    assert(share(25, 25) == 1 and share(25, 27) == 1, "same level or above: full XP")
+    assert(near(share(25, 22), 113 / 170), "forever, 3 below: " .. share(25, 22))
+    assert(near(share(10, 5), 20 / 95), "forever, 5 below at 10: " .. share(10, 5))
+    assert(share(25, 18) == 0, "gray: no XP")
+    FG.Edition = "classic"
+    assert(near(share(25, 22), 8 / 11), "classic, 3 below: " .. share(25, 22))
+    FG.Edition = "forever"
+end
+print("mob xp share ok")
+
 -- Talent plan: the next talent follows the class plan (mage: Improved Frostbolt x5, then
 -- Elemental Precision).
 local frostbolt = 2
@@ -1005,6 +1020,41 @@ useRoute("timing-test")
 FG.Guide:State().levelTimes = { [3] = 240 }
 assert(FG.Timing:Short():find("1 min", 1, true), "timing ahead of plan: " .. FG.Timing:Short())
 print("timing ok")
+
+-- Why a step is there: what its quest gives (XP at the turn-in, the quests it opens), what a
+-- visit is for, nothing for a step with nothing to say.
+FG.Routes["why-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    steps = {
+        { k = "accept", t = "Accept", q = 7301, lvl = 1 },
+        { k = "turnin", t = "Turn in", q = 7301, rx = 1250, lvl = 2 },
+        { k = "accept", t = "Accept", q = 7302, pre = { 7301 }, lvl = 2 },
+        { k = "train", t = "Trainer", lvl = 2 },
+        { k = "grind", t = "Grind", kp = true, lvl = 3 },
+        { k = "accept", t = "Accept", q = 7303, lvl = 3 },
+    },
+}
+useRoute("why-test")
+do
+    local T, why = FG.T, function(i) return FG.Guide:Why(i) end
+    for _, i in ipairs({ 1, 2 }) do
+        assert(
+            why(i):find("1", 1, true) and why(i):find(T("opens the next quest"), 1, true),
+            "quest: " .. tostring(why(i))
+        )
+    end
+    assert(
+        why(4) == string.format(T("Why: %s"), T("new spells that make fights faster")),
+        "trainer: " .. tostring(why(4))
+    )
+    assert(why(5) == string.format(T("Why: %s"), T("keeps you at the planned XP")), "checkpoint: " .. tostring(why(5)))
+    assert(why(6) == nil and why(99) == nil, "nothing to say")
+end
+print("why this step ok")
 
 -- Flight master: the current fly step's destination is taken.
 local taken

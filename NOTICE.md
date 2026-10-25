@@ -70,6 +70,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## RestedXP guides
+
+The app can make a guide from the RestedXP guides the player has installed (the RestedXP Guides
+addon, [RXPGuides](https://github.com/RestedXP/RXPGuides), CC BY-NC-SA 4.0): it reads the
+player's own copy, and nothing of RestedXP's guides is included in this repository or in the
+apps. A guide made from them credits RestedXP in its notes and stays under their terms
+(attribution, non-commercial, share-alike).
+
 ## Addon libraries
 
 The addon bundles, in `addon/Factoruide_Profile/Libs/` and `addon/Factoruide_Guide/Libs/`:

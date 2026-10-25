@@ -14,6 +14,7 @@ mod race;
 mod reputation;
 mod request;
 mod routes;
+mod rxp;
 mod services;
 mod start;
 mod starts;
@@ -38,6 +39,10 @@ pub use routes::{
     guides_lua, load_routes, lua_long_string, polestar_source_dir, ready_pack_lua, render_routes, save_route, slug,
     write_addon_routes, write_data_addon, write_polestar_pack, write_polestar_source, write_polestar_strings,
     write_ready_addon,
+};
+pub use rxp::{
+    Import as RxpImport, ImportReport, Imported as RxpImported, LICENSE as RXP_LICENSE, RxpGuide,
+    guide_files as rxp_guide_files, import as import_rxp, lua_files,
 };
 pub use services::{Place, Service, places, services_lua};
 pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};
