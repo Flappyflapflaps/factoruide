@@ -48,6 +48,7 @@ FG.Locales.koKR = {
     ["You reached this checkpoint's level earlier than planned: the steps up to it are skipped, except chains going on after it, class quests, planned rewards and training."] = "계획보다 일찍 이 구간의 레벨에 도달했습니다: 그때까지의 단계를 건너뜁니다. 이후로 이어지는 연계 퀘스트, 직업 퀘스트, 계획된 보상, 훈련은 제외됩니다.",
     ["along the way"] = "가는 길에",
     ["elite"] = "정예",
+    ["%d%% XP"] = "경험치 %d%%",
     ["Right-click: mark as already done (or undo)"] = "오른쪽 클릭: 이미 완료로 표시 (또는 취소)",
     ["quest to do again: %s"] = "다시 할 퀘스트: %s",
     ["step marked as done"] = "단계 완료로 표시",
