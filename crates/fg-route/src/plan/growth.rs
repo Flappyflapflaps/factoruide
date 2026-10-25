@@ -315,7 +315,8 @@ impl<'g> Growth<'g> {
             let each = self
                 .rules()
                 .mob_xp(s.level, s.level, xp::content_at(s.pos.continent, s.pos.zone))
-                * self.params.group_xp_share();
+                * self.params.group_xp_share()
+                * self.params.kill_xp_factor();
             if each > 0.0 {
                 self.gather(s, s.pos.zone, killed as f64 / each);
             }
@@ -345,7 +346,9 @@ impl<'g> Growth<'g> {
             if s.level >= self.rules().max_level {
                 break;
             }
-            let each = (self.rules().mob_xp(s.level, s.level, content) * self.params.group_xp_share()) as i64;
+            let each = (self.rules().mob_xp(s.level, s.level, content)
+                * self.params.group_xp_share()
+                * self.params.kill_xp_factor()) as i64;
             let time = each as f64 / combat.grind_rate(s.level, s.bonus, &s.pos);
             if self.grind_budget(s) <= 0 {
                 s.spent.grind_over += time;

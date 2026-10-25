@@ -224,7 +224,7 @@ impl Planner<'_> {
             if self.model.farm.quests(m.tag).iter().any(|&q| in_log(q)) {
                 continue;
             }
-            let each = self.rules().mob_xp(s.level, level, content) * p.group_xp_share();
+            let each = self.rules().mob_xp(s.level, level, content) * p.group_xp_share() * p.kill_xp_factor();
             if each <= 0.0 {
                 continue;
             }

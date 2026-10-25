@@ -159,6 +159,9 @@ export interface Params {
   dungeons: boolean;
   dungeon_pickup_ahead: number;
   dungeon_xp_share: number;
+  /** WoW Forever: Well Fed and the Cozy Sleeping Bag kept up, kills give `kill_xp_bonus` more. */
+  xp_buffs: boolean;
+  kill_xp_bonus: number;
   construction: string;
   threads: number;
   seed: number;

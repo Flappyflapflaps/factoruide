@@ -265,7 +265,8 @@ impl Planner<'_> {
             let content = xp::content_at(start.continent, start.zone);
             let mob_xp = (q.start_kills
                 * self.rules().mob_xp(s.level, q.start_mob_level, content)
-                * self.params.group_xp_share()) as i64;
+                * self.params.group_xp_share()
+                * self.params.kill_xp_factor()) as i64;
             s.spent.mob_xp += self.growth().gain_kills(s, mob_xp);
             self.growth().gather(s, q.starts[0].zone, q.start_kills);
         }
@@ -786,7 +787,8 @@ impl Planner<'_> {
         let gained = (d.kills
             * self.rules().mob_xp(s.level, d.mob_level, d.content)
             * self.rules().dungeon_kill_xp
-            * self.params.dungeon_xp_share) as i64;
+            * self.params.dungeon_xp_share
+            * self.params.kill_xp_factor()) as i64;
         s.spent.mob_xp += self.growth().gain_kills(s, gained);
         self.growth().fill_bags(s, d.kills);
         s.dungeons |= 1u128 << i;

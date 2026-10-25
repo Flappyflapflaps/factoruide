@@ -285,6 +285,13 @@ pub struct Params {
     pub dungeon_pickup_ahead: i64,
     /// Share of the solo XP of a dungeon's kills earned in a 5-man group (elites included).
     pub dungeon_xp_share: f64,
+    /// WoW Forever's XP buffs kept up while leveling: cooked food's Well Fed (+5% XP from kills)
+    /// and the Cozy Sleeping Bag (+1% a stack, 3 at most), as their tooltips say: kills give
+    /// `kill_xp_bonus` more. The character levels faster than without, so the route moves on to
+    /// the next zone sooner, onto quests and mobs of its level (mobs below it give less on
+    /// Forever). No effect on Classic and TBC, where food gives no XP.
+    pub xp_buffs: bool,
+    pub kill_xp_bonus: f64,
     /// How much a minute of grinding weighs against a minute of questing for the optimizer
     /// (1 = only total time matters; higher values trade time for less grinding).
     pub grind_weight: f64,
@@ -488,6 +495,8 @@ impl Default for Params {
             abandon_weight: 600.0,
             profession_quest_weight: 300.0,
             dungeon_xp_share: 0.35,
+            xp_buffs: true,
+            kill_xp_bonus: 0.08,
             dungeons: true,
             forced_dungeons: vec![],
             excluded_dungeons: vec![],
@@ -700,6 +709,15 @@ impl Params {
     /// Damage of the group, in solo players.
     pub fn group_damage(&self) -> f64 {
         1.0 + self.group_kill_speed * (self.group_size.clamp(1, 5) - 1) as f64
+    }
+
+    /// Factor on the XP of every kill: the XP buffs kept up (`xp_buffs`, WoW Forever only).
+    pub fn kill_xp_factor(&self) -> f64 {
+        if self.xp_buffs && self.edition == crate::xp::Edition::Forever {
+            1.0 + self.kill_xp_bonus.max(0.0)
+        } else {
+            1.0
+        }
     }
 
     /// Share of a mob's XP each member gets: the game's group bonus, split between members.

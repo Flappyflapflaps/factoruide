@@ -100,7 +100,9 @@ impl Combat<'_> {
 
     /// XP of one mob of an objective (elites give twice the XP), the character's share in a group.
     pub fn mob_xp(self, level: i64, o: &Objective) -> f64 {
-        let mut x = self.rules().mob_xp(level, o.mob_level, self.content(o)) * self.params.group_xp_share();
+        let mut x = self.rules().mob_xp(level, o.mob_level, self.content(o))
+            * self.params.group_xp_share()
+            * self.params.kill_xp_factor();
         if o.elite {
             x *= 2.0;
         }
@@ -123,7 +125,7 @@ impl Combat<'_> {
     pub fn grind_rate(self, level: i64, bonus: f64, at: &Pos) -> f64 {
         // Group: each kill is faster, its XP shared.
         let content = xp::content_at(at.continent, at.zone);
-        self.rules().mob_xp(level, level, content) * self.params.group_xp_share()
+        self.rules().mob_xp(level, level, content) * self.params.group_xp_share() * self.params.kill_xp_factor()
             / (self.params.grind_kill_time * crate::params::power_speed(bonus) / self.params.group_damage())
     }
 }
