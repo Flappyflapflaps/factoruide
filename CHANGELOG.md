@@ -18,6 +18,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ### Guides
 
+- A trip can fly to a port, take the boat and fly on from where it lands (Ironforge to Gadgetzan by Menethil Harbor and Theramore), instead of walking the end of it or using the hearthstone.
 - Walks jump down higher cliffs the bolder the profile: 15 yards for "cautious" (no fall damage), 30 for "normal" (about a third of the health), 50 for "risky" (two thirds); the health lost is paid as time resting.
 - Quests in your log with nothing done are no longer tied to the guide: it takes them like any other, or abandons them first. The ones you can turn in, and those you have begun, are still kept.
 - The walks the addon follows are the ones the guide shows, whole: long walks follow the ground between the tiles instead of cutting across it, and the guide no longer simplifies a walk (only the addon gets a lighter one).

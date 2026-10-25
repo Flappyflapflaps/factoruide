@@ -605,6 +605,50 @@ fn trips_fly_to_a_boat_and_from_it() {
     );
 }
 
+/// A trip flies to a port, takes its boat and flies on from where it lands, when that is faster:
+/// Ironforge to Gadgetzan by the flight to Menethil Harbor, the boat to Theramore and the flight
+/// to Gadgetzan.
+#[test]
+fn trips_fly_to_a_boat_and_on_from_it() {
+    use super::state::Leg;
+    let mut p = quests_at_start(0);
+    p.params.gold_weight = 0.0;
+    let planner = planner(&p);
+    let trips = planner.trips();
+    let node = |name: &str| {
+        (p.world.taxi_nodes.iter())
+            .position(|n| n.name.starts_with(name))
+            .unwrap()
+    };
+    let (ironforge, menethil, theramore, gadgetzan) = (
+        node("Ironforge"),
+        node("Menethil"),
+        node("Theramore"),
+        node("Gadgetzan"),
+    );
+    let boat = (p.world.links.iter())
+        .position(|l| l.name == "Boat Menethil Harbor - Theramore")
+        .unwrap();
+    let known = [ironforge, menethil, theramore, gadgetzan]
+        .iter()
+        .fold(0u128, |k, &i| k | 1u128 << i);
+    let (a, b) = (p.world.taxi_nodes[ironforge].pos, p.world.taxi_nodes[gadgetzan].pos);
+    let (both, leg) = trips.leg(&a, &b, 30, known, 0);
+    assert!(
+        matches!(leg, Leg::FlyLinkFly(f, t, k, l, g, h)
+            if (f, t, k, l, g, h) == (ironforge, menethil, boat, boat, theramore, gadgetzan)),
+        "{leg:?}"
+    );
+    let (one, _) = trips.leg(&a, &b, 30, known & !(1u128 << gadgetzan), 0);
+    assert!(both < one, "{both} vs {one}");
+    // Remembered as such.
+    let (again, leg) = trips.leg(&a, &b, 30, known, 0);
+    assert!(
+        again.to_bits() == both.to_bits() && matches!(leg, Leg::FlyLinkFly(..)),
+        "{leg:?}"
+    );
+}
+
 /// A kill's loot fills the bags (`Params::loot_per_kill`) up to the room a level 1 character
 /// has; what no longer fits costs `bag_weight` a slot, and quest items take room too.
 #[test]
