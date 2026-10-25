@@ -199,4 +199,7 @@ FG.Locales.ptBR = {
     ["No rested XP here: the closest inn is %s, %d yards away."] = "Sem XP de descanso aqui: a estalagem mais próxima é %s, a %d metros.",
     ["No rested XP here: log out in an inn or a city."] = "Sem XP de descanso aqui: saia em uma estalagem ou em uma cidade.",
     ["Or lie on your Cozy Sleeping Bag before logging out."] = "Ou deite no seu saco de dormir aconchegante antes de sair.",
+    ["No Well Fed buff: eat cooked food for +5% XP from kills."] = "Sem o bônus Bem Alimentado: coma comida cozida para +5% de XP por abates.",
+    ["Cozy Sleeping Bag ready: rest on it for up to +3% XP from kills."] = "Saco de dormir aconchegante pronto: descanse nele para até +3% de XP por abates.",
+    ["Camp Tent ready: rest at your tent for rested XP worth 5% of a level."] = "Barraca pronta: descanse na sua barraca para XP de descanso equivalente a 5% de um nível.",
 }

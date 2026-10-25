@@ -199,4 +199,7 @@ FG.Locales.koKR = {
     ["No rested XP here: the closest inn is %s, %d yards away."] = "여기서는 휴식 경험치가 쌓이지 않습니다: 가장 가까운 여관은 %s, %d미터 거리입니다.",
     ["No rested XP here: log out in an inn or a city."] = "여기서는 휴식 경험치가 쌓이지 않습니다: 여관이나 도시에서 접속을 종료하세요.",
     ["Or lie on your Cozy Sleeping Bag before logging out."] = "또는 접속을 종료하기 전에 아늑한 침낭에 누우세요.",
+    ["No Well Fed buff: eat cooked food for +5% XP from kills."] = "포만감 버프 없음: 요리한 음식을 먹으면 처치 경험치 +5%.",
+    ["Cozy Sleeping Bag ready: rest on it for up to +3% XP from kills."] = "아늑한 침낭 사용 가능: 그 위에서 쉬면 처치 경험치 최대 +3%.",
+    ["Camp Tent ready: rest at your tent for rested XP worth 5% of a level."] = "야영 천막 사용 가능: 천막에서 쉬면 레벨의 5%만큼 휴식 경험치.",
 }

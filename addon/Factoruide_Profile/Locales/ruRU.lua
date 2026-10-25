@@ -199,4 +199,7 @@ FG.Locales.ruRU = {
     ["No rested XP here: the closest inn is %s, %d yards away."] = "Здесь нет опыта отдыха: ближайшая таверна — %s, в %d м.",
     ["No rested XP here: log out in an inn or a city."] = "Здесь нет опыта отдыха: выходите из игры в таверне или городе.",
     ["Or lie on your Cozy Sleeping Bag before logging out."] = "Или ложитесь на свой уютный спальный мешок перед выходом.",
+    ["No Well Fed buff: eat cooked food for +5% XP from kills."] = "Нет эффекта «Сытость»: съешьте приготовленную еду для +5% опыта за убийства.",
+    ["Cozy Sleeping Bag ready: rest on it for up to +3% XP from kills."] = "Уютный спальный мешок готов: отдохните на нём, чтобы получить до +3% опыта за убийства.",
+    ["Camp Tent ready: rest at your tent for rested XP worth 5% of a level."] = "Походная палатка готова: отдохните в палатке, чтобы получить опыт отдыха на 5% уровня.",
 }

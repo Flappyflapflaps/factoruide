@@ -199,4 +199,7 @@ FG.Locales.deDE = {
     ["No rested XP here: the closest inn is %s, %d yards away."] = "Hier keine Ruhe-EP: das nächste Gasthaus ist %s, %d Meter entfernt.",
     ["No rested XP here: log out in an inn or a city."] = "Hier keine Ruhe-EP: logge dich in einem Gasthaus oder einer Stadt aus.",
     ["Or lie on your Cozy Sleeping Bag before logging out."] = "Oder leg dich vor dem Ausloggen auf deinen gemütlichen Schlafsack.",
+    ["No Well Fed buff: eat cooked food for +5% XP from kills."] = "Kein Satt-Buff: iss gekochtes Essen für +5 % EP für getötete Gegner.",
+    ["Cozy Sleeping Bag ready: rest on it for up to +3% XP from kills."] = "Gemütlicher Schlafsack bereit: ruh dich darauf aus für bis zu +3 % EP für getötete Gegner.",
+    ["Camp Tent ready: rest at your tent for rested XP worth 5% of a level."] = "Lagerzelt bereit: ruh dich in deinem Zelt aus für Ruhe-EP im Wert von 5 % einer Stufe.",
 }

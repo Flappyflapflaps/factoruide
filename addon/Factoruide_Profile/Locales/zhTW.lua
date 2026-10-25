@@ -199,4 +199,7 @@ FG.Locales.zhTW = {
     ["No rested XP here: the closest inn is %s, %d yards away."] = "此處沒有休息經驗：最近的旅店是%s，距離%d碼。",
     ["No rested XP here: log out in an inn or a city."] = "此處沒有休息經驗：請在旅店或城市裡下線。",
     ["Or lie on your Cozy Sleeping Bag before logging out."] = "或者在下線前躺到你的舒適的睡袋上。",
+    ["No Well Fed buff: eat cooked food for +5% XP from kills."] = "沒有進食充分效果：吃烹飪食物可獲得擊殺經驗+5%。",
+    ["Cozy Sleeping Bag ready: rest on it for up to +3% XP from kills."] = "舒適的睡袋已就緒：在上面休息可獲得最多+3%擊殺經驗。",
+    ["Camp Tent ready: rest at your tent for rested XP worth 5% of a level."] = "營地帳篷已就緒：在帳篷休息可獲得相當於一級5%的休息經驗。",
 }
