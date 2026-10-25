@@ -7,6 +7,8 @@ import { CompareView } from "../components/CompareView";
 import { ResultView } from "../components/ResultView";
 import { gameLocale, useDate, useLang, useT } from "../i18n";
 import { Icon } from "../components/Icons";
+import { RxpImport } from "../components/RxpImport";
+import { IS_WEB } from "../web/mode";
 
 export interface OpenGuide {
   guide: string;
@@ -62,6 +64,8 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
   const [pending, setPending] = useState(!!start);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // The race and class asked of a guide made from RestedXP's (desktop app: it reads the game's addons).
+  const [rxp, setRxp] = useState(false);
 
   const load = useCallback(() => {
     api.listGuides().then(setGuides).catch((e) => setError(String(e)));
@@ -187,8 +191,23 @@ export function GuidesPage({ options, start, onRerun, onEdit, onClone, onUnsaved
         <button onClick={() => fileRef.current?.click()} title={t("Ajoute un guide reçu d'un autre joueur (fichier .fgguide)")}>
           {t("Importer un guide…")}
         </button>
+        {!IS_WEB && options && (
+          <button onClick={() => setRxp(!rxp)} title={t("Fait un guide des guides RestedXP de l'addon RestedXP Guides installé dans le jeu")}>
+            {t("Importer de RestedXP…")}
+          </button>
+        )}
         {!!guides?.length && <GlobalExport edition={edition} count={guides.length} onDone={exported} />}
       </div>
+      {rxp && options && (
+        <RxpImport
+          options={options}
+          onClose={() => setRxp(false)}
+          onImport={(race, klass) => {
+            setRxp(false);
+            act(async () => t("Guide « {name} » importé", { name: (await api.importRxp(race, klass)).name }));
+          }}
+        />
+      )}
     </div>
   );
   const notices = (
