@@ -535,6 +535,8 @@ export const api = {
   exportVersion: (guide: string, version: number) => invoke<string | WebFile>("export_version", { guide, version }).then(saved),
   /** Adds a guide received as a .fgguide (or .bqroute) file (its content), as a new version. */
   importGuide: (content: string) => invoke<VersionMeta>("import_guide", { content }),
+  /** A guide made from the RestedXP guides of the game's RXPGuides addon for a race and class (desktop app only). */
+  importRxp: (race: string, klass: string) => invoke<VersionMeta>("import_rxp", { race, class: klass, first: null }),
   mapIndex: () => invoke<MapInfo[]>("map_index"),
   /** Characters the addon recorded in the game client of the current game version, most recently played first. */
   listCharacters: () => invoke<CharacterInfo[]>("list_characters"),
