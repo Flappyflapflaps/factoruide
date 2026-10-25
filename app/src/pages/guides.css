@@ -75,3 +75,24 @@
   gap: 8px;
   align-items: center;
 }
+
+/* The race and class of a guide made from RestedXP's, under the page's head. */
+.rxp-import {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: flex-end;
+  margin-top: 8px;
+}
+.rxp-import p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.rxp-import-actions {
+  display: flex;
+  gap: 8px;
+}
+.page-head:has(.rxp-import) {
+  flex-wrap: wrap;
+}
