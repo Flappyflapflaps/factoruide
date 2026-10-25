@@ -2410,6 +2410,24 @@ do
     assert(t and t.m == 1426 and t.x == 40, "on the guide's place")
     FG:Set("arrowShown", nil)
     assert(FG.Arrow:Target() == nil, "off again")
+    -- By direction: green ahead, yellow at a right angle (either side), red behind.
+    local r, g, b = FG.Arrow.Color(0)
+    assert(r == 0 and g == 1 and b == 0, "ahead: green")
+    r, g = FG.Arrow.Color(math.pi / 2)
+    assert(r == 1 and g == 1, "to the left: yellow")
+    r, g = FG.Arrow.Color(3 * math.pi / 2)
+    assert(r == 1 and g == 1, "to the right: yellow")
+    r, g = FG.Arrow.Color(math.pi)
+    assert(r == 1 and g == 0, "behind: red")
+    -- Its own size, within its bounds; put back at its first size.
+    assert(FG:Get("arrowScale") == 1 and FG:Get("arrowColor") == "theme", "first size, the theme's color")
+    FG:Save("arrowScale", 9)
+    assert(FG:Get("arrowScale") == 3, "no bigger than its largest: " .. tostring(FG:Get("arrowScale")))
+    FG:Save("arrowColor", "direction")
+    assert(FG:Get("arrowColor") == "direction", "colored by direction")
+    FG.Arrow:ResetPlace()
+    assert(FG:Get("arrowScale") == 1, "put back: its first size")
+    FG:Save("arrowColor", nil)
 end
 print("arrow ok")
 

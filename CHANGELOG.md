@@ -40,6 +40,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 - The wind guide (a gust of wind towards the step instead of the compass) is gone, with its settings and key binding; the compass stays.
 - Objectives done in the same area are shown together under Now; a level checkpoint between them comes after them.
 - Merchant, trainer, flight master and inn steps before the last quest you handed in are done on their own when a guide is loaded or reset, instead of each needing a right click.
+- The 3D arrow next to the compass has its own size (a setting, or Ctrl + mouse wheel over it), can turn green, yellow or red as you head towards or away from the step, shows how to move it on mouse-over, and can be put back in its place from the options.
 
 ### WoW data
 

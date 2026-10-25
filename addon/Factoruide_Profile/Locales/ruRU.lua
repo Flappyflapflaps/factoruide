@@ -173,4 +173,9 @@ FG.Locales.ruRU = {
     ["profile sent to the party (%d messages, about %d s)"] = "профиль отправлен группе (%d сообщений, около %d с)",
     ["profile of %s received: reload the interface (/reload) for the Factoruide app to make a group guide with it"] = "получен профиль %s: перезагрузите интерфейс (/reload), чтобы приложение Factoruide составило групповой гайд",
     ["not in a party: nobody to send the profile to"] = "нет группы: некому отправить профиль",
+    ["Arrow"] = "Стрелка",
+    ["/fg: hide it, or put it back in its place"] = "/fg: скрыть её или вернуть на место",
+    ["arrow back in its place, at its first size"] = "стрелка возвращена на место, в исходном размере",
+    ["Arrow back in its place"] = "Вернуть стрелку на место",
+    ["Under the compass, at its first size."] = "Под компасом, в исходном размере.",
 }
