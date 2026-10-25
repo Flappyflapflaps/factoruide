@@ -56,7 +56,9 @@ local function GuideDetails(guide)
         parts[#parts + 1] = string.format(T("computed on %s"), date("%Y-%m-%d", guide.created))
     end
     if guide.version then parts[#parts + 1] = "v" .. tostring(guide.version) end
-    parts[#parts + 1] = guide.source == "import" and T("imported") or T("from the app (managed by the app)")
+    parts[#parts + 1] = guide.source == "import" and T("imported")
+        or guide.source == "ready" and T("ready-made (Factoruide Ready addon)")
+        or T("from the app (managed by the app)")
     return table.concat(parts, "  ·  ")
 end
 

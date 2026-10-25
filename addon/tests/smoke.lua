@@ -4001,6 +4001,36 @@ local function ExportImport()
     assert(FG.DataGuide == nil and FG.DataFailed, "functions refused in the data")
     FG.DataFailed = nil
 
+    -- Factoruide_Ready, the published ready-made guides: only the character's race and class
+    -- (gnome mage, "7:8") is decoded, with the pack's places; followed by itself only when the
+    -- character has no guide of its own for it.
+    local kept = { guides = FactoruideDB.guides, file = FG.Import.file, data = FG.Import.data }
+    local places =
+        'local FG = Factoruide\nFG.Services = { { "trainer", "A", 8, 0, 1, 2, 1429, 50, 50, "Trainer", 1 } }\n'
+    FactoruideReady = {
+        [FG.Edition] = {
+            time = 8000,
+            services = Encode(places),
+            guides = { ["7:8"] = Encode(GuideLua("ready-mage", 8000)), ["1:1"] = "FGG1:never decoded" },
+        },
+    }
+    FG.Import:ApplySaved()
+    assert(FactoruideReady == nil and FG.Import.readyPack == nil, "pack let go")
+    assert(FG.Routes["ready-mage"] and FG.Import.info["ready-mage"].source == "ready", "ready-made guide offered")
+    assert(FG.Import.ready.ns.Services[1][10] == "Trainer", "its places")
+    useRoute(nil)
+    assert(char.guide.route ~= "ready-mage", "own guides first: " .. tostring(char.guide.route))
+    FG.Options:Refresh()
+    assert(Row("ready-mage").details:GetText():find(FG.T("ready-made (Factoruide Ready addon)"), 1, true), "labelled")
+    assert(not Row("ready-mage").delete:IsShown(), "not deleted in game")
+    FactoruideDB.guides, FG.Import.file, FG.Import.data = {}, { routes = {}, assignments = {} }, nil
+    FG.Import:ApplySaved()
+    useRoute(nil)
+    assert(char.guide.route == "ready-mage", "no own guide: the ready-made one: " .. tostring(char.guide.route))
+    FactoruideDB.guides, FG.Import.file, FG.Import.data, FG.Import.ready = kept.guides, kept.file, kept.data, nil
+    FG.Import:ApplySaved()
+    assert(not FG.Routes["ready-mage"], "gone with the addon")
+
     -- An older app's text: the whole text kept before (guideImport) moves to one guide each, its
     -- assignments are the first choice of the characters they name when several guides fit.
     FG.Import.data = nil

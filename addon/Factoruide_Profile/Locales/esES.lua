@@ -178,4 +178,5 @@ FG.Locales.esES = {
     ["arrow back in its place, at its first size"] = "flecha devuelta a su sitio, con su tamaño original",
     ["Arrow back in its place"] = "Devolver la flecha a su sitio",
     ["Under the compass, at its first size."] = "Debajo de la brújula, con su tamaño original.",
+    ["ready-made (Factoruide Ready addon)"] = "ya hecha (addon Factoruide Ready)",
 }

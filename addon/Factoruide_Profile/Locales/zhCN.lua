@@ -178,4 +178,5 @@ FG.Locales.zhCN = {
     ["arrow back in its place, at its first size"] = "箭头已放回原位，恢复原始大小",
     ["Arrow back in its place"] = "将箭头放回原位",
     ["Under the compass, at its first size."] = "放在指南针下方，恢复原始大小。",
+    ["ready-made (Factoruide Ready addon)"] = "现成的（Factoruide Ready 插件）",
 }
