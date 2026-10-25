@@ -1757,6 +1757,47 @@ fn rested_xp_doubles_kill_xp() {
     assert!((rested - 2 * plain).abs() <= 10, "{rested} vs 2 x {plain}");
 }
 
+/// WoW Forever's XP buffs (Well Fed, Cozy Sleeping Bag) kept up: kills give `kill_xp_bonus`
+/// more; none on Classic, where food gives no XP.
+#[test]
+fn xp_buffs_raise_kill_xp_on_forever() {
+    let objectives = || {
+        vec![LogObjective {
+            text: "Scorpid Worker Tail: 0/10".into(),
+            need: 10,
+            ..LogObjective::default()
+        }]
+    };
+    let mob_xp = |edition: &str, buffs: &str| {
+        let p = prepare_from(
+            "orc",
+            "warlock",
+            30,
+            &["progression=cautious", "farm_on_way=false", edition, buffs],
+            Some(orc_met_in_game(objectives(), false, 0)),
+        );
+        let scorpids = quest(&p, 789).unwrap();
+        let route = [
+            Stop::quest(scorpids, Kind::Accept),
+            Stop::quest(scorpids, Kind::Objective(0)),
+        ];
+        planner(&p).simulate_full(&route, None).unwrap().1.mob_xp
+    };
+    let (plain, buffed) = (
+        mob_xp("edition=forever", "xp_buffs=false"),
+        mob_xp("edition=forever", "xp_buffs=true"),
+    );
+    assert!(plain > 0);
+    assert!(
+        (buffed as f64 - plain as f64 * 1.08).abs() <= 10.0,
+        "{buffed} vs 1.08 x {plain}"
+    );
+    assert_eq!(
+        mob_xp("edition=classic", "xp_buffs=true"),
+        mob_xp("edition=classic", "xp_buffs=false")
+    );
+}
+
 /// The quests of the log are taken: the guide finishes those it wants, and abandons the others
 /// at its start (the quest the model does not have too).
 #[test]
