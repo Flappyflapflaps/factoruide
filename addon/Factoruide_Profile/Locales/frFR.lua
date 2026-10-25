@@ -297,4 +297,7 @@ FG.Locales.frFR = {
     ["No rested XP here: the closest inn is %s, %d yards away."] = "Pas d'XP de repos ici : l'auberge la plus proche est %s, à %d mètres.",
     ["No rested XP here: log out in an inn or a city."] = "Pas d'XP de repos ici : déconnectez-vous dans une auberge ou une ville.",
     ["Or lie on your Cozy Sleeping Bag before logging out."] = "Ou allongez-vous sur votre Sac de couchage douillet avant de vous déconnecter.",
+    ["No Well Fed buff: eat cooked food for +5% XP from kills."] = "Pas de buff Bien nourri : mangez un plat cuisiné pour +5 % d'XP des mobs tués.",
+    ["Cozy Sleeping Bag ready: rest on it for up to +3% XP from kills."] = "Sac de couchage douillet prêt : reposez-vous dessus pour jusqu'à +3 % d'XP des mobs tués.",
+    ["Camp Tent ready: rest at your tent for rested XP worth 5% of a level."] = "Tente de camp prête : reposez-vous à votre tente pour de l'XP de repos valant 5 % d'un niveau.",
 }

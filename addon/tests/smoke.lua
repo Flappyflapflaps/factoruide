@@ -2238,6 +2238,61 @@ print("compass points ok")
 assert(FG.Poulpix.Alpha(0.2, false) == 0.2 and FG.Poulpix.Alpha(0.2, true) == 1, "faded, full under the mouse")
 print("poulpix ok")
 
+-- XP buffs: after a fight out of an inn, a reminder for each one missing (Well Fed; the Cozy
+-- Sleeping Bag when in the bags, ready and below 3 stacks; the Camp Tent for leatherworkers
+-- without rested XP nor Boosted Rest), each at most every few minutes; none in an inn, off,
+-- or on Classic.
+do
+    local auras, reminded = {}, {}
+    local realResting, realExhaustion, realSkill, realPrint = IsResting, GetXPExhaustion, FG.ProfessionSkill, print
+    C_UnitAuras = { GetAuraDataByIndex = function(_, i, filter) return filter == "HELPFUL" and auras[i] or nil end }
+    UIErrorsFrame = { AddMessage = function(_, text) reminded[#reminded + 1] = text end }
+    UnitIsDeadOrGhost = function() return false end
+    print = function() end
+    IsResting = function() return false end
+    GetXPExhaustion = function() return nil end
+    FG.ProfessionSkill = function(line) return line == 165 and 75 or nil end
+    bags[211527] = 1
+    local function Keys()
+        local keys = {}
+        for _, m in ipairs(FG.XpBuffs:Missing()) do
+            keys[#keys + 1] = m[1]
+        end
+        return table.concat(keys, ",")
+    end
+    assert(Keys() == "food,bag,tent", "every buff missing: " .. Keys())
+    auras[1] = { name = "Bien nourri", icon = 136000, applications = 0, spellId = 24800 }
+    auras[2] = { name = "Bien reposé", icon = 1, applications = 3, spellId = 429959 }
+    assert(Keys() == "tent", "fed by the icon, the bag's 3 stacks: " .. Keys())
+    auras[1] = { name = "Bien nourri", icon = 2, applications = 0, spellId = 19705 }
+    auras[2] = { name = "Bien reposé", icon = 1, applications = 2, spellId = 429959 }
+    GetXPExhaustion = function() return 20 end
+    assert(Keys() == "bag", "fed by the spell, 2 stacks, rested XP left: " .. Keys())
+    auras[1], auras[2] = nil, nil
+    bags[211527] = nil
+    fire("PLAYER_REGEN_ENABLED")
+    assert(#reminded == 1 and reminded[1]:find("Bien nourri", 1, true), "after a fight: " .. tostring(reminded[1]))
+    fire("PLAYER_REGEN_ENABLED")
+    assert(#reminded == 1, "not again so soon")
+    FG.XpBuffs:Forget()
+    FG:Set("xpBuffAlerts", false)
+    fire("PLAYER_REGEN_ENABLED")
+    FG:Set("xpBuffAlerts", nil)
+    IsResting = realResting
+    fire("PLAYER_REGEN_ENABLED")
+    IsResting = function() return false end
+    FG.Edition = "classic"
+    fire("PLAYER_REGEN_ENABLED")
+    FG.Edition = "forever"
+    assert(#reminded == 1, "none when off, in an inn or on Classic: " .. #reminded)
+    fire("PLAYER_REGEN_ENABLED")
+    assert(#reminded == 2, "again after the next fight once forgotten")
+    FG.XpBuffs:Forget()
+    C_UnitAuras, UIErrorsFrame, UnitIsDeadOrGhost = nil, nil, nil
+    IsResting, GetXPExhaustion, FG.ProfessionSkill, print = realResting, realExhaustion, realSkill, realPrint
+end
+print("xp buffs ok")
+
 -- The compass's places (tests/fixtures/Services.lua): for a gnome mage, the mage trainer, not
 -- another class's nor the Horde's, the flight masters; not the trainer of a profession neither
 -- learned nor planned, the innkeepers (off by default), the stable masters (hunters), the far

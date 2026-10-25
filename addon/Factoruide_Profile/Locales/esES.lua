@@ -199,4 +199,7 @@ FG.Locales.esES = {
     ["No rested XP here: the closest inn is %s, %d yards away."] = "Aquí no hay experiencia de descanso: la posada más cercana es %s, a %d metros.",
     ["No rested XP here: log out in an inn or a city."] = "Aquí no hay experiencia de descanso: desconéctate en una posada o una ciudad.",
     ["Or lie on your Cozy Sleeping Bag before logging out."] = "O túmbate en tu saco de dormir acogedor antes de desconectarte.",
+    ["No Well Fed buff: eat cooked food for +5% XP from kills."] = "Sin el beneficio Bien alimentado: come comida cocinada para +5 % de experiencia por muertes.",
+    ["Cozy Sleeping Bag ready: rest on it for up to +3% XP from kills."] = "Saco de dormir acogedor listo: descansa en él para hasta +3 % de experiencia por muertes.",
+    ["Camp Tent ready: rest at your tent for rested XP worth 5% of a level."] = "Tienda de campaña lista: descansa en tu tienda para experiencia de descanso equivalente al 5 % de un nivel.",
 }
