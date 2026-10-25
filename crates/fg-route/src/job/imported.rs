@@ -30,7 +30,7 @@ pub enum ImportStep {
 
 /// An imported guide as replayed.
 #[derive(Debug, Clone, Serialize)]
-pub struct ImportReport {
+pub struct ReplayReport {
     /// Real play time to the target level, the grinding after the guide's steps included.
     pub total_time: f64,
     pub total_time_text: String,
@@ -52,7 +52,7 @@ pub struct ImportReport {
 const END: &str = "end";
 
 impl Editor {
-    /// An imported guide's replayed steps (`ImportReport::steps`) saved as a guide of ours, with
+    /// An imported guide's replayed steps (`ReplayReport::steps`) saved as a guide of ours, with
     /// `notes` (its credits): replayed as imposed (gray quests and the steps our data would refuse
     /// a level early kept).
     pub fn save_import(&self, steps: &[RouteStep], notes: Vec<String>) -> Result<PlanOutcome> {
@@ -69,7 +69,7 @@ impl Editor {
     }
 
     /// Replay another addon's guide for the character.
-    pub fn follow(&self, steps: &[ImportStep]) -> ImportReport {
+    pub fn follow(&self, steps: &[ImportStep]) -> ReplayReport {
         let p = &self.prepared;
         let names = &p.model.names;
         let planner = Planner::new(&p.model, &p.world, &p.params, &p.profile);
@@ -144,7 +144,7 @@ impl Editor {
         }
         let quests = (followed.route.iter()).filter(|s| s.kind == Kind::TurnIn).count();
         let total = followed.breakdown.total;
-        ImportReport {
+        ReplayReport {
             total_time: total.round(),
             total_time_text: fmt_time(total),
             breakdown: followed.breakdown,
