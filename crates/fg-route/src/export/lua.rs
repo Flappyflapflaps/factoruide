@@ -53,9 +53,18 @@ pub fn to_lua(routes: &[Route]) -> String {
                     .join(", ")
             )
         };
+        // Computed again for a character at its request: the addon makes it follow this one.
+        let replan = r.replan.as_ref().map_or_else(String::new, |p| {
+            format!(
+                " replan = {{ character = {}, asked = {}, level = {} }},",
+                lua_str(&p.character),
+                p.asked,
+                p.level
+            )
+        });
         let _ = writeln!(
             out,
-            "FG.Routes[{}] = {{ race = {}, class = {}, faction = {}, locale = {}, fromLevel = {}, toLevel = {}, time = {}, levels = {{ {} }}, professions = {{ {} }}, reputations = {{ {} }}, spells = {{ {} }}, checkpoints = {{ {} }},{players} steps = {{",
+            "FG.Routes[{}] = {{ race = {}, class = {}, faction = {}, locale = {}, fromLevel = {}, toLevel = {}, time = {}, levels = {{ {} }}, professions = {{ {} }}, reputations = {{ {} }}, spells = {{ {} }}, checkpoints = {{ {} }},{players}{replan} steps = {{",
             lua_str(&r.name),
             r.race_id,
             r.class_id,

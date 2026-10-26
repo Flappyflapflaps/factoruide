@@ -443,6 +443,21 @@ mod tests {
     }
 
     #[test]
+    fn a_route_computed_again_says_for_whom_in_the_addons_lua() {
+        let mut r = route("Dwarf warrior (Brouz)");
+        assert!(!export::to_lua(std::slice::from_ref(&r)).contains("replan ="));
+        r.replan = Some(crate::job::replanned("Brouz-Realm", 1_790_000_000, 14));
+        let lua = export::to_lua(std::slice::from_ref(&r));
+        assert!(
+            lua.contains(" replan = { character = \"Brouz-Realm\", asked = 1790000000, level = 14 }, steps = {"),
+            "{lua}"
+        );
+        // Saved with the guide, read back.
+        let back: Route = serde_json::from_str(&serde_json::to_string(&r).unwrap()).unwrap();
+        assert_eq!(back.replan, r.replan);
+    }
+
+    #[test]
     fn another_pack_is_left_as_it_is() {
         let dir = temp_dir("polestar-other");
         let theirs = "{ \"id\": \"joe-routes\" }\n";

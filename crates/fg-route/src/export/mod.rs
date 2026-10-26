@@ -19,7 +19,8 @@ pub use lua::{lua_str, to_lua};
 pub use phrase::{Arg, Phrase};
 pub use templates::Lang;
 pub use types::{
-    Checkpoint, MapPointOut, Player, ReputationReached, Route, RouteProfession, Step, StepKind, Target, TargetKind,
+    Checkpoint, MapPointOut, Player, Replanned, ReputationReached, Route, RouteProfession, Step, StepKind, Target,
+    TargetKind,
 };
 
 use crate::model::{Names, Profile};
@@ -305,6 +306,7 @@ fn route_of(
             }
             out
         },
+        replan: None,
         steps,
     }
 }

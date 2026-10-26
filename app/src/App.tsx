@@ -4,6 +4,7 @@ import { api, type Edition, type EditionInfo, type GuideVersion, type Options, t
 import { clearMapCache } from "./components/WorldMap";
 import { I18nProvider, LANGS, detectLang, useT, type Lang } from "./i18n";
 import { WowBanner } from "./components/WowBanner";
+import { ReplanBanner } from "./components/ReplanBanner";
 import { Welcome } from "./components/Welcome";
 import { NewRoutePage, type WizardStart } from "./pages/NewRoutePage";
 import { GuidesPage, type OpenGuide } from "./pages/GuidesPage";
@@ -222,6 +223,7 @@ function Shell({ onLanguage }: { onLanguage: (lang: Lang) => void }) {
       <main className="content" ref={main} tabIndex={-1}>
         <UpdateBanner busy={busy} unsaved={unsaved} />
         <WowBanner editionName={editions.find((e) => e.key === edition)?.name ?? ""} onSettings={() => away(() => setPage("settings"))} onAddon={openAddonSite} />
+        <ReplanBanner />
         {/* Always mounted (hidden on other pages) so that a running generation goes on showing. */}
         {options && (
           <div hidden={page !== "plan"}>

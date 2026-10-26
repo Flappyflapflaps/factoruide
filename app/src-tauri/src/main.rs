@@ -19,6 +19,9 @@ use tauri::{AppHandle, Emitter, Manager, State};
 /// Game database, overrides and addon, embedded at build time (see build.rs).
 mod game;
 
+/// "Re-plan from here": the routes the addon asks to compute again, answered in the background.
+mod replan;
+
 mod embedded {
     include!(concat!(env!("OUT_DIR"), "/embedded.rs"));
 }
@@ -2037,6 +2040,8 @@ fn main() {
             migrate_results(&app.state::<AppState>());
             let handle = app.handle().clone();
             std::thread::spawn(move || auto_contribute_loop(&handle, &wake));
+            let handle = app.handle().clone();
+            std::thread::spawn(move || replan::watch_loop(&handle));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

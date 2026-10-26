@@ -60,6 +60,46 @@ pub fn read(files: &[PathBuf]) -> Result<Vec<serde_json::Value>> {
     Ok(out)
 }
 
+/// A character's request to compute its route again from where it stands ("re-plan from here",
+/// the addon's Replan.lua): `FactoruideDB.replans["Name-Realm"]`, saved at the reload it asks for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplanAsk {
+    /// "Name-Realm".
+    pub character: String,
+    /// When it was asked (unix seconds): the request's id, given back in the route.
+    pub asked: i64,
+    /// The guide the character followed (its name in game), if any.
+    pub route: Option<String>,
+    pub level: i64,
+}
+
+/// The re-plan requests of SavedVariables files, the oldest first.
+pub fn replans(files: &[PathBuf]) -> Result<Vec<ReplanAsk>> {
+    let mut out = Vec::new();
+    for file in files {
+        if file.ends_with("BrouzQuest.lua") {
+            continue;
+        }
+        let lua = lua::new_lua();
+        let Some(db) = lua::load_globals(&lua, file, &["FactoruideDB"])?.pop() else {
+            continue;
+        };
+        for (key, ask) in db.field("replans").str_entries() {
+            let Some(asked) = ask.field("asked").int() else {
+                continue;
+            };
+            out.push(ReplanAsk {
+                character: key.to_owned(),
+                asked,
+                route: ask.field("route").str().map(str::to_owned),
+                level: ask.field("level").int().unwrap_or(0),
+            });
+        }
+    }
+    out.sort_by_key(|a| a.asked);
+    Ok(out)
+}
+
 /// Flight paths shown known on the flight maps the collector recorded (`taxi` events).
 fn recorded_flights(character: &Val) -> Vec<i64> {
     character
@@ -76,6 +116,44 @@ fn recorded_flights(character: &Val) -> Vec<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn replan_requests() {
+        let dir = std::env::temp_dir().join(format!("fg-replans-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("Factoruide.lua");
+        std::fs::write(
+            &file,
+            r#"FactoruideDB = {
+                ["replans"] = {
+                    ["Brouz-Realm"] = { ["asked"] = 300, ["route"] = "Gnome Mage", ["level"] = 14, ["step"] = 120 },
+                    ["Pata-Realm"] = { ["asked"] = 200, ["level"] = 9 },
+                    ["Broken-Realm"] = { ["route"] = "x" },
+                },
+            }"#,
+        )
+        .unwrap();
+        let asks = replans(&[file]).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(
+            asks,
+            [
+                ReplanAsk {
+                    character: "Pata-Realm".into(),
+                    asked: 200,
+                    route: None,
+                    level: 9
+                },
+                ReplanAsk {
+                    character: "Brouz-Realm".into(),
+                    asked: 300,
+                    route: Some("Gnome Mage".into()),
+                    level: 14
+                },
+            ],
+            "the oldest first, those without a time left out"
+        );
+    }
 
     #[test]
     fn profiles_with_flights_from_the_profile_and_the_flight_maps() {
