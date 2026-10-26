@@ -47,11 +47,6 @@ zones = [40, 10]
 subzone = "The Dust Plains"
 
 [[pass]]
-name = "Duskwood - Stranglethorn road"
-zones = [10, 33]
-subzone = "Rebel Camp"
-
-[[pass]]
 name = "Duskwood - Deadwind road"
 zones = [10, 41]
 subzone = "Tranquil Gardens Cemetery"
@@ -65,11 +60,6 @@ subzone = "Lakeridge Highway"
 name = "Deadwind - Swamp of Sorrows road"
 zones = [41, 8]
 subzone = "Misty Valley"
-
-[[pass]]
-name = "Swamp of Sorrows - Blasted Lands"
-zones = [8, 4]
-at = { zone = 8, x = 47.0, y = 86.0 } # approx
 
 [[pass]]
 name = "Redridge - Burning Steppes pass"
@@ -87,16 +77,6 @@ zones = [1, 1537]
 at = { zone = 1, x = 53.5, y = 35.0 } # approx
 
 [[pass]]
-name = "South Gate Outpost"
-zones = [1, 38] # Dun Morogh, Loch Modan
-subzone = "South Gate Outpost"
-
-[[pass]]
-name = "North Gate Outpost"
-zones = [1, 38]
-subzone = "North Gate Outpost"
-
-[[pass]]
 name = "Dun Algaz"
 zones = [38, 11] # Loch Modan, Wetlands
 at = { zone = 38, x = 25.5, y = 10.0 } # approx
@@ -105,11 +85,6 @@ at = { zone = 38, x = 25.5, y = 10.0 } # approx
 name = "Loch Modan - Badlands road"
 zones = [38, 3]
 at = { zone = 38, x = 46.0, y = 88.0 } # approx
-
-[[pass]]
-name = "Thandol Span"
-zones = [11, 45] # Wetlands, Arathi
-subzone = "Thandol Span"
 
 # The bridge's south end: Classic's and TBC's floors leave the ground east of it apart.
 [[pass]]
@@ -167,16 +142,6 @@ subzone = "Dandred's Fold"
 # --- Kalimdor ---------------------------------------------------------------------
 
 [[pass]]
-name = "Darnassus entrance"
-zones = [141, 1657] # Teldrassil, Darnassus
-at = { zone = 141, x = 30.5, y = 51.0 } # approx
-
-[[pass]]
-name = "Darkshore - Ashenvale road"
-zones = [148, 331]
-subzone = "The Master's Glaive"
-
-[[pass]]
 name = "Ashenvale - Stonetalon path"
 zones = [331, 406]
 at = { zone = 331, x = 4.0, y = 63.0 } # approx
@@ -198,15 +163,6 @@ subzone = "Deadwood Village"
 
 # Timbermaw Hold's tunnel, from Felwood's north to Winterspring, with a branch down to
 # Moonglade (the floors hold the tunnel: its Felwood end is the waypoint).
-[[pass]]
-name = "Timbermaw Hold, Felwood end"
-zones = [361, 618] # Felwood, Winterspring
-at = { zone = 361, x = 65.2, y = 7.8 }
-
-[[pass]]
-name = "Timbermaw Hold, Felwood end (to Moonglade)"
-zones = [361, 493]
-at = { zone = 361, x = 65.2, y = 7.8 }
 
 [[pass]]
 name = "Stonetalon - Barrens road"
@@ -269,11 +225,6 @@ at = { zone = 440, x = 51.0, y = 21.0 } # approx
 name = "Tanaris - Un'Goro path"
 zones = [440, 490]
 at = { zone = 440, x = 27.0, y = 57.0 } # approx
-
-[[pass]]
-name = "Un'Goro - Silithus path"
-zones = [490, 1377]
-at = { zone = 490, x = 29.0, y = 22.0 } # approx
 
 # --- Shortcuts (off-road; used when the "shortcuts" setting is on) -------------------
 # A step of the guide tells to take them. `one_way = true`: only from the first zone to the second.

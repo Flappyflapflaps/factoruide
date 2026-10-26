@@ -64,12 +64,6 @@ name = "Zul'Mashar path, foot"
 zones = [139, 139]
 at = { zone = 139, x = 56.1, y = 15.6 }
 
-# Stormwind's gate: from the Valley of Heroes (the terrain's Elwynn side) into the city.
-[[pass]]
-name = "Stormwind gates, Valley of Heroes"
-zones = [1519, 12]
-at = { zone = 1519, x = 77.8, y = 78.5 }
-
 # The road up to Nethergarde Keep.
 [[pass]]
 name = "Nethergarde road, top"
