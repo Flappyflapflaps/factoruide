@@ -312,8 +312,3 @@ reason = "One objective (Witherbark Tusk) on the trolls' hill: no ramp the terra
 check = "terrain-gaps"
 key = "Loch Modan: Mo'grosh Stronghold"
 reason = "One objective (Chok'sul's Head) in the eastern hills: no ramp the terrain shows, walked in a straight line"
-
-[[accept]]
-check = "exclusive-prerequisites"
-key = "quest 98447"
-reason = "The Valor Family (Raven Hill): players did all four weapon quests (Grant, Silvia, Ira, Merrick) one after the other, so the four prerequisites are right; Wowhead's race and class restrictions on Grant's Shield and Silvia's Sword (Horde shaman) are wrong. The quest itself has no known giver yet (Wowhead comments, October 2026)"
