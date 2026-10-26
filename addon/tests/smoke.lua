@@ -2510,6 +2510,101 @@ do
 end
 print("self-check ok")
 
+-- Dungeon prep: the quests done inside the next dungeon, in the log, to pick up first (from whom)
+-- or started inside; the card said once when it comes near; the group message in the chat's
+-- input line, never sent.
+do
+    local lines, typed = {}, nil
+    local realPrint, realOpenChat = print, ChatFrame_OpenChat
+    print = function(text) lines[#lines + 1] = text end
+    ChatFrame_OpenChat = function(text) typed = text end
+    FG.Routes["dungeon-test"] = {
+        race = 1,
+        class = 1,
+        faction = "Alliance",
+        fromLevel = 17,
+        toLevel = 60,
+        time = 1,
+        steps = {
+            { k = "accept", t = "Accept Oh Brother", q = 9101, n = "Wilder", m = 1426, x = 30, y = 71.2, lvl = 17 },
+            {
+                k = "accept",
+                t = "Accept Memories",
+                q = 9102,
+                n = "Wilder Thistlenettle",
+                m = 1426,
+                x = 30,
+                y = 71.2,
+                lvl = 17,
+            },
+            {
+                k = "dungeon",
+                t = "Dungeon: The Deadmines",
+                n = "The Deadmines",
+                m = 1436,
+                x = 42.5,
+                y = 71.7,
+                lvl = 18,
+            },
+            {
+                k = "accept",
+                t = "Kill Edwin VanCleef to start The Unsent Letter",
+                q = 9103,
+                di = true,
+                m = 1436,
+                x = 42.5,
+                y = 71.7,
+                lvl = 18,
+            },
+            {
+                k = "objective",
+                t = "Oh Brother...: Thistlenettle's Badge",
+                q = 9101,
+                di = true,
+                o = 1,
+                lvl = 18,
+                d = 900,
+            },
+            {
+                k = "objective",
+                t = "Collecting Memories: Miners' Union Card x4",
+                q = 9102,
+                di = true,
+                o = 1,
+                lvl = 18,
+                d = 900,
+            },
+            { k = "objective", t = "The Unsent Letter: Edwin VanCleef", q = 9103, di = true, o = 1, lvl = 18, d = 900 },
+            { k = "turnin", t = "Turn in Oh Brother", q = 9101, m = 1426, x = 30, y = 71.2, lvl = 18 },
+        },
+    }
+    onQuest[9101] = true
+    useRoute("dungeon-test")
+    local index = FG.Dungeon:Next()
+    assert(index == 3, "the dungeon ahead: " .. tostring(index))
+    local quests = FG.Dungeon:Quests(index)
+    assert(#quests == 3, "three quests inside: " .. #quests)
+    assert(quests[1].q == 9103 and quests[1].state == "inside", "started inside")
+    assert(quests[2].q == 9101 and quests[2].state == "log" and quests[2].title == "Oh Brother...", "in the log")
+    assert(quests[3].state == "pickup" and quests[3].npc == "Wilder Thistlenettle", "to pick up, from whom")
+    assert(quests[3].title == "Collecting Memories", "its title from its step: " .. quests[3].title)
+    FG.Dungeon:Watch()
+    FG.Dungeon:Watch()
+    assert(#lines == 5, "the card once: " .. #lines)
+    assert(lines[1]:find("The Deadmines", 1, true) and lines[1]:find("45", 1, true), "its name and time: " .. lines[1])
+    SlashCmdList.FACTORUIDE("lfg")
+    assert(typed == "LF4M The Deadmines, level 18, quests: Oh Brother..., Collecting Memories", tostring(typed))
+    FG:Set("dungeonPrep", false)
+    char.guide.dungeonPrep = nil
+    FG.Dungeon:Watch()
+    FG:Set("dungeonPrep", nil)
+    assert(#lines == 5, "off: no card")
+    onQuest[9101] = nil
+    FG.Routes["dungeon-test"] = nil
+    print, ChatFrame_OpenChat = realPrint, realOpenChat
+end
+print("dungeon prep ok")
+
 -- The compass's places (tests/fixtures/Services.lua): for a gnome mage, the mage trainer, not
 -- another class's nor the Horde's, the flight masters; not the trainer of a profession neither
 -- learned nor planned, the innkeepers (off by default), the stable masters (hunters), the far

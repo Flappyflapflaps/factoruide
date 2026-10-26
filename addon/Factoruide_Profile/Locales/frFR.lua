@@ -339,4 +339,10 @@ FG.Locales.frFR = {
     ["no XP recorded yet at this level"] = "pas encore d'XP enregistrée à ce niveau",
     ["kills off the guide since level %d: %s XP (planned %s)"] = "mobs hors du guide depuis le niveau %d : %s XP (prévu %s)",
     ["XP sources (in the chat)"] = "Sources d'XP (dans la discussion)",
+    ["Next dungeon: %s at level %d (~%d min), %d steps ahead"] = "Prochain donjon : %s au niveau %d (~%d min), dans %d étapes",
+    ["  in your log: %s"] = "  dans votre journal : %s",
+    ["  to pick up first: %s (%s)"] = "  à prendre d'abord : %s (%s)",
+    ["  starts inside: %s"] = "  commence dedans : %s",
+    ["no dungeon ahead in the guide"] = "pas de donjon à venir dans le guide",
+    ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg écrit le message de groupe dans la discussion (Entrée l'envoie)",
 }

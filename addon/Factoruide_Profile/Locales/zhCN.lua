@@ -241,4 +241,10 @@ FG.Locales.zhCN = {
     ["no XP recorded yet at this level"] = "此等级尚未记录经验",
     ["kills off the guide since level %d: %s XP (planned %s)"] = "自 %d 级起指南外怪物：%s 经验（计划 %s）",
     ["XP sources (in the chat)"] = "经验来源（在聊天框）",
+    ["Next dungeon: %s at level %d (~%d min), %d steps ahead"] = "下一个地下城：%s，等级 %d（约%d分钟），还有 %d 步",
+    ["  in your log: %s"] = "  已在日志中：%s",
+    ["  to pick up first: %s (%s)"] = "  先要接：%s（%s）",
+    ["  starts inside: %s"] = "  在里面开始：%s",
+    ["no dungeon ahead in the guide"] = "指南中后面没有地下城",
+    ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg 会在聊天中写好组队消息（按回车发送）",
 }

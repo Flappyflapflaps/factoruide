@@ -58,6 +58,7 @@ Legacy.lua
 XpLedger.lua
 Replan.lua
 SelfCheck.lua
+Dungeon.lua
 Bank.lua
 MapPins.lua
 PathLines.lua

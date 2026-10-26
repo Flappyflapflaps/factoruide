@@ -241,4 +241,10 @@ FG.Locales.ruRU = {
     ["no XP recorded yet at this level"] = "на этом уровне опыт ещё не записан",
     ["kills off the guide since level %d: %s XP (planned %s)"] = "мобы вне гайда с уровня %d: %s опыта (по плану %s)",
     ["XP sources (in the chat)"] = "Источники опыта (в чат)",
+    ["Next dungeon: %s at level %d (~%d min), %d steps ahead"] = "Следующее подземелье: %s на уровне %d (~%d мин), через %d шагов",
+    ["  in your log: %s"] = "  в журнале: %s",
+    ["  to pick up first: %s (%s)"] = "  сначала взять: %s (%s)",
+    ["  starts inside: %s"] = "  начинается внутри: %s",
+    ["no dungeon ahead in the guide"] = "впереди в гайде нет подземелий",
+    ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg пишет сообщение для группы в чат (Enter отправляет)",
 }

@@ -241,4 +241,10 @@ FG.Locales.deDE = {
     ["no XP recorded yet at this level"] = "auf dieser Stufe noch keine EP erfasst",
     ["kills off the guide since level %d: %s XP (planned %s)"] = "Gegner außerhalb des Guides seit Stufe %d: %s EP (geplant %s)",
     ["XP sources (in the chat)"] = "EP-Quellen (im Chat)",
+    ["Next dungeon: %s at level %d (~%d min), %d steps ahead"] = "Nächster Dungeon: %s auf Stufe %d (~%d Min.), in %d Schritten",
+    ["  in your log: %s"] = "  in deinem Log: %s",
+    ["  to pick up first: %s (%s)"] = "  zuerst annehmen: %s (%s)",
+    ["  starts inside: %s"] = "  beginnt drinnen: %s",
+    ["no dungeon ahead in the guide"] = "kein Dungeon mehr im Guide",
+    ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg schreibt die Gruppennachricht in den Chat (Enter sendet sie)",
 }
