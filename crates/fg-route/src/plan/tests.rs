@@ -484,7 +484,7 @@ fn the_logs_quest_mobs_are_not_farmed_on_the_way() {
     let planner = planner(&p);
     let s0 = planner.initial_state();
     assert_eq!(farmed_on_walk(&planner, s0.clone(), &start, &end).0, 6, "not taken yet");
-    let mut taken = s0.clone();
+    let mut taken = s0;
     taken.accepted.set(0, true);
     assert_eq!(
         farmed_on_walk(&planner, taken.clone(), &start, &end).0,

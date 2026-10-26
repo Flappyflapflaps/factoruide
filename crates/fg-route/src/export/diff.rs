@@ -950,7 +950,7 @@ mod tests {
         // The smaller zone is the one that moved.
         let (x, y, z) = (zone(1..8, 1), zone(8..12, 2), zone(12..16, 3));
         let a = route([x.clone(), y.clone(), z.clone()].concat());
-        let mut y2 = y.clone();
+        let mut y2 = y;
         y2[1].text = "objective 8 elsewhere".into();
         let b = route([y2, x, z].concat());
         let d = diff(&a, &b);

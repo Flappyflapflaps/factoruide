@@ -1907,7 +1907,7 @@ fn hearthstone_avoids_an_excluded_zone() {
         Stop::quest(1, Kind::TurnIn),
     ];
     p.params.excluded_zones = vec![p.model.inns[p.model.start_inn].zone];
-    let placed = planner(&p).place_hearths(route.clone());
+    let placed = planner(&p).place_hearths(route);
     assert!(!placed.iter().any(|s| s.kind == Kind::Hearth), "{placed:?}");
 }
 

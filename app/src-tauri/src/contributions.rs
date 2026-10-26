@@ -857,7 +857,7 @@ mod tests {
         let mut keys: Vec<(&str, i64)> = keys.iter().map(|(k, s)| (k.as_str(), *s)).collect();
         keys.extend([("ACCOUNT1/Twin-Realm", 4), ("ACCOUNT2/Twin-Realm", 8)]);
         let dir = temp_dir("sent-lua");
-        std::fs::write(dir.join("Sent.lua"), sent_lua(&sent(&keys).clone())).unwrap();
+        std::fs::write(dir.join("Sent.lua"), sent_lua(&sent(&keys))).unwrap();
         let lua = fg_contrib::lua::new_lua();
         let table = fg_contrib::lua::load_globals(&lua, &dir.join("Sent.lua"), &["FactoruideSent"])
             .unwrap()

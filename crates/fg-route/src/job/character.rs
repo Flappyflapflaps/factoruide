@@ -79,7 +79,7 @@ pub(super) fn character(conn: &Connection, overrides: &Overrides, req: &PlanRequ
         name: req.name.clone().unwrap_or_else(|| format!("{race_key}-{class}")),
         race_id: race.id,
         class_id,
-        class_name: class_name.clone(),
+        class_name,
         faction: race.faction,
         start_npc: race.start_npc,
         from_level,
@@ -183,7 +183,7 @@ fn check_playable(conn: &Connection, race: &RaceDef, race_key: &str, class_id: i
         return Err(RequestError::ClassNotPlayable {
             race: race_key.to_owned(),
             class: class_name.to_owned(),
-            playable: allowed.clone(),
+            playable: allowed,
         }
         .into());
     }
