@@ -14,6 +14,7 @@ pub mod host;
 mod store;
 mod zip;
 
+use fg_route::sync::LockExt;
 use std::collections::VecDeque;
 use std::sync::{Condvar, Mutex};
 
@@ -41,7 +42,7 @@ static QUEUE: Queue = Queue {
 /// Queue a call (`{"cmd": name, "args": {...}}`) answered as `id`; a thread is started when
 /// none waits.
 pub fn call(id: u32, request: Vec<u8>) {
-    let mut calls = QUEUE.calls.lock().unwrap();
+    let mut calls = QUEUE.calls.locked();
     calls.0.push_back((id, request));
     if calls.1 == 0 {
         std::thread::spawn(serve);
@@ -55,7 +56,7 @@ pub fn call(id: u32, request: Vec<u8>) {
 fn serve() {
     loop {
         let (id, request) = {
-            let mut calls = QUEUE.calls.lock().unwrap();
+            let mut calls = QUEUE.calls.locked();
             loop {
                 if let Some(call) = calls.0.pop_front() {
                     if !calls.0.is_empty() && calls.1 == 0 {
@@ -64,7 +65,10 @@ fn serve() {
                     break call;
                 }
                 calls.1 += 1;
-                calls = QUEUE.ready.wait(calls).unwrap();
+                calls = QUEUE
+                    .ready
+                    .wait(calls)
+                    .expect("a thread panicked while holding the lock");
                 calls.1 -= 1;
             }
         };

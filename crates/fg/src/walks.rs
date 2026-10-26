@@ -4,6 +4,7 @@
 use anyhow::{Context, Result};
 use fg_route::export::Route;
 use fg_route::job::{Overrides, route_walks};
+use fg_route::sync::Joined;
 use fg_route::world::World;
 use rusqlite::Connection;
 use std::fmt::Write as _;
@@ -95,7 +96,7 @@ pub fn run(conn: &Connection, overrides_dir: &Path, route: &Path, out: &Path, ce
                 })
             })
             .collect();
-        workers.into_iter().flat_map(|w| w.join().unwrap()).collect()
+        workers.into_iter().flat_map(|w| w.join().joined()).collect()
     });
     lines.sort_by_key(|l| l.0);
     let text: String = lines.into_iter().map(|(_, l)| l + "\n").collect();

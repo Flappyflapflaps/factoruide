@@ -95,7 +95,7 @@ impl Planner<'_> {
             .iter()
             .enumerate()
             .min_by(|a, b| s.pos.dist(&a.1.pos).total_cmp(&s.pos.dist(&b.1.pos)))
-            .unwrap();
+            .expect("the model has trainers");
         let i = if s.pos.dist(&trainer.pos) <= self.params.train_radius {
             near
         } else if late {
@@ -107,7 +107,7 @@ impl Planner<'_> {
                 .map(|(i, t)| (i, self.trips().fastest(s, &t.pos).0))
                 .min_by(|a, b| a.1.total_cmp(&b.1))
                 .map(|(i, _)| i)
-                .unwrap()
+                .expect("the model has trainers")
         } else {
             return;
         };

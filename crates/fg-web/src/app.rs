@@ -9,6 +9,7 @@ use fg_route::export::diff::{self, Change, RouteDiff};
 use fg_route::export::fgstring;
 use fg_route::job::{self, EditCatalog, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState};
 use fg_route::model::Names;
+use fg_route::sync::LockExt;
 use fg_route::terrain::{WalkMemory, Walks};
 use fg_route::xp::Edition;
 use rusqlite::Connection;
@@ -72,15 +73,15 @@ static SETTINGS: LazyLock<Mutex<Settings>> = LazyLock::new(|| {
 });
 
 fn settings() -> Settings {
-    SETTINGS.lock().unwrap().clone()
+    SETTINGS.locked().clone()
 }
 
 fn edition() -> Edition {
-    SETTINGS.lock().unwrap().edition
+    SETTINGS.locked().edition
 }
 
 fn write_settings(settings: Settings) -> CmdResult<()> {
-    let mut current = SETTINGS.lock().unwrap();
+    let mut current = SETTINGS.locked();
     store::write(SETTINGS_FILE, serde_json::to_vec_pretty(&settings).map_err(err)?);
     *current = settings;
     Ok(())
@@ -93,7 +94,7 @@ static DATABASES: LazyLock<Mutex<HashMap<Edition, &'static [u8]>>> = LazyLock::n
 
 /// An edition's database, fetched and unpacked the first time (`data/<edition>.sqlite.zst`).
 fn database(edition: Edition) -> CmdResult<&'static [u8]> {
-    let mut dbs = DATABASES.lock().unwrap();
+    let mut dbs = DATABASES.locked();
     if let Some(db) = dbs.get(&edition) {
         return Ok(db);
     }
@@ -152,11 +153,11 @@ static NAMES: LazyLock<Mutex<NamesCache>> = LazyLock::new(Mutex::default);
 
 fn names(edition: Edition, locale: &str) -> CmdResult<Arc<Names>> {
     let key = (edition, locale.to_owned());
-    if let Some(n) = NAMES.lock().unwrap().get(&key) {
+    if let Some(n) = NAMES.locked().get(&key) {
         return Ok(n.clone());
     }
     let names = Arc::new(Names::load(&open_db(edition)?, locale).map_err(err)?);
-    NAMES.lock().unwrap().insert(key, names.clone());
+    NAMES.locked().insert(key, names.clone());
     Ok(names)
 }
 
@@ -312,7 +313,7 @@ fn walks(edition: Edition) -> Arc<Walks> {
         #[serde(default)]
         walks: Option<WalkMemory>,
     }
-    if let Some(w) = WALKS.lock().unwrap().get(&edition) {
+    if let Some(w) = WALKS.locked().get(&edition) {
         return Arc::clone(w);
     }
     let walks = Arc::new(Walks::default());
@@ -327,7 +328,7 @@ fn walks(edition: Edition) -> Arc<Walks> {
             }
         }
     }
-    Arc::clone(WALKS.lock().unwrap().entry(edition).or_insert(walks))
+    Arc::clone(WALKS.locked().entry(edition).or_insert(walks))
 }
 
 fn add_version(
@@ -678,7 +679,7 @@ fn import_guide(content: &str) -> CmdResult<VersionMeta> {
     }
     let data = shared.meta.get("data").and_then(|d| d.as_str()).map(str::to_owned);
     let edition = edition();
-    if let (Some(memory), Some(w)) = (&shared.outcome.walks, WALKS.lock().unwrap().get(&edition)) {
+    if let (Some(memory), Some(w)) = (&shared.outcome.walks, WALKS.locked().get(&edition)) {
         w.add(memory.clone());
     }
     add_version(edition, &shared.request, &shared.outcome, data, (true, false), now()?)
@@ -764,7 +765,7 @@ fn guide_timeline(guide: &str, n: u32, locale: &str) -> CmdResult<job::Timeline>
     let v = version(edition(), guide, n)?;
     let edition = request_edition(&v.request);
     let key: TimelineKey = (edition, guide.to_owned(), n, v.meta.created, locale.to_owned());
-    if let Some((k, timeline)) = TIMELINE.lock().unwrap().as_ref()
+    if let Some((k, timeline)) = TIMELINE.locked().as_ref()
         && *k == key
     {
         return Ok(timeline.clone());
@@ -772,7 +773,7 @@ fn guide_timeline(guide: &str, n: u32, locale: &str) -> CmdResult<job::Timeline>
     let conn = open_db(edition)?;
     let editor = job::Editor::open(&conn, &overrides(edition)?, &v.request, Some(&walks(edition))).map_err(err)?;
     let timeline = editor.timeline(&v.outcome, &*names(edition, locale)?);
-    *TIMELINE.lock().unwrap() = Some((key, timeline.clone()));
+    *TIMELINE.locked() = Some((key, timeline.clone()));
     Ok(timeline)
 }
 
@@ -790,7 +791,7 @@ fn edit_open(guide: &str, n: u32, locale: &str) -> CmdResult<EditOpened> {
         steps,
         rebuilt,
     };
-    *EDITOR.lock().unwrap() = Some(EditSession {
+    *EDITOR.locked() = Some(EditSession {
         edition,
         request: v.request,
         notes: v.outcome.notes,
@@ -801,7 +802,7 @@ fn edit_open(guide: &str, n: u32, locale: &str) -> CmdResult<EditOpened> {
 
 fn edit_simulate(steps: &[RouteStep], locale: &str) -> CmdResult<job::EditView> {
     let request = EDIT_REQUESTS.next();
-    let session = EDITOR.lock().unwrap();
+    let session = EDITOR.locked();
     let session = session.as_ref().ok_or("no guide open in the editor")?;
     let names = names(session.edition, locale)?;
     session
@@ -812,7 +813,7 @@ fn edit_simulate(steps: &[RouteStep], locale: &str) -> CmdResult<job::EditView> 
 
 fn edit_suggest(steps: &[RouteStep], after: Option<usize>, locale: &str) -> CmdResult<job::Suggestions> {
     let request = EDIT_REQUESTS.next();
-    let session = EDITOR.lock().unwrap();
+    let session = EDITOR.locked();
     let session = session.as_ref().ok_or("no guide open in the editor")?;
     let names = names(session.edition, locale)?;
     session
@@ -822,7 +823,7 @@ fn edit_suggest(steps: &[RouteStep], after: Option<usize>, locale: &str) -> CmdR
 }
 
 fn edit_save(steps: &[RouteStep]) -> CmdResult<VersionMeta> {
-    let mut session = EDITOR.lock().unwrap();
+    let mut session = EDITOR.locked();
     let open = session.as_ref().ok_or("no guide open in the editor")?;
     let outcome = open.editor.save(steps, open.notes.clone()).map_err(err)?;
     let data = data_version(&open_db(open.edition)?);
@@ -1322,7 +1323,7 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         }
         "edit_save" => to_json(edit_save(&args::<StepsArgs>(a)?.steps)),
         "edit_close" => {
-            *EDITOR.lock().unwrap() = None;
+            *EDITOR.locked() = None;
             Ok(Value::Null)
         }
         _ => Err(format!("unknown call {cmd}")),

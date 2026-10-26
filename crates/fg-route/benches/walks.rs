@@ -1,6 +1,7 @@
 //! Walks the planner asks, worked out from cold memories: those between terrain areas joined only
 //! through passages (`World::bridge`), and others between zones.
 
+#![expect(clippy::unwrap_used, reason = "a bench that cannot load its data fails")]
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use fg_route::faction::Faction;
 use fg_route::job::Overrides;

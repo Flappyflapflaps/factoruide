@@ -612,10 +612,10 @@ pub fn to_text(diff: &RouteDiff, a: &Route, b: &Route, names: [&str; 2], setting
                 t,
                 "\n= {} identical: {na} #{}-{} | {nb} #{}-{} ({})",
                 plural(run.len(), "block"),
-                n(first.a.unwrap().first),
-                n(last.a.unwrap().last),
-                n(first.b.unwrap().first),
-                n(last.b.unwrap().last),
+                n(first.a.expect("a block present on both sides").first),
+                n(last.a.expect("a block present on both sides").last),
+                n(first.b.expect("a block present on both sides").first),
+                n(last.b.expect("a block present on both sides").last),
                 zones.join(", ")
             );
         }
@@ -679,10 +679,10 @@ fn write_rows(t: &mut String, rows: &[Row], a: &Route, b: &Route, [na, nb]: [&st
                 t,
                 "  ... {} identical ({na} #{}-{} | {nb} #{}-{})",
                 plural(k - start, "step"),
-                x.a.unwrap() + 1,
-                y.a.unwrap() + 1,
-                x.b.unwrap() + 1,
-                y.b.unwrap() + 1
+                x.a.expect("a step present on both sides") + 1,
+                y.a.expect("a step present on both sides") + 1,
+                x.b.expect("a step present on both sides") + 1,
+                y.b.expect("a step present on both sides") + 1
             );
             continue;
         }

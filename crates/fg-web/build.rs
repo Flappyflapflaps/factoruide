@@ -1,3 +1,5 @@
+#![expect(clippy::unwrap_used, reason = "a build script fails by panicking")]
+
 use std::fmt::Write as _;
 use std::path::Path;
 

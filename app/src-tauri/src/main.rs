@@ -6,6 +6,7 @@ use fg_route::Route;
 use fg_route::export::diff::{self, Change, RouteDiff};
 use fg_route::job::{self, EditCatalog, Options, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState};
 use fg_route::model::Names;
+use fg_route::sync::LockExt;
 use fg_route::terrain::{WalkMemory, Walks};
 use fg_route::xp::Edition;
 use rusqlite::Connection;
@@ -196,18 +197,18 @@ fn overrides(edition: Edition) -> CmdResult<Overrides> {
 
 impl AppState {
     fn settings(&self) -> Settings {
-        self.settings.lock().unwrap().clone()
+        self.settings.locked().clone()
     }
     fn edition(&self) -> Edition {
-        self.settings.lock().unwrap().edition
+        self.settings.locked().edition
     }
     /// The database of an edition, unpacked the first time.
     fn db_path(&self, edition: Edition) -> CmdResult<PathBuf> {
-        if let Some(p) = self.dbs.lock().unwrap().get(&edition) {
+        if let Some(p) = self.dbs.locked().get(&edition) {
             return Ok(p.clone());
         }
         let path = unpack_database(&self.db_dir, edition).map_err(err)?;
-        self.dbs.lock().unwrap().insert(edition, path.clone());
+        self.dbs.locked().insert(edition, path.clone());
         Ok(path)
     }
     fn open_db(&self) -> CmdResult<Connection> {
@@ -216,11 +217,11 @@ impl AppState {
     /// Names of the current edition in a game language, read once.
     fn names(&self, locale: &str) -> CmdResult<Arc<Names>> {
         let key = (self.edition(), locale.to_owned());
-        if let Some(n) = self.names.lock().unwrap().get(&key) {
+        if let Some(n) = self.names.locked().get(&key) {
             return Ok(n.clone());
         }
         let names = Arc::new(Names::load(&self.open_db()?, locale).map_err(err)?);
-        self.names.lock().unwrap().insert(key, names.clone());
+        self.names.locked().insert(key, names.clone());
         Ok(names)
     }
     /// A guide written in `locale` (None: the language it was made in).
@@ -361,7 +362,7 @@ fn set_settings(state: State<'_, AppState>, mut settings: Settings) -> CmdResult
 
 fn write_settings(state: &AppState, mut settings: Settings) -> CmdResult<()> {
     settings.wow_dir = game_root(&settings.wow_dir);
-    let mut current = state.settings.lock().unwrap();
+    let mut current = state.settings.locked();
     // Created meanwhile by a contribution (see `contributor_id`): never lost to an older copy.
     if settings.contributor.is_none() {
         settings.contributor.clone_from(&current.contributor);
@@ -475,7 +476,7 @@ fn addon_health(state: State<'_, AppState>) -> AddonState {
     let settings = state.settings();
     AddonState {
         health: game::addon_health(&settings.wow_dir, settings.edition, ADDON_VERSION),
-        restart_needed: *state.restart_needed.lock().unwrap(),
+        restart_needed: *state.restart_needed.locked(),
     }
 }
 
@@ -630,7 +631,7 @@ impl AppState {
             #[serde(default)]
             walks: Option<WalkMemory>,
         }
-        if let Some(w) = self.walks.lock().unwrap().get(&edition) {
+        if let Some(w) = self.walks.locked().get(&edition) {
             return Arc::clone(w);
         }
         let walks = Arc::new(Walks::default());
@@ -646,7 +647,7 @@ impl AppState {
                 }
             }
         }
-        Arc::clone(self.walks.lock().unwrap().entry(edition).or_insert(walks))
+        Arc::clone(self.walks.locked().entry(edition).or_insert(walks))
     }
 
     /// Add a version to the guide of this name (created when new).
@@ -916,7 +917,7 @@ async fn guide_timeline(app: AppHandle, guide: String, version: u32, locale: Str
         let v = state.version(&guide, version)?;
         let edition = v.request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
         let key: TimelineKey = (edition, guide, version, v.meta.created, locale);
-        if let Some((k, timeline)) = state.timeline.lock().unwrap().as_ref()
+        if let Some((k, timeline)) = state.timeline.locked().as_ref()
             && *k == key
         {
             return Ok(timeline.clone());
@@ -925,7 +926,7 @@ async fn guide_timeline(app: AppHandle, guide: String, version: u32, locale: Str
         let walks = state.walks(edition);
         let editor = job::Editor::open(&conn, &overrides(edition)?, &v.request, Some(&walks)).map_err(err)?;
         let timeline = editor.timeline(&v.outcome, &*state.names(&key.4)?);
-        *state.timeline.lock().unwrap() = Some((key, timeline.clone()));
+        *state.timeline.locked() = Some((key, timeline.clone()));
         Ok(timeline)
     })
     .await
@@ -951,7 +952,7 @@ async fn edit_open(app: AppHandle, guide: String, version: u32, locale: String) 
             steps,
             rebuilt,
         };
-        *state.editor.lock().unwrap() = Some(EditSession {
+        *state.editor.locked() = Some(EditSession {
             edition,
             request: v.request,
             notes: v.outcome.notes,
@@ -974,7 +975,7 @@ async fn edit_simulate(app: AppHandle, steps: Vec<RouteStep>, locale: String) ->
         let state = app.state::<AppState>();
         let request = state.edit_requests.next();
         let names = state.names(&locale)?;
-        let session = state.editor.lock().unwrap();
+        let session = state.editor.locked();
         let session = session.as_ref().ok_or("no guide open in the editor")?;
         session
             .editor
@@ -999,7 +1000,7 @@ async fn edit_suggest(
         let state = app.state::<AppState>();
         let request = state.edit_requests.next();
         let names = state.names(&locale)?;
-        let session = state.editor.lock().unwrap();
+        let session = state.editor.locked();
         let session = session.as_ref().ok_or("no guide open in the editor")?;
         (session.editor.suggest(&steps, after, &names, &request)).ok_or_else(|| SUPERSEDED.to_owned())
     })
@@ -1013,7 +1014,7 @@ async fn edit_suggest(
 async fn edit_save(app: AppHandle, steps: Vec<RouteStep>) -> CmdResult<VersionMeta> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
-        let mut session = state.editor.lock().unwrap();
+        let mut session = state.editor.locked();
         let open = session.as_ref().ok_or("no guide open in the editor")?;
         let outcome = open.editor.save(&steps, open.notes.clone()).map_err(err)?;
         let data = data_version(&open_db(&state.db_path(open.edition)?)?);
@@ -1032,7 +1033,7 @@ async fn edit_save(app: AppHandle, steps: Vec<RouteStep>) -> CmdResult<VersionMe
     reason = "tauri commands take their arguments by value"
 )]
 fn edit_close(state: State<'_, AppState>) {
-    *state.editor.lock().unwrap() = None;
+    *state.editor.locked() = None;
 }
 
 /// End the optimization under way now: `plan_route` saves and returns the best guide so far.
@@ -1295,7 +1296,7 @@ fn write_data(state: &AppState) -> CmdResult<usize> {
     // A folder or a file the game does not load yet: it reads the .toc files when it starts.
     let after = loaded_files(&addons);
     let restart = after.iter().any(|(toc, files)| before.get(toc) != Some(files));
-    *state.restart_needed.lock().unwrap() = restart;
+    *state.restart_needed.locked() = restart;
     write_settings(
         state,
         Settings {
@@ -1333,7 +1334,7 @@ fn install_polestar(state: State<'_, AppState>) -> CmdResult<usize> {
     for (name, content) in files {
         std::fs::write(pack.join(name), content).map_err(err)?;
     }
-    *state.restart_needed.lock().unwrap() = true;
+    *state.restart_needed.locked() = true;
     Ok(guides.len())
 }
 
@@ -1582,7 +1583,7 @@ fn import_guide(state: State<'_, AppState>, content: String) -> CmdResult<Versio
     }
     let data = shared.meta.get("data").and_then(|d| d.as_str()).map(str::to_owned);
     // Its walking memory joins the app's (when made on the same terrain data).
-    if let (Some(memory), Some(walks)) = (&shared.outcome.walks, state.walks.lock().unwrap().get(&state.edition())) {
+    if let (Some(memory), Some(walks)) = (&shared.outcome.walks, state.walks.locked().get(&state.edition())) {
         walks.add(memory.clone());
     }
     let meta = state.add_version(&shared.request, &shared.outcome, data, (true, false), now()?)?;
@@ -2210,7 +2211,7 @@ fn server_endpoint(settings: &Settings, path: &str) -> Option<String> {
 /// This install's contributor id, created the first time (settings locked meanwhile: the
 /// automatic sends may ask for it while the settings page saves).
 fn contributor_id(state: &AppState) -> CmdResult<String> {
-    let mut settings = state.settings.lock().unwrap();
+    let mut settings = state.settings.locked();
     if let Some(id) = settings
         .contributor
         .clone()
@@ -2720,7 +2721,7 @@ fn setup_of(state: &AppState) -> fg_contrib::issue::Setup {
         not_loaded: health.not_loaded,
         disabled: u32::try_from(health.disabled_for.len()).unwrap_or(u32::MAX),
         saved_variables: health.saved_variables,
-        restart_needed: *state.restart_needed.lock().unwrap(),
+        restart_needed: *state.restart_needed.locked(),
     }
 }
 

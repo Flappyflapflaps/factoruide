@@ -82,7 +82,10 @@ impl Planner<'_> {
                         return;
                     }
                     let levels = band.iter().map(|&i| quests[i as usize].min_level);
-                    let (lo, hi) = (levels.clone().min().unwrap(), levels.max().unwrap());
+                    let (lo, hi) = (
+                        levels.clone().min().expect("a band has quests"),
+                        levels.max().expect("a band has quests"),
+                    );
                     for &i in band.iter() {
                         of_quest[i as usize] = groups.len();
                     }
@@ -117,7 +120,7 @@ impl Planner<'_> {
             let small = (0..groups.len())
                 .find(|&g| groups[g].quests.len() < MIN_GROUP && Self::merge_target(&groups, g).is_some());
             let Some(g) = small else { break };
-            let target = Self::merge_target(&groups, g).unwrap();
+            let target = Self::merge_target(&groups, g).expect("the group was just found to have a target");
             let moved = groups.remove(g);
             let target = if target > g { target - 1 } else { target };
             let t = &mut groups[target];

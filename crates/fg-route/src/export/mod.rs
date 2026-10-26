@@ -137,7 +137,7 @@ pub fn build_traced(
                 };
                 let mut looted = Vec::new();
                 while steps.last().is_some_and(from_boss) {
-                    let mut accept = steps.pop().unwrap();
+                    let mut accept = steps.pop().expect("the loop checked the last step");
                     xps.pop();
                     (accept.time, accept.level, accept.inside) = (entered, level, true);
                     looted.insert(0, accept);

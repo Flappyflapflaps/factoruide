@@ -23,7 +23,7 @@ impl Places<'_> {
             locs.iter()
                 .map(|l| (l, s.pos.dist(&l.pos)))
                 .min_by(|a, b| a.1.total_cmp(&b.1))
-                .unwrap()
+                .expect("a place has locations")
                 .0
                 .clone()
         };
@@ -56,7 +56,7 @@ impl Places<'_> {
             locs.iter()
                 .map(|l| (l.pos, s.pos.dist(&l.pos)))
                 .min_by(|a, b| a.1.total_cmp(&b.1))
-                .unwrap()
+                .expect("a place has locations")
                 .0
         };
         match stop.kind {
