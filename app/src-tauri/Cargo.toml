@@ -11,6 +11,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 anyhow.workspace = true
+fg-library = { path = "../../crates/fg-library" }
 fg-route = { path = "../../crates/fg-route" }
 rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

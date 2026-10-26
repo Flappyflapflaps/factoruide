@@ -4,13 +4,13 @@
 //! the app (`import_profile`).
 
 use crate::{embedded, host, store};
+use fg_library::{Comparison, GuideVersion, Library, Origin, SharedGuide, VersionMeta};
 use fg_route::Route;
-use fg_route::export::diff::{self, Change, RouteDiff};
 use fg_route::export::fgstring;
-use fg_route::job::{self, EditCatalog, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState};
+use fg_route::job::{self, EditCatalog, Overrides, PlanRequest, RouteStep, StartState};
 use fg_route::model::Names;
 use fg_route::sync::LockExt;
-use fg_route::terrain::{WalkMemory, Walks};
+use fg_route::terrain::Walks;
 use fg_route::xp::Edition;
 use rusqlite::Connection;
 use serde::de::DeserializeOwned;
@@ -206,97 +206,13 @@ fn list_editions() -> Vec<EditionInfo> {
 
 // Guides -------------------------------------------------------------------------------
 //
+// The guides are kept by `fg-library`, over the files of `store`; `characters.json`, next to
+// them, tells which guide each character follows.
+//
 //   guides/<edition>/characters.json          "Name-Realm" -> guide (slug)
-//   guides/<edition>/<slug>/guide.json        name, version the characters follow
-//   guides/<edition>/<slug>/v<N>/meta.json    summary of the version
-//   guides/<edition>/<slug>/v<N>/request.json configuration
-//   guides/<edition>/<slug>/v<N>/outcome.json computed guide
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct GuideInfo {
-    name: String,
-    #[serde(default)]
-    installed: Option<u32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct VersionMeta {
-    guide: String,
-    version: u32,
-    name: String,
-    created: u64,
-    race: String,
-    class: String,
-    #[serde(default)]
-    group: Vec<String>,
-    from_level: i64,
-    to_level: i64,
-    total_time: f64,
-    total_time_text: String,
-    quests: usize,
-    data: Option<String>,
-    #[serde(default)]
-    imported: bool,
-    #[serde(default)]
-    edited: bool,
-    #[serde(default)]
-    character: Option<String>,
-}
-
-#[derive(Serialize)]
-struct GuideSummary {
-    id: String,
-    name: String,
-    installed: Option<u32>,
-    versions: Vec<VersionMeta>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct GuideVersion {
-    meta: VersionMeta,
-    request: PlanRequest,
-    outcome: PlanOutcome,
-}
-
-fn guides_dir(edition: Edition) -> String {
-    format!("guides/{}", edition.key())
-}
-
-fn guide_info(edition: Edition, id: &str) -> CmdResult<GuideInfo> {
-    serde_json::from_str(&store::read_string(&format!(
-        "{}/{id}/guide.json",
-        guides_dir(edition)
-    ))?)
-    .map_err(err)
-}
-
-fn write_guide_info(edition: Edition, id: &str, info: &GuideInfo) -> CmdResult<()> {
-    store::write(
-        &format!("{}/{id}/guide.json", guides_dir(edition)),
-        serde_json::to_vec_pretty(info).map_err(err)?,
-    );
-    Ok(())
-}
-
-fn versions(edition: Edition, id: &str) -> Vec<VersionMeta> {
-    let dir = format!("{}/{id}", guides_dir(edition));
-    let mut out: Vec<VersionMeta> = store::list(&dir)
-        .into_iter()
-        .filter(|n| n.starts_with('v'))
-        .filter_map(|v| serde_json::from_slice(&store::read(&format!("{dir}/{v}/meta.json"))?).ok())
-        .collect();
-    out.sort_by_key(|v| std::cmp::Reverse(v.version));
-    out
-}
-
-fn version(edition: Edition, id: &str, version: u32) -> CmdResult<GuideVersion> {
-    let folder = format!("{}/{id}/v{version}", guides_dir(edition));
-    let read = |f: &str| store::read_string(&format!("{folder}/{f}"));
-    Ok(GuideVersion {
-        meta: serde_json::from_str(&read("meta.json")?).map_err(err)?,
-        request: serde_json::from_str(&read("request.json")?).map_err(err)?,
-        outcome: PlanOutcome::from_json(&read("outcome.json")?).map_err(err)?,
-    })
+fn guides(edition: Edition) -> Library<'static, store::Browser> {
+    Library::new(&store::Browser, edition)
 }
 
 /// The edition a version was made for (the current one when its request does not say).
@@ -308,218 +224,43 @@ static WALKS: LazyLock<Mutex<HashMap<Edition, Arc<Walks>>>> = LazyLock::new(Mute
 
 /// The walking memory of an edition: the first time, the memories of all its guides.
 fn walks(edition: Edition) -> Arc<Walks> {
-    #[derive(Deserialize)]
-    struct Saved {
-        #[serde(default)]
-        walks: Option<WalkMemory>,
-    }
     if let Some(w) = WALKS.locked().get(&edition) {
         return Arc::clone(w);
     }
     let walks = Arc::new(Walks::default());
-    let dir = guides_dir(edition);
-    for guide in store::list(&dir) {
-        for v in store::list(&format!("{dir}/{guide}")) {
-            let memory = store::read(&format!("{dir}/{guide}/{v}/outcome.json"))
-                .and_then(|json| serde_json::from_slice::<Saved>(&json).ok())
-                .and_then(|saved| saved.walks);
-            if let Some(memory) = memory {
-                walks.add(memory);
-            }
-        }
+    for memory in guides(edition).walk_memories() {
+        walks.add(memory);
     }
     Arc::clone(WALKS.locked().entry(edition).or_insert(walks))
-}
-
-fn add_version(
-    edition: Edition,
-    request: &PlanRequest,
-    outcome: &PlanOutcome,
-    data: Option<String>,
-    (imported, edited): (bool, bool),
-    created: u64,
-) -> CmdResult<VersionMeta> {
-    let route = &outcome.route;
-    let id = job::slug(&route.name);
-    let info = guide_info(edition, &id).unwrap_or(GuideInfo {
-        name: route.name.clone(),
-        installed: None,
-    });
-    write_guide_info(
-        edition,
-        &id,
-        &GuideInfo {
-            name: route.name.clone(),
-            ..info
-        },
-    )?;
-    let version = versions(edition, &id).first().map_or(1, |v| v.version + 1);
-    let meta = VersionMeta {
-        guide: id.clone(),
-        version,
-        name: route.name.clone(),
-        created,
-        race: request.race.clone(),
-        class: request.class.clone(),
-        group: request.mates.iter().map(|m| m.class.to_lowercase()).collect(),
-        from_level: route.from_level,
-        to_level: route.to_level,
-        total_time: route.total_time,
-        total_time_text: route.total_time_text.clone(),
-        quests: route.quests,
-        data,
-        imported,
-        edited,
-        character: request.start.as_ref().map(|s| s.name.clone()),
-    };
-    let folder = format!("{}/{id}/v{version}", guides_dir(edition));
-    store::write(
-        &format!("{folder}/meta.json"),
-        serde_json::to_vec_pretty(&meta).map_err(err)?,
-    );
-    store::write(
-        &format!("{folder}/request.json"),
-        serde_json::to_vec_pretty(request).map_err(err)?,
-    );
-    store::write(
-        &format!("{folder}/outcome.json"),
-        serde_json::to_vec(outcome).map_err(err)?,
-    );
-    Ok(meta)
-}
-
-fn followed_version(edition: Edition, id: &str) -> Option<u32> {
-    let chosen = guide_info(edition, id).ok()?.installed;
-    chosen.or_else(|| versions(edition, id).first().map(|v| v.version))
 }
 
 /// Every guide in the version its page says to follow (the latest unless one is chosen), written
 /// in the language it was made in, with when that version was computed and its number.
 fn followed_guides(edition: Edition) -> CmdResult<Vec<(Route, u64, u32)>> {
-    store::list(&guides_dir(edition))
+    guides(edition)
+        .followed()
         .into_iter()
-        .filter_map(|id| {
-            let n = followed_version(edition, &id)?;
-            let v = version(edition, &id, n).ok()?;
-            Some((v.outcome.route, v.meta.created, n))
-        })
         .map(|(route, created, n)| Ok((render(edition, &route, None)?, created, n)))
         .collect()
 }
 
-fn summary(edition: Edition, id: &str) -> CmdResult<GuideSummary> {
-    let info = guide_info(edition, id)?;
-    Ok(GuideSummary {
-        id: id.to_owned(),
-        name: info.name,
-        installed: info.installed,
-        versions: versions(edition, id),
-    })
-}
-
-fn list_guides() -> Vec<GuideSummary> {
-    let edition = edition();
-    let mut out: Vec<GuideSummary> = store::list(&guides_dir(edition))
-        .into_iter()
-        .filter_map(|id| summary(edition, &id).ok())
-        .filter(|g| !g.versions.is_empty())
-        .collect();
-    out.sort_by(|a, b| b.versions[0].created.cmp(&a.versions[0].created));
-    out
-}
-
-#[derive(Serialize)]
-struct Comparison {
-    a: GuideVersion,
-    b: GuideVersion,
-    diff: RouteDiff,
-    settings: Vec<Change>,
-    text: String,
-}
-
 fn compare_versions(guide: &str, a: u32, b: u32, locale: Option<&str>) -> CmdResult<Comparison> {
     let edition = edition();
-    let load = |n: u32| -> CmdResult<GuideVersion> {
-        let mut v = version(edition, guide, n)?;
-        v.outcome.walks = None;
-        v.outcome.plan.clear();
-        Ok(v)
-    };
-    let (mut a, mut b) = (load(a)?, load(b)?);
-    let settings = |v: &GuideVersion| -> CmdResult<serde_json::Value> {
-        let mut value = serde_json::to_value(&v.request).map_err(err)?;
-        if let serde_json::Value::Object(map) = &mut value {
-            map.insert("data".into(), v.meta.data.clone().into());
-        }
-        Ok(value)
-    };
-    let settings = diff::value_changes(&settings(&a)?, &settings(&b)?);
-    let d = diff::diff(&a.outcome.route, &b.outcome.route);
-    let labels = [format!("v{}", a.meta.version), format!("v{}", b.meta.version)];
-    let text = diff::to_text(
-        &d,
-        &a.outcome.route,
-        &b.outcome.route,
-        [&labels[0], &labels[1]],
-        &settings,
-    );
+    let mut c = guides(edition).compare(guide, a, b)?;
     if let Some(locale) = locale {
-        a.outcome.route = render(edition, &a.outcome.route, Some(locale))?;
-        b.outcome.route = render(edition, &b.outcome.route, Some(locale))?;
+        c.a.outcome.route = render(edition, &c.a.outcome.route, Some(locale))?;
+        c.b.outcome.route = render(edition, &c.b.outcome.route, Some(locale))?;
     }
-    Ok(Comparison {
-        a,
-        b,
-        diff: d,
-        settings,
-        text,
-    })
+    Ok(c)
 }
 
 fn get_version(guide: &str, n: u32, locale: Option<&str>) -> CmdResult<GuideVersion> {
     let edition = edition();
-    let mut v = version(edition, guide, n)?;
-    v.outcome.walks = None;
-    v.outcome.plan.clear();
+    let mut v = guides(edition).version_to_show(guide, n)?;
     if let Some(locale) = locale {
         v.outcome.route = render(edition, &v.outcome.route, Some(locale))?;
     }
     Ok(v)
-}
-
-fn set_installed(guide: &str, v: Option<u32>) -> CmdResult<()> {
-    let edition = edition();
-    let info = guide_info(edition, guide)?;
-    write_guide_info(edition, guide, &GuideInfo { installed: v, ..info })
-}
-
-fn delete_version(guide: &str, v: u32) -> CmdResult<()> {
-    let edition = edition();
-    store::remove_dir(&format!("{}/{guide}/v{v}", guides_dir(edition)));
-    let info = guide_info(edition, guide)?;
-    if versions(edition, guide).is_empty() {
-        delete_guide(guide)
-    } else {
-        if info.installed == Some(v) {
-            write_guide_info(
-                edition,
-                guide,
-                &GuideInfo {
-                    installed: None,
-                    ..info
-                },
-            )?;
-        }
-        Ok(())
-    }
-}
-
-fn delete_guide(guide: &str) -> CmdResult<()> {
-    let edition = edition();
-    if !store::remove_dir(&format!("{}/{guide}", guides_dir(edition))) {
-        return Err(format!("no guide {guide}"));
-    }
-    Ok(())
 }
 
 // The guides for the game ---------------------------------------------------------------------
@@ -528,7 +269,7 @@ fn delete_guide(guide: &str) -> CmdResult<()> {
 /// guides it has, or replaces the one of its name).
 fn guide_text(guide: &str, n: u32) -> CmdResult<serde_json::Value> {
     let edition = edition();
-    let v = version(edition, guide, n)?;
+    let v = guides(edition).version(guide, n)?;
     let route = render(edition, &v.outcome.route, None)?;
     let lua = job::guides_lua(
         &open_db(edition)?,
@@ -603,7 +344,7 @@ fn polestar_string(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
     }
     let route = render(
         Edition::Forever,
-        &version(Edition::Forever, guide, v)?.outcome.route,
+        &guides(Edition::Forever).version(guide, v)?.outcome.route,
         None,
     )?;
     let s = fg_route::export::polestar::import_string(&job::slug(&route.name), &route, v);
@@ -618,7 +359,7 @@ fn export_polestar(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
     }
     let route = render(
         Edition::Forever,
-        &version(Edition::Forever, guide, v)?.outcome.route,
+        &guides(Edition::Forever).version(guide, v)?.outcome.route,
         Some("enUS"),
     )?;
     let folder = job::POLESTAR_SOURCE_FOLDER;
@@ -637,52 +378,28 @@ fn export_polestar(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
 
 // Shared guides --------------------------------------------------------------------------
 
-#[derive(Serialize, Deserialize)]
-struct SharedGuide {
-    format: String,
-    version: u32,
-    meta: serde_json::Value,
-    request: PlanRequest,
-    outcome: PlanOutcome,
-}
-
-const SHARE_FORMAT: &str = "factoruide-guide";
-const LEGACY_SHARE_FORMAT: &str = "brouzquest-result";
-
 /// A version as a .fgguide file to download.
 fn export_version(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
-    let gv = version(edition(), guide, v)?;
-    let shared = SharedGuide {
-        format: SHARE_FORMAT.into(),
-        version: 2,
-        meta: serde_json::to_value(&gv.meta).map_err(err)?,
-        request: gv.request,
-        outcome: gv.outcome,
-    };
+    let shared = guides(edition()).share(guide, v)?;
     Ok(serde_json::json!({
         "file": format!("{guide}-v{v}.fgguide"),
-        "text": serde_json::to_string(&shared).map_err(err)?,
+        "text": shared.to_json()?,
     }))
 }
 
 fn import_guide(content: &str) -> CmdResult<VersionMeta> {
-    let mut shared: serde_json::Value =
-        serde_json::from_str(content).map_err(|e| format!("not a Factoruide guide file: {e}"))?;
-    if let Some(outcome) = shared.get_mut("outcome") {
-        let o = PlanOutcome::from_value(outcome.take()).map_err(err)?;
-        *outcome = serde_json::to_value(o).map_err(err)?;
-    }
-    let shared: SharedGuide =
-        serde_json::from_value(shared).map_err(|e| format!("not a Factoruide guide file: {e}"))?;
-    if shared.format != SHARE_FORMAT && shared.format != LEGACY_SHARE_FORMAT {
-        return Err("not a Factoruide guide file".into());
-    }
-    let data = shared.meta.get("data").and_then(|d| d.as_str()).map(str::to_owned);
+    let shared = SharedGuide::parse(content)?;
     let edition = edition();
     if let (Some(memory), Some(w)) = (&shared.outcome.walks, WALKS.locked().get(&edition)) {
         w.add(memory.clone());
     }
-    add_version(edition, &shared.request, &shared.outcome, data, (true, false), now()?)
+    Ok(guides(edition).add_version(
+        &shared.request,
+        &shared.outcome,
+        shared.data(),
+        Origin::IMPORTED,
+        now()?,
+    )?)
 }
 
 // Planning and the editor ----------------------------------------------------------------
@@ -705,7 +422,7 @@ fn plan_route(request: &PlanRequest) -> CmdResult<VersionMeta> {
                 err(e)
             }
         })?;
-    add_version(edition, request, &outcome, data_version(&conn), (false, false), now()?)
+    Ok(guides(edition).add_version(request, &outcome, data_version(&conn), Origin::COMPUTED, now()?)?)
 }
 
 /// The starts the character can choose from before the guide is computed.
@@ -736,7 +453,7 @@ fn manual_route(request: &PlanRequest) -> CmdResult<VersionMeta> {
     let edition = request_edition(request);
     let conn = open_db(edition)?;
     let outcome = job::manual(&conn, &overrides(edition)?, request, Some(&walks(edition))).map_err(err)?;
-    add_version(edition, request, &outcome, data_version(&conn), (false, true), now()?)
+    Ok(guides(edition).add_version(request, &outcome, data_version(&conn), Origin::EDITED, now()?)?)
 }
 
 struct EditSession {
@@ -762,7 +479,7 @@ static TIMELINE: Mutex<Option<(TimelineKey, job::Timeline)>> = Mutex::new(None);
 const SUPERSEDED: &str = "superseded";
 
 fn guide_timeline(guide: &str, n: u32, locale: &str) -> CmdResult<job::Timeline> {
-    let v = version(edition(), guide, n)?;
+    let v = guides(edition()).version(guide, n)?;
     let edition = request_edition(&v.request);
     let key: TimelineKey = (edition, guide.to_owned(), n, v.meta.created, locale.to_owned());
     if let Some((k, timeline)) = TIMELINE.locked().as_ref()
@@ -778,7 +495,7 @@ fn guide_timeline(guide: &str, n: u32, locale: &str) -> CmdResult<job::Timeline>
 }
 
 fn edit_open(guide: &str, n: u32, locale: &str) -> CmdResult<EditOpened> {
-    let v = version(edition(), guide, n)?;
+    let v = guides(edition()).version(guide, n)?;
     let edition = request_edition(&v.request);
     let conn = open_db(edition)?;
     let editor = job::Editor::open(&conn, &overrides(edition)?, &v.request, Some(&walks(edition))).map_err(err)?;
@@ -827,7 +544,7 @@ fn edit_save(steps: &[RouteStep]) -> CmdResult<VersionMeta> {
     let open = session.as_ref().ok_or("no guide open in the editor")?;
     let outcome = open.editor.save(steps, open.notes.clone()).map_err(err)?;
     let data = data_version(&open_db(open.edition)?);
-    let meta = add_version(open.edition, &open.request, &outcome, data, (false, true), now()?)?;
+    let meta = guides(open.edition).add_version(&open.request, &outcome, data, Origin::EDITED, now()?)?;
     *session = None;
     Ok(meta)
 }
@@ -1224,8 +941,12 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
                 "text": serde_json::to_string_pretty(&request).map_err(err)?,
             }))
         }
-        "list_guides" => to_json(Ok(list_guides())),
-        "get_guide" => to_json(summary(edition(), &args::<GuideArgs>(a)?.guide)),
+        "list_guides" => to_json(Ok(guides(edition()).list())),
+        "get_guide" => to_json(
+            guides(edition())
+                .summary(&args::<GuideArgs>(a)?.guide)
+                .map_err(Into::into),
+        ),
         "get_version" => {
             let g = args::<GuideArgs>(a)?;
             to_json(get_version(&g.guide, version_of(&g)?, g.locale.as_deref()))
@@ -1244,13 +965,21 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         }
         "set_installed" => {
             let g = args::<GuideArgs>(a)?;
-            to_json(set_installed(&g.guide, g.version))
+            to_json(guides(edition()).set_installed(&g.guide, g.version).map_err(Into::into))
         }
         "delete_version" => {
             let g = args::<GuideArgs>(a)?;
-            to_json(delete_version(&g.guide, version_of(&g)?))
+            to_json(
+                guides(edition())
+                    .delete_version(&g.guide, version_of(&g)?)
+                    .map_err(Into::into),
+            )
         }
-        "delete_guide" => to_json(delete_guide(&args::<GuideArgs>(a)?.guide)),
+        "delete_guide" => to_json(
+            guides(edition())
+                .delete_guide(&args::<GuideArgs>(a)?.guide)
+                .map_err(Into::into),
+        ),
         "forget_character" => {
             #[derive(Deserialize)]
             struct A {

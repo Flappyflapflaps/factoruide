@@ -1026,6 +1026,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "fg-contrib",
+ "fg-library",
  "fg-route",
  "getrandom 0.4.3",
  "rusqlite",
@@ -1091,6 +1092,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "fg-library"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "fg-route",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "fg-route"
 version = "0.1.0"
 dependencies = [
@@ -1112,6 +1124,7 @@ name = "fg-web"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "fg-library",
  "fg-route",
  "rusqlite",
  "serde",

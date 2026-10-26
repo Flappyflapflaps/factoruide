@@ -17,11 +17,6 @@ pub fn read(path: &str) -> Option<Vec<u8>> {
     FILES.locked().get(path).cloned()
 }
 
-pub fn read_string(path: &str) -> Result<String, String> {
-    let bytes = read(path).ok_or_else(|| format!("{path}: not found"))?;
-    String::from_utf8(bytes).map_err(|e| format!("{path}: {e}"))
-}
-
 pub fn write(path: &str, data: impl Into<Vec<u8>>) {
     let data = data.into();
     crate::host::persist(path, Some(&data));
@@ -61,4 +56,30 @@ pub fn list(dir: &str) -> Vec<String> {
 #[cfg(test)]
 pub fn clear() {
     FILES.locked().clear();
+}
+
+/// The files above as the guide library's.
+pub struct Browser;
+
+impl fg_library::Files for Browser {
+    fn read(&self, path: &str) -> std::io::Result<Vec<u8>> {
+        read(path).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "not found"))
+    }
+
+    fn write(&self, path: &str, data: &[u8]) -> std::io::Result<()> {
+        write(path, data);
+        Ok(())
+    }
+
+    fn list(&self, dir: &str) -> Vec<String> {
+        list(dir)
+    }
+
+    fn remove_dir(&self, dir: &str) -> std::io::Result<()> {
+        if remove_dir(dir) {
+            Ok(())
+        } else {
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "not found"))
+        }
+    }
 }
