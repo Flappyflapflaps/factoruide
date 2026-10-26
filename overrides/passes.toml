@@ -273,3 +273,8 @@ at = { zone = 141, x = 56.0, y = 60.0 }
 name = "Searing Gorge - Badlands gate"   # locked: the canyon from the Badlands' west edge
 world = [0, -6916.0, -2033.0]
 radius = 60.0
+
+[[pass]]
+name = "Timbermaw Hold, Felwood end"
+zones = [361, 618] # Felwood, Winterspring
+at = { zone = 361, x = 65.2, y = 7.8 }
