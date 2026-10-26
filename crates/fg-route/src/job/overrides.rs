@@ -29,6 +29,7 @@ pub struct Overrides {
     pub dungeons: Vec<DungeonDef>,
     /// Objectives done only once others of their quest are (`[[order]]` of objectives.toml).
     pub objective_orders: Vec<crate::model::ObjectiveOrder>,
+    pub quest_overrides: Vec<crate::model::QuestOverride>,
     pub links: Vec<LinkDef>,
     /// Class teleports quests teach (`[[teleport]]` of travel.toml).
     pub teleports: Vec<crate::model::TeleportDef>,
@@ -176,6 +177,11 @@ impl Overrides {
             order: Vec<crate::model::ObjectiveOrder>,
         }
         #[derive(Deserialize, Default)]
+        struct Quests {
+            #[serde(default)]
+            quest: Vec<crate::model::QuestOverride>,
+        }
+        #[derive(Deserialize, Default)]
         struct Travel {
             #[serde(default)]
             link: Vec<LinkDef>,
@@ -207,6 +213,7 @@ impl Overrides {
             class_power: parse_toml(&file, "class_power.toml")?,
             dungeons: parse_toml::<Dungeons>(&file, "dungeons.toml")?.dungeon,
             objective_orders: parse_toml::<Objectives>(&file, "objectives.toml")?.order,
+            quest_overrides: parse_toml::<Quests>(&file, "quests.toml")?.quest,
             links: travel.link,
             teleports: travel.teleport,
             passes: passes.pass,
