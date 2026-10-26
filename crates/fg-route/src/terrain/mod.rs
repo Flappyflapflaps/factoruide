@@ -56,7 +56,7 @@ const AROUND: i32 = 3;
 /// A place of known height stands on a floor at most this far from it in height (yards): the
 /// floors of a cell have one height, its ground may slope (a spawn on a hillside). 94 % of the
 /// server data's spawns in cells of floors 10 yards apart or more are within 6 yards of one.
-pub const HEIGHT_GAP: i32 = 8;
+pub(crate) const HEIGHT_GAP: i32 = 8;
 /// Cells around a place of known height where its floor may be, when none of its cell is that
 /// high (a spawn at the edge of a bridge, of a tower's top).
 const HEIGHT_REACH: i32 = 2;
@@ -1664,7 +1664,7 @@ impl Terrain {
     /// A cave the floors miss, opening at `mouth`: the places on no large walkable area within
     /// `reach` yards of `inside` are walked to through it. False when the mouth is in no large
     /// area.
-    pub fn add_cave(&mut self, mouth: &Pos, inside: &Pos, reach: f64) -> bool {
+    pub(crate) fn add_cave(&mut self, mouth: &Pos, inside: &Pos, reach: f64) -> bool {
         let Some(grid) = self.grids.get_mut(&mouth.continent) else {
             return false;
         };
@@ -1714,7 +1714,7 @@ impl Terrain {
     /// The large walkable area a point stands in, twice (once the areas the gaps of the
     /// heightmap terrain joined, now the floors' own): None without terrain or in no large
     /// area.
-    pub fn large_areas_of(&self, p: &Pos) -> Option<(u32, u32)> {
+    pub(crate) fn large_areas_of(&self, p: &Pos) -> Option<(u32, u32)> {
         self.area_of(p)
             .filter(|&(a, size)| a != 0 && size >= LARGE_AREA)
             .map(|(a, _)| (a, a))
@@ -1822,7 +1822,7 @@ impl Terrain {
     }
 
     /// The areas declared enclosed (continent, area).
-    pub fn enclosed_areas(&self) -> impl Iterator<Item = (i64, u32)> + '_ {
+    pub(crate) fn enclosed_areas(&self) -> impl Iterator<Item = (i64, u32)> + '_ {
         self.enclosed.keys().copied()
     }
 
@@ -1833,7 +1833,7 @@ impl Terrain {
     }
 
     /// Whether area `a` (of continent `map`) is left only by boat, portal or lift.
-    pub fn is_enclosed(&self, map: i64, a: u32) -> bool {
+    pub(crate) fn is_enclosed(&self, map: i64, a: u32) -> bool {
         self.enclosed.contains_key(&(map, a))
     }
 

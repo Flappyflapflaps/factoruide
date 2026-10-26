@@ -71,12 +71,12 @@ pub struct TaxiNode {
 const ACROSS_MAX: f64 = 1500.0;
 /// Yards around a passage where the terrain areas it joins are looked for: both ends of a
 /// tunnel, of a bridge, the foot and the top of a lift, a road the terrain breaks.
-pub const PASS_REACH: f64 = 150.0;
+pub(crate) const PASS_REACH: f64 = 150.0;
 /// A walk between two large areas the terrain does not connect, with no passage between them:
 /// the straight line, this much longer. Whatever the way is (a tunnel, a road the terrain
 /// misses, around a mountain), it is not shorter, and a walk priced as the crow flies over
 /// mountains makes flights look useless.
-pub const UNKNOWN_DETOUR: f64 = 1.5;
+pub(crate) const UNKNOWN_DETOUR: f64 = 1.5;
 /// A leg of `World::walk_path`: drawn straight or around the steep terrain.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Leg {
@@ -86,7 +86,7 @@ enum Leg {
 /// The most a walk through the passages joining two areas the terrain does not connect may
 /// cost, times the straight line: farther around, a shorter way the terrain and the passages
 /// do not know (a ramp, a path up a cliff) is likelier.
-pub const BRIDGED_DETOUR: f64 = 3.0;
+pub(crate) const BRIDGED_DETOUR: f64 = 3.0;
 
 /// How a walk over the ground goes (`World::ground_way`).
 #[derive(Debug, Clone, Copy)]
@@ -405,13 +405,9 @@ impl World {
         Ok(world)
     }
 
-    pub fn has_zone(&self, zone: i64) -> bool {
-        self.zones.contains_key(&zone)
-    }
-
     /// Zone (AreaTable ID) shown by a UiMap.
     /// The map (UiMap ID) of a zone.
-    pub fn ui_map_of_zone(&self, zone: i64) -> Option<i64> {
+    pub(crate) fn ui_map_of_zone(&self, zone: i64) -> Option<i64> {
         self.zones.get(&zone).map(|z| z.ui_map)
     }
 
@@ -457,7 +453,7 @@ impl World {
     }
 
     /// The zone (AreaTable parent, up to the top) an area belongs to: itself for a zone.
-    pub fn area_zone(&self, mut area: i64) -> i64 {
+    pub(crate) fn area_zone(&self, mut area: i64) -> i64 {
         for _ in 0..8 {
             match self.area_parents.get(&area) {
                 Some(&parent) => area = parent,
@@ -502,7 +498,7 @@ impl World {
     /// (as `flights` times it): the flight paths of its direct flights one after the other, its
     /// ends included. Straight between nodes whose path is not known; only the ends when no
     /// flight goes there.
-    pub fn flight_path(&self, from: usize, to: usize, known: u128) -> Vec<Pos> {
+    pub(crate) fn flight_path(&self, from: usize, to: usize, known: u128) -> Vec<Pos> {
         let n = self.taxi_nodes.len();
         let usable = |i: usize| i == from || i == to || known & (1u128 << i) != 0;
         // Dijkstra on the direct flights (few nodes: a scan for the nearest each time).
@@ -742,7 +738,7 @@ pub struct LinkDef {
 }
 
 /// At most this many quests open links: the set of opened ones is a byte of the trip cache key.
-pub const LINK_QUESTS_MAX: usize = 6;
+pub(crate) const LINK_QUESTS_MAX: usize = 6;
 
 /// A directed transport link.
 #[derive(Debug, Clone)]
@@ -854,12 +850,12 @@ impl World {
 
     /// Time to chain links i..j (boarding i, leaving j) with the links of `link_quests` in
     /// `open` (bit k: quest k taken).
-    pub fn link_chain(&self, open: u8) -> &[Vec<f64>] {
+    pub(crate) fn link_chain(&self, open: u8) -> &[Vec<f64>] {
         &self.link_chains[usize::from(open) & (self.link_chains.len() - 1)]
     }
 
     /// Continents reachable from `start` on foot and through links.
-    pub fn reachable_continents(&self, start: i64) -> std::collections::HashSet<i64> {
+    pub(crate) fn reachable_continents(&self, start: i64) -> std::collections::HashSet<i64> {
         let mut seen = std::collections::HashSet::from([start]);
         loop {
             let before = seen.len();
@@ -1398,7 +1394,7 @@ impl World {
 
     /// The passages of the shortest walk from passage `i` to passage `j`, both included (none
     /// when no walk goes there).
-    pub fn pass_path(&self, i: usize, j: usize) -> Vec<usize> {
+    pub(crate) fn pass_path(&self, i: usize, j: usize) -> Vec<usize> {
         self.pass_path_at(i, j, 0)
     }
 

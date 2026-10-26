@@ -103,6 +103,6 @@ impl Arg {
 }
 
 /// The sentences of a step, one after the other.
-pub fn render_all(phrases: &[Phrase], names: &Names) -> String {
+pub(crate) fn render_all(phrases: &[Phrase], names: &Names) -> String {
     phrases.iter().map(|p| p.render(names)).collect::<Vec<_>>().join(" ")
 }

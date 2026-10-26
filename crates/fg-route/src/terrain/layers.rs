@@ -54,7 +54,7 @@ pub const DROP_HEIGHTS: [f64; 3] = [15.0, 30.0, 50.0];
 /// The tiers of drops after the first.
 pub const FARTHER: usize = DROP_HEIGHTS.len() - 1;
 /// Index in `DIRECTIONS` of the direction the other way.
-pub const OPPOSITE: [usize; 8] = [1, 0, 3, 2, 7, 6, 5, 4];
+pub(crate) const OPPOSITE: [usize; 8] = [1, 0, 3, 2, 7, 6, 5, 4];
 /// The two ways to each diagonal neighbour (north-west, north-east, south-west, south-east)
 /// through a straight one: the direction to it, then from it (north or south first, then west
 /// or east first).

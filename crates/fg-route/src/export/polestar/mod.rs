@@ -19,7 +19,7 @@ use std::fmt::Write as _;
 
 /// The pack's addon folder, and its id with Polestar (its guides are `factoruide/<guide>`).
 pub const ADDON: &str = "Factoruide_Polestar";
-pub const PACK_ID: &str = "factoruide";
+pub(crate) const PACK_ID: &str = "factoruide";
 /// The pack format written, and the first Polestar reading it: hand-ins with no accept
 /// (`direct`), flight paths by node and hearths by area are read from 0.2.5 on.
 const FORMAT: u32 = 3;
@@ -647,9 +647,9 @@ fn guide(id: &str, route: &Route) -> String {
 }
 
 /// What Polestar's Import page takes today: more and it refuses the string.
-pub const IMPORT_MAX_STEPS: usize = 60;
-pub const IMPORT_MAX_CHARS: usize = 50_000;
-pub const IMPORT_MAX_BYTES: usize = 262_144;
+pub(crate) const IMPORT_MAX_STEPS: usize = 60;
+pub(crate) const IMPORT_MAX_CHARS: usize = 50_000;
+pub(crate) const IMPORT_MAX_BYTES: usize = 262_144;
 
 /// A guide as an import string for Polestar's Import page (`/polestar import`).
 #[derive(Debug, serde::Serialize)]

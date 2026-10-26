@@ -76,7 +76,7 @@ impl ClassPower {
 
 /// A curve given by (level, value) points at every level from 0 to `top`: straight lines
 /// between the points, the first and last values beyond them (empty without points).
-pub fn curve_by_level(points: &[(i64, f64)], top: i64) -> Vec<f64> {
+pub(crate) fn curve_by_level(points: &[(i64, f64)], top: i64) -> Vec<f64> {
     let mut points = points.to_vec();
     points.sort_by_key(|p| p.0);
     points.dedup_by_key(|p| p.0);

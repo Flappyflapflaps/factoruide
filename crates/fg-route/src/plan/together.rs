@@ -70,7 +70,7 @@ impl Planner<'_> {
     }
 
     /// `bring_together` on a route of the optimizer, scored as the search does.
-    pub fn route_together(&self, route: Vec<Stop>) -> Vec<Stop> {
+    pub(crate) fn route_together(&self, route: Vec<Stop>) -> Vec<Stop> {
         let Some(run) = self.run(&route) else {
             return route;
         };

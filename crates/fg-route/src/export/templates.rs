@@ -927,7 +927,7 @@ pub(super) fn template(key: &str, lang: Lang) -> &str {
 }
 
 /// A profession's name in `lang`.
-pub fn profession_name(key: &str, lang: Lang) -> Option<&'static str> {
+pub(crate) fn profession_name(key: &str, lang: Lang) -> Option<&'static str> {
     PROFESSIONS
         .iter()
         .find(|(k, _)| *k == key)

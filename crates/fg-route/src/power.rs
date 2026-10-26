@@ -19,7 +19,7 @@ use rustc_hash::FxHashMap;
 use std::collections::HashMap;
 
 /// Fight speed a level of power is worth: ln(1 / 0.9).
-pub const LEVEL_LN: f64 = 0.105_360_5;
+pub(crate) const LEVEL_LN: f64 = 0.105_360_5;
 
 /// Gear this many times as good as the usual uncommon items of the level is the best quality
 /// (`Power::gear_quality`): blue items, the best quest rewards.
@@ -46,7 +46,7 @@ const WAND: usize = 16;
 const STATS: usize = 17;
 
 /// Equipment slots.
-pub const SLOTS: usize = 18;
+pub(crate) const SLOTS: usize = 18;
 const FINGER: usize = 10;
 const TRINKET: usize = 12;
 const MAIN_HAND: usize = 14;
@@ -531,7 +531,7 @@ impl PowerModel {
     }
 
     /// English name of an item.
-    pub fn item_name(&self, id: i64) -> &str {
+    pub(crate) fn item_name(&self, id: i64) -> &str {
         self.item(id).map_or("", |i| &self.items[i as usize].name)
     }
 
@@ -568,7 +568,7 @@ impl PowerModel {
     }
 
     /// Power the gear brings over the floor gear, in levels.
-    pub fn gear_bonus(&self, gear: &Gear, level: i64) -> f64 {
+    pub(crate) fn gear_bonus(&self, gear: &Gear, level: i64) -> f64 {
         self.bonus_of(&self.slot_values(gear, level), level)
     }
 
@@ -576,7 +576,7 @@ impl PowerModel {
     /// in the floor gear (plain items, what the bags and vendors give), 0 in the usual uncommon
     /// items of the level, `GEAR_BEST` in items `GOOD_GEAR` times as good (blue items and the
     /// best rewards), straight lines in between.
-    pub fn gear_quality(&self, gear: &Gear, level: i64) -> f64 {
+    pub(crate) fn gear_quality(&self, gear: &Gear, level: i64) -> f64 {
         use crate::params::{GEAR_BEST, GEAR_WORST};
         let values = self.slot_values(gear, level);
         let floor = &self.floor[(level.max(0) as usize).min(self.floor.len() - 1)];
@@ -666,7 +666,7 @@ impl PowerModel {
     }
 
     /// Gear gain of the best of a quest's reward choices, and its index in `choices`.
-    pub fn best_choice(&self, gear: &Gear, choices: &[u16], level: i64) -> Option<(usize, f64)> {
+    pub(crate) fn best_choice(&self, gear: &Gear, choices: &[u16], level: i64) -> Option<(usize, f64)> {
         choices
             .iter()
             .enumerate()
@@ -677,7 +677,7 @@ impl PowerModel {
 
     /// Rough gear gain of wearing item `i` at `level`, in levels: its value over what its best
     /// slot holds (or the floor), without rebuilding the gear (for the route construction).
-    pub fn quick_gain(&self, gear: &Gear, i: u16, level: i64) -> f64 {
+    pub(crate) fn quick_gain(&self, gear: &Gear, i: u16, level: i64) -> f64 {
         let i = i as usize;
         let level = level.max(self.items[i].required_level);
         let floor = &self.floor[(level.max(0) as usize).min(self.floor.len() - 1)];
@@ -715,7 +715,7 @@ impl PowerModel {
     }
 
     /// Power the class spells learned at level `trained` lack at `level`, in levels (≤ 0).
-    pub fn spell_bonus(&self, trained: i64, level: i64) -> f64 {
+    pub(crate) fn spell_bonus(&self, trained: i64, level: i64) -> f64 {
         self.spell_factor(trained, level).ln() / LEVEL_LN
     }
 
@@ -726,12 +726,12 @@ impl PowerModel {
     }
 
     /// Fight speed gained by training now (0.1 = 10% faster).
-    pub fn train_gain(&self, trained: i64, level: i64) -> f64 {
+    pub(crate) fn train_gain(&self, trained: i64, level: i64) -> f64 {
         self.spell_factor(level, level) / self.spell_factor(trained, level) - 1.0
     }
 
     /// Whether the data has class spells (else training follows `train_every`).
-    pub fn has_spells(&self) -> bool {
+    pub(crate) fn has_spells(&self) -> bool {
         !self.families.is_empty()
     }
 
@@ -743,7 +743,7 @@ impl PowerModel {
     }
 
     /// Spell ranks that count learned when training at `level` after training at `trained`.
-    pub fn new_ranks(&self, trained: i64, level: i64) -> Vec<&Rank> {
+    pub(crate) fn new_ranks(&self, trained: i64, level: i64) -> Vec<&Rank> {
         let mut out: Vec<&Rank> = self
             .families
             .iter()

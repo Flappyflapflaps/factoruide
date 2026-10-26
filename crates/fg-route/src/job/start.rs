@@ -115,7 +115,7 @@ const BIND_RADIUS: f64 = 60.0;
 impl StartState {
     /// Professions of the request following the character: the curve goes through its skill
     /// now; one it does not have yet starts from its level.
-    pub fn anchor_professions(&self, goals: &mut [crate::profession::ProfessionGoal]) {
+    pub(crate) fn anchor_professions(&self, goals: &mut [crate::profession::ProfessionGoal]) {
         for goal in goals {
             let Some(def) = crate::profession::find(&goal.key) else {
                 continue;

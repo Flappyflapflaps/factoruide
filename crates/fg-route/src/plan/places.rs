@@ -91,7 +91,7 @@ impl Places<'_> {
 
     /// Usual position of a stop (quest giver, objective area, turn-in NPC, flight master...),
     /// to draw a route on a map.
-    pub fn usual_pos(&self, s: &Stop) -> Pos {
+    pub(crate) fn usual_pos(&self, s: Stop) -> Pos {
         let i = s.index as usize;
         match s.kind {
             Kind::Accept => self.model.quests[i].starts[0].pos,
@@ -105,12 +105,12 @@ impl Places<'_> {
     }
 
     /// The route as a light polyline: [continent, x, y] points, nearby points merged.
-    pub fn polyline(&self, route: &[Stop], max_points: usize) -> Vec<[f64; 3]> {
+    pub(crate) fn polyline(&self, route: &[Stop], max_points: usize) -> Vec<[f64; 3]> {
         let mut out: Vec<[f64; 3]> = Vec::new();
         // The inn a hearthstone goes to depends on the binds before: the line jumps to the stop
         // after it instead.
         for s in route.iter().filter(|s| s.kind != Kind::Hearth) {
-            let p = self.usual_pos(s);
+            let p = self.usual_pos(*s);
             let pt = [
                 p.continent as f64,
                 (p.x * 10.0).round() / 10.0,

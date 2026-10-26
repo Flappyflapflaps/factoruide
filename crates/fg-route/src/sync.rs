@@ -16,7 +16,7 @@ impl<T> LockExt<T> for Mutex<T> {
     }
 }
 
-pub trait Unpoisoned<T> {
+pub(crate) trait Unpoisoned<T> {
     /// The value of a lock result (`get_mut`, `into_inner`), panicking on a poisoned lock.
     fn unpoisoned(self) -> T;
 }

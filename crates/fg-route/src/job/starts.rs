@@ -41,7 +41,7 @@ pub struct StartOption {
 
 /// A zone a start can be forced to, known before any route is computed.
 #[derive(Debug, Clone, Serialize)]
-pub struct StartCandidate {
+pub(crate) struct StartCandidate {
     /// What to set as `Params::start_zone` (0: the planner's own choice).
     pub start_zone: i64,
     pub ui_map: i64,

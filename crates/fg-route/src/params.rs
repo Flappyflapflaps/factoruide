@@ -511,7 +511,7 @@ impl Default for Params {
 /// The level `Params::gold_weight` is for: up to it, money is short (the trainers take most of
 /// it); above, a gold piece weighs less, as the cube of the level (quests and loot pay more and
 /// more, flights are no longer a worry).
-pub const GOLD_WEIGHT_LEVEL: f64 = 30.0;
+pub(crate) const GOLD_WEIGHT_LEVEL: f64 = 30.0;
 
 /// Bag slots at each level, between these points: the 16 of the backpack alone at first, then
 /// four bags of 6 (linen), 8, 10, 12 and 14 slots (runecloth) as the levels go.
@@ -526,7 +526,7 @@ const BAG_SLOTS: [(i64, f64); 7] = [
 ];
 
 /// The bag slots a character of `level` has (`BAG_SLOTS`).
-pub fn bag_slots(level: i64) -> f64 {
+pub(crate) fn bag_slots(level: i64) -> f64 {
     let at = BAG_SLOTS.partition_point(|&(l, _)| l <= level);
     match (at.checked_sub(1).map(|k| BAG_SLOTS[k]), BAG_SLOTS.get(at)) {
         (Some((l0, s0)), Some(&(l1, s1))) => s0 + (s1 - s0) * (level - l0) as f64 / (l1 - l0) as f64,
@@ -562,7 +562,7 @@ impl Params {
     /// (the hardcore survival style) takes yellow quests and lone targets up to two levels
     /// above but packs at most one (`pack_power`), "risky" goes up to orange quests and
     /// borderline elites.
-    pub fn progression_profile(&self) -> (f64, f64) {
+    pub(crate) fn progression_profile(&self) -> (f64, f64) {
         let (factor, margin) = match self.progression {
             Progression::Cautious => (1.0, 1.5),
             Progression::Normal => (1.0, 2.0),
@@ -585,7 +585,7 @@ impl Params {
     /// Levels below its mobs (the median of its quests) the weakest of a group may be at the
     /// earliest for a dungeon: their elites and packs are not the solo content of the profile's
     /// margin.
-    pub fn dungeon_below(&self) -> i64 {
+    pub(crate) fn dungeon_below(&self) -> i64 {
         match self.progression {
             Progression::Cautious => 0,
             Progression::Normal => 3,
@@ -617,7 +617,7 @@ impl Params {
     /// Share of the mobs along a walk a character of `level` kills on the way: `farm_share`,
     /// split with the other players around as the crowd shares an objective's spot (one in
     /// 1 + `crowd_at` × `crowd_players` is left to the character).
-    pub fn farm_share_at(&self, level: i64) -> f64 {
+    pub(crate) fn farm_share_at(&self, level: i64) -> f64 {
         self.farm_share.clamp(0.0, 1.0) / (1.0 + self.crowd_at(level) * self.crowd_players.max(0.0))
     }
 
@@ -653,7 +653,7 @@ impl Params {
     }
 
     /// Levels of power the class is worth at `level` over the average class (`class_curve`).
-    pub fn class_offset(&self, level: i64) -> f64 {
+    pub(crate) fn class_offset(&self, level: i64) -> f64 {
         let n = self.class_curve.len();
         if n == 0 {
             return 0.0;
@@ -665,13 +665,13 @@ impl Params {
     /// the usual uncommon items of the level, +1 for very good ones) is worth for what the
     /// character takes on at `level`: little at first, fully at the level cap of Classic, times
     /// the class's dependence on its gear (never beyond `GEAR_WORST` and `GEAR_BEST`).
-    pub fn gear_reach(&self, level: i64, gear: f64) -> f64 {
+    pub(crate) fn gear_reach(&self, level: i64, gear: f64) -> f64 {
         let weight = (level as f64 / GEAR_FULL_LEVEL).clamp(GEAR_MIN_WEIGHT, 1.0);
         (self.gear_dependence * weight * gear).clamp(GEAR_WORST, GEAR_BEST)
     }
 
     /// Lowest level at which the character reaches `need` with `might`.
-    pub fn level_for(&self, need: f64, might: Might) -> i64 {
+    pub(crate) fn level_for(&self, need: f64, might: Might) -> i64 {
         let (factor, margin) = self.progression_profile();
         // The level without class and gear, then a few steps to where `reach` crosses `need`
         // (its class and gear parts change slowly with the level).
@@ -697,12 +697,12 @@ impl Params {
     }
 
     /// Damage of the group, in solo players.
-    pub fn group_damage(&self) -> f64 {
+    pub(crate) fn group_damage(&self) -> f64 {
         1.0 + self.group_kill_speed * (self.group_size.clamp(1, 5) - 1) as f64
     }
 
     /// Share of a mob's XP each member gets: the game's group bonus, split between members.
-    pub fn group_xp_share(&self) -> f64 {
+    pub(crate) fn group_xp_share(&self) -> f64 {
         let n = self.group_size.clamp(1, 5);
         [1.0, 1.0, 1.166, 1.3, 1.4][n as usize - 1] / n as f64
     }
@@ -776,15 +776,15 @@ pub enum Construction {
 }
 
 /// Weight of a minute of grinding when the player does not want to grind.
-pub const NO_GRIND_WEIGHT: f64 = 10.0;
+pub(crate) const NO_GRIND_WEIGHT: f64 = 10.0;
 
 /// Levels of power from class quests and spells that extend which mobs and quests the
 /// character takes on.
-pub const GEAR_REACH: f64 = 0.5;
+pub(crate) const GEAR_REACH: f64 = 0.5;
 
 /// Gear quality (`Might::gear`) of a character in plain items, and with very good ones.
-pub const GEAR_WORST: f64 = -2.0;
-pub const GEAR_BEST: f64 = 1.0;
+pub(crate) const GEAR_WORST: f64 = -2.0;
+pub(crate) const GEAR_BEST: f64 = 1.0;
 /// Gear counts fully for what the character takes on from this level, `GEAR_MIN_WEIGHT` of it
 /// at the start.
 const GEAR_FULL_LEVEL: f64 = 60.0;
@@ -808,12 +808,12 @@ impl Might {
 }
 
 /// Fight time of a character `bonus` levels of power above its level, relative to its level alone.
-pub fn power_speed(bonus: f64) -> f64 {
+pub(crate) fn power_speed(bonus: f64) -> f64 {
     (-bonus * crate::power::LEVEL_LN).exp()
 }
 
 /// Kill time against a mob `d` levels above the character, relative to a same-level mob.
-pub fn kill_factor(d: f64) -> f64 {
+pub(crate) fn kill_factor(d: f64) -> f64 {
     const TABLE: [f64; 8] = [0.65, 0.8, 0.9, 1.0, 1.2, 1.5, 2.2, 3.5];
     let x = (d + 3.0).clamp(0.0, 7.0);
     let k = (x.floor() as usize).min(6);

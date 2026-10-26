@@ -26,11 +26,11 @@ impl Guards {
     /// Spawns closer than this are one mob (the sources list some twice).
     const SAME: f64 = 10.0;
     /// Mobs this close to a place are met there (yards).
-    pub const RADIUS: f64 = 30.0;
+    pub(crate) const RADIUS: f64 = 30.0;
     /// Mobs this many levels below the strongest one around do not make the place harder.
     const LEVELS: u8 = 2;
     /// Spawn points closer than this are one mob (mobs taking turns at one point).
-    pub const ONE_POINT: f64 = 1.5;
+    pub(crate) const ONE_POINT: f64 = 1.5;
     /// Mobs this close to the one pulled come with it (yards).
     const LINK: f64 = 8.0;
 
@@ -85,7 +85,7 @@ impl Guards {
 
     /// Hostile mobs that come together when the one at `p` is pulled, itself included (1 when
     /// it stands alone, or is not a known hostile spawn).
-    pub fn pull_at(&self, p: &Pos) -> u32 {
+    pub(crate) fn pull_at(&self, p: &Pos) -> u32 {
         let r = Self::LINK;
         let (lo, hi) = (
             Self::cell(p.continent, p.x - r, p.y - r),
