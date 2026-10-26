@@ -49,7 +49,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
     report_skipped_class_quests(&sources, &skipped);
     let loot = CommonLoot::load(conn, &mut quests)?;
     let places = Places::load(conn, world, &sources.entities, profile, &sources.start, params.edition)?;
-    chains::narrow_class_quests_to_spells(&mut quests);
+    chains::narrow_class_quests_to_spells(&mut quests, params.all_class_quests);
     chains::require_prerequisites(&mut quests);
     chains::release_impossible_class_quests(&mut quests);
     dungeons::set_dungeon_levels(&mut sources.dungeons, &quests, params.dungeon_below());

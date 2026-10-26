@@ -78,6 +78,9 @@ pub struct Params {
     pub camp_radius: f64,
     /// Allow quests whose objectives involve elite mobs.
     pub allow_elite: bool,
+    /// Every class quest of the character's class is required, not only the ones that teach a
+    /// spell or are listed in class_quests.toml (repeatable and too-high-level ones left out).
+    pub all_class_quests: bool,
     /// Battleground (PvP) quests (marks of honor...), each mark or objective taking
     /// `pvp_mark_time` seconds of battleground.
     pub pvp_quests: bool,
@@ -389,6 +392,7 @@ impl Default for Params {
             farm_above: 1,
             camp_radius: 0.0,
             allow_elite: false,
+            all_class_quests: false,
             pvp_quests: false,
             pvp_mark_time: 900.0,
             crowded: 0.0,

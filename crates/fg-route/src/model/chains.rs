@@ -145,7 +145,7 @@ pub(crate) fn required_by_name(quests: &[Quest]) -> HashSet<i64> {
 /// a quest teaching a spell a power quest teaches gives its power. The second Vile Familiars
 /// (talk to Zureetha Fargaze in Durotar, after the orc's Imp) teaches nothing: the undead
 /// warlock, whose Piercing the Veil teaches the Imp, has no reason to go there.
-pub(super) fn narrow_class_quests_to_spells(quests: &mut [Quest]) {
+pub(super) fn narrow_class_quests_to_spells(quests: &mut [Quest], all_required: bool) {
     let keep = required_by_name(quests);
     let names: HashSet<String> = spell_quest_names(quests).into_iter().map(str::to_owned).collect();
     let mut powers: HashMap<i64, (u8, f64)> = HashMap::new();
@@ -159,7 +159,7 @@ pub(super) fn narrow_class_quests_to_spells(quests: &mut [Quest]) {
             q.power = q.power.or_else(|| powers.get(&spell).copied());
         } else if names.contains(&q.name) {
             q.power = None;
-            if !keep.contains(&q.id) {
+            if !all_required && !keep.contains(&q.id) {
                 q.mandatory &= q.zone_forced;
             }
         }
