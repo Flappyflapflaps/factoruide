@@ -3,6 +3,7 @@ name = "fg-contrib"
 publish = false
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.99"
 license = "MIT"
 
 [dependencies]
@@ -20,3 +21,6 @@ local = ["dep:mlua", "dep:getrandom"]
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std"] }

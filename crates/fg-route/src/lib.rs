@@ -11,6 +11,7 @@ pub mod params;
 pub mod plan;
 pub mod power;
 pub mod profession;
+pub mod sync;
 pub mod terrain;
 pub mod world;
 pub mod xp;

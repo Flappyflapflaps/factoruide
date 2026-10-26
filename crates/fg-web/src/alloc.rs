@@ -133,3 +133,76 @@ unsafe impl GlobalAlloc for Sharded {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn layout(size: usize) -> Layout {
+        Layout::from_size_align(size, 8).unwrap()
+    }
+
+    #[test]
+    fn a_freed_small_block_is_the_next_one_of_its_class() {
+        let a = Sharded;
+        let l = layout(40);
+        // SAFETY: the layout is not empty, and the block goes back with the same layout.
+        let first = unsafe { a.alloc(l) };
+        assert!(!first.is_null());
+        // SAFETY: allocated just above with this layout, not used after.
+        unsafe { a.dealloc(first, l) };
+        // SAFETY: as above; a size of the same class.
+        let second = unsafe { a.alloc(layout(33)) };
+        assert_eq!(first, second);
+        // SAFETY: allocated just above, with a layout of the same class.
+        unsafe { a.dealloc(second, layout(33)) };
+    }
+
+    #[test]
+    fn realloc_keeps_the_bytes_across_classes_and_to_malloc() {
+        let a = Sharded;
+        let mut size = 16;
+        // SAFETY: the layout is not empty.
+        let mut ptr = unsafe { a.alloc(layout(size)) };
+        // SAFETY: the block holds `size` bytes.
+        unsafe { std::ptr::write_bytes(ptr, 0xAB, size) };
+        for new_size in [24, 200, 2048, 5000, 300, 16] {
+            // SAFETY: `ptr` was allocated with `layout(size)`, the new size is not zero.
+            ptr = unsafe { a.realloc(ptr, layout(size), new_size) };
+            assert!(!ptr.is_null());
+            let kept = size.min(new_size);
+            // SAFETY: the block holds at least `kept` initialized bytes.
+            let bytes = unsafe { std::slice::from_raw_parts(ptr, kept) };
+            assert!(bytes.iter().all(|&b| b == 0xAB), "{size} -> {new_size}");
+            // SAFETY: the block holds `new_size` bytes.
+            unsafe { std::ptr::write_bytes(ptr, 0xAB, new_size) };
+            size = new_size;
+        }
+        // SAFETY: allocated or reallocated with `layout(size)`.
+        unsafe { a.dealloc(ptr, layout(size)) };
+    }
+
+    #[test]
+    fn blocks_of_threads_never_overlap() {
+        let a = Sharded;
+        std::thread::scope(|scope| {
+            for t in 0..4u8 {
+                let a = &a;
+                scope.spawn(move || {
+                    for round in 0..50 {
+                        let l = layout(16 + round % 64);
+                        // SAFETY: the layout is not empty; the block is used by this thread only.
+                        let p = unsafe { a.alloc(l) };
+                        // SAFETY: the block holds `l.size()` bytes.
+                        unsafe { std::ptr::write_bytes(p, t, l.size()) };
+                        // SAFETY: the same block, still ours.
+                        let bytes = unsafe { std::slice::from_raw_parts(p, l.size()) };
+                        assert!(bytes.iter().all(|&b| b == t));
+                        // SAFETY: allocated above with `l`.
+                        unsafe { a.dealloc(p, l) };
+                    }
+                });
+            }
+        });
+    }
+}

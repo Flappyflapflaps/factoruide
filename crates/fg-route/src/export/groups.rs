@@ -6,7 +6,7 @@ use super::types::{Step, StepKind};
 /// How far from the first step of a group another still joins it (yards): the NPCs of a town,
 /// the mobs of a keep (Northwatch Hold's captain, prisoner and cannoneers lie within 190
 /// yards), not the camps of a region.
-pub const NEAR: f64 = 200.0;
+pub(crate) const NEAR: f64 = 200.0;
 /// Steps of a group at most: a page the player reads at a glance.
 pub const MAX: usize = 10;
 

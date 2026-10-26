@@ -50,7 +50,7 @@ impl Stop {
 
 /// How a trip is made.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum Leg {
+pub enum Leg {
     Walk,
     /// A flight between two flight paths.
     Fly(usize, usize),

@@ -52,8 +52,8 @@ pub fn default_request(options: &Options, race: &str, class: &str, name: String,
         .find(|c| c.key == class)
         .map_or_else(|| class.to_owned(), |c| c.name.to_lowercase());
     PlanRequest {
-        race: race.to_owned(),
-        class: class.to_owned(),
+        race: race.into(),
+        class: class.into(),
         from_level: start.level,
         to_level: options.max_level,
         name: Some(name),

@@ -24,7 +24,7 @@ pub(super) fn join(
             level: m.level,
             xp: m.xp,
             rested: m.rested,
-            completed: m.completed.iter().copied().collect(),
+            completed: m.completed.iter().map(|q| q.0).collect(),
         })
         .collect();
     for m in mates {
@@ -51,7 +51,7 @@ pub(super) fn join(
         .collect();
     // In the log of everyone it is for: the group carries on with it, as far as the character
     // got. The others are taken again by the group (who has one already just goes along).
-    let logs: Vec<HashSet<i64>> = mates.iter().map(|m| m.log.iter().map(|q| q.id).collect()).collect();
+    let logs: Vec<HashSet<i64>> = mates.iter().map(|m| m.log.iter().map(|q| q.id.0).collect()).collect();
     let shared = |i: usize| {
         let id = model.quests[i].id;
         need[i] & 1 != 0 && (0..mates.len()).all(|k| need[i] & (2 << k) == 0 || logs[k].contains(&id))

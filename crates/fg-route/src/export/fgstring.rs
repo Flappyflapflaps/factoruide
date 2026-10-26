@@ -81,6 +81,24 @@ fn decode_for_print(text: &str) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        /// Whatever the app packs comes back as it was, under the same prefix only.
+        #[test]
+        fn what_is_encoded_is_decoded(data in proptest::collection::vec(any::<u8>(), 0..2048)) {
+            let text = encode(GUIDE_PREFIX, &data);
+            prop_assert_eq!(decode(GUIDE_PREFIX, &text), Ok(data));
+            prop_assert_eq!(decode(PROFILE_PREFIX, &text), Err("not_this_kind".to_owned()));
+        }
+
+        /// Text pasted by a player never makes the decoder panic.
+        #[test]
+        fn any_text_is_refused_not_a_panic(text in ".{0,512}") {
+            let _ = decode(GUIDE_PREFIX, &text);
+            let _ = decode(GUIDE_PREFIX, &format!("{GUIDE_PREFIX}{text}"));
+        }
+    }
     use std::fmt::Write as _;
 
     #[test]

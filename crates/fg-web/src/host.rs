@@ -11,6 +11,9 @@ pub struct Response {
     pub retry_after: Option<String>,
 }
 
+#[cfg(not(target_os = "wasi"))]
+use fg_route::sync::LockExt;
+
 #[cfg(target_os = "wasi")]
 #[expect(unsafe_code, reason = "the functions the page gives the module")]
 mod imports {
@@ -35,7 +38,7 @@ pub fn reply(id: u32, json: &str) {
         imports::fg_reply(id, json.as_ptr(), json.len());
     }
     #[cfg(not(target_os = "wasi"))]
-    native::REPLIES.lock().unwrap().push((id, json.to_owned()));
+    native::REPLIES.locked().push((id, json.to_owned()));
 }
 
 /// Send the page an event (`{"event": name, "payload": ...}`).
@@ -110,6 +113,7 @@ pub fn fetch(method: &str, url: &str, content_type: Option<&str>, body: &[u8]) -
 
 #[cfg(not(target_os = "wasi"))]
 pub mod native {
+    use fg_route::sync::LockExt;
     use std::sync::Mutex;
 
     /// Answers given so far (tests read them).
@@ -118,7 +122,7 @@ pub mod native {
     pub static FILES: Mutex<Vec<(String, Vec<u8>)>> = Mutex::new(Vec::new());
 
     pub fn fetch(url: &str) -> Result<super::Response, String> {
-        let files = FILES.lock().unwrap();
+        let files = FILES.locked();
         match files.iter().find(|(u, _)| u == url) {
             Some((_, body)) => Ok(super::Response {
                 status: 200,

@@ -184,7 +184,7 @@ pub(super) fn set_dungeon_levels(dungeons: &mut [Dungeon], quests: &[Quest], bel
                 .iter()
                 .map(|q| q.min_level)
                 .min()
-                .unwrap()
+                .expect("a dungeon with quests")
                 .max(levels[0] - 2)
                 .max(dungeon.mob_level - below);
         }

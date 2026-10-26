@@ -9,6 +9,7 @@ use super::Interrupt;
 use crate::model::{Model, Profile};
 use crate::params::{Construction, Params};
 use crate::plan::{Effort, Exchange, Member, Planner, Stop, ZoneChange, fmt_time};
+use crate::sync::{Joined, LockExt, Unpoisoned};
 use crate::world::World;
 use rand::{RngExt, SeedableRng};
 use std::cell::Cell;
@@ -313,18 +314,23 @@ impl<'p> Live<'p> {
 
     /// Round `stage` begins with these routes.
     fn enter(&self, stage: usize, ids: Vec<usize>) {
-        *self.round.lock().unwrap() = Some((stage, ids));
+        *self.round.locked() = Some((stage, ids));
     }
 
     /// The routes followed: during the race the best `threads` candidates so far, then the
     /// routes of the round. Each as {id, time (play), score}; `selected` is the best score.
     fn followed(&self) -> (Vec<serde_json::Value>, Option<usize>) {
-        let routes = self.routes.lock().unwrap();
-        let ids: Vec<usize> = if let Some((_, ids)) = &*self.round.lock().unwrap() {
+        let routes = self.routes.locked();
+        let ids: Vec<usize> = if let Some((_, ids)) = &*self.round.locked() {
             ids.clone()
         } else {
             let mut ranked: Vec<usize> = (0..routes.len()).filter(|&k| routes[k].is_some()).collect();
-            ranked.sort_by(|&a, &b| routes[a].unwrap().0.total_cmp(&routes[b].unwrap().0));
+            ranked.sort_by(|&a, &b| {
+                routes[a]
+                    .expect("ranked routes exist")
+                    .0
+                    .total_cmp(&routes[b].expect("ranked routes exist").0)
+            });
             ranked.truncate(self.threads);
             ranked
         };
@@ -344,7 +350,7 @@ impl<'p> Live<'p> {
     /// Share of the tries done (0 to 1), and where the race ends, once a route gives the size of
     /// the routes (the tries are per stop).
     fn progress(&self) -> Option<(f64, f64)> {
-        let (_, n, stops) = *self.built.lock().unwrap();
+        let (_, n, stops) = *self.built.locked();
         if n == 0 {
             return None;
         }
@@ -359,10 +365,10 @@ impl<'p> Live<'p> {
     /// `@progress {json}`: phase, elapsed seconds, share of the tries done, play time of the best
     /// start and best route, the stage (race, round, final) and the routes followed.
     fn report(&self) {
-        let (_, start, _, best) = *self.scores.lock().unwrap();
+        let (_, start, _, best) = *self.scores.locked();
         let Some(t) = self.started.get() else {
-            let (_, built, _) = *self.built.lock().unwrap();
-            let (_, best) = *self.built_best.lock().unwrap();
+            let (_, built, _) = *self.built.locked();
+            let (_, best) = *self.built_best.locked();
             let msg = serde_json::json!({
                 "phase": "construct",
                 "built": built,
@@ -391,7 +397,7 @@ impl<'p> Live<'p> {
             msg["progress"] = done.into();
             msg["race_end"] = race_end.into();
         }
-        match &*self.round.lock().unwrap() {
+        match &*self.round.locked() {
             None => msg["stage"] = "qualify".into(),
             Some((stage, ids)) => {
                 let last = stage + 1 == self.stages.len();
@@ -410,7 +416,7 @@ impl<'p> Live<'p> {
             return;
         }
         let route = {
-            let mut b = self.best_route.lock().unwrap();
+            let mut b = self.best_route.locked();
             if !b.1 {
                 return;
             }
@@ -424,27 +430,27 @@ impl<'p> Live<'p> {
 
     /// A route built before the race: the best so far is drawn.
     fn on_built(&self, score: f64, play: f64, route: &[Stop]) {
-        let mut best = self.built_best.lock().unwrap();
+        let mut best = self.built_best.locked();
         if score < best.0 {
             *best = (score, play);
-            *self.best_route.lock().unwrap() = (route.to_vec(), true);
+            *self.best_route.locked() = (route.to_vec(), true);
         }
     }
 
     fn on_best(&self, k: usize, first: &Cell<bool>, score: f64, play: f64, route: &[Stop]) {
         // Several searches may improve the same route: its best of them.
-        if let Some(r) = self.routes.lock().unwrap().get_mut(k)
+        if let Some(r) = self.routes.locked().get_mut(k)
             && r.is_none_or(|(s, _)| score < s)
         {
             *r = Some((score, play));
         }
-        let mut s = self.scores.lock().unwrap();
+        let mut s = self.scores.locked();
         if first.replace(false) && score < s.0 {
             (s.0, s.1) = (score, play);
         }
         if score < s.2 {
             (s.2, s.3) = (score, play);
-            *self.best_route.lock().unwrap() = (route.to_vec(), true);
+            *self.best_route.locked() = (route.to_vec(), true);
         }
     }
 }
@@ -516,7 +522,7 @@ impl Searcher<'_> {
         if self.interrupt.cancelled() {
             return None;
         }
-        let mutant = self.mutants.lock().unwrap().get(k).cloned().flatten();
+        let mutant = self.mutants.locked().get(k).cloned().flatten();
         let mut p = mutant.as_ref().map_or_else(|| self.candidate(k), |m| m.params.clone());
         if let Some((stage, search)) = slot.round {
             p.seed = round_seed(p.seed, stage, search);
@@ -578,7 +584,7 @@ impl Searcher<'_> {
         if planner.aborted() {
             return None;
         }
-        let mut built = self.live.built.lock().unwrap();
+        let mut built = self.live.built.locked();
         built.0 += begun.elapsed();
         built.1 += 1;
         built.2 += route.len();
@@ -587,7 +593,7 @@ impl Searcher<'_> {
         if let Some(m) = mutant
             && std::env::var_os("FG_RACE_LOG").is_some()
         {
-            let parent = &self.changes.lock().unwrap()[m.parent];
+            let parent = &self.changes.locked()[m.parent];
             let same = changes.iter().zip(parent).take_while(|(a, b)| a == b).count();
             (self.progress)(&format!(
                 "candidate {k} (mutant of {}, {}): zone changes as its parent's up to {same} of {}",
@@ -596,7 +602,7 @@ impl Searcher<'_> {
                 parent.len()
             ));
         }
-        let mut all = self.changes.lock().unwrap();
+        let mut all = self.changes.locked();
         if all.len() <= k {
             all.resize(k + 1, Vec::new());
         }
@@ -607,7 +613,7 @@ impl Searcher<'_> {
     /// Build candidate `k`'s route only, scored (None when cancelled, or stopped while building a
     /// route that is not `needed`).
     fn build_only(&self, k: usize, needed: bool) -> Option<(f64, Vec<Stop>)> {
-        let mutant = self.mutants.lock().unwrap().get(k).cloned().flatten();
+        let mutant = self.mutants.locked().get(k).cloned().flatten();
         let p = mutant.as_ref().map_or_else(|| self.candidate(k), |m| m.params.clone());
         let give_up = || self.interrupt.cancelled() || (!needed && self.interrupt.stopping());
         let planner = Planner::new(self.model, self.world, &p, self.profile).abortable(&give_up);
@@ -700,13 +706,13 @@ fn build_all(searcher: &Searcher<'_>, plan: &Tournament, ks: std::ops::Range<usi
                         break;
                     }
                     if let Some((score, route)) = searcher.build_only(k, k < plan.threads) {
-                        built.lock().unwrap().push((score, k, route));
+                        built.locked().push((score, k, route));
                     }
                 }
             });
         }
     });
-    built.into_inner().unwrap()
+    built.into_inner().unpoisoned()
 }
 
 /// Parents of the mutated candidates: the best of the first ones.
@@ -716,7 +722,7 @@ const PARENTS: usize = 4;
 /// otherwise (`Params::zone_detour`): left a few levels earlier or later, or for a zone it went to
 /// later. The greedy construction gives the same route up to there.
 fn mutate(searcher: &Searcher<'_>, ranked: &[(f64, usize, Vec<Stop>)], ks: std::ops::Range<usize>) {
-    let changes = searcher.changes.lock().unwrap();
+    let changes = searcher.changes.locked();
     let parents: Vec<usize> = ranked
         .iter()
         .map(|(_, k, _)| *k)
@@ -726,7 +732,7 @@ fn mutate(searcher: &Searcher<'_>, ranked: &[(f64, usize, Vec<Stop>)], ks: std::
     if parents.is_empty() {
         return;
     }
-    let mut mutants = searcher.mutants.lock().unwrap();
+    let mut mutants = searcher.mutants.locked();
     mutants.resize(ks.end, None);
     for (i, k) in ks.enumerate() {
         let parent = parents[i % parents.len()];
@@ -806,18 +812,18 @@ fn race(
                     if i >= candidates.len() || stopping || searcher.interrupt.cancelled() {
                         break;
                     }
-                    let Some((k, route)) = candidates[i].lock().unwrap().take() else {
+                    let Some((k, route)) = candidates[i].locked().take() else {
                         continue;
                     };
                     if let Some((score, route)) = searcher.search(k, route, slot, i < plan.threads, None) {
-                        qualified.lock().unwrap().push((score, k, route));
+                        qualified.locked().push((score, k, route));
                         searcher.live.qualified.fetch_add(1, Ordering::Relaxed);
                     }
                 }
             });
         }
     });
-    qualified.into_inner().unwrap()
+    qualified.into_inner().unpoisoned()
 }
 
 /// Round `stage`: each route improved by its searches (`Tournament::searches`), which share their
@@ -858,7 +864,7 @@ fn round(
                 }));
             }
         }
-        handles.into_iter().filter_map(|h| h.join().unwrap()).collect()
+        handles.into_iter().filter_map(|h| h.join().joined()).collect()
     });
     // Each route's best search (the first one on a tie).
     let mut best: Vec<(f64, usize, Vec<Stop>)> = Vec::new();

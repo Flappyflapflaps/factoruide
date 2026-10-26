@@ -23,6 +23,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 - A trip can fly to a port, take the boat and fly on from where it lands (Ironforge to Gadgetzan by Menethil Harbor and Theramore), instead of walking the end of it or using the hearthstone.
 - Polestar's leveling guides can be timed against ours: `fg polestar-import` replays the guides a race and class follows in Polestar, quest by quest, under the same time model, compares them level by level with our guide, and can keep the result as a guide to follow or edit (credited to Polestar, GPL-3.0).
 - Desktop app, WoW Forever: **Import from Polestar…** on the Guides page makes a guide from Polestar's leveling guides for a race and class, from the guides folder of a Polestar download (replayed with our data, credited to Polestar).
+- Quest prerequisites keep the eligible race and class branches; Sleeping Bag uses your faction's starter.
 - Walks jump down higher cliffs the bolder the profile: 15 yards for "cautious" (no fall damage), 30 for "normal" (about a third of the health), 50 for "risky" (two thirds); the health lost is paid as time resting.
 - Quests in your log with nothing done are no longer tied to the guide: it takes them like any other, or abandons them first. The ones you can turn in, and those you have begun, are still kept.
 - The walks the addon follows are the ones the guide shows, whole: long walks follow the ground between the tiles instead of cutting across it, and the guide no longer simplifies a walk (only the addon gets a lighter one).

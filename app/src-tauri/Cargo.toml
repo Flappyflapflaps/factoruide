@@ -3,6 +3,7 @@ name = "factoruide-app"
 publish = false
 version = "0.1.0"
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 
 [build-dependencies]
@@ -10,6 +11,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 anyhow.workspace = true
+fg-app = { path = "../../crates/fg-app" }
+fg-library = { path = "../../crates/fg-library" }
 fg-route = { path = "../../crates/fg-route" }
 rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

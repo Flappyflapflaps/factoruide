@@ -150,13 +150,19 @@ impl Planner<'_> {
             return Some(Change::edited(at, len));
         }
         if !pick.is_quest() {
-            let first = route.iter().position(|&s| same_item(s, pick)).unwrap();
+            let first = route
+                .iter()
+                .position(|&s| same_item(s, pick))
+                .expect("the pick is in the route");
             route.retain(|&s| !same_item(s, pick));
             return Some(Change::edited(first, len));
         }
         let chain = self.availability().chain_after(route, pick.index)?;
         let gone = |s: &Stop| s.is_quest() && chain.contains(&s.index);
-        let first = route.iter().position(gone).unwrap();
+        let first = route
+            .iter()
+            .position(gone)
+            .expect("the chain contains a stop of the route");
         route.retain(|s| !gone(s));
         Some(Change::edited(first, len))
     }

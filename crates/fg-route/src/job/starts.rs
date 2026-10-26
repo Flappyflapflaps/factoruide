@@ -2,7 +2,7 @@
 //! hearthstone, flight paths, a zone rich in quests next door), a few routes built and lightly
 //! improved, each beginning in another zone, to show before the guide is computed.
 
-use super::{Interrupt, Overrides, PlanRequest, optimize_interruptible, prepare};
+use super::{Interrupt, JobError, Overrides, PlanRequest, optimize_interruptible, prepare};
 use crate::export::{self, StepKind};
 use crate::plan::Planner;
 use crate::terrain::Walks;
@@ -41,7 +41,7 @@ pub struct StartOption {
 
 /// A zone a start can be forced to, known before any route is computed.
 #[derive(Debug, Clone, Serialize)]
-pub struct StartCandidate {
+pub(crate) struct StartCandidate {
     /// What to set as `Params::start_zone` (0: the planner's own choice).
     pub start_zone: i64,
     pub ui_map: i64,
@@ -71,14 +71,14 @@ pub fn preview_starts(
     progress: &(dyn Fn(&str) + Sync),
     interrupt: &Interrupt,
     walks: Option<&Arc<Walks>>,
-) -> Result<StartPreview> {
+) -> Result<StartPreview, JobError> {
     let mut prepared = prepare(conn, overrides, req, &|_| {})?;
     if let Some(walks) = walks {
         prepared.world.terrain.share(Arc::clone(walks));
     }
     let params = &prepared.params;
     if interrupt.cancelled() {
-        return Err(super::Cancelled.into());
+        return Err(JobError::Cancelled);
     }
     if !params.preferred_zones.is_empty()
         || !params.forced_zones.is_empty()
@@ -128,7 +128,7 @@ pub fn preview_starts(
         let planner = Planner::new(&prepared.model, &prepared.world, &p, &prepared.profile).abortable(&give_up);
         let best = optimize_interruptible(&planner, &|_| {}, interrupt);
         if interrupt.cancelled() {
-            return Err(super::Cancelled.into());
+            return Err(JobError::Cancelled);
         }
         let best = planner.route_together(best);
         let route = export::build(&planner, &prepared.profile, &best);

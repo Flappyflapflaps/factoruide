@@ -29,7 +29,7 @@ pub use loot::CommonLoot;
 pub use names::Names;
 pub use types::{
     Dungeon, DungeonDef, EntityKind, ExploreArea, Guard, Initial, Loc, Mate, MateStart, Model, Objective,
-    ObjectiveOrder, ProfessionPlan, Profile, Quest, Spots, Teleport, TeleportDef, Vendor, race_bit,
+    ObjectiveOrder, ProfessionPlan, Profile, Quest, QuestOverride, Spots, Teleport, TeleportDef, Vendor, race_bit,
 };
 
 use crate::params::Params;
@@ -49,7 +49,7 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
     report_skipped_class_quests(&sources, &skipped);
     let loot = CommonLoot::load(conn, &mut quests)?;
     let places = Places::load(conn, world, &sources.entities, profile, &sources.start, params.edition)?;
-    chains::narrow_class_quests_to_spells(&mut quests);
+    chains::narrow_class_quests_to_spells(&mut quests, params.all_class_quests);
     chains::require_prerequisites(&mut quests);
     chains::release_impossible_class_quests(&mut quests);
     dungeons::set_dungeon_levels(

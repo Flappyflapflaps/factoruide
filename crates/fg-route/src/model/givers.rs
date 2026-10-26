@@ -289,7 +289,7 @@ pub fn assumed_start_chance(droppers: &[Dropper]) -> f64 {
 /// Whether a creature of this rank is a source of an item starting a quest. Not a rare (4): one
 /// spawn, a long respawn, often camped or dead (Gruff Swiftbite's Gold Pickup Schedule): its
 /// common droppers are farmed instead at their own chance, if any.
-pub fn reliable_dropper(rank: i64) -> bool {
+pub(crate) fn reliable_dropper(rank: i64) -> bool {
     rank != 4
 }
 

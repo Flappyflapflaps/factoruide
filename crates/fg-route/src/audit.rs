@@ -99,6 +99,15 @@ pub const CHECKS: &[Check] = &[
         error: true,
     },
     Check {
+        name: "exclusive-prerequisites",
+        what: "quests that need first (all of them) quests no one character has together: two with \
+               races or classes in common with nobody (the notes of each faction, one for each \
+               class), or one for races the quest itself is not for. The planner never offers \
+               them. Several prerequisites that are alternatives are `pre_any` links: correct \
+               them in `quests.toml` of the edition's overrides, or accept the quest",
+        error: true,
+    },
+    Check {
         name: "ambiguous-floors",
         what: "places of quests of unknown height (no spawn of the server data at them, nor of \
                the same NPC or object near) in a cell where floors lie far over each other (a \
@@ -223,6 +232,11 @@ pub fn audit(
     } else {
         HashSet::new()
     };
+    if on("exclusive-prerequisites") {
+        for f in exclusive_prerequisites(conn, &overrides.quest_overrides)? {
+            found.insert((f.check, f.key.clone()), f);
+        }
+    }
     let trainer_quests = if on("other-class-quests") {
         trainer_quests(conn)?
     } else {
@@ -235,8 +249,8 @@ pub fn audit(
             .next()
             .unwrap_or_else(|| "warrior".into());
         let request = PlanRequest {
-            race: race.clone(),
-            class,
+            race: race.clone().into(),
+            class: class.into(),
             from_level: 1,
             to_level: overrides.params.edition.rules().max_level,
             name: None,
@@ -320,7 +334,7 @@ pub fn audit(
                     continue;
                 }
                 let request = PlanRequest {
-                    class: class.clone(),
+                    class: class.clone().into(),
                     ..request.clone()
                 };
                 let p = match job::prepare(conn, overrides, &request, &|_| {}) {
@@ -1160,6 +1174,71 @@ fn contradictory_prerequisites(model: &Model) -> Vec<Finding> {
         });
     }
     out
+}
+
+/// Quests with `pre_all` prerequisites that cannot be had together: two whose races (or classes)
+/// have nothing in common, or one for races (or classes) the quest is not for. A mask of 0 or
+/// none is everyone. The quests whose prerequisites an edition's `quests.toml` replaces are
+/// already corrected.
+fn exclusive_prerequisites(conn: &Connection, corrected: &[crate::model::QuestOverride]) -> Result<Vec<Finding>> {
+    type Masks = (Option<i64>, Option<i64>);
+    let mut masks: HashMap<i64, Masks> = HashMap::new();
+    let mut names: HashMap<i64, String> = HashMap::new();
+    let mut stmt = conn.prepare("SELECT id, name, races_mask, classes_mask FROM m_quest")?;
+    for row in stmt.query_map([], |r| {
+        Ok((
+            r.get::<_, i64>(0)?,
+            r.get::<_, Option<String>>(1)?,
+            r.get(2)?,
+            r.get(3)?,
+        ))
+    })? {
+        let (id, name, races, classes) = row?;
+        masks.insert(id, (races, classes));
+        names.insert(id, name.unwrap_or_default());
+    }
+    let mut needs: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+    let mut stmt = conn.prepare("SELECT quest_id, other_id FROM m_quest_link WHERE kind = 'pre_all' ORDER BY 1, 2")?;
+    for row in stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))? {
+        let (quest, other) = row?;
+        if !corrected.iter().any(|c| c.id == quest && c.pre_all.is_some()) {
+            needs.entry(quest).or_default().push(other);
+        }
+    }
+    let apart = |a: Option<i64>, b: Option<i64>| {
+        let (a, b) = (a.unwrap_or(0), b.unwrap_or(0));
+        a != 0 && b != 0 && a & b == 0
+    };
+    let mut out = Vec::new();
+    for (quest, others) in needs {
+        let Some(&own) = masks.get(&quest) else { continue };
+        let mut wrong: Vec<String> = Vec::new();
+        for (i, a) in others.iter().enumerate() {
+            let Some(&(races, classes)) = masks.get(a) else {
+                continue;
+            };
+            if apart(races, own.0) || apart(classes, own.1) {
+                wrong.push(format!("{a} is not for the quest's own races or classes"));
+            }
+            for b in &others[i + 1..] {
+                let Some(&(other_races, other_classes)) = masks.get(b) else {
+                    continue;
+                };
+                if apart(races, other_races) || apart(classes, other_classes) {
+                    wrong.push(format!("{a} and {b} have no race or class in common"));
+                }
+            }
+        }
+        if !wrong.is_empty() {
+            out.push(Finding {
+                check: "exclusive-prerequisites",
+                key: format!("quest {quest}"),
+                detail: format!("{} ({quest}) needs first all of: {}", names[&quest], wrong.join("; ")),
+                races: Vec::new(),
+            });
+        }
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

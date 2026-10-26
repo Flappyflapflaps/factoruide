@@ -24,11 +24,11 @@ pub struct ProfessionDef {
 }
 
 /// Character levels of the default curves' points.
-pub const CURVE_LEVELS: [i64; 8] = [10, 15, 20, 25, 30, 40, 50, 60];
+pub(crate) const CURVE_LEVELS: [i64; 8] = [10, 15, 20, 25, 30, 40, 50, 60];
 
 /// Level at which a profession is usually taken (the apprentice rank needs level 5): the curve
 /// starts from 0 there.
-pub const START_LEVEL: i64 = 5;
+pub(crate) const START_LEVEL: i64 = 5;
 
 /// Default curves, from classic leveling guides (icy-veins, warcrafttavern, wowhead): where
 /// the materials of each skill range are found. The profession is taken around level 5, so the
@@ -132,29 +132,10 @@ pub const PROFESSIONS: [ProfessionDef; 12] = [
 ];
 
 /// Default milestones of a profession: its curve at the levels of `CURVE_LEVELS`.
-pub fn default_milestones(key: &str) -> Vec<(i64, i64)> {
+pub(crate) fn default_milestones(key: &str) -> Vec<(i64, i64)> {
     find(key)
         .map(|d| CURVE_LEVELS.iter().copied().zip(d.curve).collect())
         .unwrap_or_default()
-}
-
-/// French name of a profession.
-pub fn french_name(key: &str) -> Option<&'static str> {
-    Some(match key {
-        "alchemy" => "Alchimie",
-        "blacksmithing" => "Forge",
-        "enchanting" => "Enchantement",
-        "engineering" => "Ingénierie",
-        "herbalism" => "Herboristerie",
-        "leatherworking" => "Travail du cuir",
-        "mining" => "Minage",
-        "skinning" => "Dépeçage",
-        "tailoring" => "Couture",
-        "cooking" => "Cuisine",
-        "fishing" => "Pêche",
-        "first_aid" => "Secourisme",
-        _ => return None,
-    })
 }
 
 pub fn find(key: &str) -> Option<&'static ProfessionDef> {
@@ -179,7 +160,7 @@ pub struct ProfessionGoal {
 /// profession is taken), then the goal's milestones (level, skill) linearly interpolated from 0
 /// at `start`, or 5 skill per level since `start` without milestones (gathering, fishing and
 /// the materials crafting needs all scale with zone level). Never above the goal.
-pub fn target_at(goal_target: i64, milestones: &[(i64, i64)], start: i64, level: i64) -> i64 {
+pub(crate) fn target_at(goal_target: i64, milestones: &[(i64, i64)], start: i64, level: i64) -> i64 {
     if level <= start {
         return 0;
     }
@@ -202,7 +183,7 @@ pub fn target_at(goal_target: i64, milestones: &[(i64, i64)], start: i64, level:
 }
 
 /// Skill line IDs, used by the addon to read the character's skill.
-pub fn skill_line(key: &str) -> i64 {
+pub(crate) fn skill_line(key: &str) -> i64 {
     match key {
         "alchemy" => 171,
         "blacksmithing" => 164,

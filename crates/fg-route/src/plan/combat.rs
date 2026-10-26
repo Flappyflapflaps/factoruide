@@ -63,7 +63,7 @@ impl Combat<'_> {
     /// Power needed to go where hostile mobs stand (`Guard`), as for an objective killing them:
     /// one less for one or two of them, `pack_extra` more for a pack, two more with an elite.
     /// 0 for nobody.
-    pub fn guard_need(self, g: &Guard) -> f64 {
+    pub(crate) fn guard_need(self, g: &Guard) -> f64 {
         if g.count == 0 {
             return 0.0;
         }
@@ -73,7 +73,7 @@ impl Combat<'_> {
 
     /// Lowest level at which the character, with `might`, goes to a place guarded by `g` (0 when
     /// nobody guards it).
-    pub fn guard_level(self, g: &Guard, might: Might) -> i64 {
+    pub(crate) fn guard_level(self, g: &Guard, might: Might) -> i64 {
         let need = self.guard_need(g);
         if need <= 0.0 {
             0

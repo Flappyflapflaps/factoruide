@@ -193,7 +193,7 @@ mod tests {
         for len in 0..rec.len() {
             assert!(parse_creature(&rec[..len]).is_err(), "decoded {len} bytes");
         }
-        let mut longer = rec.clone();
+        let mut longer = rec;
         longer.push(0);
         assert!(parse_creature(&longer).is_err());
     }

@@ -53,6 +53,18 @@ jobs:
       - uses: actions/checkout@v5
       - uses: EmbarkStudios/cargo-deny-action@v2
 
+  miri:
+    name: Allocator (miri)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Nightly toolchain with miri
+        run: rustup toolchain install nightly --profile minimal --component miri
+      - uses: Swatinem/rust-cache@v2
+      # The only code with `unsafe` that runs natively: the browser build's allocator.
+      - name: Miri
+        run: cargo +nightly miri test -p fg-web --lib alloc::
+
   frontend:
     name: Frontend (tsc, oxlint)
     runs-on: ubuntu-latest

@@ -6,12 +6,11 @@
 //! installed; the character follows it at its next /reload (the route's `replan` says for whom).
 //! The window is told when a re-plan starts and ends (`replan` events).
 
-use super::{
-    AppState, CmdResult, GuideInfo, VersionMeta, characters, data_version, err, now, overrides, write_atomic,
-    write_data,
-};
+use super::characters::characters;
+use super::contributions::write_atomic;
+use super::{AppState, CmdResult, VersionMeta, err, now, overrides, write_data};
 use fg_contrib::profile::ReplanAsk;
-use fg_route::job::{self, PlanRequest, StartState};
+use fg_route::job::{self, StartState};
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -107,26 +106,10 @@ fn answer_all(app: &AppHandle, state: &AppState, files: &[PathBuf]) -> CmdResult
         tell("planning", ask.route.clone(), None);
         match answer(state, &ask) {
             Ok(meta) => tell("ready", Some(meta.name), None),
-            Err(e) => tell("failed", ask.route.clone(), Some(e)),
+            Err(e) => tell("failed", ask.route.clone(), Some(e.to_string())),
         }
     }
     Ok(())
-}
-
-impl AppState {
-    /// The request of the guide named `name` (in game), in the version its characters follow, and
-    /// the character it started from.
-    fn followed_request(&self, name: &str) -> Option<(PlanRequest, Option<String>)> {
-        for entry in std::fs::read_dir(self.guides()).into_iter().flatten().flatten() {
-            let id = entry.file_name().to_string_lossy().into_owned();
-            let Some(n) = self.followed_version(&id) else { continue };
-            let Ok(v) = self.version(&id, n) else { continue };
-            if v.meta.name == name {
-                return Some((v.request, v.meta.character));
-            }
-        }
-        None
-    }
 }
 
 /// Compute the route again for a request and install it: the guide the character followed, its
@@ -147,7 +130,7 @@ pub fn answer(state: &AppState, ask: &ReplanAsk) -> CmdResult<VersionMeta> {
     let followed = ask
         .route
         .as_deref()
-        .and_then(|name| Some((name, state.followed_request(name)?)));
+        .and_then(|name| Some((name, state.studio.followed_request(state, name)?)));
     let request = if let Some((name, (base, base_start))) = followed {
         let name = job::replan_name(name, base_start.as_deref(), &ask.character);
         job::replan_request(&base, name, start, &profiles)
@@ -164,29 +147,9 @@ pub fn answer(state: &AppState, ask: &ReplanAsk) -> CmdResult<VersionMeta> {
         let name = job::replan_name(&base, None, &ask.character);
         job::default_request(&options, &race, &character.class, name, start)
     };
-    let walks = state.walks(edition);
-    let mut outcome = job::plan_interruptible(
-        &conn,
-        &overrides,
-        &request,
-        &|_| {},
-        &job::Interrupt::default(),
-        Some(&walks),
-    )
-    .map_err(err)?;
-    outcome.route.replan = Some(job::replanned(&ask.character, ask.asked, level));
-    let meta = state.add_version(&request, &outcome, data_version(&conn), (false, false), now()?)?;
-    // Followed in this version, even where an older one was chosen.
-    let info = state.guide_info(&meta.guide)?;
-    if info.installed.is_some() {
-        state.write_guide_info(
-            &meta.guide,
-            &GuideInfo {
-                installed: None,
-                ..info
-            },
-        )?;
-    }
+    let meta = state
+        .studio
+        .replan(state, &request, job::replanned(&ask.character, ask.asked, level))?;
     write_data(state)?;
     Ok(meta)
 }

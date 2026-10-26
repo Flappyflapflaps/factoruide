@@ -28,8 +28,8 @@ pub fn run(conn: &Connection, opts: &ImportOptions) -> Result<()> {
     let overrides = Overrides::load_edition(&opts.overrides, crate::edition())?;
     let params = overrides.params.with_overrides(&opts.params)?;
     let request = PlanRequest {
-        race: opts.race.clone(),
-        class: opts.class.clone(),
+        race: opts.race.clone().into(),
+        class: opts.class.clone().into(),
         from_level: opts.from_level,
         to_level: opts.to_level,
         name: Some(

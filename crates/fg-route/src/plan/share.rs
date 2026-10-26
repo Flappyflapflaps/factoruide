@@ -7,6 +7,7 @@
 //! stopped, it panicked): the others no longer wait for it.
 
 use super::state::Stop;
+use crate::sync::LockExt;
 use std::cell::Cell;
 use std::sync::{Condvar, Mutex};
 
@@ -75,7 +76,7 @@ impl Member<'_> {
     /// all of them.
     pub(crate) fn meet(&self, seed: u64, best: &(f64, Vec<Stop>)) -> Option<(f64, Vec<Stop>)> {
         let ex = self.exchange;
-        let mut round = ex.round.lock().unwrap();
+        let mut round = ex.round.locked();
         if round
             .brought
             .as_ref()
@@ -87,7 +88,7 @@ impl Member<'_> {
         let meeting = round.held;
         round.close_if_complete(&ex.met);
         while round.held == meeting {
-            round = ex.met.wait(round).unwrap();
+            round = ex.met.wait(round).expect("a thread panicked while holding the lock");
         }
         round.best.clone()
     }

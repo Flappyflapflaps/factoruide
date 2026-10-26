@@ -98,13 +98,13 @@ pub fn round_xp(xp: f64) -> i64 {
 }
 
 fn u32_at(b: &[u8], p: usize) -> u32 {
-    u32::from_le_bytes(b[p..p + 4].try_into().unwrap())
+    u32::from_le_bytes(b[p..p + 4].try_into().expect("a slice of four bytes"))
 }
 fn i32_at(b: &[u8], p: usize) -> i32 {
-    i32::from_le_bytes(b[p..p + 4].try_into().unwrap())
+    i32::from_le_bytes(b[p..p + 4].try_into().expect("a slice of four bytes"))
 }
 fn f32_at(b: &[u8], p: usize) -> f32 {
-    f32::from_le_bytes(b[p..p + 4].try_into().unwrap())
+    f32::from_le_bytes(b[p..p + 4].try_into().expect("a slice of four bytes"))
 }
 
 /// The XP reward of a record's fixed part: the difficulty field followed by the XP multiplier,
