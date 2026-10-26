@@ -1025,6 +1025,7 @@ name = "factoruide-app"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "fg-app",
  "fg-contrib",
  "fg-library",
  "fg-route",
@@ -1081,6 +1082,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "fg-app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "fg-library",
+ "fg-route",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "fg-contrib"
 version = "0.1.0"
 dependencies = [
@@ -1124,6 +1138,7 @@ name = "fg-web"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "fg-app",
  "fg-library",
  "fg-route",
  "rusqlite",

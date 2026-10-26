@@ -1,20 +1,19 @@
 // Hide the console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use fg_app::{CmdError, EditOpened, Host, Studio, now};
 use fg_contrib::contribution::{Contribution, SendState};
-use fg_library::{Comparison, DiskFiles, GuideSummary, GuideVersion, Library, Origin, SharedGuide, VersionMeta};
+use fg_library::{Comparison, DiskFiles, GuideSummary, GuideVersion, Library, Origin, VersionMeta};
 use fg_route::Route;
-use fg_route::job::{self, EditCatalog, Options, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState};
-use fg_route::model::Names;
+use fg_route::job::{self, Options, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState};
 use fg_route::sync::LockExt;
-use fg_route::terrain::Walks;
 use fg_route::xp::Edition;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 /// Game database, overrides and addon, embedded at build time (see build.rs).
@@ -155,23 +154,15 @@ struct AppState {
     /// Where the embedded databases are unpacked, and those unpacked so far.
     db_dir: PathBuf,
     dbs: Mutex<HashMap<Edition, PathBuf>>,
-    /// Names of the game in each language read so far, to write guides in it.
-    names: Mutex<HashMap<(Edition, String), Arc<Names>>>,
     /// Saved guides and debug exports.
     data_dir: PathBuf,
     /// The same folder, for the guide library.
     files: DiskFiles,
-    /// Stops or cancels the generation under way (`stop_plan`, `cancel_plan`).
-    plan_interrupt: job::Interrupt,
-    /// Walking memory of each edition (paths around the terrain already searched), kept between
-    /// generations: filled at the first one with the memories saved with the guides.
-    walks: Mutex<HashMap<Edition, Arc<Walks>>>,
-    /// The guide version open in the editor.
-    editor: Mutex<Option<EditSession>>,
-    /// The replays asked of the editor: a newer one makes the one under way give up.
-    edit_requests: job::Requests,
-    /// The last guide version replayed to be watched (`guide_timeline`): opened again at once.
-    timeline: Mutex<Option<(TimelineKey, job::Timeline)>>,
+    /// What the app remembers between commands: the generation under way, the guide in the
+    /// editor, the walking memory, the names read.
+    studio: Studio,
+    /// The window's handle, for the events (set once the app is built).
+    app: OnceLock<AppHandle>,
     /// Held while a contribution is read, sent and recorded: one send at a time, manual or
     /// automatic.
     send_lock: Mutex<()>,
@@ -179,10 +170,10 @@ struct AppState {
     auto_wake: std::sync::mpsc::Sender<()>,
 }
 
-type CmdResult<T> = Result<T, String>;
+type CmdResult<T> = Result<T, CmdError>;
 
-fn err(e: impl std::fmt::Display) -> String {
-    format!("{e:#}")
+fn err(e: impl std::fmt::Display) -> CmdError {
+    CmdError::App(format!("{e:#}"))
 }
 
 /// Embedded overrides of an edition.
@@ -216,26 +207,41 @@ impl AppState {
     fn open_db(&self) -> CmdResult<Connection> {
         open_db(&self.db_path(self.edition())?)
     }
-    /// Names of the current edition in a game language, read once.
-    fn names(&self, locale: &str) -> CmdResult<Arc<Names>> {
-        let key = (self.edition(), locale.to_owned());
-        if let Some(n) = self.names.locked().get(&key) {
-            return Ok(n.clone());
-        }
-        let names = Arc::new(Names::load(&self.open_db()?, locale).map_err(err)?);
-        self.names.locked().insert(key, names.clone());
-        Ok(names)
-    }
     /// A guide written in `locale` (None: the language it was made in).
     fn render(&self, route: &Route, locale: Option<&str>) -> CmdResult<Route> {
-        let locale = locale.or(route.locale.as_deref()).unwrap_or("enUS");
-        Ok(fg_route::export::render(route, &*self.names(locale)?))
+        self.studio.render(self, self.edition(), route, locale)
+    }
+}
+
+impl Host for AppState {
+    type Files = DiskFiles;
+
+    fn files(&self) -> &DiskFiles {
+        &self.files
+    }
+
+    fn edition(&self) -> Edition {
+        AppState::edition(self)
+    }
+
+    fn open_db(&self, edition: Edition) -> CmdResult<Connection> {
+        open_db(&self.db_path(edition)?)
+    }
+
+    fn overrides(&self, edition: Edition) -> CmdResult<Overrides> {
+        overrides(edition)
+    }
+
+    fn progress(&self, line: &str) {
+        if let Some(app) = self.app.get() {
+            let _ = app.emit("plan-progress", line.to_owned());
+        }
     }
 }
 
 fn open_db(path: &Path) -> CmdResult<Connection> {
     Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .map_err(|e| format!("{}: {e}", path.display()))
+        .map_err(|e| CmdError::App(format!("{}: {e}", path.display())))
 }
 
 /// Unpack an edition's embedded database into `dir` once per build (the file name carries its
@@ -518,13 +524,6 @@ fn loaded_files(addons: &Path) -> BTreeMap<String, Vec<String>> {
 //   guides/<slug>/v<N>/request.json   configuration
 //   guides/<slug>/v<N>/outcome.json   computed guide
 
-fn now() -> CmdResult<u64> {
-    Ok(std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(err)?
-        .as_secs())
-}
-
 impl AppState {
     /// The guides of the current edition (the app switches edition only when no generation is
     /// running).
@@ -532,29 +531,11 @@ impl AppState {
         Library::new(&self.files, self.edition())
     }
 
-    /// The walking memory of an edition: the first time, the memories of all its guides (each
-    /// version's outcome holds the paths it searched).
-    fn walks(&self, edition: Edition) -> Arc<Walks> {
-        if let Some(w) = self.walks.locked().get(&edition) {
-            return Arc::clone(w);
-        }
-        let walks = Arc::new(Walks::default());
-        for memory in Library::new(&self.files, edition).walk_memories() {
-            walks.add(memory);
-        }
-        Arc::clone(self.walks.locked().entry(edition).or_insert(walks))
-    }
-
     /// Every guide in the version its page says to follow (the latest unless one is chosen),
     /// written in the language it was made in, with when that version was computed and its
     /// number.
     fn followed_guides(&self) -> CmdResult<Vec<(Route, u64, u32)>> {
-        let mut out = Vec::new();
-        for (route, created, n) in self.library().followed() {
-            out.push((self.render(&route, None)?, created, n));
-        }
-        out.sort_by(|a, b| a.0.name.cmp(&b.0.name));
-        Ok(out)
+        self.studio.followed_guides(self, self.edition())
     }
 }
 
@@ -597,59 +578,29 @@ fn migrate_results(state: &AppState) {
     let _ = std::fs::rename(&old, state.data_dir.join("results.old"));
 }
 
+/// Runs a command on a worker thread (the planner takes seconds to minutes).
+async fn blocking<T: Send + 'static>(
+    app: AppHandle,
+    work: impl FnOnce(&AppState) -> CmdResult<T> + Send + 'static,
+) -> CmdResult<T> {
+    tauri::async_runtime::spawn_blocking(move || work(&app.state::<AppState>()))
+        .await
+        .map_err(err)?
+}
+
 /// Plan a guide on a worker thread, streaming progress as `plan-progress` events. The result
 /// is saved as a new version of the guide of the request's name. `stop_plan` ends it early with
 /// the best guide found so far; `cancel_plan` makes it fail with "cancelled" (nothing saved).
 #[tauri::command]
 async fn plan_route(app: AppHandle, request: PlanRequest) -> CmdResult<VersionMeta> {
-    let app2 = app.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app2.state::<AppState>();
-        state.plan_interrupt.reset();
-        // The edition the configuration was made for (the current one when unset).
-        let edition = request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
-        let conn = open_db(&state.db_path(edition)?)?;
-        let overrides = overrides(edition)?;
-        let walks = state.walks(edition);
-        let progress = |m: &str| {
-            let _ = app.emit("plan-progress", m.to_owned());
-        };
-        let outcome = job::plan_interruptible(
-            &conn,
-            &overrides,
-            &request,
-            &progress,
-            &state.plan_interrupt,
-            Some(&walks),
-        )
-        .map_err(|e| {
-            if e.is::<job::Cancelled>() {
-                job::Cancelled.to_string()
-            } else {
-                err(e)
-            }
-        })?;
-        let meta = state
-            .library()
-            .add_version(&request, &outcome, data_version(&conn), Origin::COMPUTED, now()?)?;
-        Ok(meta)
-    })
-    .await
-    .map_err(err)?
+    blocking(app, move |state| state.studio.plan_route(state, &request)).await
 }
 
 /// The flight paths a character probably knows from the quests it did in their towns
 /// (`job::inferred_flights`), besides those its addon recorded.
 #[tauri::command]
 async fn inferred_flights(app: AppHandle, start: StartState) -> CmdResult<Vec<i64>> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app.state::<AppState>();
-        let conn = open_db(&state.db_path(state.edition())?)?;
-        let side = fg_route::faction::Faction::parse(&start.faction).ok_or("unknown faction")?;
-        job::inferred_flights(&conn, side, &start.completed).map_err(err)
-    })
-    .await
-    .map_err(err)?
+    blocking(app, move |state| state.studio.inferred_flights(state, &start)).await
 }
 
 /// The starts the character can choose from before the guide is computed (`job::preview_starts`),
@@ -657,166 +608,42 @@ async fn inferred_flights(app: AppHandle, start: StartState) -> CmdResult<Vec<i6
 /// `cancel_plan` ends it with "cancelled".
 #[tauri::command]
 async fn preview_starts(app: AppHandle, request: PlanRequest) -> CmdResult<job::StartPreview> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app.state::<AppState>();
-        state.plan_interrupt.reset();
-        let edition = request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
-        let conn = open_db(&state.db_path(edition)?)?;
-        let walks = state.walks(edition);
-        let progress = |m: &str| {
-            let _ = app.emit("plan-progress", m.to_owned());
-        };
-        job::preview_starts(
-            &conn,
-            &overrides(edition)?,
-            &request,
-            &progress,
-            &state.plan_interrupt,
-            Some(&walks),
-        )
-        .map_err(|e| {
-            if e.is::<job::Cancelled>() {
-                job::Cancelled.to_string()
-            } else {
-                err(e)
-            }
-        })
-    })
-    .await
-    .map_err(err)?
+    blocking(app, move |state| state.studio.preview_starts(state, &request)).await
 }
 
 /// A new guide of no steps from the request's character and settings, saved as a version
 /// edited by hand: its steps are then added in the editor.
 #[tauri::command]
 async fn manual_route(app: AppHandle, request: PlanRequest) -> CmdResult<VersionMeta> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app.state::<AppState>();
-        let edition = request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
-        let conn = open_db(&state.db_path(edition)?)?;
-        let walks = state.walks(edition);
-        let outcome = job::manual(&conn, &overrides(edition)?, &request, Some(&walks)).map_err(err)?;
-        state
-            .library()
-            .add_version(&request, &outcome, data_version(&conn), Origin::EDITED, now()?)
-            .map_err(Into::into)
-    })
-    .await
-    .map_err(err)?
+    blocking(app, move |state| state.studio.manual_route(state, &request)).await
 }
-
-/// Version of the quest data imported in a database.
-fn data_version(conn: &Connection) -> Option<String> {
-    conn.query_row("SELECT detail FROM import_run WHERE source = 'questie'", [], |r| {
-        r.get::<_, Option<String>>(0)
-    })
-    .ok()
-    .flatten()
-}
-
-// Guide editor -----------------------------------------------------------------------
-//
-// A version opened in the editor is loaded once (character, settings, world); each change of
-// its steps is replayed (`edit_simulate`), nothing is written until `edit_save` adds the edited
-// guide as a new version.
-
-struct EditSession {
-    edition: Edition,
-    request: PlanRequest,
-    notes: Vec<String>,
-    editor: job::Editor,
-}
-
-/// A version opened in the editor.
-#[derive(Serialize)]
-struct EditOpened {
-    steps: Vec<RouteStep>,
-    /// Steps read back from the guide (computed before the editor): its time may differ a little.
-    rebuilt: bool,
-    /// The steps replayed.
-    view: job::EditView,
-    catalog: EditCatalog,
-}
-
-/// A guide version replayed (game version, guide, version, when it was computed, language).
-type TimelineKey = (Edition, String, u32, u64, String);
 
 /// A version replayed to be watched: when each step starts and ends, the character's moves and
 /// what it has after each step (`locale`: language of the names).
 #[tauri::command]
 async fn guide_timeline(app: AppHandle, guide: String, version: u32, locale: String) -> CmdResult<job::Timeline> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app.state::<AppState>();
-        let v = state.library().version(&guide, version)?;
-        let edition = v.request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
-        let key: TimelineKey = (edition, guide, version, v.meta.created, locale);
-        if let Some((k, timeline)) = state.timeline.locked().as_ref()
-            && *k == key
-        {
-            return Ok(timeline.clone());
-        }
-        let conn = open_db(&state.db_path(edition)?)?;
-        let walks = state.walks(edition);
-        let editor = job::Editor::open(&conn, &overrides(edition)?, &v.request, Some(&walks)).map_err(err)?;
-        let timeline = editor.timeline(&v.outcome, &*state.names(&key.4)?);
-        *state.timeline.locked() = Some((key, timeline.clone()));
-        Ok(timeline)
+    blocking(app, move |state| {
+        state.studio.guide_timeline(state, &guide, version, &locale)
     })
     .await
-    .map_err(err)?
 }
+
+// Guide editor -----------------------------------------------------------------------
 
 /// Open a version in the editor (`locale`: language of the lines and names shown).
 #[tauri::command]
 async fn edit_open(app: AppHandle, guide: String, version: u32, locale: String) -> CmdResult<EditOpened> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app.state::<AppState>();
-        let v = state.library().version(&guide, version)?;
-        let edition = v.request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
-        let conn = open_db(&state.db_path(edition)?)?;
-        let walks = state.walks(edition);
-        let editor = job::Editor::open(&conn, &overrides(edition)?, &v.request, Some(&walks)).map_err(err)?;
-        let names = state.names(&locale)?;
-        let (steps, rebuilt) = editor.steps(&v.outcome);
-        let request = state.edit_requests.next();
-        let opened = EditOpened {
-            view: editor.view(&steps, &names, &request).ok_or(SUPERSEDED)?,
-            catalog: editor.catalog(&names),
-            steps,
-            rebuilt,
-        };
-        *state.editor.locked() = Some(EditSession {
-            edition,
-            request: v.request,
-            notes: v.outcome.notes,
-            editor,
-        });
-        Ok(opened)
+    blocking(app, move |state| {
+        state.studio.edit_open(state, &guide, version, &locale)
     })
     .await
-    .map_err(err)?
 }
-
-/// What a replay of the editor answers when a newer one was asked for meanwhile.
-const SUPERSEDED: &str = "superseded";
 
 /// Replay the steps of the guide open in the editor: its report, its lines and their timeline.
 /// The replay under way gives up for this one (it then fails with "superseded").
 #[tauri::command]
 async fn edit_simulate(app: AppHandle, steps: Vec<RouteStep>, locale: String) -> CmdResult<job::EditView> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app.state::<AppState>();
-        let request = state.edit_requests.next();
-        let names = state.names(&locale)?;
-        let session = state.editor.locked();
-        let session = session.as_ref().ok_or("no guide open in the editor")?;
-        session
-            .editor
-            .view(&steps, &names, &request)
-            .ok_or_else(|| SUPERSEDED.to_owned())
-    })
-    .await
-    .map_err(err)?
+    blocking(app, move |state| state.studio.edit_simulate(state, &steps, &locale)).await
 }
 
 /// What could be added to the steps of the guide open in the editor after its step `after`
@@ -829,36 +656,17 @@ async fn edit_suggest(
     after: Option<usize>,
     locale: String,
 ) -> CmdResult<job::Suggestions> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app.state::<AppState>();
-        let request = state.edit_requests.next();
-        let names = state.names(&locale)?;
-        let session = state.editor.locked();
-        let session = session.as_ref().ok_or("no guide open in the editor")?;
-        (session.editor.suggest(&steps, after, &names, &request)).ok_or_else(|| SUPERSEDED.to_owned())
+    blocking(app, move |state| {
+        state.studio.edit_suggest(state, &steps, after, &locale)
     })
     .await
-    .map_err(err)?
 }
 
 /// Save the edited steps as a new version of the guide (refused while a step is not possible)
 /// and close the editor.
 #[tauri::command]
 async fn edit_save(app: AppHandle, steps: Vec<RouteStep>) -> CmdResult<VersionMeta> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let state = app.state::<AppState>();
-        let mut session = state.editor.locked();
-        let open = session.as_ref().ok_or("no guide open in the editor")?;
-        let outcome = open.editor.save(&steps, open.notes.clone()).map_err(err)?;
-        let data = data_version(&open_db(&state.db_path(open.edition)?)?);
-        let meta = state
-            .library()
-            .add_version(&open.request, &outcome, data, Origin::EDITED, now()?)?;
-        *session = None;
-        Ok(meta)
-    })
-    .await
-    .map_err(err)?
+    blocking(app, move |state| state.studio.edit_save(state, &steps)).await
 }
 
 /// Leave the editor without saving.
@@ -868,7 +676,7 @@ async fn edit_save(app: AppHandle, steps: Vec<RouteStep>) -> CmdResult<VersionMe
     reason = "tauri commands take their arguments by value"
 )]
 fn edit_close(state: State<'_, AppState>) {
-    *state.editor.locked() = None;
+    state.studio.edit_close();
 }
 
 /// End the optimization under way now: `plan_route` saves and returns the best guide so far.
@@ -878,7 +686,7 @@ fn edit_close(state: State<'_, AppState>) {
     reason = "tauri commands take their arguments by value"
 )]
 fn stop_plan(state: State<'_, AppState>) {
-    state.plan_interrupt.stop();
+    state.studio.stop_plan();
 }
 
 /// Give the generation under way up: `plan_route` fails with "cancelled" within a moment.
@@ -888,7 +696,7 @@ fn stop_plan(state: State<'_, AppState>) {
     reason = "tauri commands take their arguments by value"
 )]
 fn cancel_plan(state: State<'_, AppState>) {
-    state.plan_interrupt.cancel();
+    state.studio.cancel_plan();
 }
 
 /// Every guide, most recently computed first.
@@ -923,13 +731,8 @@ fn compare_versions(
     b: u32,
     locale: Option<String>,
 ) -> CmdResult<Comparison> {
-    let mut c = state.library().compare(&guide, a, b)?;
     // Compared as saved (zones by their English names), shown in `locale`.
-    if let Some(locale) = &locale {
-        c.a.outcome.route = state.render(&c.a.outcome.route, Some(locale))?;
-        c.b.outcome.route = state.render(&c.b.outcome.route, Some(locale))?;
-    }
-    Ok(c)
+    state.studio.compare_versions(&*state, &guide, a, b, locale.as_deref())
 }
 
 #[tauri::command(async)]
@@ -943,11 +746,7 @@ fn get_version(
     version: u32,
     locale: Option<String>,
 ) -> CmdResult<GuideVersion> {
-    let mut v = state.library().version_to_show(&guide, version)?;
-    if let Some(locale) = locale {
-        v.outcome.route = state.render(&v.outcome.route, Some(&locale))?;
-    }
-    Ok(v)
+    state.studio.get_version(&*state, &guide, version, locale.as_deref())
 }
 
 /// The version of a guide its characters follow (`None`: the latest), written to the addon.
@@ -1005,18 +804,18 @@ fn write_data(state: &AppState) -> CmdResult<usize> {
     match game::status(&settings.wow_dir, settings.edition).problem {
         None => {}
         Some(WowProblem::NotWritable) => {
-            return Err(format!(
+            return Err(CmdError::App(format!(
                 "the app may not write in {}: give your Windows user the right to modify the World of \
                  Warcraft folder (its Properties, Security tab), or start the app once as administrator",
                 settings.addons_dir(settings.edition).display()
-            ));
+            )));
         }
         Some(_) => {
-            return Err(format!(
+            return Err(CmdError::App(format!(
                 "{} not found in {}: choose the World of Warcraft folder in Settings",
                 settings.edition.rules().edition_name,
                 settings.wow_dir.display()
-            ));
+            )));
         }
     }
     let addons = settings.addons_dir(settings.edition);
@@ -1206,7 +1005,7 @@ const LINKS: &[&str] = &[
 )]
 fn open_link(url: String) -> CmdResult<()> {
     if !LINKS.iter().any(|l| url.starts_with(l)) {
-        return Err(format!("not a link the app opens: {url}"));
+        return Err(CmdError::App(format!("not a link the app opens: {url}")));
     }
     let program = if cfg!(windows) {
         "explorer"
@@ -1301,18 +1100,7 @@ fn export_version(app: AppHandle, state: State<'_, AppState>, guide: String, ver
     reason = "tauri commands take their arguments by value"
 )]
 fn import_guide(state: State<'_, AppState>, content: String) -> CmdResult<VersionMeta> {
-    let shared = SharedGuide::parse(&content)?;
-    // Its walking memory joins the app's (when made on the same terrain data).
-    if let (Some(memory), Some(walks)) = (&shared.outcome.walks, state.walks.locked().get(&state.edition())) {
-        walks.add(memory.clone());
-    }
-    Ok(state.library().add_version(
-        &shared.request,
-        &shared.outcome,
-        shared.data(),
-        Origin::IMPORTED,
-        now()?,
-    )?)
+    state.studio.import_guide(&*state, &content)
 }
 
 // Characters -------------------------------------------------------------------------
@@ -1523,7 +1311,7 @@ struct Minimap {
 }
 
 fn minimap(edition: Edition) -> Option<&'static Minimap> {
-    static PACKS: std::sync::OnceLock<HashMap<&'static str, Minimap>> = std::sync::OnceLock::new();
+    static PACKS: OnceLock<HashMap<&'static str, Minimap>> = OnceLock::new();
     let packs = PACKS.get_or_init(|| {
         embedded::MINIMAPS
             .iter()
@@ -1668,17 +1456,15 @@ fn main() {
                 config_file,
                 db_dir,
                 dbs: Mutex::new(HashMap::default()),
-                names: Mutex::new(HashMap::default()),
                 files: DiskFiles::new(data_dir.clone()),
                 data_dir,
-                plan_interrupt: job::Interrupt::default(),
-                walks: Mutex::new(HashMap::default()),
-                editor: Mutex::new(None),
-                edit_requests: job::Requests::default(),
-                timeline: Mutex::new(None),
+                studio: Studio::default(),
+                app: OnceLock::new(),
                 send_lock: Mutex::new(()),
                 auto_wake,
             });
+            // The events of a generation go to this window.
+            let _ = app.state::<AppState>().app.set(app.handle().clone());
             migrate_guides(&app.state::<AppState>().data_dir);
             migrate_results(&app.state::<AppState>());
             let handle = app.handle().clone();
@@ -1839,9 +1625,9 @@ fn send_record_file(data_dir: &Path, edition: Edition) -> PathBuf {
 /// error, not a fresh start: that would send everything again under new character ids.
 fn read_send_record(file: &Path) -> CmdResult<SendRecord> {
     match std::fs::read(file) {
-        Ok(bytes) => serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", file.display())),
+        Ok(bytes) => serde_json::from_slice(&bytes).map_err(|e| CmdError::App(format!("{}: {e}", file.display()))),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(SendRecord::default()),
-        Err(e) => Err(format!("{}: {e}", file.display())),
+        Err(e) => Err(CmdError::App(format!("{}: {e}", file.display()))),
     }
 }
 
@@ -2070,7 +1856,7 @@ fn post_contribution(url: &str, body: &[u8]) -> Posted {
         .into();
     let mut r = match agent.post(url).header("Content-Type", "application/json").send(body) {
         Ok(r) => r,
-        Err(e) => return Posted::Failed(err(e)),
+        Err(e) => return Posted::Failed(e.to_string()),
     };
     match r.status().as_u16() {
         201 => Posted::Accepted,
@@ -2222,7 +2008,7 @@ async fn send_contribution(app: AppHandle) -> CmdResult<SendReport> {
         let file = send_record_file(&state.data_dir, edition);
         let mut record = read_send_record(&file)?;
         if record.retry_after.is_some_and(|t| now().is_ok_and(|now| now < t)) {
-            return Err("rate_limited".to_owned());
+            return Err("rate_limited".into());
         }
         let burst = send_burst(|| {
             let (contribution, next, more, _) = collect_contribution(&state, edition, &record.state)?;
@@ -2246,9 +2032,9 @@ async fn send_contribution(app: AppHandle) -> CmdResult<SendReport> {
                 documents: burst.accepted,
                 more: burst.more,
             }),
-            (None, Some(Posted::RateLimited(_))) => Err("rate_limited".to_owned()),
-            (None, Some(Posted::Failed(message))) => Err(message),
-            (None, _) => Err("nothing_to_send".to_owned()),
+            (None, Some(Posted::RateLimited(_))) => Err("rate_limited".into()),
+            (None, Some(Posted::Failed(message))) => Err(message.into()),
+            (None, _) => Err("nothing_to_send".into()),
         }
     })
     .await
@@ -2385,7 +2171,7 @@ async fn send_issue(app: AppHandle, draft: IssueDraft) -> CmdResult<&'static str
         let post = |issue: &fg_contrib::issue::Issue| {
             let body = serde_json::to_vec(issue).map_err(err)?;
             if body.len() > fg_contrib::issue::MAX_BYTES {
-                return Err("report too large".to_owned());
+                return Err(CmdError::from("report too large"));
             }
             Ok(post_contribution(&url, &body))
         };
@@ -2398,8 +2184,8 @@ async fn send_issue(app: AppHandle, draft: IssueDraft) -> CmdResult<&'static str
             posted = post(&fg_contrib::issue::Issue { setup: None, ..issue })?;
         }
         match posted {
-            Posted::RateLimited(_) => Err("rate_limited".to_owned()),
-            Posted::Failed(message) => Err(message),
+            Posted::RateLimited(_) => Err("rate_limited".into()),
+            Posted::Failed(message) => Err(message.into()),
             posted => Ok(posted.status()),
         }
     })
@@ -2587,7 +2373,7 @@ fn auto_contribute(state: &AppState) -> std::time::Duration {
                 record.last_auto = Some(AutoSend {
                     time: now,
                     status: "error".to_owned(),
-                    message: Some(e),
+                    message: Some(e.to_string()),
                 });
                 let _ = write_send_record(&file, &record);
             }

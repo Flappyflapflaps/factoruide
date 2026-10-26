@@ -4,24 +4,62 @@
 //! the app (`import_profile`).
 
 use crate::{embedded, host, store};
-use fg_library::{Comparison, GuideVersion, Library, Origin, SharedGuide, VersionMeta};
+use fg_app::{CmdError, Host, Studio, now};
+use fg_library::Library;
 use fg_route::Route;
 use fg_route::export::fgstring;
-use fg_route::job::{self, EditCatalog, Overrides, PlanRequest, RouteStep, StartState};
-use fg_route::model::Names;
+use fg_route::job::{self, Overrides, PlanRequest, RouteStep, StartState};
 use fg_route::sync::LockExt;
-use fg_route::terrain::Walks;
 use fg_route::xp::Edition;
 use rusqlite::Connection;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{LazyLock, Mutex};
 
-type CmdResult<T> = Result<T, String>;
+type CmdResult<T> = Result<T, CmdError>;
 
-fn err(e: impl std::fmt::Display) -> String {
-    format!("{e:#}")
+fn err(e: impl std::fmt::Display) -> CmdError {
+    CmdError::App(format!("{e:#}"))
+}
+
+/// What the browser gives the studio.
+struct WebHost;
+
+impl Host for WebHost {
+    type Files = store::Browser;
+
+    fn files(&self) -> &store::Browser {
+        &store::Browser
+    }
+
+    fn edition(&self) -> Edition {
+        edition()
+    }
+
+    fn open_db(&self, edition: Edition) -> CmdResult<Connection> {
+        open_db(edition)
+    }
+
+    fn overrides(&self, edition: Edition) -> CmdResult<Overrides> {
+        overrides(edition)
+    }
+
+    fn progress(&self, line: &str) {
+        host::event("plan-progress", &serde_json::Value::String(line.to_owned()));
+    }
+}
+
+static STUDIO: LazyLock<Studio> = LazyLock::new(Studio::default);
+
+/// A guide written in `locale` (None: the language it was made in).
+fn render(edition: Edition, route: &Route, locale: Option<&str>) -> CmdResult<Route> {
+    STUDIO.render(&WebHost, edition, route, locale)
+}
+
+/// Every guide of an edition in the version its page says to follow.
+fn followed_guides(edition: Edition) -> CmdResult<Vec<(Route, u64, u32)>> {
+    STUDIO.followed_guides(&WebHost, edition)
 }
 
 /// The app's version: the release's (`FG_VERSION` at build time), else the crate's.
@@ -101,11 +139,11 @@ fn database(edition: Edition) -> CmdResult<&'static [u8]> {
     let url = format!("data/{}.sqlite.zst", edition.key());
     let answer = host::fetch("GET", &url, None, &[])?;
     if answer.status != 200 {
-        return Err(format!(
+        return Err(CmdError::App(format!(
             "no data for {} ({url}: {})",
             edition.rules().edition_name,
             answer.status
-        ));
+        )));
     }
     let bytes = zstd::decode_all(answer.body.as_slice()).map_err(err)?;
     let bytes: &'static [u8] = Box::leak(bytes.into_boxed_slice());
@@ -147,40 +185,6 @@ fn override_file(name: &str) -> Option<String> {
     Some(String::from_utf8_lossy(bytes).into_owned())
 }
 
-/// Names of an edition in a game language.
-type NamesCache = HashMap<(Edition, String), Arc<Names>>;
-static NAMES: LazyLock<Mutex<NamesCache>> = LazyLock::new(Mutex::default);
-
-fn names(edition: Edition, locale: &str) -> CmdResult<Arc<Names>> {
-    let key = (edition, locale.to_owned());
-    if let Some(n) = NAMES.locked().get(&key) {
-        return Ok(n.clone());
-    }
-    let names = Arc::new(Names::load(&open_db(edition)?, locale).map_err(err)?);
-    NAMES.locked().insert(key, names.clone());
-    Ok(names)
-}
-
-fn render(edition: Edition, route: &Route, locale: Option<&str>) -> CmdResult<Route> {
-    let locale = locale.or(route.locale.as_deref()).unwrap_or("enUS");
-    Ok(fg_route::export::render(route, &*names(edition, locale)?))
-}
-
-fn data_version(conn: &Connection) -> Option<String> {
-    conn.query_row("SELECT detail FROM import_run WHERE source = 'questie'", [], |r| {
-        r.get::<_, Option<String>>(0)
-    })
-    .ok()
-    .flatten()
-}
-
-fn now() -> CmdResult<u64> {
-    Ok(std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(err)?
-        .as_secs())
-}
-
 #[derive(Serialize)]
 struct EditionInfo {
     key: &'static str,
@@ -213,54 +217,6 @@ fn list_editions() -> Vec<EditionInfo> {
 
 fn guides(edition: Edition) -> Library<'static, store::Browser> {
     Library::new(&store::Browser, edition)
-}
-
-/// The edition a version was made for (the current one when its request does not say).
-fn request_edition(request: &PlanRequest) -> Edition {
-    request.params.as_ref().map_or_else(edition, |p| p.edition)
-}
-
-static WALKS: LazyLock<Mutex<HashMap<Edition, Arc<Walks>>>> = LazyLock::new(Mutex::default);
-
-/// The walking memory of an edition: the first time, the memories of all its guides.
-fn walks(edition: Edition) -> Arc<Walks> {
-    if let Some(w) = WALKS.locked().get(&edition) {
-        return Arc::clone(w);
-    }
-    let walks = Arc::new(Walks::default());
-    for memory in guides(edition).walk_memories() {
-        walks.add(memory);
-    }
-    Arc::clone(WALKS.locked().entry(edition).or_insert(walks))
-}
-
-/// Every guide in the version its page says to follow (the latest unless one is chosen), written
-/// in the language it was made in, with when that version was computed and its number.
-fn followed_guides(edition: Edition) -> CmdResult<Vec<(Route, u64, u32)>> {
-    guides(edition)
-        .followed()
-        .into_iter()
-        .map(|(route, created, n)| Ok((render(edition, &route, None)?, created, n)))
-        .collect()
-}
-
-fn compare_versions(guide: &str, a: u32, b: u32, locale: Option<&str>) -> CmdResult<Comparison> {
-    let edition = edition();
-    let mut c = guides(edition).compare(guide, a, b)?;
-    if let Some(locale) = locale {
-        c.a.outcome.route = render(edition, &c.a.outcome.route, Some(locale))?;
-        c.b.outcome.route = render(edition, &c.b.outcome.route, Some(locale))?;
-    }
-    Ok(c)
-}
-
-fn get_version(guide: &str, n: u32, locale: Option<&str>) -> CmdResult<GuideVersion> {
-    let edition = edition();
-    let mut v = guides(edition).version_to_show(guide, n)?;
-    if let Some(locale) = locale {
-        v.outcome.route = render(edition, &v.outcome.route, Some(locale))?;
-    }
-    Ok(v)
 }
 
 // The guides for the game ---------------------------------------------------------------------
@@ -387,167 +343,7 @@ fn export_version(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
     }))
 }
 
-fn import_guide(content: &str) -> CmdResult<VersionMeta> {
-    let shared = SharedGuide::parse(content)?;
-    let edition = edition();
-    if let (Some(memory), Some(w)) = (&shared.outcome.walks, WALKS.locked().get(&edition)) {
-        w.add(memory.clone());
-    }
-    Ok(guides(edition).add_version(
-        &shared.request,
-        &shared.outcome,
-        shared.data(),
-        Origin::IMPORTED,
-        now()?,
-    )?)
-}
-
 // Planning and the editor ----------------------------------------------------------------
-
-static PLAN_INTERRUPT: LazyLock<job::Interrupt> = LazyLock::new(job::Interrupt::default);
-static EDIT_REQUESTS: LazyLock<job::Requests> = LazyLock::new(job::Requests::default);
-
-fn plan_route(request: &PlanRequest) -> CmdResult<VersionMeta> {
-    PLAN_INTERRUPT.reset();
-    let edition = request_edition(request);
-    let conn = open_db(edition)?;
-    let overrides = overrides(edition)?;
-    let walks = walks(edition);
-    let progress = |m: &str| host::event("plan-progress", &serde_json::Value::String(m.to_owned()));
-    let outcome = job::plan_interruptible(&conn, &overrides, request, &progress, &PLAN_INTERRUPT, Some(&walks))
-        .map_err(|e| {
-            if e.is::<job::Cancelled>() {
-                job::Cancelled.to_string()
-            } else {
-                err(e)
-            }
-        })?;
-    Ok(guides(edition).add_version(request, &outcome, data_version(&conn), Origin::COMPUTED, now()?)?)
-}
-
-/// The starts the character can choose from before the guide is computed.
-fn preview_starts(request: &PlanRequest) -> CmdResult<job::StartPreview> {
-    PLAN_INTERRUPT.reset();
-    let edition = request_edition(request);
-    let progress = |m: &str| host::event("plan-progress", &serde_json::Value::String(m.to_owned()));
-    job::preview_starts(
-        &open_db(edition)?,
-        &overrides(edition)?,
-        request,
-        &progress,
-        &PLAN_INTERRUPT,
-        Some(&walks(edition)),
-    )
-    .map_err(|e| {
-        if e.is::<job::Cancelled>() {
-            job::Cancelled.to_string()
-        } else {
-            err(e)
-        }
-    })
-}
-
-/// A new guide of no steps from the request's character and settings, saved as a version
-/// edited by hand: its steps are then added in the editor.
-fn manual_route(request: &PlanRequest) -> CmdResult<VersionMeta> {
-    let edition = request_edition(request);
-    let conn = open_db(edition)?;
-    let outcome = job::manual(&conn, &overrides(edition)?, request, Some(&walks(edition))).map_err(err)?;
-    Ok(guides(edition).add_version(request, &outcome, data_version(&conn), Origin::EDITED, now()?)?)
-}
-
-struct EditSession {
-    edition: Edition,
-    request: PlanRequest,
-    notes: Vec<String>,
-    editor: job::Editor,
-}
-
-static EDITOR: Mutex<Option<EditSession>> = Mutex::new(None);
-
-#[derive(Serialize)]
-struct EditOpened {
-    steps: Vec<RouteStep>,
-    rebuilt: bool,
-    view: job::EditView,
-    catalog: EditCatalog,
-}
-
-type TimelineKey = (Edition, String, u32, u64, String);
-static TIMELINE: Mutex<Option<(TimelineKey, job::Timeline)>> = Mutex::new(None);
-
-const SUPERSEDED: &str = "superseded";
-
-fn guide_timeline(guide: &str, n: u32, locale: &str) -> CmdResult<job::Timeline> {
-    let v = guides(edition()).version(guide, n)?;
-    let edition = request_edition(&v.request);
-    let key: TimelineKey = (edition, guide.to_owned(), n, v.meta.created, locale.to_owned());
-    if let Some((k, timeline)) = TIMELINE.locked().as_ref()
-        && *k == key
-    {
-        return Ok(timeline.clone());
-    }
-    let conn = open_db(edition)?;
-    let editor = job::Editor::open(&conn, &overrides(edition)?, &v.request, Some(&walks(edition))).map_err(err)?;
-    let timeline = editor.timeline(&v.outcome, &*names(edition, locale)?);
-    *TIMELINE.locked() = Some((key, timeline.clone()));
-    Ok(timeline)
-}
-
-fn edit_open(guide: &str, n: u32, locale: &str) -> CmdResult<EditOpened> {
-    let v = guides(edition()).version(guide, n)?;
-    let edition = request_edition(&v.request);
-    let conn = open_db(edition)?;
-    let editor = job::Editor::open(&conn, &overrides(edition)?, &v.request, Some(&walks(edition))).map_err(err)?;
-    let names = names(edition, locale)?;
-    let (steps, rebuilt) = editor.steps(&v.outcome);
-    let request = EDIT_REQUESTS.next();
-    let opened = EditOpened {
-        view: editor.view(&steps, &names, &request).ok_or(SUPERSEDED)?,
-        catalog: editor.catalog(&names),
-        steps,
-        rebuilt,
-    };
-    *EDITOR.locked() = Some(EditSession {
-        edition,
-        request: v.request,
-        notes: v.outcome.notes,
-        editor,
-    });
-    Ok(opened)
-}
-
-fn edit_simulate(steps: &[RouteStep], locale: &str) -> CmdResult<job::EditView> {
-    let request = EDIT_REQUESTS.next();
-    let session = EDITOR.locked();
-    let session = session.as_ref().ok_or("no guide open in the editor")?;
-    let names = names(session.edition, locale)?;
-    session
-        .editor
-        .view(steps, &names, &request)
-        .ok_or_else(|| SUPERSEDED.to_owned())
-}
-
-fn edit_suggest(steps: &[RouteStep], after: Option<usize>, locale: &str) -> CmdResult<job::Suggestions> {
-    let request = EDIT_REQUESTS.next();
-    let session = EDITOR.locked();
-    let session = session.as_ref().ok_or("no guide open in the editor")?;
-    let names = names(session.edition, locale)?;
-    session
-        .editor
-        .suggest(steps, after, &names, &request)
-        .ok_or_else(|| SUPERSEDED.to_owned())
-}
-
-fn edit_save(steps: &[RouteStep]) -> CmdResult<VersionMeta> {
-    let mut session = EDITOR.locked();
-    let open = session.as_ref().ok_or("no guide open in the editor")?;
-    let outcome = open.editor.save(steps, open.notes.clone()).map_err(err)?;
-    let data = data_version(&open_db(open.edition)?);
-    let meta = guides(open.edition).add_version(&open.request, &outcome, data, Origin::EDITED, now()?)?;
-    *session = None;
-    Ok(meta)
-}
 
 // Characters ---------------------------------------------------------------------------
 //
@@ -843,7 +639,7 @@ fn to_json<T: Serialize>(result: CmdResult<T>) -> CmdResult<serde_json::Value> {
 }
 
 fn version_of(a: &GuideArgs) -> CmdResult<u32> {
-    a.version.ok_or_else(|| "version missing".to_owned())
+    a.version.ok_or_else(|| CmdError::from("version missing"))
 }
 
 /// Answer a call from the page: `{"ok": value}` or `{"err": message}`.
@@ -889,7 +685,7 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
             struct A {
                 request: PlanRequest,
             }
-            to_json(plan_route(&args::<A>(a)?.request))
+            to_json(STUDIO.plan_route(&WebHost, &args::<A>(a)?.request))
         }
         "inferred_flights" => {
             #[derive(Deserialize)]
@@ -897,33 +693,28 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
                 start: StartState,
             }
             let start = args::<A>(a)?.start;
-            let edition = edition();
-            to_json(
-                fg_route::faction::Faction::parse(&start.faction)
-                    .ok_or_else(|| "unknown faction".to_owned())
-                    .and_then(|side| job::inferred_flights(&open_db(edition)?, side, &start.completed).map_err(err)),
-            )
+            to_json(STUDIO.inferred_flights(&WebHost, &start))
         }
         "preview_starts" => {
             #[derive(Deserialize)]
             struct A {
                 request: PlanRequest,
             }
-            to_json(preview_starts(&args::<A>(a)?.request))
+            to_json(STUDIO.preview_starts(&WebHost, &args::<A>(a)?.request))
         }
         "manual_route" => {
             #[derive(Deserialize)]
             struct A {
                 request: PlanRequest,
             }
-            to_json(manual_route(&args::<A>(a)?.request))
+            to_json(STUDIO.manual_route(&WebHost, &args::<A>(a)?.request))
         }
         "stop_plan" => {
-            PLAN_INTERRUPT.stop();
+            STUDIO.stop_plan();
             Ok(Value::Null)
         }
         "cancel_plan" => {
-            PLAN_INTERRUPT.cancel();
+            STUDIO.cancel_plan();
             Ok(Value::Null)
         }
         "export_request" => {
@@ -949,7 +740,7 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         ),
         "get_version" => {
             let g = args::<GuideArgs>(a)?;
-            to_json(get_version(&g.guide, version_of(&g)?, g.locale.as_deref()))
+            to_json(STUDIO.get_version(&WebHost, &g.guide, version_of(&g)?, g.locale.as_deref()))
         }
         "compare_versions" => {
             #[derive(Deserialize)]
@@ -961,7 +752,7 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
                 locale: Option<String>,
             }
             let x = args::<Versions>(a)?;
-            to_json(compare_versions(&x.guide, x.a, x.b, x.locale.as_deref()))
+            to_json(STUDIO.compare_versions(&WebHost, &x.guide, x.a, x.b, x.locale.as_deref()))
         }
         "set_installed" => {
             let g = args::<GuideArgs>(a)?;
@@ -996,7 +787,7 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
             struct A {
                 content: String,
             }
-            to_json(import_guide(&args::<A>(a)?.content))
+            to_json(STUDIO.import_guide(&WebHost, &args::<A>(a)?.content))
         }
         "import_profile" => {
             #[derive(Deserialize)]
@@ -1028,7 +819,8 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         "map_index" => map_index(),
         "guide_timeline" => {
             let g = args::<GuideArgs>(a)?;
-            to_json(guide_timeline(
+            to_json(STUDIO.guide_timeline(
+                &WebHost,
                 &g.guide,
                 version_of(&g)?,
                 g.locale.as_deref().unwrap_or("enUS"),
@@ -1036,7 +828,8 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         }
         "edit_open" => {
             let g = args::<GuideArgs>(a)?;
-            to_json(edit_open(
+            to_json(STUDIO.edit_open(
+                &WebHost,
                 &g.guide,
                 version_of(&g)?,
                 g.locale.as_deref().unwrap_or("enUS"),
@@ -1044,18 +837,18 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         }
         "edit_simulate" => {
             let s = args::<StepsArgs>(a)?;
-            to_json(edit_simulate(&s.steps, &s.locale))
+            to_json(STUDIO.edit_simulate(&WebHost, &s.steps, &s.locale))
         }
         "edit_suggest" => {
             let s = args::<StepsArgs>(a)?;
-            to_json(edit_suggest(&s.steps, s.after, &s.locale))
+            to_json(STUDIO.edit_suggest(&WebHost, &s.steps, s.after, &s.locale))
         }
-        "edit_save" => to_json(edit_save(&args::<StepsArgs>(a)?.steps)),
+        "edit_save" => to_json(STUDIO.edit_save(&WebHost, &args::<StepsArgs>(a)?.steps)),
         "edit_close" => {
-            *EDITOR.locked() = None;
+            STUDIO.edit_close();
             Ok(Value::Null)
         }
-        _ => Err(format!("unknown call {cmd}")),
+        _ => Err(CmdError::App(format!("unknown call {cmd}"))),
     }
 }
 

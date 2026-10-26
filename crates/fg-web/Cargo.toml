@@ -13,6 +13,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 anyhow.workspace = true
+fg-app = { path = "../fg-app" }
 fg-library = { path = "../fg-library" }
 fg-route = { path = "../fg-route" }
 rusqlite = { version = "0.40", features = ["bundled", "serialize"] }
