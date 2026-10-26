@@ -2,8 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 
+/// The planner's settings. New ones are added over time: outside this crate, start from
+/// `Params::default()` and set the fields to change.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[non_exhaustive]
 pub struct Params {
     /// Running speed in yards/second.
     pub run_speed: f64,
