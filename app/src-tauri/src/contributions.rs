@@ -1,5 +1,10 @@
 //! Contributions: what the app sends to the contribution server (the addon's recordings and the player's reports), by hand or by itself.
 
+#![expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+
 use super::*;
 
 // Contributions --------------------------------------------------------------------
@@ -663,10 +668,6 @@ pub(crate) fn setup_of(state: &AppState) -> fg_contrib::issue::Setup {
 
 /// What a report would join about the game and the addon (shown before it is sent).
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn setup_report(state: State<'_, AppState>) -> fg_contrib::issue::Setup {
     setup_of(&state)
 }

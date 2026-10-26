@@ -1,5 +1,9 @@
 // Hide the console window on Windows release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
 
 use fg_app::{CmdError, EditOpened, Host, Studio, now};
 use fg_contrib::contribution::{Contribution, SendState};
@@ -311,10 +315,6 @@ struct EditionInfo {
 }
 
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 fn list_editions(state: State<'_, AppState>) -> Vec<EditionInfo> {
     let settings = state.settings();
     Edition::ALL
@@ -365,19 +365,11 @@ fn updates_enabled() -> bool {
 }
 
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 fn get_settings(state: State<'_, AppState>) -> Settings {
     state.settings()
 }
 
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 fn set_settings(state: State<'_, AppState>, mut settings: Settings) -> CmdResult<()> {
     let before = state.settings();
     // Not edited by the settings page: kept.
@@ -410,10 +402,6 @@ fn write_settings(state: &AppState, mut settings: Settings) -> CmdResult<()> {
 /// Turn the automatic contributions on or off (only that setting: the pages showing it hold
 /// copies of the others).
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 fn set_auto_contribute(state: State<'_, AppState>, on: bool) -> CmdResult<()> {
     let mut settings = state.settings();
     let wake = on && !settings.auto_contribute;
@@ -445,10 +433,6 @@ async fn get_options(app: AppHandle) -> CmdResult<Options> {
 
 /// Save a planning request for debugging (replay with `fg route --request <file>`).
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 fn export_request(state: State<'_, AppState>, request: PlanRequest) -> CmdResult<String> {
     let dir = state.data_dir.join("debug");
     std::fs::create_dir_all(&dir).map_err(err)?;
@@ -464,10 +448,6 @@ fn export_request(state: State<'_, AppState>, request: PlanRequest) -> CmdResult
 /// The game's folder (`wow_dir`, else the saved one) and what is wrong with it for the game
 /// version the app works on.
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 fn wow_status(state: State<'_, AppState>, wow_dir: Option<PathBuf>) -> game::WowStatus {
     let settings = state.settings();
     game::status(wow_dir.as_deref().unwrap_or(&settings.wow_dir), settings.edition)
@@ -503,10 +483,6 @@ struct AddonState {
 }
 
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 fn addon_health(state: State<'_, AppState>) -> AddonState {
     let settings = state.settings();
     AddonState {

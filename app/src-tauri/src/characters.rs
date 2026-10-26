@@ -1,5 +1,10 @@
 //! The characters the addon recorded, to start a guide from.
 
+#![expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+
 use super::{
     AppHandle, AppState, BTreeMap, CmdResult, Edition, HashMap, Manager, PathBuf, Serialize, StartState, State, err,
     now, overrides, write_settings,
@@ -82,10 +87,6 @@ pub(crate) fn is_forgotten(forgotten: &BTreeMap<String, i64>, edition: Edition, 
 /// Take a character out of the Characters page (deleted in game): it no longer follows a guide.
 /// Played again, it is back.
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn forget_character(state: State<'_, AppState>, character: String) -> CmdResult<()> {
     let time = characters(&state)?
         .into_iter()

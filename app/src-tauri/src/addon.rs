@@ -1,5 +1,10 @@
 //! The data addon and the Polestar pack the app writes into the game's folders, and what it opens for the player.
 
+#![expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+
 use super::*;
 
 /// The oldest addon this app works with (its .toc version): older ones are to be updated.
@@ -10,10 +15,6 @@ pub(crate) const ADDON_VERSION: &str = embedded::ADDON_VERSION;
 /// those recordings) into the data addon; on WoW Forever with Polestar, its guide pack too. The
 /// addon itself comes from an addon site and is set up in game. Returns the number of guides.
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
     write_data(&state)
 }
@@ -87,10 +88,6 @@ pub(crate) fn write_data(state: &AppState) -> CmdResult<usize> {
 /// the game (Polestar picks each character's guide by its race, class and level). Returns the
 /// number of guides.
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn install_polestar(state: State<'_, AppState>) -> CmdResult<usize> {
     let settings = state.settings();
     if settings.edition != Edition::Forever {
@@ -117,10 +114,6 @@ pub(crate) fn install_polestar(state: State<'_, AppState>) -> CmdResult<usize> {
 /// What the player pastes in game with `/fg import`: one guide version (the addon adds it to
 /// the guides it has, or replaces the one of its name).
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn guide_text(state: State<'_, AppState>, guide: String, version: u32) -> CmdResult<String> {
     let v = state.library().version(&guide, version)?;
     let edition = v.request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
@@ -141,10 +134,6 @@ pub(crate) fn guide_text(state: State<'_, AppState>, guide: String, version: u32
 /// What the player pastes on Polestar's Import page (`/polestar import`): one guide version, in
 /// the game's language. Polestar exists on WoW Forever only.
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn polestar_string(
     state: State<'_, AppState>,
     guide: String,
@@ -163,10 +152,6 @@ pub(crate) fn polestar_string(
 
 /// Whether Polestar is installed in WoW Forever (it shows guides there only).
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn polestar_installed(state: State<'_, AppState>) -> bool {
     polestar_installed_in(&state.settings())
 }
@@ -183,10 +168,6 @@ pub(crate) fn polestar_installed_in(settings: &Settings) -> bool {
 /// in it), the pack's other guides kept. Returns the pack's folder. Polestar exists on WoW
 /// Forever only.
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn export_polestar(
     state: State<'_, AppState>,
     guide: String,
@@ -204,10 +185,6 @@ pub(crate) fn export_polestar(
 
 /// Whether the data addon in the game has the current guides (else it is to be written again).
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn addon_synced(state: State<'_, AppState>) -> bool {
     let settings = state.settings();
     let addons = settings.addons_dir(settings.edition);
@@ -227,10 +204,6 @@ pub(crate) const LINKS: &[&str] = &[
 
 /// Open one of the `LINKS` pages in the browser.
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn open_link(url: String) -> CmdResult<()> {
     if !LINKS.iter().any(|l| url.starts_with(l)) {
         return Err(CmdError::App(format!("not a link the app opens: {url}")));

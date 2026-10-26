@@ -1,15 +1,16 @@
 //! The game's maps for the guide pages: the world map images and the minimap tiles.
 
+#![expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+
 use super::{AppState, CmdResult, Edition, HashMap, OnceLock, State, embedded, err};
 
 // Maps -----------------------------------------------------------------------------
 
 /// Map index written by `fg maps` (ids, names, sizes, world bounds).
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn map_index(state: State<'_, AppState>) -> CmdResult<serde_json::Value> {
     let db = state.open_db()?;
     let text: String = db
@@ -40,10 +41,6 @@ pub(crate) fn map_index(state: State<'_, AppState>) -> CmdResult<serde_json::Val
 
 /// A map image as a data URL.
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn map_image(state: State<'_, AppState>, id: i64) -> CmdResult<tauri::ipc::Response> {
     let name = format!("{}/{id}.webp", state.edition().key());
     let (_, bytes) = embedded::MAPS
@@ -92,10 +89,6 @@ pub(crate) fn minimap(edition: Edition) -> Option<&'static Minimap> {
 /// The minimap's images of the current game version: `[map, level, x, y]` of each (none
 /// without a minimap).
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn minimap_index(state: State<'_, AppState>) -> Vec<(i64, u32, u32, u32)> {
     let mut tiles: Vec<_> = minimap(state.edition())
         .map(|m| m.tiles.keys().copied().collect())
@@ -107,10 +100,6 @@ pub(crate) fn minimap_index(state: State<'_, AppState>) -> Vec<(i64, u32, u32, u
 /// A minimap image (WebP): of game map `map`, at `level` (2^level ADT tiles a side), the
 /// `x`-th from the west and `y`-th from the north.
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn minimap_image(
     state: State<'_, AppState>,
     map: i64,

@@ -1,5 +1,10 @@
 //! The guides: their versions, the planning and the editor, as the page calls them.
 
+#![expect(
+    clippy::needless_pass_by_value,
+    reason = "tauri commands take their arguments by value"
+)]
+
 use super::*;
 
 // Guides ---------------------------------------------------------------------------
@@ -166,59 +171,35 @@ pub(crate) async fn edit_save(app: AppHandle, steps: Vec<RouteStep>) -> CmdResul
 
 /// Leave the editor without saving.
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn edit_close(state: State<'_, AppState>) {
     state.studio.edit_close();
 }
 
 /// End the optimization under way now: `plan_route` saves and returns the best guide so far.
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn stop_plan(state: State<'_, AppState>) {
     state.studio.stop_plan();
 }
 
 /// Give the generation under way up: `plan_route` fails with "cancelled" within a moment.
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn cancel_plan(state: State<'_, AppState>) {
     state.studio.cancel_plan();
 }
 
 /// Every guide, most recently computed first.
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn list_guides(state: State<'_, AppState>) -> Vec<GuideSummary> {
     state.library().list()
 }
 
 #[tauri::command]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn get_guide(state: State<'_, AppState>, id: String) -> CmdResult<GuideSummary> {
     Ok(state.library().summary(&id)?)
 }
 
 /// Versions `a` and `b` of a guide compared, written in `locale` (game locale).
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn compare_versions(
     state: State<'_, AppState>,
     guide: String,
@@ -231,10 +212,6 @@ pub(crate) fn compare_versions(
 }
 
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn get_version(
     state: State<'_, AppState>,
     guide: String,
@@ -246,38 +223,22 @@ pub(crate) fn get_version(
 
 /// The version of a guide its characters follow (`None`: the latest), written to the addon.
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn set_installed(state: State<'_, AppState>, guide: String, version: Option<u32>) -> CmdResult<()> {
     Ok(state.library().set_installed(&guide, version)?)
 }
 
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn delete_version(state: State<'_, AppState>, guide: String, version: u32) -> CmdResult<()> {
     Ok(state.library().delete_version(&guide, version)?)
 }
 
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn delete_guide(state: State<'_, AppState>, guide: String) -> CmdResult<()> {
     Ok(state.library().delete_guide(&guide)?)
 }
 
 /// Write a version as a .fgguide file in the Downloads folder; returns its path.
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn export_version(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -293,10 +254,6 @@ pub(crate) fn export_version(
 
 /// Add a guide received as a .fgguide file (its content): a new version of the guide of its name.
 #[tauri::command(async)]
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "tauri commands take their arguments by value"
-)]
 pub(crate) fn import_guide(state: State<'_, AppState>, content: String) -> CmdResult<VersionMeta> {
     state.studio.import_guide(&*state, &content)
 }
