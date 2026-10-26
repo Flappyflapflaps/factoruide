@@ -3,6 +3,7 @@ name = "fg-web"
 publish = false
 version = "0.1.0"
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 
 # The app's backend for the browser: built for `wasm32-wasip1-threads` (see web/README.md), run
