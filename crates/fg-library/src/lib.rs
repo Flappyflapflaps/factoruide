@@ -16,17 +16,19 @@
 
 mod error;
 mod files;
+mod id;
 mod share;
 mod types;
 
 pub use error::LibraryError;
 pub use files::{DiskFiles, Files};
+pub use id::GuideId;
 pub use share::SharedGuide;
 pub use types::{Comparison, GuideInfo, GuideSummary, GuideVersion, Origin, VersionMeta};
 
 use fg_route::Route;
 use fg_route::export::diff;
-use fg_route::job::{self, PlanOutcome, PlanRequest};
+use fg_route::job::{PlanOutcome, PlanRequest};
 use fg_route::terrain::WalkMemory;
 use fg_route::xp::Edition;
 use serde::{Deserialize, Serialize};
@@ -63,8 +65,12 @@ impl<'a, F: Files> Library<'a, F> {
     }
 
     /// The identifiers of the guides.
-    pub fn ids(&self) -> Vec<String> {
-        self.files.list(&self.dir)
+    pub fn ids(&self) -> Vec<GuideId> {
+        self.files
+            .list(&self.dir)
+            .into_iter()
+            .filter_map(|name| GuideId::try_from(name).ok())
+            .collect()
     }
 
     /// The guide's name and the version its characters follow.
@@ -72,16 +78,16 @@ impl<'a, F: Files> Library<'a, F> {
     /// # Errors
     ///
     /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
-    pub fn info(&self, id: &str) -> Result<GuideInfo> {
+    pub fn info(&self, id: &GuideId) -> Result<GuideInfo> {
         self.read_json(&format!("{}/{id}/guide.json", self.dir))
     }
 
-    fn write_info(&self, id: &str, info: &GuideInfo) -> Result<()> {
+    fn write_info(&self, id: &GuideId, info: &GuideInfo) -> Result<()> {
         self.write_json(&format!("{}/{id}/guide.json", self.dir), info, true)
     }
 
     /// The versions of a guide, newest first.
-    pub fn versions(&self, id: &str) -> Vec<VersionMeta> {
+    pub fn versions(&self, id: &GuideId) -> Vec<VersionMeta> {
         let dir = format!("{}/{id}", self.dir);
         let mut out: Vec<VersionMeta> = self
             .files
@@ -99,7 +105,7 @@ impl<'a, F: Files> Library<'a, F> {
     /// # Errors
     ///
     /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
-    pub fn version(&self, id: &str, version: u32) -> Result<GuideVersion> {
+    pub fn version(&self, id: &GuideId, version: u32) -> Result<GuideVersion> {
         let folder = format!("{}/{id}/v{version}", self.dir);
         let outcome = format!("{folder}/outcome.json");
         let bytes = self.files.read(&outcome).map_err(|e| LibraryError::io(&outcome, e))?;
@@ -116,7 +122,7 @@ impl<'a, F: Files> Library<'a, F> {
     /// # Errors
     ///
     /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
-    pub fn version_to_show(&self, id: &str, version: u32) -> Result<GuideVersion> {
+    pub fn version_to_show(&self, id: &GuideId, version: u32) -> Result<GuideVersion> {
         let mut v = self.version(id, version)?;
         v.outcome.walks = None;
         v.outcome.plan.clear();
@@ -128,10 +134,10 @@ impl<'a, F: Files> Library<'a, F> {
     /// # Errors
     ///
     /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
-    pub fn summary(&self, id: &str) -> Result<GuideSummary> {
+    pub fn summary(&self, id: &GuideId) -> Result<GuideSummary> {
         let info = self.info(id)?;
         Ok(GuideSummary {
-            id: id.to_owned(),
+            id: id.to_string(),
             name: info.name,
             installed: info.installed,
             versions: self.versions(id),
@@ -164,7 +170,7 @@ impl<'a, F: Files> Library<'a, F> {
         created: u64,
     ) -> Result<VersionMeta> {
         let route = &outcome.route;
-        let id = job::slug(&route.name);
+        let id = GuideId::from_name(&route.name);
         let info = self.info(&id).unwrap_or(GuideInfo {
             name: route.name.clone(),
             installed: None,
@@ -178,7 +184,7 @@ impl<'a, F: Files> Library<'a, F> {
         )?;
         let version = self.versions(&id).first().map_or(1, |v| v.version + 1);
         let meta = VersionMeta {
-            guide: id.clone(),
+            guide: id.to_string(),
             version,
             name: route.name.clone(),
             created,
@@ -203,7 +209,7 @@ impl<'a, F: Files> Library<'a, F> {
     }
 
     /// The version of a guide its characters follow: the one chosen, else the latest.
-    pub fn followed_version(&self, id: &str) -> Option<u32> {
+    pub fn followed_version(&self, id: &GuideId) -> Option<u32> {
         let chosen = self.info(id).ok()?.installed;
         chosen.or_else(|| self.versions(id).first().map(|v| v.version))
     }
@@ -226,7 +232,7 @@ impl<'a, F: Files> Library<'a, F> {
     /// # Errors
     ///
     /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
-    pub fn set_installed(&self, id: &str, version: Option<u32>) -> Result<()> {
+    pub fn set_installed(&self, id: &GuideId, version: Option<u32>) -> Result<()> {
         let info = self.info(id)?;
         self.write_info(
             id,
@@ -242,7 +248,7 @@ impl<'a, F: Files> Library<'a, F> {
     /// # Errors
     ///
     /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
-    pub fn delete_version(&self, id: &str, version: u32) -> Result<()> {
+    pub fn delete_version(&self, id: &GuideId, version: u32) -> Result<()> {
         let folder = format!("{}/{id}/v{version}", self.dir);
         self.files
             .remove_dir(&folder)
@@ -262,10 +268,10 @@ impl<'a, F: Files> Library<'a, F> {
     /// # Errors
     ///
     /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
-    pub fn delete_guide(&self, id: &str) -> Result<()> {
+    pub fn delete_guide(&self, id: &GuideId) -> Result<()> {
         let folder = format!("{}/{id}", self.dir);
         self.files.remove_dir(&folder).map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => LibraryError::NoGuide(id.to_owned()),
+            std::io::ErrorKind::NotFound => LibraryError::NoGuide(id.to_string()),
             _ => LibraryError::io(&folder, e),
         })
     }
@@ -298,7 +304,7 @@ impl<'a, F: Files> Library<'a, F> {
     /// # Errors
     ///
     /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
-    pub fn compare(&self, id: &str, a: u32, b: u32) -> Result<Comparison> {
+    pub fn compare(&self, id: &GuideId, a: u32, b: u32) -> Result<Comparison> {
         let (a, b) = (self.version_to_show(id, a)?, self.version_to_show(id, b)?);
         let settings = |v: &GuideVersion| -> Result<serde_json::Value> {
             let mut value = serde_json::to_value(&v.request).map_err(|e| LibraryError::corrupt("request", e))?;
@@ -331,7 +337,7 @@ impl<'a, F: Files> Library<'a, F> {
     /// # Errors
     ///
     /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
-    pub fn share(&self, id: &str, version: u32) -> Result<SharedGuide> {
+    pub fn share(&self, id: &GuideId, version: u32) -> Result<SharedGuide> {
         SharedGuide::of(self.version(id, version)?)
     }
 }

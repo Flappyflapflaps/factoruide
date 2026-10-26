@@ -7,7 +7,7 @@
 
 use fg_app::{CmdError, EditOpened, Host, Studio, now};
 use fg_contrib::contribution::{Contribution, SendState};
-use fg_library::{Comparison, DiskFiles, GuideSummary, GuideVersion, Library, Origin, VersionMeta};
+use fg_library::{Comparison, DiskFiles, GuideId, GuideSummary, GuideVersion, Library, Origin, VersionMeta};
 use fg_route::Route;
 use fg_route::job::{self, Options, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState};
 use fg_route::sync::LockExt;

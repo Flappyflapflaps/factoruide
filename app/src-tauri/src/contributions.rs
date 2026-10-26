@@ -489,7 +489,7 @@ pub(crate) struct IssueDraft {
 
 #[derive(Deserialize)]
 pub(crate) struct IssueGuide {
-    guide: String,
+    guide: GuideId,
     version: u32,
     /// Indices of the steps pointed at.
     #[serde(default)]

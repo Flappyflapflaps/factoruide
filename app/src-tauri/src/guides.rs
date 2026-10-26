@@ -118,7 +118,7 @@ pub(crate) async fn manual_route(app: AppHandle, request: PlanRequest) -> CmdRes
 #[tauri::command]
 pub(crate) async fn guide_timeline(
     app: AppHandle,
-    guide: String,
+    guide: GuideId,
     version: u32,
     locale: String,
 ) -> CmdResult<job::Timeline> {
@@ -132,7 +132,7 @@ pub(crate) async fn guide_timeline(
 
 /// Open a version in the editor (`locale`: language of the lines and names shown).
 #[tauri::command]
-pub(crate) async fn edit_open(app: AppHandle, guide: String, version: u32, locale: String) -> CmdResult<EditOpened> {
+pub(crate) async fn edit_open(app: AppHandle, guide: GuideId, version: u32, locale: String) -> CmdResult<EditOpened> {
     blocking(app, move |state| {
         state.studio.edit_open(state, &guide, version, &locale)
     })
@@ -194,7 +194,7 @@ pub(crate) fn list_guides(state: State<'_, AppState>) -> Vec<GuideSummary> {
 }
 
 #[tauri::command]
-pub(crate) fn get_guide(state: State<'_, AppState>, id: String) -> CmdResult<GuideSummary> {
+pub(crate) fn get_guide(state: State<'_, AppState>, id: GuideId) -> CmdResult<GuideSummary> {
     Ok(state.library().summary(&id)?)
 }
 
@@ -202,7 +202,7 @@ pub(crate) fn get_guide(state: State<'_, AppState>, id: String) -> CmdResult<Gui
 #[tauri::command(async)]
 pub(crate) fn compare_versions(
     state: State<'_, AppState>,
-    guide: String,
+    guide: GuideId,
     a: u32,
     b: u32,
     locale: Option<String>,
@@ -214,7 +214,7 @@ pub(crate) fn compare_versions(
 #[tauri::command(async)]
 pub(crate) fn get_version(
     state: State<'_, AppState>,
-    guide: String,
+    guide: GuideId,
     version: u32,
     locale: Option<String>,
 ) -> CmdResult<GuideVersion> {
@@ -223,17 +223,17 @@ pub(crate) fn get_version(
 
 /// The version of a guide its characters follow (`None`: the latest), written to the addon.
 #[tauri::command(async)]
-pub(crate) fn set_installed(state: State<'_, AppState>, guide: String, version: Option<u32>) -> CmdResult<()> {
+pub(crate) fn set_installed(state: State<'_, AppState>, guide: GuideId, version: Option<u32>) -> CmdResult<()> {
     Ok(state.library().set_installed(&guide, version)?)
 }
 
 #[tauri::command(async)]
-pub(crate) fn delete_version(state: State<'_, AppState>, guide: String, version: u32) -> CmdResult<()> {
+pub(crate) fn delete_version(state: State<'_, AppState>, guide: GuideId, version: u32) -> CmdResult<()> {
     Ok(state.library().delete_version(&guide, version)?)
 }
 
 #[tauri::command(async)]
-pub(crate) fn delete_guide(state: State<'_, AppState>, guide: String) -> CmdResult<()> {
+pub(crate) fn delete_guide(state: State<'_, AppState>, guide: GuideId) -> CmdResult<()> {
     Ok(state.library().delete_guide(&guide)?)
 }
 
@@ -242,7 +242,7 @@ pub(crate) fn delete_guide(state: State<'_, AppState>, guide: String) -> CmdResu
 pub(crate) fn export_version(
     app: AppHandle,
     state: State<'_, AppState>,
-    guide: String,
+    guide: GuideId,
     version: u32,
 ) -> CmdResult<String> {
     let shared = state.library().share(&guide, version)?;

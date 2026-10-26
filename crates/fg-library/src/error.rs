@@ -12,6 +12,9 @@ pub enum LibraryError {
     /// A guide computed by another version of the app that this one cannot read.
     #[error("{0:#}")]
     Outcome(anyhow::Error),
+    /// An identifier that could point out of the guides' folder.
+    #[error("not a guide identifier: {0:?}")]
+    BadId(String),
     /// No such guide.
     #[error("no guide {0}")]
     NoGuide(String),

@@ -114,7 +114,7 @@ pub(crate) fn install_polestar(state: State<'_, AppState>) -> CmdResult<usize> {
 /// What the player pastes in game with `/fg import`: one guide version (the addon adds it to
 /// the guides it has, or replaces the one of its name).
 #[tauri::command(async)]
-pub(crate) fn guide_text(state: State<'_, AppState>, guide: String, version: u32) -> CmdResult<String> {
+pub(crate) fn guide_text(state: State<'_, AppState>, guide: GuideId, version: u32) -> CmdResult<String> {
     let v = state.library().version(&guide, version)?;
     let edition = v.request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
     let route = state.render(&v.outcome.route, None)?;
@@ -136,7 +136,7 @@ pub(crate) fn guide_text(state: State<'_, AppState>, guide: String, version: u32
 #[tauri::command(async)]
 pub(crate) fn polestar_string(
     state: State<'_, AppState>,
-    guide: String,
+    guide: GuideId,
     version: u32,
 ) -> CmdResult<fg_route::export::polestar::ImportString> {
     if state.edition() != Edition::Forever {
@@ -170,7 +170,7 @@ pub(crate) fn polestar_installed_in(settings: &Settings) -> bool {
 #[tauri::command(async)]
 pub(crate) fn export_polestar(
     state: State<'_, AppState>,
-    guide: String,
+    guide: GuideId,
     version: u32,
     dir: String,
 ) -> CmdResult<String> {
@@ -179,7 +179,7 @@ pub(crate) fn export_polestar(
     }
     let route = state.render(&state.library().version(&guide, version)?.outcome.route, Some("enUS"))?;
     let pack = job::polestar_source_dir(Path::new(&dir));
-    job::add_polestar_source(&pack, &guide, &route, env!("CARGO_PKG_VERSION")).map_err(err)?;
+    job::add_polestar_source(&pack, guide.as_str(), &route, env!("CARGO_PKG_VERSION")).map_err(err)?;
     Ok(pack.display().to_string())
 }
 

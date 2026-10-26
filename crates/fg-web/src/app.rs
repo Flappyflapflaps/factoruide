@@ -5,7 +5,7 @@
 
 use crate::{embedded, host, store};
 use fg_app::{CmdError, Host, Studio, now};
-use fg_library::Library;
+use fg_library::{GuideId, Library};
 use fg_route::Route;
 use fg_route::export::fgstring;
 use fg_route::job::{self, Overrides, PlanRequest, RouteStep, StartState};
@@ -223,7 +223,7 @@ fn guides(edition: Edition) -> Library<'static, store::Browser> {
 
 /// What the player pastes in game with `/fg import`: one guide version (the addon adds it to the
 /// guides it has, or replaces the one of its name).
-fn guide_text(guide: &str, n: u32) -> CmdResult<serde_json::Value> {
+fn guide_text(guide: &GuideId, n: u32) -> CmdResult<serde_json::Value> {
     let edition = edition();
     let v = guides(edition).version(guide, n)?;
     let route = render(edition, &v.outcome.route, None)?;
@@ -294,7 +294,7 @@ fn base64(bytes: &[u8]) -> String {
 
 /// What the player pastes on Polestar's Import page (`/polestar import`): one guide version, in
 /// the game's language. Polestar exists on WoW Forever only.
-fn polestar_string(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
+fn polestar_string(guide: &GuideId, v: u32) -> CmdResult<serde_json::Value> {
     if edition() != Edition::Forever {
         return Err("Polestar is for WoW Forever only".into());
     }
@@ -309,7 +309,7 @@ fn polestar_string(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
 
 /// A guide version written for Polestar's own tools: a zip of a pack folder holding its
 /// `.guide` file (in English). Polestar exists on WoW Forever only.
-fn export_polestar(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
+fn export_polestar(guide: &GuideId, v: u32) -> CmdResult<serde_json::Value> {
     if edition() != Edition::Forever {
         return Err("Polestar is for WoW Forever only".into());
     }
@@ -325,8 +325,11 @@ fn export_polestar(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
             fg_route::export::polestar::pack_json(APP_VERSION).into_bytes(),
         ),
         (
-            format!("{folder}/{}.guide", fg_route::export::polestar::guide_name(guide)),
-            fg_route::export::polestar::source(guide, &route).into_bytes(),
+            format!(
+                "{folder}/{}.guide",
+                fg_route::export::polestar::guide_name(guide.as_str())
+            ),
+            fg_route::export::polestar::source(guide.as_str(), &route).into_bytes(),
         ),
     ];
     Ok(serde_json::json!({ "file": format!("{folder}.zip"), "base64": base64(&crate::zip::zip(&files)) }))
@@ -335,7 +338,7 @@ fn export_polestar(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
 // Shared guides --------------------------------------------------------------------------
 
 /// A version as a .fgguide file to download.
-fn export_version(guide: &str, v: u32) -> CmdResult<serde_json::Value> {
+fn export_version(guide: &GuideId, v: u32) -> CmdResult<serde_json::Value> {
     let shared = guides(edition()).share(guide, v)?;
     Ok(serde_json::json!({
         "file": format!("{guide}-v{v}.fgguide"),
@@ -617,7 +620,7 @@ fn args<T: DeserializeOwned>(args: serde_json::Value) -> CmdResult<T> {
 #[serde(rename_all = "camelCase")]
 struct GuideArgs {
     #[serde(alias = "id")]
-    guide: String,
+    guide: GuideId,
     #[serde(default)]
     version: Option<u32>,
     #[serde(default)]
@@ -745,7 +748,7 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
         "compare_versions" => {
             #[derive(Deserialize)]
             struct Versions {
-                guide: String,
+                guide: GuideId,
                 a: u32,
                 b: u32,
                 #[serde(default)]

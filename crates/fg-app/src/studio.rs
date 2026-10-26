@@ -1,5 +1,5 @@
 use crate::{CmdError, Host};
-use fg_library::{Comparison, GuideVersion, Library, Origin, SharedGuide, VersionMeta};
+use fg_library::{Comparison, GuideId, GuideVersion, Library, Origin, SharedGuide, VersionMeta};
 use fg_route::Route;
 use fg_route::job::{self, EditCatalog, PlanRequest, RouteStep, StartState};
 use fg_route::model::Names;
@@ -33,7 +33,7 @@ pub struct EditOpened {
 }
 
 /// A guide version replayed (game version, guide, version, when it was computed, language).
-type TimelineKey = (Edition, String, u32, u64, String);
+type TimelineKey = (Edition, GuideId, u32, u64, String);
 
 /// What the app remembers between its commands: the generation under way, the guide in the
 /// editor, the walking memory and the names read. The files, the game data and the events are
@@ -225,7 +225,13 @@ impl Studio {
     /// # Errors
     ///
     /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
-    pub fn get_version<H: Host>(&self, host: &H, guide: &str, n: u32, locale: Option<&str>) -> Result<GuideVersion> {
+    pub fn get_version<H: Host>(
+        &self,
+        host: &H,
+        guide: &GuideId,
+        n: u32,
+        locale: Option<&str>,
+    ) -> Result<GuideVersion> {
         let edition = host.edition();
         let mut v = library(host, edition).version_to_show(guide, n)?;
         if let Some(locale) = locale {
@@ -242,7 +248,7 @@ impl Studio {
     pub fn compare_versions<H: Host>(
         &self,
         host: &H,
-        guide: &str,
+        guide: &GuideId,
         a: u32,
         b: u32,
         locale: Option<&str>,
@@ -290,10 +296,10 @@ impl Studio {
     /// # Errors
     ///
     /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
-    pub fn guide_timeline<H: Host>(&self, host: &H, guide: &str, n: u32, locale: &str) -> Result<job::Timeline> {
+    pub fn guide_timeline<H: Host>(&self, host: &H, guide: &GuideId, n: u32, locale: &str) -> Result<job::Timeline> {
         let v = library(host, host.edition()).version(guide, n)?;
         let edition = request_edition(host, &v.request);
-        let key: TimelineKey = (edition, guide.to_owned(), n, v.meta.created, locale.to_owned());
+        let key: TimelineKey = (edition, guide.clone(), n, v.meta.created, locale.to_owned());
         if let Some((k, timeline)) = self.timeline.locked().as_ref()
             && *k == key
         {
@@ -312,7 +318,7 @@ impl Studio {
     /// # Errors
     ///
     /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
-    pub fn edit_open<H: Host>(&self, host: &H, guide: &str, n: u32, locale: &str) -> Result<EditOpened> {
+    pub fn edit_open<H: Host>(&self, host: &H, guide: &GuideId, n: u32, locale: &str) -> Result<EditOpened> {
         let v = library(host, host.edition()).version(guide, n)?;
         let edition = request_edition(host, &v.request);
         let conn = host.open_db(edition)?;
