@@ -39,19 +39,19 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
     let overrides = Overrides::load_edition(&opts.overrides, crate::edition())?;
     let mut params = overrides.params.with_overrides(&opts.params)?;
     if let Some(e) = opts.effort {
-        params.effort = e;
+        params = params.builder().effort(e).build();
     }
     if let Some(c) = &opts.construction {
         params = params.with_overrides(&[format!("construction={c}")])?;
     }
     if opts.allow_elite {
-        params.allow_elite = true;
+        params = params.builder().allow_elite(true).build();
     }
     if opts.no_dungeons {
-        params.dungeons = false;
+        params = params.builder().dungeons(false).build();
     }
     if opts.pvp_quests {
-        params.pvp_quests = true;
+        params = params.builder().pvp_quests(true).build();
     }
     if let Some(p) = &opts.progression {
         params = params.with_overrides(&[format!("progression={p}")])?;
@@ -250,7 +250,7 @@ pub fn share(conn: &Connection, overrides_dir: &Path, opts: &ShareOptions, out: 
     let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
     let mut params = overrides.params.with_overrides(&opts.params)?;
     if let Some(e) = opts.effort {
-        params.effort = e;
+        params = params.builder().effort(e).build();
     }
     // The class quests the page lists for the class (by its name in lower case).
     let options = job::options(conn, &overrides)?;

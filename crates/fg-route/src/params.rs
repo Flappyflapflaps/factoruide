@@ -362,6 +362,70 @@ pub struct Params {
     pub edition: crate::xp::Edition,
 }
 
+/// The settings the apps and tools change on top of an edition's defaults, set one by one:
+///
+/// ```ignore
+/// let params = overrides.params.clone().builder().effort(1.0).dungeons(false).build();
+/// ```
+#[derive(Debug, Clone)]
+#[must_use]
+pub struct ParamsBuilder(Params);
+
+impl Params {
+    /// Settings to change from these.
+    pub fn builder(self) -> ParamsBuilder {
+        ParamsBuilder(self)
+    }
+}
+
+impl ParamsBuilder {
+    /// How long the search goes on (see `Params::effort`).
+    pub fn effort(mut self, effort: f64) -> Self {
+        self.0.effort = effort;
+        self
+    }
+
+    /// The seed of the search.
+    pub fn seed(mut self, seed: u64) -> Self {
+        self.0.seed = seed;
+        self
+    }
+
+    /// Whether the route goes to dungeons.
+    pub fn dungeons(mut self, on: bool) -> Self {
+        self.0.dungeons = on;
+        self
+    }
+
+    /// Whether elite monsters are fought alone.
+    pub fn allow_elite(mut self, on: bool) -> Self {
+        self.0.allow_elite = on;
+        self
+    }
+
+    /// Whether quests asking for player kills are taken.
+    pub fn pvp_quests(mut self, on: bool) -> Self {
+        self.0.pvp_quests = on;
+        self
+    }
+
+    /// Whether quest sources are taken as the data approximates them.
+    pub fn approx_sources(mut self, on: bool) -> Self {
+        self.0.approx_sources = on;
+        self
+    }
+
+    /// Weight of the flights in the score.
+    pub fn flight_weight(mut self, weight: f64) -> Self {
+        self.0.flight_weight = weight;
+        self
+    }
+
+    pub fn build(self) -> Params {
+        self.0
+    }
+}
+
 impl Default for Params {
     fn default() -> Self {
         Self {
@@ -827,6 +891,23 @@ pub(crate) fn kill_factor(d: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The builder changes what it is told to and nothing else.
+    #[test]
+    fn the_builder_changes_only_what_it_is_told() {
+        let base = Params::default();
+        let built = base
+            .clone()
+            .builder()
+            .effort(3.0)
+            .dungeons(!base.dungeons)
+            .seed(7)
+            .build();
+        assert_eq!((built.effort, built.seed, built.dungeons), (3.0, 7, !base.dungeons));
+        assert_eq!(built.allow_elite, base.allow_elite);
+        assert_eq!(built.flight_weight, base.flight_weight);
+        assert_eq!(base.clone().builder().build().seed, base.seed);
+    }
 
     /// Redridge: hearth to Darkshire then fly back to Lakeshire, 169 s instead of a 3 min walk.
     #[test]
