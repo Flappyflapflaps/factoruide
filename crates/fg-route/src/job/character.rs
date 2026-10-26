@@ -19,10 +19,10 @@ pub(super) fn character(conn: &Connection, overrides: &Overrides, req: &PlanRequ
     // A group is planned for the member with the least XP.
     let (race_key, class_key) = match members.first() {
         Some(m) => (race_key_of(overrides, m.race)?, m.class.clone()),
-        None => (req.race.to_lowercase().replace([' ', '-'], ""), req.class.clone()),
+        None => (req.race.to_lowercase().replace([' ', '-'], ""), req.class.to_string()),
     };
     let Some(race) = overrides.races.get(&race_key) else {
-        return Err(RequestError::UnknownRace(req.race.clone()).into());
+        return Err(RequestError::UnknownRace(req.race.to_string()).into());
     };
     let (class_id, class_name) = class_of(conn, &class_key)?;
     check_playable(conn, race, &race_key, class_id, &class_name)?;

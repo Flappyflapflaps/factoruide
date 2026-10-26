@@ -61,6 +61,14 @@ verbose_file_reads = "warn"
 # against 39.6 s, and builds 7 times slower (2m11 against 19 s for `fg`). The time goes into the
 # search's own loops, which are already in one crate. Measure again before changing it.
 
+# What the release workflows may build with for the smallest binary: the default release profile
+# above stays the one to work with (see its note). `cargo build --profile dist`.
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = true
+
 # Release code with line tables for perf and flamegraphs, in its own target/profiling directory
 # so that it never invalidates the release build (scripts/profile.sh adds the frame pointers).
 [profile.profiling]

@@ -57,8 +57,8 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
         params = params.with_overrides(&[format!("progression={p}")])?;
     }
     let request = PlanRequest {
-        race: opts.race.clone(),
-        class: opts.class.clone(),
+        race: opts.race.clone().into(),
+        class: opts.class.clone().into(),
         from_level: opts.from_level,
         to_level: opts.to_level,
         name: opts.out_name.clone(),
@@ -260,8 +260,8 @@ pub fn share(conn: &Connection, overrides_dir: &Path, opts: &ShareOptions, out: 
         .find(|c| c.key == opts.class)
         .map_or_else(|| opts.class.to_lowercase(), |c| c.name.to_lowercase());
     let request = PlanRequest {
-        race: opts.race.clone(),
-        class: opts.class.clone(),
+        race: opts.race.clone().into(),
+        class: opts.class.clone().into(),
         from_level: opts.from_level,
         to_level: opts.to_level,
         name: Some(opts.name.clone()),

@@ -249,8 +249,8 @@ pub fn audit(
             .next()
             .unwrap_or_else(|| "warrior".into());
         let request = PlanRequest {
-            race: race.clone(),
-            class,
+            race: race.clone().into(),
+            class: class.into(),
             from_level: 1,
             to_level: overrides.params.edition.rules().max_level,
             name: None,
@@ -334,7 +334,7 @@ pub fn audit(
                     continue;
                 }
                 let request = PlanRequest {
-                    class: class.clone(),
+                    class: class.clone().into(),
                     ..request.clone()
                 };
                 let p = match job::prepare(conn, overrides, &request, &|_| {}) {

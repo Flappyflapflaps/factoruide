@@ -6,14 +6,57 @@ use crate::params::Params;
 use crate::world::World;
 use serde::{Deserialize, Serialize};
 
+/// The key of a race in `races.toml`. A name of the editions' data rather than a closed list, so a
+/// type of its own: it cannot be mixed up with a class or a free text.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct RaceKey(String);
+
+/// A class, by its file name or its name.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ClassKey(String);
+
+macro_rules! text_key {
+    ($($name:ident),*) => {$(
+        impl $name {
+            pub fn as_str(&self) -> &str {
+                &self.0
+            }
+        }
+        impl std::ops::Deref for $name {
+            type Target = str;
+            fn deref(&self) -> &str {
+                &self.0
+            }
+        }
+        impl From<&str> for $name {
+            fn from(key: &str) -> Self {
+                Self(key.to_owned())
+            }
+        }
+        impl From<String> for $name {
+            fn from(key: String) -> Self {
+                Self(key)
+            }
+        }
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(&self.0)
+            }
+        }
+    )*};
+}
+text_key!(RaceKey, ClassKey);
+
 /// A planning request: who, which levels, and every setting.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanRequest {
     /// Race key from `races.toml` (gnome, human...): the editions' data, not a closed list, so it
     /// is checked when the request is prepared rather than by its type.
-    pub race: String,
+    pub race: RaceKey,
     /// Class file name or name (mage, WARRIOR...).
-    pub class: String,
+    pub class: ClassKey,
     pub from_level: i64,
     pub to_level: i64,
     /// Route name (default `<race>-<class>`).
