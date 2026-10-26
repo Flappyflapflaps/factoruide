@@ -2,6 +2,8 @@
 //! edit guides. They differ in where the data is (a folder and database files, or the browser's
 //! storage and downloads), which they give through [`Host`]; the rest is the [`Studio`].
 
+#![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
+
 mod error;
 mod host;
 mod studio;

@@ -6,12 +6,24 @@ use std::path::PathBuf;
 
 pub trait Files {
     /// The content of a file; a missing one is `ErrorKind::NotFound`.
+    ///
+    /// # Errors
+    ///
+    /// The file system's error: `NotFound` for a missing file or folder.
     fn read(&self, path: &str) -> io::Result<Vec<u8>>;
     /// Writes a file, and the folders above it when they do not exist yet.
+    ///
+    /// # Errors
+    ///
+    /// The file system's error: `NotFound` for a missing file or folder.
     fn write(&self, path: &str, data: &[u8]) -> io::Result<()>;
     /// The names (files and folders, once each) directly in a folder; none when it does not exist.
     fn list(&self, dir: &str) -> Vec<String>;
     /// Removes a folder and everything in it; a missing one is `ErrorKind::NotFound`.
+    ///
+    /// # Errors
+    ///
+    /// The file system's error: `NotFound` for a missing file or folder.
     fn remove_dir(&self, dir: &str) -> io::Result<()>;
 }
 

@@ -29,11 +29,19 @@ impl SharedGuide {
     }
 
     /// The text of the file.
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError::NotAGuideFile`] when the text is not a guide of this app, [`LibraryError::Outcome`] when its computed guide cannot be read.
     pub fn to_json(&self) -> Result<String, LibraryError> {
         serde_json::to_string(self).map_err(|e| LibraryError::corrupt("guide", e))
     }
 
     /// The guide of a file received, whatever version of the app made it.
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError::NotAGuideFile`] when the text is not a guide of this app, [`LibraryError::Outcome`] when its computed guide cannot be read.
     pub fn parse(content: &str) -> Result<Self, LibraryError> {
         let not_a_guide = |e: serde_json::Error| LibraryError::NotAGuideFile(Some(e.to_string()));
         let mut shared: serde_json::Value = serde_json::from_str(content).map_err(not_a_guide)?;

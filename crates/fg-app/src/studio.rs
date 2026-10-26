@@ -62,6 +62,10 @@ fn data_version(conn: &Connection) -> Option<String> {
 }
 
 /// Unix seconds.
+///
+/// # Errors
+///
+/// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
 pub fn now() -> Result<u64> {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -85,6 +89,10 @@ impl Studio {
     /// Plans a guide, streaming progress through the host, and saves it as a new version of the
     /// guide of the request's name. `stop_plan` ends it early with the best guide found so far;
     /// `cancel_plan` makes it fail with `Cancelled` (nothing saved).
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn plan_route<H: Host>(&self, host: &H, request: &PlanRequest) -> Result<VersionMeta> {
         self.interrupt.reset();
         let edition = request_edition(host, request);
@@ -98,6 +106,10 @@ impl Studio {
 
     /// The starts the character can choose from before the guide is computed. Fewer than two:
     /// nothing to choose. `cancel_plan` ends it with `Cancelled`.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn preview_starts<H: Host>(&self, host: &H, request: &PlanRequest) -> Result<job::StartPreview> {
         self.interrupt.reset();
         let edition = request_edition(host, request);
@@ -116,6 +128,10 @@ impl Studio {
 
     /// A new guide of no steps from the request's character and settings, saved as a version
     /// edited by hand: its steps are then added in the editor.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn manual_route<H: Host>(&self, host: &H, request: &PlanRequest) -> Result<VersionMeta> {
         let edition = request_edition(host, request);
         let conn = host.open_db(edition)?;
@@ -126,6 +142,10 @@ impl Studio {
 
     /// The flight paths a character probably knows from the quests it did in their towns, besides
     /// those its addon recorded.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn inferred_flights<H: Host>(&self, host: &H, start: &StartState) -> Result<Vec<i64>> {
         let conn = host.open_db(host.edition())?;
         let side = start.faction.ok_or("unknown faction")?;
@@ -158,6 +178,10 @@ impl Studio {
     }
 
     /// Names of an edition in a game language, read once.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn names<H: Host>(&self, host: &H, edition: Edition, locale: &str) -> Result<Arc<Names>> {
         let key = (edition, locale.to_owned());
         if let Some(n) = self.names.locked().get(&key) {
@@ -169,6 +193,10 @@ impl Studio {
     }
 
     /// A guide written in `locale` (None: the language it was made in).
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn render<H: Host>(&self, host: &H, edition: Edition, route: &Route, locale: Option<&str>) -> Result<Route> {
         let locale = locale.or(route.locale.as_deref()).unwrap_or("enUS");
         Ok(fg_route::export::render(route, &*self.names(host, edition, locale)?))
@@ -179,6 +207,10 @@ impl Studio {
     /// Every guide of an edition in the version its page says to follow (the latest unless one is
     /// chosen), written in the language it was made in, with when that version was computed and
     /// its number; by name.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn followed_guides<H: Host>(&self, host: &H, edition: Edition) -> Result<Vec<(Route, u64, u32)>> {
         let mut out = Vec::new();
         for (route, created, n) in library(host, edition).followed() {
@@ -189,6 +221,10 @@ impl Studio {
     }
 
     /// A version of a guide, written in `locale`.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn get_version<H: Host>(&self, host: &H, guide: &str, n: u32, locale: Option<&str>) -> Result<GuideVersion> {
         let edition = host.edition();
         let mut v = library(host, edition).version_to_show(guide, n)?;
@@ -199,6 +235,10 @@ impl Studio {
     }
 
     /// Versions `a` and `b` of a guide compared, shown in `locale` (game locale).
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn compare_versions<H: Host>(
         &self,
         host: &H,
@@ -218,6 +258,10 @@ impl Studio {
 
     /// Adds a guide received as a .fgguide file (its content): a new version of the guide of its
     /// name.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn import_guide<H: Host>(&self, host: &H, content: &str) -> Result<VersionMeta> {
         let shared = SharedGuide::parse(content)?;
         let edition = host.edition();
@@ -242,6 +286,10 @@ impl Studio {
 
     /// A version replayed to be watched: when each step starts and ends, the character's moves
     /// and what it has after each step (`locale`: language of the names).
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn guide_timeline<H: Host>(&self, host: &H, guide: &str, n: u32, locale: &str) -> Result<job::Timeline> {
         let v = library(host, host.edition()).version(guide, n)?;
         let edition = request_edition(host, &v.request);
@@ -260,6 +308,10 @@ impl Studio {
     }
 
     /// Opens a version in the editor (`locale`: language of the lines and names shown).
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn edit_open<H: Host>(&self, host: &H, guide: &str, n: u32, locale: &str) -> Result<EditOpened> {
         let v = library(host, host.edition()).version(guide, n)?;
         let edition = request_edition(host, &v.request);
@@ -286,6 +338,10 @@ impl Studio {
 
     /// Replays the steps of the guide open in the editor: its report, its lines and their
     /// timeline. The replay under way gives up for this one (it then fails with `Superseded`).
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn edit_simulate<H: Host>(&self, host: &H, steps: &[RouteStep], locale: &str) -> Result<job::EditView> {
         let request = self.edit_requests.next();
         let session = self.editor.locked();
@@ -297,6 +353,10 @@ impl Studio {
     /// What could be added to the steps of the guide open in the editor after its step `after`
     /// (none: before the first): quests not taken, objectives and turn-ins the steps forget. Gives
     /// up for a newer replay or suggestion (failing with `Superseded`).
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn edit_suggest<H: Host>(
         &self,
         host: &H,
@@ -316,6 +376,10 @@ impl Studio {
 
     /// Saves the edited steps as a new version of the guide (refused while a step is not
     /// possible) and closes the editor.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn edit_save<H: Host>(&self, host: &H, steps: &[RouteStep]) -> Result<VersionMeta> {
         let mut session = self.editor.locked();
         let open = session.as_ref().ok_or(CmdError::NoEditor)?;

@@ -14,8 +14,16 @@ pub trait Host: Sync {
     /// The game version the app is set to.
     fn edition(&self) -> Edition;
     /// A read-only connection to the game data of an edition.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`] when the data is not there or cannot be read.
     fn open_db(&self, edition: Edition) -> Result<Connection, CmdError>;
     /// The corrections to the game data of an edition.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`] when the data is not there or cannot be read.
     fn overrides(&self, edition: Edition) -> Result<Overrides, CmdError>;
     /// A line of what a generation is doing (it may come from several threads).
     fn progress(&self, line: &str);

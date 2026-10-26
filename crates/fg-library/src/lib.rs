@@ -12,6 +12,8 @@
 //! guides/<edition>/<slug>/v<N>/outcome.json   computed guide
 //! ```
 
+#![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
+
 mod error;
 mod files;
 mod share;
@@ -65,6 +67,11 @@ impl<'a, F: Files> Library<'a, F> {
         self.files.list(&self.dir)
     }
 
+    /// The guide's name and the version its characters follow.
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
     pub fn info(&self, id: &str) -> Result<GuideInfo> {
         self.read_json(&format!("{}/{id}/guide.json", self.dir))
     }
@@ -87,6 +94,11 @@ impl<'a, F: Files> Library<'a, F> {
         out
     }
 
+    /// A version of a guide, as saved.
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
     pub fn version(&self, id: &str, version: u32) -> Result<GuideVersion> {
         let folder = format!("{}/{id}/v{version}", self.dir);
         let outcome = format!("{folder}/outcome.json");
@@ -100,6 +112,10 @@ impl<'a, F: Files> Library<'a, F> {
 
     /// A version for the page: without the walking memory and the plan, which stay in the files
     /// (the app shows neither).
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
     pub fn version_to_show(&self, id: &str, version: u32) -> Result<GuideVersion> {
         let mut v = self.version(id, version)?;
         v.outcome.walks = None;
@@ -108,6 +124,10 @@ impl<'a, F: Files> Library<'a, F> {
     }
 
     /// The guide, with its versions.
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
     pub fn summary(&self, id: &str) -> Result<GuideSummary> {
         let info = self.info(id)?;
         Ok(GuideSummary {
@@ -131,6 +151,10 @@ impl<'a, F: Files> Library<'a, F> {
     }
 
     /// Adds a version to the guide of this name (created when new).
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
     pub fn add_version(
         &self,
         request: &PlanRequest,
@@ -198,6 +222,10 @@ impl<'a, F: Files> Library<'a, F> {
     }
 
     /// The version of a guide its characters follow (`None`: the latest).
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
     pub fn set_installed(&self, id: &str, version: Option<u32>) -> Result<()> {
         let info = self.info(id)?;
         self.write_info(
@@ -210,6 +238,10 @@ impl<'a, F: Files> Library<'a, F> {
     }
 
     /// Removes a version; the guide too when it was the last.
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
     pub fn delete_version(&self, id: &str, version: u32) -> Result<()> {
         let folder = format!("{}/{id}/v{version}", self.dir);
         self.files
@@ -225,6 +257,11 @@ impl<'a, F: Files> Library<'a, F> {
         Ok(())
     }
 
+    /// Removes a guide with all its versions.
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
     pub fn delete_guide(&self, id: &str) -> Result<()> {
         let folder = format!("{}/{id}", self.dir);
         self.files.remove_dir(&folder).map_err(|e| match e.kind() {
@@ -257,6 +294,10 @@ impl<'a, F: Files> Library<'a, F> {
     }
 
     /// Versions `a` and `b` of a guide compared as saved (zones by their English names).
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
     pub fn compare(&self, id: &str, a: u32, b: u32) -> Result<Comparison> {
         let (a, b) = (self.version_to_show(id, a)?, self.version_to_show(id, b)?);
         let settings = |v: &GuideVersion| -> Result<serde_json::Value> {
@@ -286,6 +327,10 @@ impl<'a, F: Files> Library<'a, F> {
     }
 
     /// A version to hand to someone else.
+    ///
+    /// # Errors
+    ///
+    /// [`LibraryError`] when a file cannot be read or written, or is not what the library saved.
     pub fn share(&self, id: &str, version: u32) -> Result<SharedGuide> {
         SharedGuide::of(self.version(id, version)?)
     }
