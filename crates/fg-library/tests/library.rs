@@ -133,3 +133,11 @@ fn a_file_that_is_not_a_guide_is_refused() {
         );
     }
 }
+
+proptest::proptest! {
+    /// A file received is a guide or is refused, whatever it holds.
+    #[test]
+    fn any_text_is_a_guide_or_refused(text in ".{0,512}") {
+        let _ = SharedGuide::parse(&text);
+    }
+}

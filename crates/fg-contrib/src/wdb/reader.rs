@@ -176,6 +176,30 @@ pub fn pack_bits(fields: &[(u32, u32)]) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        /// The client's cache files are not ours to trust: whatever bytes, whatever the reads
+        /// asked, the reader answers or refuses, and never goes past the data.
+        #[test]
+        fn any_bytes_are_read_or_refused(
+            data in proptest::collection::vec(any::<u8>(), 0..256),
+            asks in proptest::collection::vec((0u8..6, any::<u32>()), 0..32),
+        ) {
+            let mut r = Reader::new(&data);
+            for (kind, n) in asks {
+                let n = n as usize;
+                let _ = match kind {
+                    0 => r.u32().map(|_| ()),
+                    1 => r.i32().map(|_| ()),
+                    2 => r.take(n % 300).map(|_| ()),
+                    3 => r.count(n % 64, "count").map(|_| ()),
+                    4 => r.cstr(n % 64, "text").map(|_| ()),
+                    _ => r.skip(n),
+                };
+            }
+        }
+    }
 
     #[test]
     fn reads_are_bounded() {
