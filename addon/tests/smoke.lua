@@ -2485,6 +2485,31 @@ do
 end
 print("legacy ok")
 
+-- Self-check (`/fg check`): a line each, in the chat and kept in the SavedVariables; what the
+-- client lacks (a spell number, the position) is a line to look at, an error counted too.
+do
+    local lines = {}
+    local realPrint, realSpell, realErrors = print, FG.SpellName, FactoruideDB.errors
+    print = function(text) lines[#lines + 1] = text end
+    FG.SpellName = function(id) return id == 19705 and "Well Fed" or nil end
+    FactoruideDB.errors = {}
+    SlashCmdList.FACTORUIDE("check")
+    local report = FactoruideDB.check
+    assert(report and report.character == FG:CharacterKey() and #report.lines > 8, "kept in the SavedVariables")
+    local text = table.concat(report.lines, "\n")
+    assert(text:find("ok Spell 19705: Well Fed", 1, true), "a spell known: " .. text)
+    assert(text:find("look Spell 429959", 1, true), "a spell unknown to the client")
+    assert(text:find("ok No error counted", 1, true), "no error")
+    assert(#lines == #report.lines + 2, "in the chat, with a title and a summary")
+    FactoruideDB.errors = { ["guide: boom"] = 3 }
+    FG.SelfCheck:Run()
+    local again = table.concat(FactoruideDB.check.lines, "\n")
+    assert(again:find("look 1 errors counted, the most often (3x): guide: boom", 1, true), again)
+    print, FG.SpellName, FactoruideDB.errors = realPrint, realSpell, realErrors
+    FactoruideDB.check = nil
+end
+print("self-check ok")
+
 -- The compass's places (tests/fixtures/Services.lua): for a gnome mage, the mage trainer, not
 -- another class's nor the Horde's, the flight masters; not the trainer of a profession neither
 -- learned nor planned, the innkeepers (off by default), the stable masters (hunters), the far

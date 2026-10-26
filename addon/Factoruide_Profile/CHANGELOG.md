@@ -6,6 +6,7 @@ under Unreleased; `scripts/release.sh` gives them the release's version.
 
 ## Unreleased
 
+- Loads on the next WoW Forever client version (interface 16002) too.
 - The hearthstone's inn is found whatever the game's language (the guide no longer sends you back to your starting place).
 - No more error when logging out before the realm name is known.
 
