@@ -401,7 +401,22 @@ pub struct Route {
     /// The spells worth learning of the group's other classes (as `spells`): class ID, spells.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub class_spells: Vec<(i64, Vec<i64>)>,
+    /// Computed again by the app from a character in game, at its request ("re-plan from
+    /// here"): the addon makes that character follow it once loaded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replan: Option<Replanned>,
     pub steps: Vec<Step>,
+}
+
+/// For whom and for which of its requests a route was computed again (see `Route::replan`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Replanned {
+    /// "Name-Realm".
+    pub character: String,
+    /// When the character asked (unix seconds, the addon's id of the request).
+    pub asked: i64,
+    /// The character's level then.
+    pub level: i64,
 }
 
 /// A player of a group guide.

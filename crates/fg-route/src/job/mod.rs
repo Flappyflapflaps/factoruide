@@ -12,6 +12,7 @@ mod options;
 mod overrides;
 mod paths;
 mod race;
+mod replan;
 mod reputation;
 mod request;
 mod routes;
@@ -34,6 +35,7 @@ pub use options::{
 pub use overrides::{Overrides, RaceDef};
 pub use paths::{add_walk_paths, route_walks, walk_world};
 pub use race::{optimize, optimize_interruptible};
+pub use replan::{default_request, replan_name, replan_request, replanned};
 pub use reputation::race_base;
 pub use request::{GROUP_MAX, GROUP_MIN_LEVEL, PlanOutcome, PlanRequest, Prepared};
 pub use routes::{

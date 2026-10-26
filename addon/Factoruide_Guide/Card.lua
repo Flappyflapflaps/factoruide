@@ -405,8 +405,14 @@ local function Sections()
     ahead.text:SetPoint("LEFT", 8, 0)
     ahead.go = Skin:Text(ahead, 10, "gold")
     ahead.go:SetPoint("RIGHT", -8, 0)
-    ahead:SetScript("OnClick", function() FG.Guide:SkipAhead() end)
-    ahead:SetScript("OnEnter", function(self) Tooltip(self, FG.Guide.L.aheadTip) end)
+    -- Or off the plan: re-plan from here (right-click: hidden for now).
+    ahead:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    ahead:SetScript("OnClick", function(self, button)
+        if not self.replan then return FG.Guide:SkipAhead() end
+        if button == "RightButton" then return FG.Replan:Hide() end
+        FG.Replan:Ask()
+    end)
+    ahead:SetScript("OnEnter", function(self) Tooltip(self, self.replan and self.replan.tip or FG.Guide.L.aheadTip) end)
     ahead:SetScript("OnLeave", function() GameTooltip:Hide() end)
     frame.ahead = ahead
 
@@ -555,13 +561,19 @@ function Card:Render(view)
     if FG.XpPlan then FG.XpPlan:Draw(frame.xpBar, WIDTH - 2 * PAD) end
     y = y - 12
 
-    frame.ahead:SetShown(view.ahead ~= nil)
-    if view.ahead then
+    frame.ahead:SetShown(view.ahead ~= nil or view.replan ~= nil)
+    frame.ahead.replan = not view.ahead and view.replan or nil
+    if view.ahead or view.replan then
         frame.ahead:ClearAllPoints()
         frame.ahead:SetPoint("TOPLEFT", PAD - 2, y)
         frame.ahead:SetPoint("TOPRIGHT", -PAD + 2, y)
-        frame.ahead.text:SetText(string.format(L.ahead, view.ahead.lvl))
-        frame.ahead.go:SetText(string.format(L.skip, view.ahead.steps))
+        if view.ahead then
+            frame.ahead.text:SetText(string.format(L.ahead, view.ahead.lvl))
+            frame.ahead.go:SetText(string.format(L.skip, view.ahead.steps))
+        else
+            frame.ahead.text:SetText(view.replan.text)
+            frame.ahead.go:SetText(view.replan.go)
+        end
         y = y - 30
     end
 

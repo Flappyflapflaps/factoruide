@@ -6,6 +6,9 @@ under Unreleased; `scripts/release.sh` gives them the release's version.
 
 ## Unreleased
 
+- Re-plan from here: when your XP gets ahead of the guide or behind it by more than half a level (more mobs killed on the way than planned, deaths, a dungeon), or you stay far from the next step for two minutes, a bar on the guide offers to re-plan. The guide then picks up at the best step for your level and where you stand, leaving out what is no longer worth it (kept chains, class quests, planned rewards and training stay). `/fg replan` at any time, `/fg replan undo` to put the steps back, a key binding too. The gap and an automatic mode are in the options (Advice).
+- With the Factoruide app open, "Re-plan + app" also has it compute the whole route again from your character in the background: the app says when it is ready, and the next /reload follows it.
+- The addon counts where your XP comes from at each level: quests, the guide's quest mobs, mobs killed off the guide and the rest, and compares the kills off the guide with what the guide planned (`/fg xp`, or the "XP sources" key binding).
 - With the new Factoruide_Ready addon installed, a character with no guide of its own follows the ready-made guide of its race and class: no app needed. A guide made in the app for it still comes first.
 - A step's tooltip says why it is in the guide: the XP its quest gives, the reward planned for you, the quests it opens, or what a trainer, flight, inn or grind step is for.
 - A step killing mobs below your level shows the XP each kill gives against a mob of your level ("65% XP" in green, "0% XP" in grey once they give none), with WoW Forever's lower XP for such mobs.

@@ -323,6 +323,7 @@ UnitOnTaxi = function() return false end
 UnitIsPlayer = function() return false end
 UnitExists = function() return false end
 InCombatLockdown = function() return false end
+UnitAffectingCombat = function() return false end
 local macros = {}
 GetMacroIndexByName = function(name)
     for i, m in pairs(macros) do
@@ -2035,6 +2036,7 @@ do
     useRoute("farm-test")
     fire("PLAYER_ENTERING_WORLD")
     char.guide.farm = nil
+    wipe(char.xp)
     -- A kill then its XP; the XP then the kill and the game's message of the same kill (one gain).
     kill("Player-1-2", "Creature-0-1-2-3-299-0000")
     gain(50)
@@ -2067,6 +2069,15 @@ do
     gain(150)
     settle()
     assert(playerLevel == 2 and char.guide.farm.xp == 275, "kill XP across a level up: " .. char.guide.farm.xp)
+    -- Where the XP came from, level by level: the kills off the guide's quests (4, the one across the
+    -- level up at the level it was earned at), the turn-in, the rest (a discovery...).
+    local l1 = char.xp[1]
+    assert(
+        l1 and l1.kill == 275 and l1.kills == 4 and l1.quest == 35 and l1.other == 210 and not l1.questMob,
+        "XP by source at level 1"
+    )
+    local got, planned = FG.XpLedger:Extra(1)
+    assert(got == 275 and planned == 0, "kills off the guide since level 1: " .. got .. ", planned " .. planned)
     local rows = FG.Guide:Box().rows
     local farmLine, stepLine = rows[1].count:GetText(), rows[2].name:GetText()
     assert(farmLine == "275/1,300 XP", "a line of its own with the XP: " .. farmLine)
@@ -2154,11 +2165,171 @@ do
     gain(30)
     settle()
     assert(char.guide.farm.xp == 85, "quest out of the log: its mobs count: " .. char.guide.farm.xp)
+    -- The mobs of the guide's objectives apart from the others.
+    assert(char.xp[2].kill == 85 and char.xp[2].questMob == 90, "quest mobs apart at level 2")
+    SlashCmdList.FACTORUIDE("xp")
     C_QuestLog.GetQuestObjectives = objectives
     onQuest[9401], onQuest[9402] = nil, nil
     GetTime, UnitXP, UnitXPMax, playerLevel, UnitGUID = savedGetTime, savedXP, savedXPMax, savedLevel, savedGUID
 end
 print("farm on the way ok")
+
+-- Re-plan from here: off the plan (XP ahead of it), the guide offers to go on from the step that
+-- loses the least, from where the character stands: the quests far away worth little left out,
+-- the kept ones not. Undone on demand; with the app, asked of it too (a reload), and its route
+-- followed once there.
+do
+    local savedGetTime, savedLevel = GetTime, playerLevel
+    local clock = 9000
+    GetTime = function() return clock end
+    playerLevel = 20
+    -- The character stands at 29.93, 71.2 (0 yards); 80, 71.2 is 500 yards east.
+    FG.Routes["replan-test"] = {
+        race = 7,
+        class = 8,
+        faction = "Alliance",
+        fromLevel = 18,
+        toLevel = 60,
+        time = 1,
+        steps = {
+            { k = "accept", t = "Accept Far Away", q = 8001, m = 1426, x = 80, y = 71.2, lvl = 18, d = 60 },
+            {
+                k = "objective",
+                t = "Far Away Boars x8",
+                n = "Boar",
+                q = 8001,
+                o = 1,
+                m = 1426,
+                x = 85,
+                y = 60,
+                lvl = 18,
+                d = 300,
+            },
+            { k = "turnin", t = "Turn in Far Away", q = 8001, m = 1426, x = 80, y = 71.2, rx = 1000, lvl = 18, d = 60 },
+            { k = "accept", t = "Accept Chain", q = 8002, kp = true, m = 1426, x = 80, y = 71.2, lvl = 19, d = 30 },
+            { k = "accept", t = "Accept Close By", q = 8003, m = 1426, x = 30, y = 71.2, lvl = 20, d = 30 },
+            {
+                k = "objective",
+                t = "Close Wolves x8",
+                n = "Wolf",
+                q = 8003,
+                o = 1,
+                m = 1426,
+                x = 30.5,
+                y = 71.2,
+                lvl = 20,
+                d = 200,
+            },
+            { k = "turnin", t = "Turn in Close By", q = 8003, m = 1426, x = 30, y = 71.2, rx = 1000, lvl = 20, d = 30 },
+            { k = "accept", t = "Accept Too High", q = 8004, m = 1426, x = 30, y = 71.2, lvl = 23, d = 30 },
+        },
+    }
+    useRoute("replan-test")
+    assert(char.guide.step == 1, "on the far quest, step " .. char.guide.step)
+    -- Two levels ahead of the plan: the bar offers to re-plan.
+    FG.Guide:Refresh()
+    local banner = FG.Guide.view.replan
+    assert(banner and FG.Replan:Drift().reason == "ahead", "off the plan: the bar")
+    assert(banner.text:find("2.0", 1, true), "how far ahead: " .. banner.text)
+    -- Within the gap chosen: none.
+    FG:Save("replanDrift", 2.5)
+    FG.Guide:Refresh()
+    assert(FG.Guide.view.replan == nil, "within the chosen gap: no bar")
+    FG:Save("replanDrift", nil)
+    -- Hidden by hand (a right-click), for a while.
+    FG.Replan:Hide()
+    assert(FG.Replan:Banner() == nil, "hidden by hand")
+    char.guide.replanHidden = nil
+    -- Without the app: a click asks, then re-plans in game.
+    calls.StaticPopup_Show = nil
+    FG.Replan:Ask()
+    assert(calls.StaticPopup_Show and calls.StaticPopup_Show[1] == "FACTORUIDE_REPLAN", "asked first")
+    assert(StaticPopupDialogs.FACTORUIDE_REPLAN.OnCancel == nil, "no app: the second button cancels")
+    StaticPopupDialogs.FACTORUIDE_REPLAN.OnAccept()
+    FG.Replan:Finish()
+    local marks = char.guide.marks
+    assert(marks[1] == "skip" and marks[2] == "skip" and marks[3] == "skip", "the far quest worth little left out")
+    assert(not marks[4], "the kept chain stays")
+    assert(not marks[5] and not marks[6] and not marks[7], "the close quest stays")
+    assert(char.guide.step == 4, "on the kept step first, step " .. char.guide.step)
+    assert(char.guide.replanned and char.guide.replanned.to == 5, "goes on from the close quest")
+    -- Undone: the steps back.
+    SlashCmdList.FACTORUIDE("replan undo")
+    assert(not marks[1] and not marks[3] and char.guide.step == 1, "re-plan undone, step " .. char.guide.step)
+    -- On the plan: nothing left out.
+    playerLevel = 18
+    FG.Replan:Start()
+    FG.Replan:Finish()
+    assert(not marks[1], "nothing left out at the planned level, near what is planned")
+    playerLevel = 20
+
+    -- With the app: in game at once, then the character handed to it (a reload).
+    FG.Import.info["replan-test"] = { source = "app", created = 1 }
+    reloaded = false
+    SlashCmdList.FACTORUIDE("replan")
+    local dialog = StaticPopupDialogs.FACTORUIDE_REPLAN
+    assert(dialog.button2 == FG.T("Re-plan + app") and dialog.OnCancel, "the app's button")
+    dialog.OnCancel(nil, nil, "timeout")
+    assert(not reloaded and not (FactoruideDB.replans or {})["Brouz-Realm"], "closed: nothing asked")
+    dialog.OnCancel(nil, nil, "clicked")
+    local ask = FactoruideDB.replans["Brouz-Realm"]
+    assert(reloaded and ask and ask.route == "replan-test" and ask.level == 20, "asked of the app, reloaded")
+    assert(marks[1] == "skip", "re-planned in game meanwhile")
+    -- Reloaded before the app is done: still waiting.
+    FG.Replan:Login()
+    assert(FactoruideDB.replans["Brouz-Realm"] and char.guide.route == "replan-test", "still waiting")
+    -- The app's route for this request: followed.
+    FG.Routes["replan-test (Brouz)"] = {
+        race = 7,
+        class = 8,
+        faction = "Alliance",
+        fromLevel = 20,
+        toLevel = 60,
+        time = 1,
+        replan = { character = "Brouz-Realm", asked = ask.asked, level = 20 },
+        steps = { { k = "accept", t = "Accept Close By", q = 8003, m = 1426, x = 30, y = 71.2, lvl = 20 } },
+    }
+    FG.Replan:Login()
+    assert(char.guide.route == "replan-test (Brouz)", "the app's route followed: " .. tostring(char.guide.route))
+    assert(FactoruideDB.replans["Brouz-Realm"] == nil, "the request answered")
+    -- A request never answered is forgotten after a day.
+    FactoruideDB.replans["Brouz-Realm"] = { asked = time() - 2 * 86400, route = "replan-test" }
+    FG.Replan:Login()
+    assert(FactoruideDB.replans["Brouz-Realm"] == nil, "an old request forgotten")
+    FG.Routes["replan-test (Brouz)"] = nil
+    FG.Import.info["replan-test"] = nil
+
+    -- Far from the guide (its far quest on another continent) for two minutes, on the plan's XP:
+    -- the bar; in "auto" mode, re-planned (the close quest is worth the far one's XP).
+    useRoute("replan-test")
+    FG.Replan:Undo()
+    FG.Routes["replan-test"].fromLevel = 20
+    local worldPos = C_Map.GetWorldPosFromMapPos
+    C_Map.GetWorldPosFromMapPos = function(m, v)
+        local continent, pos = worldPos(m, v)
+        return v:GetXY() >= 0.5 and 1 or continent, pos
+    end
+    FG.Replan:Watch()
+    assert(FG.Replan:Drift() == nil, "far for a moment only")
+    clock = clock + 121
+    FG.Replan:Watch()
+    local drift = FG.Replan:Drift()
+    assert(drift and drift.reason == "far", "far for two minutes: " .. tostring(drift and drift.reason))
+    FG:Save("replanMode", "auto")
+    clock = clock + 5
+    FG.Replan:Watch()
+    FG.Replan:Finish()
+    assert(char.guide.replanned and char.guide.replanned.to == 5, "re-planned on its own")
+    FG:Save("replanMode", nil)
+    C_Map.GetWorldPosFromMapPos = worldPos
+    -- Watching off: no bar.
+    FG:Save("replanWatch", false)
+    assert(FG.Replan:Drift() == nil, "watch off")
+    FG:Save("replanWatch", nil)
+    FG.Replan:Undo()
+    GetTime, playerLevel = savedGetTime, savedLevel
+end
+print("re-plan ok")
 
 -- Start over: asks when steps or quests were marked by hand, then undoes them.
 useRoute("skip-test")
@@ -2951,6 +3122,7 @@ InCombatLockdown = function() return true end
 FG.Guide:Refresh()
 assert(not resized, "a protected box resized during combat")
 InCombatLockdown = function() return false end
+UnitAffectingCombat = function() return false end
 fire("PLAYER_REGEN_ENABLED")
 assert(resized, "resized after the fight")
 print("combat layout ok")
@@ -3033,6 +3205,7 @@ InCombatLockdown = function() return true end
 drag(trackerLine)
 assert(trackerMoves.moves == 1, "a protected window does not move during combat")
 InCombatLockdown = function() return false end
+UnitAffectingCombat = function() return false end
 drag(trackerLine)
 assert(trackerMoves.moves == 2, "it moves again after the fight")
 tracker.IsProtected = nil
@@ -3266,18 +3439,21 @@ assert(root:IsShown() and FG:Get("uiShown"), "hide waits during combat")
 assert(visibilityWrites == writesBeforeCombat, "nothing changed during combat")
 assert(not FG:UIWanted(), "hidden after the fight")
 InCombatLockdown = function() return false end
+UnitAffectingCombat = function() return false end
 fire("PLAYER_REGEN_ENABLED")
 assert(not root:IsShown(), "hidden after the fight")
 InCombatLockdown = function() return true end
 Press("hide")
 Press("hide")
 InCombatLockdown = function() return false end
+UnitAffectingCombat = function() return false end
 fire("PLAYER_REGEN_ENABLED")
 assert(not root:IsShown(), "the last click wins")
 InCombatLockdown = function() return true end
 Press("hide")
 assert(not root:IsShown(), "show waits during combat")
 InCombatLockdown = function() return false end
+UnitAffectingCombat = function() return false end
 fire("PLAYER_REGEN_ENABLED")
 assert(root:IsShown(), "shown after the fight")
 fire("PLAYER_REGEN_ENABLED")
@@ -4566,7 +4742,7 @@ local function SettingsTest()
         assert(type(global) == "string" and global ~= "", "no name for the binding " .. name)
         names = names + 1
     end
-    assert(names == 11 and BINDING_HEADER_FACTORUIDE == "Factoruide", "the bindings: " .. names)
+    assert(names == 13 and BINDING_HEADER_FACTORUIDE == "Factoruide", "the bindings: " .. names)
     assert(BINDING_NAME_FACTORUIDE_NEXT == "Étape suivante", "translated: " .. BINDING_NAME_FACTORUIDE_NEXT)
     options.opened = nil
     Key("FACTORUIDE_OPTIONS")

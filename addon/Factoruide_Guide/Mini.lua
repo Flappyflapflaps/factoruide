@@ -276,8 +276,17 @@ local function CreateAhead()
     aheadBar:SetBackdropBorderColor(1, 0.82, 0, 0.35)
     aheadBar.text = Skin:Text(aheadBar, 10, "gold")
     aheadBar.text:SetPoint("CENTER")
-    aheadBar:SetScript("OnClick", function() FG.Guide:SkipAhead() end)
-    aheadBar:SetScript("OnEnter", function(self) Tooltip(self, FG.Guide.L.aheadTip) end)
+    -- Or off the plan: re-plan from here (right-click: hidden for now).
+    aheadBar:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    aheadBar:SetScript("OnClick", function(self, button)
+        if not self.replan then return FG.Guide:SkipAhead() end
+        if button == "RightButton" then return FG.Replan:Hide() end
+        FG.Replan:Ask()
+    end)
+    aheadBar:SetScript(
+        "OnEnter",
+        function(self) Tooltip(self, self.replan and self.replan.tip or FG.Guide.L.aheadTip) end
+    )
     aheadBar:SetScript("OnLeave", function() GameTooltip:Hide() end)
     aheadBar:Hide()
 end
@@ -655,10 +664,13 @@ function Mini:Render(view)
     DrawXp(y)
     DrawDrop(view, y - 8)
 
-    aheadBar:SetShown(view.ahead ~= nil)
-    if view.ahead then
+    aheadBar:SetShown(view.ahead ~= nil or view.replan ~= nil)
+    aheadBar.replan = not view.ahead and view.replan or nil
+    if view.ahead or view.replan then
         aheadBar.text:SetText(
-            string.format(L.ahead, view.ahead.lvl) .. "  ·  " .. string.format(L.skip, view.ahead.steps)
+            view.ahead
+                    and (string.format(L.ahead, view.ahead.lvl) .. "  ·  " .. string.format(L.skip, view.ahead.steps))
+                or (view.replan.text .. "  ·  " .. view.replan.go)
         )
         aheadBar:SetWidth((tonumber(aheadBar.text:GetStringWidth()) or 200) + 24)
         aheadBar:ClearAllPoints()

@@ -28,6 +28,12 @@
     <Binding name="FACTORUIDE_TIME" category="ADDONS">
         Factoruide.Timing:Print()
     </Binding>
+    <Binding name="FACTORUIDE_REPLAN" category="ADDONS">
+        Factoruide.Replan:Ask()
+    </Binding>
+    <Binding name="FACTORUIDE_XP" category="ADDONS">
+        Factoruide.XpLedger:Print()
+    </Binding>
     <Binding name="FACTORUIDE_OPTIONS" category="ADDONS">
         Factoruide:OpenSettings()
     </Binding>

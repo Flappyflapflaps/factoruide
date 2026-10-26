@@ -10,6 +10,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ### App
 
+- A character that asks in game to re-plan from here (the addon's "Re-plan + app") gets its route computed again in the background from where it stands, with its guide's settings, as a guide of its own; the app says when it is installed, and a /reload in game follows it.
 - **Import from RestedXP…** on the Guides page makes a guide from the free RestedXP guides of the RestedXP Guides addon installed in the game, for the race and class you choose: their quests in their order, replayed with Factoruide's data (the steps it finds impossible are left out, and said in the guide's notes). Nothing of RestedXP is shipped with Factoruide (their guides are CC BY-NC-SA 4.0). `fg rxp` does the same from the command line.
 - A forced dungeon can be given your own level (Dungeons panel, under its name): the guide runs it at that level or the next one, for a group met at 22 for the Deadmines (GitHub #48).
 - In the guide editor, a step that only a zone too strong for the character makes possible (the flight path of Gadgetzan from Thousand Needles at level 34) is accepted, with a warning on the step, instead of being impossible. Computed guides still keep out of those zones.
@@ -43,6 +44,9 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ### Addon
 
+- Re-plan from here: when your XP gets ahead of the guide or behind it by more than half a level (more mobs killed on the way than planned, deaths, a dungeon), or you stay far from the next step for two minutes, a bar on the guide offers to re-plan. The guide then picks up at the best step for your level and where you stand, leaving out what is no longer worth it (kept chains, class quests, planned rewards and training stay). `/fg replan` at any time, `/fg replan undo` to put the steps back, a key binding too. The gap and an automatic mode are in the options (Advice).
+- With the Factoruide app open, "Re-plan + app" also has it compute the whole route again from your character in the background: the app says when it is ready, and the next /reload follows it.
+- The addon counts where your XP comes from at each level: quests, the guide's quest mobs, mobs killed off the guide and the rest, and compares the kills off the guide with what the guide planned (`/fg xp`, or the "XP sources" key binding).
 - With the new Factoruide_Ready addon installed, a character with no guide of its own follows the ready-made guide of its race and class: no app needed. A guide made in the app for it still comes first.
 - A step's tooltip says why it is in the guide: the XP its quest gives, the reward planned for you, the quests it opens, or what a trainer, flight, inn or grind step is for.
 - Off the guide's planned walk (after a death, a detour or a hearth), the compass and the 3D arrow lead you back to the walk a bit ahead of where it is closest, up to 1000 yards away, instead of straight at the step across the ground the walk goes round; close to the step, they still go straight to it.

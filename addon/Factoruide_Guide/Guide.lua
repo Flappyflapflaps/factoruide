@@ -557,6 +557,19 @@ function Distance(step)
     return math.sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2)
 end
 
+--- Yards from the player to a place ({ m, x, y }), nil on another continent (for Replan.lua).
+Guide.Distance = Distance
+
+--- Whether step `index` of the guide in use is done, and whether it was passed rather than played.
+function Guide:StepDone(index)
+    local step = route and state and route.steps[index]
+    if not step then return false end
+    return IsDone(step, index)
+end
+
+--- The first and last steps of the group of step `index`.
+function Guide:GroupOf(index) return GroupOf(index) end
+
 -- Other places ---------------------------------------------------------------
 -- A step whose mobs live in several places (`spots`, the closest first): the compass points at
 -- its own place, then at the closest one not visited yet once the character has stood at the
@@ -1078,6 +1091,8 @@ function Guide:Refresh()
     view.spot = hasSpots and string.format(L.spot, spot.at, #Places(route.steps[spot.index])) or nil
     local c, skip = Ahead()
     view.ahead = c and { lvl = c.lvl, steps = #skip } or nil
+    -- Off the plan (XP or place): the offer to re-plan from here, unless the checkpoint's is shown.
+    view.replan = not view.ahead and FG.Replan and FG.Replan:Banner() or nil
     view.talent = FG.Talents and FG.Talents:Pending()
     view.nextTab = FG:Get("nextTab") == "pickup" and "pickup" or "next"
 
@@ -1584,10 +1599,12 @@ function Settle()
     local now = GetTime()
     while gains[1] and now - gains[1].at >= PAIR_WINDOW do
         local gain = table.remove(gains, 1)
+        local ledger = FG.XpLedger
         for _, t in ipairs(turnins) do
             if math.abs(t.at - gain.at) <= PAIR_WINDOW then
                 local quest = math.min(t.xp, gain.xp)
                 t.xp, gain.xp = t.xp - quest, gain.xp - quest
+                if ledger and quest > 0 then ledger:Add("quest", quest, gain.level) end
             end
         end
         for _, k in ipairs(kills) do
@@ -1595,9 +1612,13 @@ function Settle()
             if not k.used and math.abs(k.at - gain.at) <= PAIR_WINDOW then
                 k.used = true
                 Guide:CountKill(gain.xp, k.quest)
+                if ledger then ledger:Add(k.quest and "questMob" or "kill", gain.xp, gain.level) end
+                gain.xp = 0
                 break
             end
         end
+        -- Neither a turn-in nor a kill: a discovery, an escort, an event...
+        if ledger and gain.xp > 0 then ledger:Add("other", gain.xp, gain.level) end
     end
     for _, list in ipairs({ kills, turnins }) do
         for i = #list, 1, -1 do
@@ -1673,9 +1694,11 @@ end)
 
 FG:On("PLAYER_XP_UPDATE", function(unit)
     if unit and unit ~= "player" then return end
+    -- The level the XP was earned at (before a level up it brought).
+    local level = lastXP and lastXP.level
     local gained = ReadXP()
     if gained <= 0 then return end
-    table.insert(gains, { at = GetTime(), xp = gained })
+    table.insert(gains, { at = GetTime(), xp = gained, level = level or (lastXP and lastXP.level) })
     SettleLater()
 end)
 
