@@ -266,12 +266,12 @@ fn log_quests_with_nothing_done_are_not_held() {
         xp_max: 1000,
         log: vec![
             LogQuest {
-                id: ids[0],
+                id: ids[0].into(),
                 complete: false,
                 objectives: vec![],
             },
             LogQuest {
-                id: ids[1],
+                id: ids[1].into(),
                 complete: false,
                 objectives: vec![LogObjective {
                     text: "x".into(),
@@ -281,7 +281,7 @@ fn log_quests_with_nothing_done_are_not_held() {
                 }],
             },
             LogQuest {
-                id: ids[2],
+                id: ids[2].into(),
                 complete: true,
                 objectives: vec![],
             },

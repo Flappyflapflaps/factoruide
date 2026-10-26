@@ -151,14 +151,14 @@ fn a_long_walk_follows_the_ground_between_gates() {
 #[test]
 fn quests_done_in_a_town_give_its_flight_path() {
     let conn = database();
-    let in_stormwind: Vec<i64> = conn
+    let in_stormwind: Vec<job::QuestId> = conn
         .prepare(
             "SELECT DISTINCT r.quest_id FROM m_quest_relation r JOIN m_spawn s
              ON s.entity_type = r.entity_type AND s.entity_id = r.entity_id
              WHERE s.zone_id = 1519 AND r.role = 'start' LIMIT 6",
         )
         .unwrap()
-        .query_map([], |r| r.get(0))
+        .query_map([], |r| r.get::<_, i64>(0).map(job::QuestId::from))
         .unwrap()
         .collect::<Result<_, _>>()
         .unwrap();

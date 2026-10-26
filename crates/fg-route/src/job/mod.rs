@@ -41,7 +41,7 @@ pub use routes::{
     write_data_addon, write_polestar_pack, write_polestar_source, write_polestar_strings,
 };
 pub use services::{Place, Service, places, services_lua};
-pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};
+pub use start::{Bind, LogObjective, LogQuest, MapPos, QuestId, Skill, Standing, StartState};
 pub use starts::{StartOption, StartPreview, preview_starts};
 pub use timeline::{InnInfo, Leg, LegMode, NodeInfo, ObjectiveInfo, QuestInfo, StartView, Timeline, TimelineStep};
 

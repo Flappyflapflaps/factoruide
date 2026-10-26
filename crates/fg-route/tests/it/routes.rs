@@ -1617,9 +1617,9 @@ fn orc_met_in_game(objectives: Vec<LogObjective>, complete: bool, rested: i64) -
         level: 4,
         xp: 300,
         rested,
-        completed: vec![4641, 788],
+        completed: vec![4641.into(), 788.into()],
         log: vec![LogQuest {
-            id: 789,
+            id: 789.into(),
             complete,
             objectives,
         }],
@@ -1742,7 +1742,7 @@ fn quests_of_the_log_the_guide_does_not_finish_are_abandoned_first() {
     }];
     let mut start = orc_met_in_game(begun, false, 0);
     start.log.push(LogQuest {
-        id: 999_999,
+        id: 999_999.into(),
         ..LogQuest::default()
     });
     let p = prepare_from("orc", "warlock", 30, &["progression=cautious"], Some(start));
@@ -1800,7 +1800,7 @@ fn hearthstone_flight_paths_and_log_of_a_character_met_in_game() {
     let start = StartState {
         level: 12,
         log: vec![LogQuest {
-            id: 999_999,
+            id: 999_999.into(),
             ..LogQuest::default()
         }],
         bind: Some(Bind {
@@ -2279,9 +2279,9 @@ fn quests_done_by_some_stay_for_the_others() {
         .map(|q| q.id);
     let (both, one) = (ids.next().unwrap(), ids.next().unwrap());
     let mut a = player("A", 1, "warrior", 10);
-    a.completed = vec![both, one];
+    a.completed = vec![both.into(), one.into()];
     let mut b = player("B", 1, "warrior", 10);
-    b.completed = vec![both];
+    b.completed = vec![both.into()];
     let p = prepare_group("human", "warrior", 20, &[], Some(a), vec![b]);
     let index = |id: i64| p.model.index[&id];
     assert!(p.model.initial.turned.contains(&index(both)));
@@ -2912,10 +2912,10 @@ fn a_group_takes_on_what_its_weakest_class_does() {
 #[test]
 fn a_group_guide_tells_the_addon_its_players() {
     let pick = prepare_from("human", "warrior", 13, &[], Some(player("A-Realm", 1, "warrior", 10)));
-    let done: Vec<i64> = (pick.model.quests.iter())
+    let done: Vec<job::QuestId> = (pick.model.quests.iter())
         .filter(|q| q.members & 1 != 0 && q.level <= 10)
         .take(3)
-        .map(|q| q.id)
+        .map(|q| q.id.into())
         .collect();
     let mut a = player("A-Realm", 1, "warrior", 10);
     a.completed.clone_from(&done);
@@ -2946,7 +2946,7 @@ fn a_group_guide_tells_the_addon_its_players() {
     assert!(lua.contains("classSpells = { [8] = { "));
     // A quest A did already, if the guide takes it, is B's only.
     for s in &route.steps {
-        if s.quest.is_some_and(|q| done.contains(&q)) {
+        if s.quest.is_some_and(|q| done.contains(&q.into())) {
             assert_eq!(s.members, Some(0b10), "{:?}", s.quest_name);
         }
     }

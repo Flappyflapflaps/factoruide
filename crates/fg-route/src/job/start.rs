@@ -9,6 +9,23 @@ use crate::world::World;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+/// A quest's ID in the game data. Saved as the plain number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct QuestId(pub i64);
+
+impl From<i64> for QuestId {
+    fn from(id: i64) -> Self {
+        Self(id)
+    }
+}
+
+impl From<QuestId> for i64 {
+    fn from(id: QuestId) -> Self {
+        id.0
+    }
+}
+
 /// A side as the addon records it ("Alliance", "Horde"; the game also says "Neutral").
 fn side_or_none<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<Faction>, D::Error> {
     Ok(Option::<String>::deserialize(deserializer)?.and_then(|name| Faction::parse(&name)))
@@ -34,7 +51,7 @@ pub struct StartState {
     /// In an inn or a city (rested XP builds up faster while logged out).
     pub resting: bool,
     /// Quests turned in (IDs).
-    pub completed: Vec<i64>,
+    pub completed: Vec<QuestId>,
     /// Quests in the log.
     pub log: Vec<LogQuest>,
     /// Where the character stands (none inside an instance).
@@ -74,7 +91,7 @@ pub struct Standing {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LogQuest {
-    pub id: i64,
+    pub id: QuestId,
     /// Every objective done: only the turn-in is left.
     pub complete: bool,
     pub objectives: Vec<LogObjective>,
@@ -157,15 +174,15 @@ impl StartState {
             xp: self.xp.max(0),
             rested: self.rested.max(0),
             gear: self.gear.clone(),
-            completed: Some(self.completed.iter().copied().collect()),
+            completed: Some(self.completed.iter().map(|q| q.0).collect()),
             ..Initial::default()
         };
-        let in_log: HashSet<i64> = self.log.iter().map(|q| q.id).collect();
+        let in_log: HashSet<QuestId> = self.log.iter().map(|q| q.id).collect();
         init.turned = self
             .completed
             .iter()
             .filter(|id| !in_log.contains(id))
-            .filter_map(|id| model.index.get(id).copied())
+            .filter_map(|id| model.index.get(&id.0).copied())
             .collect();
         // The quests of the log are taken, as far along as the log says: the guide finishes
         // those it wants (only the turn-in left for one complete), the others are abandoned at
@@ -178,7 +195,7 @@ impl StartState {
             if !begun {
                 continue;
             }
-            if let Some(&i) = model.index.get(&q.id) {
+            if let Some(&i) = model.index.get(&q.id.0) {
                 init.accepted.push(i);
                 for (k, share) in objective_progress(&model.quests[i], q) {
                     init.progress.push((i, k, share));
@@ -189,8 +206,8 @@ impl StartState {
             .log
             .iter()
             .map(|q| {
-                let name = model.index.get(&q.id).map(|&i| model.quests[i].name.clone());
-                (q.id, name.unwrap_or_default())
+                let name = model.index.get(&q.id.0).map(|&i| model.quests[i].name.clone());
+                (q.id.0, name.unwrap_or_default())
             })
             .collect();
         init.pos = self.position.and_then(|p| at(world, p)).or_else(|| {
@@ -221,9 +238,9 @@ impl StartState {
     /// character at the start of the guide (the quests done before it are kept).
     #[must_use]
     pub fn after(&self, model: &Model, world: &World, rules: &crate::xp::Rules, end: &crate::plan::End) -> Self {
-        let mut completed: Vec<i64> = self.completed.clone();
+        let mut completed: Vec<QuestId> = self.completed.clone();
         for &i in &end.turned {
-            let id = model.quests[i].id;
+            let id = QuestId(model.quests[i].id);
             if !completed.contains(&id) {
                 completed.push(id);
             }
@@ -245,7 +262,7 @@ impl StartState {
             completed,
             log: (end.log.iter())
                 .map(|&(i, complete)| LogQuest {
-                    id: model.quests[i].id,
+                    id: QuestId(model.quests[i].id),
                     complete,
                     objectives: vec![],
                 })
