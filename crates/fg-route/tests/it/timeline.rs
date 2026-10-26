@@ -261,7 +261,7 @@ fn log_quests_with_nothing_done_are_not_held() {
         name: "Test-Realm".into(),
         race: 2,
         class: "WARLOCK".into(),
-        faction: "Horde".into(),
+        faction: Some(fg_route::faction::Faction::Horde),
         level: 5,
         xp_max: 1000,
         log: vec![

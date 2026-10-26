@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 /// A planning request: who, which levels, and every setting.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlanRequest {
-    /// Race key from `races.toml` (gnome, human...).
+    /// Race key from `races.toml` (gnome, human...): the editions' data, not a closed list, so it
+    /// is checked when the request is prepared rather than by its type.
     pub race: String,
     /// Class file name or name (mage, WARRIOR...).
     pub class: String,

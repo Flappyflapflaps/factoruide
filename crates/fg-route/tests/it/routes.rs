@@ -2965,7 +2965,7 @@ fn an_edited_step_may_walk_into_a_closed_zone_with_a_warning() {
         name: "Test-Realm".into(),
         race: 1,
         class: "WARRIOR".into(),
-        faction: "Alliance".into(),
+        faction: Some(fg_route::faction::Faction::Alliance),
         level: 34,
         xp_max: 10_000,
         position: Some(map_pos(&probe, &zherin, needles)),
@@ -3009,7 +3009,7 @@ fn an_edited_step_may_walk_into_a_closed_zone_with_a_warning() {
             name: "Test-Realm".into(),
             race: 1,
             class: "WARRIOR".into(),
-            faction: "Alliance".into(),
+            faction: Some(fg_route::faction::Faction::Alliance),
             xp_max: 10_000,
             ..StartState::default()
         }),

@@ -128,7 +128,7 @@ impl Studio {
     /// those its addon recorded.
     pub fn inferred_flights<H: Host>(&self, host: &H, start: &StartState) -> Result<Vec<i64>> {
         let conn = host.open_db(host.edition())?;
-        let side = fg_route::faction::Faction::parse(&start.faction).ok_or("unknown faction")?;
+        let side = start.faction.ok_or("unknown faction")?;
         Ok(job::inferred_flights(&conn, side, &start.completed)?)
     }
 

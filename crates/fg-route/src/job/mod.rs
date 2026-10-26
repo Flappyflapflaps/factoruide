@@ -44,7 +44,6 @@ pub use starts::{StartOption, StartPreview, preview_starts};
 pub use timeline::{InnInfo, Leg, LegMode, NodeInfo, ObjectiveInfo, QuestInfo, StartView, Timeline, TimelineStep};
 
 use crate::export;
-use crate::faction::Faction;
 use crate::model::{self, Profile};
 use crate::params::Params;
 use crate::plan::Planner;
@@ -170,7 +169,7 @@ pub fn plan_interruptible(
                 name: prepared.profile.name.clone(),
                 race: prepared.profile.race_id,
                 class: req.class.to_uppercase(),
-                faction: prepared.profile.faction.to_string(),
+                faction: Some(prepared.profile.faction),
                 ..StartState::default()
             });
         start.after(&prepared.model, &prepared.world, prepared.params.edition.rules(), &end)
@@ -223,7 +222,7 @@ pub fn prepare(
     if let Some(start) = start {
         // The flight paths of the towns it did quests in count as learned, unless the list was settled by hand.
         let deduced;
-        let start = match Faction::parse(&start.faction) {
+        let start = match start.faction {
             Some(side) if !start.flights_final => {
                 let mut copy = start.clone();
                 if let Ok(found) = inferred_flights(conn, side, &start.completed) {

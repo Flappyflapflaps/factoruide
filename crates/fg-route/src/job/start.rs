@@ -2,11 +2,17 @@
 //! saved at each logout) becomes the planner's initial state, so that the guide goes on from
 //! where the character stands.
 
+use crate::faction::Faction;
 use crate::model::{Initial, Model, Objective, Quest};
 use crate::params::Params;
 use crate::world::World;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+
+/// A side as the addon records it ("Alliance", "Horde"; the game also says "Neutral").
+fn side_or_none<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<Faction>, D::Error> {
+    Ok(Option::<String>::deserialize(deserializer)?.and_then(|name| Faction::parse(&name)))
+}
 
 /// A character as the addon saw it (its `FactoruideDB.profiles` entry).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -17,7 +23,9 @@ pub struct StartState {
     /// ChrRaces ID and class file name (MAGE...).
     pub race: i64,
     pub class: String,
-    pub faction: String,
+    /// None: the game did not say (or a side the planner does not know).
+    #[serde(deserialize_with = "side_or_none")]
+    pub faction: Option<Faction>,
     pub level: i64,
     /// XP into the level, needed for the next one, and rested XP left (doubles kill XP).
     pub xp: i64,
@@ -371,6 +379,23 @@ mod tests {
     use super::*;
     use crate::model::ProfessionPlan;
     use crate::profession::ProfessionGoal;
+
+    /// The sides the addon records, in any case; the game's "Neutral" or nothing is no side.
+    #[test]
+    fn a_profile_says_its_side_or_none() {
+        let side = |json: &str| serde_json::from_str::<StartState>(json).unwrap().faction;
+        assert_eq!(side(r#"{"faction":"Alliance"}"#), Some(Faction::Alliance));
+        assert_eq!(side(r#"{"faction":"horde"}"#), Some(Faction::Horde));
+        assert_eq!(side(r#"{"faction":"Neutral"}"#), None);
+        assert_eq!(side(r#"{"faction":null}"#), None);
+        assert_eq!(side("{}"), None);
+        let saved = serde_json::to_string(&StartState {
+            faction: Some(Faction::Horde),
+            ..StartState::default()
+        })
+        .unwrap();
+        assert!(saved.contains(r#""faction":"Horde""#), "{saved}");
+    }
 
     fn goal(key: &str) -> ProfessionGoal {
         ProfessionGoal {
