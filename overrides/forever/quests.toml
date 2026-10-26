@@ -1,0 +1,6 @@
+# Stepping Stones follows the note quest of either faction.
+# https://www.wowhead.com/forever/quest=79192/stepping-stones
+[[quest]]
+id = 79192
+pre_all = []
+pre_any = [79007, 79008]

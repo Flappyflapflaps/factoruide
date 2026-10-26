@@ -13,6 +13,10 @@ kill, items to loot with their drop rates, objects to use), its prerequisites, t
 excludes, its level and its XP. The player's choices filter and shape it: excluded zones and
 dungeons, forced dungeons, class quests to keep, professions to level.
 
+Duplicate prerequisite links from different sources count once. Race and class alternatives
+keep eligible branches when any exist. Edition-specific `quests.toml` can replace `pre_all`
+or `pre_any`; these corrections apply whenever a database is loaded, including after a refresh.
+
 `world.rs` gives the geography: zone coordinates converted to world coordinates, the passes
 between zones, boats, zeppelins and tram (`overrides/`), and the flight path network.
 
@@ -287,3 +291,19 @@ A guide file carries its format (`format.rs`). Reading an older one migrates it 
 the other; a migration that cannot carry a guide over refuses it (to compute again), and a guide
 of a newer format asks to update the app. Format 1 (before phrases) keeps its texts as they were
 written.
+
+## 5. The apps around the planner
+
+The planner is one crate among a few, each with one job:
+
+- `fg-route` plans, replays and writes guides. Its jobs fail with `job::JobError`.
+- `fg-library` keeps the guides a player has: versions, the one the characters follow, import
+  and export, comparison. It knows the layout, not where the files are (`Files`: a folder on
+  the disk, or the browser's storage).
+- `fg-app` is what the page calls: planning, the guide editor, rendering a guide in a language.
+  It holds what the app remembers between calls (the generation under way, the guide in the
+  editor, the walking memory) and gets the game data, the files and the events from a `Host`.
+  Its commands fail with `CmdError`, which the page reads as the same text as before.
+- `fg-web` and `app/src-tauri` are the two `Host`s: the browser build (WebAssembly) and the
+  desktop app. They add what only they can do (settings, the game folder, the contribution
+  server for the desktop app; the files of the page for the browser).

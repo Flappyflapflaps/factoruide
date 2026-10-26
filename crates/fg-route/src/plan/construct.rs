@@ -135,7 +135,7 @@ impl Planner<'_> {
     /// richest first with their number of quests (at least `MIN_START_QUESTS`, in reach, the
     /// capital cities left out: every route passes through them): where a candidate of the race
     /// may begin instead of in the zone it stands in, `Params::start_zone`.
-    pub fn start_zones(&self) -> Vec<(i64, usize)> {
+    pub(crate) fn start_zones(&self) -> Vec<(i64, usize)> {
         const MIN_START_QUESTS: usize = 5;
         let s = self.initial_state();
         let mut counts: std::collections::HashMap<i64, usize> = std::collections::HashMap::new();

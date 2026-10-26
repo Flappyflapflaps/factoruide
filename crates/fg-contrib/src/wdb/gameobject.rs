@@ -127,7 +127,7 @@ mod tests {
         for len in 0..rec.len() {
             assert!(parse_object(&rec[..len]).is_err(), "decoded {len} bytes");
         }
-        let mut longer = rec.clone();
+        let mut longer = rec;
         longer.push(0);
         assert_eq!(parse_object(&longer), Err(WdbError::Trailing));
     }

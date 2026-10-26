@@ -137,8 +137,8 @@ pub fn import(
         format!("RestedXP {from_level}-{to_level} {race} {class}")
     });
     let request = PlanRequest {
-        race: what.race.clone(),
-        class: what.class.clone(),
+        race: what.race.clone().into(),
+        class: what.class.clone().into(),
         from_level,
         to_level,
         name: Some(name),

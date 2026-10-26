@@ -53,7 +53,11 @@ impl QuestBuilder<'_> {
             held: givers.held,
             carried: r.source_item.is_some_and(|i| i > 0),
             mandatory: zone_forced
-                || group_class_quest && self.profile.required_class_quests.iter().any(|n| n == &r.name),
+                || group_class_quest
+                    && (self.profile.required_class_quests.iter().any(|n| n == &r.name)
+                        || self.params.all_class_quests
+                            && r.min_level.unwrap_or(1) <= self.profile.to_level
+                            && !self.sources.repeatable.contains(&r.id)),
             zone_forced,
             skill: skill.flatten(),
             power: class_quest

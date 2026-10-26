@@ -30,6 +30,7 @@ pub mod layers;
 
 pub use gates::GATES_VERSION;
 
+use crate::sync::{Joined, LockExt, Unpoisoned};
 use crate::world::Pos;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -55,7 +56,7 @@ const AROUND: i32 = 3;
 /// A place of known height stands on a floor at most this far from it in height (yards): the
 /// floors of a cell have one height, its ground may slope (a spawn on a hillside). 94 % of the
 /// server data's spawns in cells of floors 10 yards apart or more are within 6 yards of one.
-pub const HEIGHT_GAP: i32 = 8;
+pub(crate) const HEIGHT_GAP: i32 = 8;
 /// Cells around a place of known height where its floor may be, when none of its cell is that
 /// high (a spawn at the edge of a bridge, of a tower's top).
 const HEIGHT_REACH: i32 = 2;
@@ -726,7 +727,7 @@ impl Grid {
                     })
                 })
                 .collect();
-            let mut all: Vec<(usize, TileLabels)> = parts.into_iter().flat_map(|p| p.join().unwrap()).collect();
+            let mut all: Vec<(usize, TileLabels)> = parts.into_iter().flat_map(|p| p.join().joined()).collect();
             all.sort_unstable_by_key(|x| x.0);
             all.into_iter().map(|x| x.1).collect()
         });
@@ -860,7 +861,7 @@ impl Grid {
                     })
                 })
                 .collect();
-            let mut all: Vec<(usize, TileLinks)> = parts.into_iter().flat_map(|p| p.join().unwrap()).collect();
+            let mut all: Vec<(usize, TileLinks)> = parts.into_iter().flat_map(|p| p.join().joined()).collect();
             all.sort_unstable_by_key(|x| x.0);
             all.into_iter().map(|x| x.1).collect()
         });
@@ -1034,7 +1035,7 @@ impl Grid {
         for t in around {
             self.graphs[t] = std::sync::OnceLock::new();
             self.local_areas[t] = std::sync::OnceLock::new();
-            self.ends[t].get_mut().unwrap().clear();
+            self.ends[t].get_mut().unpoisoned().clear();
         }
     }
 
@@ -1092,17 +1093,17 @@ impl Default for Walks {
 impl Walks {
     /// Remember the paths of a saved memory (dropped when searched on other terrain data).
     pub fn add(&self, memory: WalkMemory) {
-        let terrain = *self.terrain.lock().unwrap();
+        let terrain = *self.terrain.locked();
         match terrain {
             Some(t) if t == memory.terrain => self.insert_all(&memory),
             Some(_) => {}
-            None => self.waiting.lock().unwrap().push(memory),
+            None => self.waiting.locked().push(memory),
         }
     }
 
     /// Paths remembered.
     pub fn len(&self) -> usize {
-        self.shards.iter().map(|s| s.lock().unwrap().len()).sum()
+        self.shards.iter().map(|s| s.locked().len()).sum()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -1112,17 +1113,17 @@ impl Walks {
     /// Ties the memory to the terrain data of fingerprint `terrain`: the paths of other data are
     /// forgotten, the memories waiting for this one merged.
     fn bind(&self, terrain: u64) {
-        let mut bound = self.terrain.lock().unwrap();
+        let mut bound = self.terrain.locked();
         if *bound == Some(terrain) {
             return;
         }
         if bound.is_some() {
             for s in &self.shards {
-                s.lock().unwrap().clear();
+                s.locked().clear();
             }
         }
         *bound = Some(terrain);
-        for memory in std::mem::take(&mut *self.waiting.lock().unwrap()) {
+        for memory in std::mem::take(&mut *self.waiting.locked()) {
             if memory.terrain == terrain {
                 self.insert_all(&memory);
             }
@@ -1131,12 +1132,12 @@ impl Walks {
 
     fn insert_all(&self, memory: &WalkMemory) {
         for &(key, d) in &memory.paths {
-            self.shards[shard(key)].lock().unwrap().insert(key, Walk::Known(d));
+            self.shards[shard(key)].locked().insert(key, Walk::Known(d));
         }
     }
 
     fn get(&self, key: Key) -> Option<f32> {
-        match self.shards[shard(key)].lock().unwrap().get(&key)? {
+        match self.shards[shard(key)].locked().get(&key)? {
             Walk::Known(d) => Some(*d),
             Walk::Searching(_) => None,
         }
@@ -1147,7 +1148,7 @@ impl Walks {
     fn get_or_search(&self, key: Key, search: impl FnOnce() -> f32) -> f32 {
         let shard = &self.shards[shard(key)];
         let cell = {
-            let mut map = shard.lock().unwrap();
+            let mut map = shard.locked();
             match map.get(&key) {
                 Some(Walk::Known(d)) => return *d,
                 Some(Walk::Searching(cell)) => Arc::clone(cell),
@@ -1159,7 +1160,7 @@ impl Walks {
             }
         };
         let d = *cell.get_or_init(search);
-        shard.lock().unwrap().insert(key, Walk::Known(d));
+        shard.locked().insert(key, Walk::Known(d));
         d
     }
 }
@@ -1489,7 +1490,7 @@ impl Terrain {
         let mut paths: Vec<(Key, f32)> = self
             .used
             .iter()
-            .flat_map(|s| s.lock().unwrap().iter().copied().collect::<Vec<_>>())
+            .flat_map(|s| s.locked().iter().copied().collect::<Vec<_>>())
             .filter_map(|key| Some((key, self.walks.get(key)?)))
             .collect();
         paths.sort_by_key(|p| p.0);
@@ -1663,7 +1664,7 @@ impl Terrain {
     /// A cave the floors miss, opening at `mouth`: the places on no large walkable area within
     /// `reach` yards of `inside` are walked to through it. False when the mouth is in no large
     /// area.
-    pub fn add_cave(&mut self, mouth: &Pos, inside: &Pos, reach: f64) -> bool {
+    pub(crate) fn add_cave(&mut self, mouth: &Pos, inside: &Pos, reach: f64) -> bool {
         let Some(grid) = self.grids.get_mut(&mouth.continent) else {
             return false;
         };
@@ -1681,7 +1682,7 @@ impl Terrain {
         });
         // Answers given before are kept by terrain: this one is another.
         self.id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        self.turns.iter_mut().for_each(|t| t.get_mut().unwrap().clear());
+        self.turns.iter_mut().for_each(|t| t.get_mut().unpoisoned().clear());
         true
     }
 
@@ -1713,7 +1714,7 @@ impl Terrain {
     /// The large walkable area a point stands in, twice (once the areas the gaps of the
     /// heightmap terrain joined, now the floors' own): None without terrain or in no large
     /// area.
-    pub fn large_areas_of(&self, p: &Pos) -> Option<(u32, u32)> {
+    pub(crate) fn large_areas_of(&self, p: &Pos) -> Option<(u32, u32)> {
         self.area_of(p)
             .filter(|&(a, size)| a != 0 && size >= LARGE_AREA)
             .map(|(a, _)| (a, a))
@@ -1726,9 +1727,9 @@ impl Terrain {
         MEMO.with(|m| m.borrow_mut().clear());
         APART.with(|m| m.borrow_mut().clear());
         SNAPS.with(|m| m.borrow_mut().clear());
-        self.walks.shards.iter().for_each(|s| s.lock().unwrap().clear());
-        self.used.iter().for_each(|u| u.lock().unwrap().clear());
-        self.turns.iter().for_each(|t| t.lock().unwrap().clear());
+        self.walks.shards.iter().for_each(|s| s.locked().clear());
+        self.used.iter().for_each(|u| u.locked().clear());
+        self.turns.iter().for_each(|t| t.locked().clear());
     }
 
     /// Took a valley out of the mainland the gaps of the heightmap terrain joined it to; the
@@ -1766,7 +1767,7 @@ impl Terrain {
         self.fingerprint = self.fingerprint.wrapping_add(h.finish());
         self.walks.bind(self.fingerprint);
         self.id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        self.turns.iter_mut().for_each(|t| t.get_mut().unwrap().clear());
+        self.turns.iter_mut().for_each(|t| t.get_mut().unpoisoned().clear());
         true
     }
 
@@ -1782,7 +1783,7 @@ impl Terrain {
         self.enclosed.insert((p.continent, area), place);
         // Answers given before are kept by terrain: this one is another.
         self.id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-        self.turns.iter_mut().for_each(|t| t.get_mut().unwrap().clear());
+        self.turns.iter_mut().for_each(|t| t.get_mut().unpoisoned().clear());
         Some((area, size))
     }
 
@@ -1821,7 +1822,7 @@ impl Terrain {
     }
 
     /// The areas declared enclosed (continent, area).
-    pub fn enclosed_areas(&self) -> impl Iterator<Item = (i64, u32)> + '_ {
+    pub(crate) fn enclosed_areas(&self) -> impl Iterator<Item = (i64, u32)> + '_ {
         self.enclosed.keys().copied()
     }
 
@@ -1832,7 +1833,7 @@ impl Terrain {
     }
 
     /// Whether area `a` (of continent `map`) is left only by boat, portal or lift.
-    pub fn is_enclosed(&self, map: i64, a: u32) -> bool {
+    pub(crate) fn is_enclosed(&self, map: i64, a: u32) -> bool {
         self.enclosed.contains_key(&(map, a))
     }
 
@@ -1915,7 +1916,7 @@ impl Terrain {
         // The cheapest path is not the same both ways (drops): the key keeps the direction.
         let key = (map, a, b);
         if let Some(used) = self.used.get(shard(key)) {
-            used.lock().unwrap().insert(key);
+            used.locked().insert(key);
         }
         let d = self.walks.get_or_search(key, || {
             Self::search_walk(grid, a, b, None).map_or(f32::INFINITY, |d| d as f32)
@@ -2019,11 +2020,11 @@ impl Terrain {
         }
         let key = (a.continent, ca.0, ca.1, cb.0, cb.1, a.z, b.z);
         let memo = self.turns.get(turn_shard(key));
-        let known = memo.and_then(|m| m.lock().unwrap().get(&key).cloned());
+        let known = memo.and_then(|m| m.locked().get(&key).cloned());
         let turns = known.unwrap_or_else(|| {
             let turns = self.turns(grid, a.continent, sa, sb);
             if let Some(memo) = memo {
-                let mut memo = memo.lock().unwrap();
+                let mut memo = memo.locked();
                 if memo.len() >= TURNS_MAX {
                     memo.clear();
                 }

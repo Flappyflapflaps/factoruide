@@ -32,7 +32,7 @@ pub struct Group {
     pub max_level: i64,
 }
 
-pub struct Groups {
+pub(crate) struct Groups {
     pub list: Vec<Group>,
     /// Group of each quest (by its quest giver).
     pub of_quest: Vec<usize>,
@@ -41,7 +41,7 @@ pub struct Groups {
 }
 
 impl Planner<'_> {
-    pub fn build_groups(&self) -> Groups {
+    pub(crate) fn build_groups(&self) -> Groups {
         let quests = &self.model.quests;
         let travel: Vec<bool> = quests
             .iter()
@@ -82,7 +82,10 @@ impl Planner<'_> {
                         return;
                     }
                     let levels = band.iter().map(|&i| quests[i as usize].min_level);
-                    let (lo, hi) = (levels.clone().min().unwrap(), levels.max().unwrap());
+                    let (lo, hi) = (
+                        levels.clone().min().expect("a band has quests"),
+                        levels.max().expect("a band has quests"),
+                    );
                     for &i in band.iter() {
                         of_quest[i as usize] = groups.len();
                     }
@@ -117,7 +120,7 @@ impl Planner<'_> {
             let small = (0..groups.len())
                 .find(|&g| groups[g].quests.len() < MIN_GROUP && Self::merge_target(&groups, g).is_some());
             let Some(g) = small else { break };
-            let target = Self::merge_target(&groups, g).unwrap();
+            let target = Self::merge_target(&groups, g).expect("the group was just found to have a target");
             let moved = groups.remove(g);
             let target = if target > g { target - 1 } else { target };
             let t = &mut groups[target];
@@ -319,7 +322,7 @@ impl Planner<'_> {
     }
 
     /// Route built group by group.
-    pub fn plan_regions(&self, log: impl Fn(&str)) -> Vec<Stop> {
+    pub(crate) fn plan_regions(&self, log: impl Fn(&str)) -> Vec<Stop> {
         let groups = self.build_groups();
         log(&format!(
             "{} quest groups ({} travel quests)",
@@ -385,7 +388,7 @@ impl Planner<'_> {
 
 impl Planner<'_> {
     /// Why plannable quests did not make it into a route (debugging aid).
-    pub fn explain_unused(&self, route: &[Stop]) -> std::collections::BTreeMap<String, usize> {
+    pub(crate) fn explain_unused(&self, route: &[Stop]) -> std::collections::BTreeMap<String, usize> {
         let mut reasons = std::collections::BTreeMap::new();
         let Some(run) = self.run(route) else { return reasons };
         let used: std::collections::HashSet<u32> = route.iter().filter(|s| s.is_quest()).map(|s| s.index).collect();

@@ -255,7 +255,7 @@ impl Editor {
     /// Write into each step of the guide the walk the replay makes to it (where it starts, then
     /// where it turns), so that the app, which draws the replay's legs, and the addon, which
     /// follows `path`, show the same way.
-    pub fn set_walks(&self, outcome: &mut PlanOutcome) {
+    pub(crate) fn set_walks(&self, outcome: &mut PlanOutcome) {
         let timeline = self.timeline(outcome, &Names::new("enUS"));
         for step in &mut outcome.route.steps {
             step.path.clear();

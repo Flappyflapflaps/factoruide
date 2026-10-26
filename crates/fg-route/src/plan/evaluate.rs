@@ -85,7 +85,7 @@ impl Planner<'_> {
     }
 
     /// Where `route` leaves the character (None if invalid).
-    pub fn end_of(&self, route: &[Stop]) -> Option<End> {
+    pub(crate) fn end_of(&self, route: &[Stop]) -> Option<End> {
         let (_, s) = self.simulate_state(route, None)?;
         let n = self.model.quests.len();
         Some(End {

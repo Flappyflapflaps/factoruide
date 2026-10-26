@@ -123,8 +123,8 @@ pub fn import_polestar(
         format!("Polestar {}-{to_level} {race} {}", what.from_level, class.name)
     });
     let request = PlanRequest {
-        race: what.race.clone(),
-        class: what.class.clone(),
+        race: what.race.clone().into(),
+        class: what.class.clone().into(),
         from_level: what.from_level,
         to_level,
         name: Some(name),

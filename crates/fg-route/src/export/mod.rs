@@ -138,7 +138,7 @@ pub fn build_traced(
                 };
                 let mut looted = Vec::new();
                 while steps.last().is_some_and(from_boss) {
-                    let mut accept = steps.pop().unwrap();
+                    let mut accept = steps.pop().expect("the loop checked the last step");
                     xps.pop();
                     (accept.time, accept.level, accept.inside) = (entered, level, true);
                     looted.insert(0, accept);
@@ -182,14 +182,14 @@ pub fn build_traced(
 }
 
 /// The sentence an objective's step says, in the language of `names`.
-pub fn objective_text(objective: &crate::model::Objective, names: &Names) -> String {
+pub(crate) fn objective_text(objective: &crate::model::Objective, names: &Names) -> String {
     writer::objective_phrase(objective).render(names)
 }
 
 /// The line of the guide each event of a replayed route writes, in the language of `names`
 /// (for the guide editor), with its event and the XP the route has then in its level. None for
 /// the events without a line of their own: a reward picked, mobs farmed on the way.
-pub fn event_steps(planner: &Planner<'_>, route: &[Stop], trace: &[Timed], names: &Names) -> Vec<Option<Step>> {
+pub(crate) fn event_steps(planner: &Planner<'_>, route: &[Stop], trace: &[Timed], names: &Names) -> Vec<Option<Step>> {
     let writer = StepWriter {
         planner,
         route,

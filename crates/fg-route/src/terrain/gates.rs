@@ -14,6 +14,7 @@
 
 use super::layers::DIRECTIONS;
 use super::{CELL, Grid, MOVE, MOVE_MORE, MOVE_NO_GO, Node, TileNodes, move_cost};
+use crate::sync::LockExt;
 use rustc_hash::FxHashMap;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
@@ -540,7 +541,7 @@ impl Grid {
     /// `p`, `back`), remembered for all the threads.
     fn ends(&self, t: usize, p: Node, back: bool) -> Arc<[u32]> {
         let key = (p, back);
-        if let Some(known) = self.ends[t].lock().unwrap().get(&key) {
+        if let Some(known) = self.ends[t].locked().get(&key) {
             return Arc::clone(known);
         }
         let walks = self.local(t, p, back, &self.graph(t).gates);
@@ -550,7 +551,7 @@ impl Grid {
                     .map_or(NONE, |(_, l)| walks.get(l).copied().unwrap_or(NONE))
             })
             .collect();
-        let mut memo = self.ends[t].lock().unwrap();
+        let mut memo = self.ends[t].locked();
         if memo.len() >= ENDS_MAX {
             memo.clear();
         }

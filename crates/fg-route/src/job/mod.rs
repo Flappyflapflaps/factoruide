@@ -4,6 +4,7 @@
 mod character;
 mod draft;
 mod edit;
+mod error;
 mod flights;
 mod group;
 mod imported;
@@ -27,6 +28,7 @@ pub use edit::{
     CatalogDungeon, CatalogLink, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef,
     RouteStep, StepReport,
 };
+pub use error::{JobError, RequestError};
 pub use flights::inferred_flights;
 pub use imported::{ImportStep, POLESTAR_CREDIT, PolestarImport, PolestarImported, ReplayReport, import_polestar};
 pub use options::{
@@ -37,7 +39,7 @@ pub use paths::{add_walk_paths, route_walks, walk_world};
 pub use race::{optimize, optimize_interruptible};
 pub use replan::{default_request, replan_name, replan_request, replanned};
 pub use reputation::race_base;
-pub use request::{GROUP_MAX, GROUP_MIN_LEVEL, PlanOutcome, PlanRequest, Prepared};
+pub use request::{ClassKey, GROUP_MAX, GROUP_MIN_LEVEL, PlanOutcome, PlanRequest, Prepared, RaceKey};
 pub use routes::{
     DATA_ADDON, GUIDE_FORMAT, POLESTAR_SOURCE_FOLDER, READY_ADDON, add_polestar_source, addon_walks, data_addon_files,
     guides_lua, load_routes, lua_long_string, polestar_source_dir, ready_pack_lua, render_routes, save_route, slug,
@@ -49,18 +51,17 @@ pub use rxp::{
     guide_files as rxp_guide_files, import as import_rxp, lua_files,
 };
 pub use services::{Place, Service, places, services_lua};
-pub use start::{Bind, LogObjective, LogQuest, MapPos, Skill, Standing, StartState};
+pub use start::{Bind, LogObjective, LogQuest, MapPos, QuestId, Skill, Standing, StartState};
 pub use starts::{StartOption, StartPreview, preview_starts};
 pub use timeline::{InnInfo, Leg, LegMode, NodeInfo, ObjectiveInfo, QuestInfo, StartView, Timeline, TimelineStep};
 
 use crate::export;
-use crate::faction::Faction;
 use crate::model::{self, Profile};
 use crate::params::Params;
 use crate::plan::Planner;
 use crate::terrain::Walks;
 use crate::world::World;
-use anyhow::{Result, bail};
+use anyhow::Result;
 use rusqlite::Connection;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -117,7 +118,7 @@ pub fn plan(
     overrides: &Overrides,
     req: &PlanRequest,
     progress: &(dyn Fn(&str) + Sync),
-) -> Result<PlanOutcome> {
+) -> Result<PlanOutcome, JobError> {
     plan_interruptible(conn, overrides, req, progress, &Interrupt::default(), None)
 }
 
@@ -133,18 +134,18 @@ pub fn plan_interruptible(
     progress: &(dyn Fn(&str) + Sync),
     interrupt: &Interrupt,
     walks: Option<&Arc<Walks>>,
-) -> Result<PlanOutcome> {
+) -> Result<PlanOutcome, JobError> {
     let mut prepared = prepare(conn, overrides, req, progress)?;
     if let Some(walks) = walks {
         prepared.world.terrain.share(Arc::clone(walks));
     }
     if interrupt.cancelled() {
-        return Err(Cancelled.into());
+        return Err(JobError::Cancelled);
     }
     let planner = Planner::new(&prepared.model, &prepared.world, &prepared.params, &prepared.profile);
     let best = optimize_interruptible(&planner, progress, interrupt);
     if interrupt.cancelled() {
-        return Err(Cancelled.into());
+        return Err(JobError::Cancelled);
     }
     // Objectives at the same place one after the other, done at once.
     let best = planner.route_together(best);
@@ -163,7 +164,7 @@ pub fn plan_interruptible(
             .diagnose(&best)
             .map(|(n, w)| format!("stop {n}: {w}"))
             .unwrap_or_default();
-        bail!("no valid route found ({why})");
+        return Err(JobError::NoRoute(why));
     }
     progress(&format!(
         "{}: level {} -> {} in {} with {} quests",
@@ -180,7 +181,7 @@ pub fn plan_interruptible(
                 name: prepared.profile.name.clone(),
                 race: prepared.profile.race_id,
                 class: req.class.to_uppercase(),
-                faction: prepared.profile.faction.to_string(),
+                faction: Some(prepared.profile.faction),
                 ..StartState::default()
             });
         start.after(&prepared.model, &prepared.world, prepared.params.edition.rules(), &end)
@@ -206,10 +207,10 @@ pub fn manual(
     overrides: &Overrides,
     req: &PlanRequest,
     walks: Option<&Arc<Walks>>,
-) -> Result<PlanOutcome> {
+) -> Result<PlanOutcome, JobError> {
     let editor = Editor::open(conn, overrides, req, walks)?;
     let notes = editor.prepared.notes.clone();
-    editor.save(&[], notes)
+    Ok(editor.save(&[], notes)?)
 }
 
 /// Everything a route is planned from: the character, the settings, the world and the quests.
@@ -233,7 +234,7 @@ pub fn prepare(
     if let Some(start) = start {
         // The flight paths of the towns it did quests in count as learned, unless the list was settled by hand.
         let deduced;
-        let start = match Faction::parse(&start.faction) {
+        let start = match start.faction {
             Some(side) if !start.flights_final => {
                 let mut copy = start.clone();
                 if let Ok(found) = inferred_flights(conn, side, &start.completed) {

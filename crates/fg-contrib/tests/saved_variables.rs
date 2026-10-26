@@ -2,6 +2,7 @@
 //! data changed, see its README) are still read by the desktop app: the character's profile and
 //! the events the collector recorded.
 #![cfg(feature = "local")]
+#![expect(clippy::unwrap_used, reason = "fixtures that cannot be read fail the test")]
 
 use fg_contrib::{collector, profile};
 use std::path::PathBuf;

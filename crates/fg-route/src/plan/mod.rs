@@ -80,7 +80,7 @@ use worth::Worth;
 /// What a planner simulates: its own routes, or an imposed route replayed as it is (no grinding
 /// before the steps it does under their level, gray quests taken as it says).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode {
+pub(crate) enum Mode {
     Plan,
     Replay,
 }

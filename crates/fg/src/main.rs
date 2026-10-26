@@ -415,7 +415,7 @@ fn main() -> Result<()> {
                 only,
                 pack_only,
                 params,
-                overrides: overrides.clone(),
+                overrides,
                 routes_dir: cli.routes.clone(),
                 out,
             },

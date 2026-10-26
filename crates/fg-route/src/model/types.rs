@@ -17,6 +17,7 @@ pub struct Profile {
     pub to_level: i64,
     /// Names of class quests that must be done (see overrides/class_quests.toml).
     pub required_class_quests: Vec<String>,
+    pub quest_overrides: Vec<QuestOverride>,
     /// Class quests that make the character stronger: name and power gained.
     pub class_powers: Vec<(String, f64)>,
     /// Class trainer spells that count for power (see overrides/spells.toml).
@@ -60,7 +61,7 @@ pub fn race_bit(race_id: i64) -> i64 {
 
 impl Profile {
     /// Reputation gained for each point a quest gives: humans' Diplomacy adds 10%.
-    pub fn reputation_rate(&self) -> f64 {
+    pub(crate) fn reputation_rate(&self) -> f64 {
         if self.race_id == 1 { 1.1 } else { 1.0 }
     }
 
@@ -69,7 +70,7 @@ impl Profile {
         race_bit(self.race_id)
     }
 
-    pub fn class_bit(&self) -> i64 {
+    pub(crate) fn class_bit(&self) -> i64 {
         1 << (self.class_id - 1)
     }
 
@@ -81,7 +82,7 @@ impl Profile {
 
     /// The members (a bit each, the character's 1) a quest of races `races` and classes
     /// `classes` is for.
-    pub fn members_of(&self, races: Option<i64>, classes: Option<i64>) -> u8 {
+    pub(crate) fn members_of(&self, races: Option<i64>, classes: Option<i64>) -> u8 {
         let (races, classes) = (races.unwrap_or(0), classes.unwrap_or(0));
         (self.members().enumerate())
             .filter(|(_, (race, class))| (races == 0 || races & race != 0) && (classes == 0 || classes & class != 0))
@@ -90,7 +91,7 @@ impl Profile {
 
     /// Names of the members of the group in `members` (a bit each, the character's 1), without
     /// their realm.
-    pub fn member_names(&self, members: u8) -> Vec<String> {
+    pub(crate) fn member_names(&self, members: u8) -> Vec<String> {
         let short = |n: &str| n.split('-').next().unwrap_or(n).to_owned();
         (std::iter::once(&self.player)
             .chain(self.mates.iter().map(|m| &m.name))
@@ -101,7 +102,7 @@ impl Profile {
     }
 
     /// Distinct classes of the group, the character's first.
-    pub fn class_ids(&self) -> Vec<i64> {
+    pub(crate) fn class_ids(&self) -> Vec<i64> {
         let mut ids = vec![self.class_id];
         for m in &self.mates {
             if !ids.contains(&m.class_id) {
@@ -109,11 +110,6 @@ impl Profile {
             }
         }
         ids
-    }
-
-    /// Class bits of the whole group.
-    pub fn group_class_mask(&self) -> i64 {
-        self.class_ids().iter().fold(0, |m, id| m | 1 << (id - 1))
     }
 }
 
@@ -496,6 +492,14 @@ pub struct TeleportDef {
     pub to: crate::world::ZonePoint,
 }
 
+/// Edition-specific quest corrections, applied over the bundled database.
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct QuestOverride {
+    pub id: i64,
+    pub pre_all: Option<Vec<i64>>,
+    pub pre_any: Option<Vec<i64>>,
+}
+
 /// An area that gives XP the first time the character enters it.
 #[derive(Debug, Clone)]
 pub struct ExploreArea {
@@ -559,7 +563,7 @@ pub struct MateStart {
 
 impl Initial {
     /// Whether quest `id`, which the model does not have, was turned in before the route.
-    pub fn done_outside(&self, id: i64, from_level: i64) -> bool {
+    pub(crate) fn done_outside(&self, id: i64, from_level: i64) -> bool {
         self.completed.as_ref().map_or(from_level > 1, |c| c.contains(&id))
     }
 
@@ -569,7 +573,7 @@ impl Initial {
     }
 
     /// Whether member `m` (0: the character) turned in quest `id` before the route.
-    pub fn done_by(&self, m: usize, id: i64) -> bool {
+    pub(crate) fn done_by(&self, m: usize, id: i64) -> bool {
         match m {
             0 => self.completed.as_ref().is_some_and(|c| c.contains(&id)),
             m => self.mates.get(m - 1).is_some_and(|mate| mate.completed.contains(&id)),
@@ -652,7 +656,7 @@ impl ProfessionPlan {
     }
 
     /// Skill the character has at `level`, following the curve.
-    pub fn skill_at(&self, level: i64) -> i64 {
+    pub(crate) fn skill_at(&self, level: i64) -> i64 {
         self.curve[level.clamp(0, 60) as usize]
     }
 }

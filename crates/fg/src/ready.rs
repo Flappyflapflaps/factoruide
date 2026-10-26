@@ -53,8 +53,8 @@ pub fn run(conn: &Connection, opts: &ReadyOptions) -> Result<()> {
             eprintln!("planning {name}");
             let began = std::time::Instant::now();
             let request = PlanRequest {
-                race: race.key.clone(),
-                class: class.key.clone(),
+                race: race.key.clone().into(),
+                class: class.key.clone().into(),
                 from_level: 1,
                 to_level,
                 name: Some(name.clone()),

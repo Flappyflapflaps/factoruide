@@ -4,6 +4,7 @@
 use super::Overrides;
 use crate::export::{Route, Step, StepKind};
 use crate::faction::Faction;
+use crate::sync::Joined;
 use crate::world::{Pos, World};
 use anyhow::Result;
 use rusqlite::Connection;
@@ -64,7 +65,7 @@ pub fn add_walk_paths(world: &World, route: &mut Route) {
                 })
             })
             .collect();
-        workers.into_iter().flat_map(|w| w.join().unwrap()).collect()
+        workers.into_iter().flat_map(|w| w.join().joined()).collect()
     });
     for (k, path) in found {
         route.steps[k].path = path;

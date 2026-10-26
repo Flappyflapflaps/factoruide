@@ -4,6 +4,7 @@ members = ["crates/*", "app/src-tauri"]
 
 [workspace.package]
 edition = "2024"
+rust-version = "1.99"
 license = "MIT"
 
 [workspace.dependencies]
@@ -43,9 +44,11 @@ allow_attributes = "warn"
 dbg_macro = "warn"
 empty_drop = "warn"
 get_unwrap = "warn"
+unwrap_used = "warn"
 lossy_float_literal = "warn"
 mem_forget = "warn"
 rc_mutex = "warn"
+redundant_clone = "warn"
 rest_pat_in_fully_bound_structs = "warn"
 str_to_string = "warn"
 todo = "warn"
@@ -53,11 +56,21 @@ undocumented_unsafe_blocks = "warn"
 unimplemented = "warn"
 verbose_file_reads = "warn"
 
+# Release: thin LTO and stripped symbols. Measured on 2026-10-26 (human:mage to level 40, effort 1,
+# same seed): the same route in the same time (39.1 s against 39.2 s) and an 18% smaller binary.
+# Fat LTO with `codegen-units = 1` gained nothing either (40.9 s) and built 7 times slower, so it
+# is not used; the time goes into the search's own loops, already in one crate. `panic = "abort"`
+# is not set: the planner's tests catch panics, and its threads hand theirs on when joined.
+[profile.release]
+lto = "thin"
+strip = true
+
 # Release code with line tables for perf and flamegraphs, in its own target/profiling directory
 # so that it never invalidates the release build (scripts/profile.sh adds the frame pointers).
 [profile.profiling]
 inherits = "release"
 debug = "line-tables-only"
+strip = false
 
 # Iterating on tests: release-derived (the planner tests are too slow in debug) but compiled
 # fast and incrementally. `cargo test --profile fast -p fg-route <name>`; the full
@@ -67,3 +80,4 @@ inherits = "release"
 opt-level = 1
 codegen-units = 256
 incremental = true
+lto = false

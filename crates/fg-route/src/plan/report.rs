@@ -18,7 +18,7 @@ impl Planner<'_> {
     /// Timed quests the route takes but turns in after their limit (with the planner's margin):
     /// the guide gives them up instead, the game fails them. The planner avoids it when it can;
     /// one left is a quest whose limit the route cannot keep.
-    pub fn late_timed_quests(&self, route: &[Stop]) -> Vec<String> {
+    pub(crate) fn late_timed_quests(&self, route: &[Stop]) -> Vec<String> {
         let mut trace = Vec::new();
         if self.simulate(route, Some(&mut trace)).is_none() {
             return Vec::new();
@@ -120,7 +120,7 @@ impl Planner<'_> {
     /// Objectives done "along the way" (background quests): long kill/loot objectives of quests
     /// without follow-up, turned in at a quest hub, whose mobs are where other objectives
     /// nearby in the route take place. The addon tracks them without blocking the guide.
-    pub fn background_objectives(&self, route: &[Stop]) -> HashSet<(u32, u8)> {
+    pub(crate) fn background_objectives(&self, route: &[Stop]) -> HashSet<(u32, u8)> {
         const WINDOW: usize = 30;
         const NEAR: f64 = 400.0;
         let mut out = HashSet::new();
@@ -152,7 +152,7 @@ impl Planner<'_> {
                 .any(|t| {
                     matches!(t.kind, Kind::Objective(_))
                         && t.index != s.index
-                        && self.places().usual_pos(t).dist(&o.loc.pos) <= NEAR
+                        && self.places().usual_pos(*t).dist(&o.loc.pos) <= NEAR
                 });
             if hub && shared {
                 out.insert((s.index, k));

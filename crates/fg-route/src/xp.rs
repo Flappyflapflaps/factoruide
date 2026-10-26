@@ -40,15 +40,6 @@ impl Edition {
         }
     }
 
-    /// Flavor of the quest data for this edition.
-    pub fn data_flavor(self) -> &'static str {
-        match self {
-            Edition::Forever => "Forever",
-            Edition::Classic => "Vanilla",
-            Edition::Tbc => "TBC",
-        }
-    }
-
     /// Battle.net product of the game client.
     pub fn product(self) -> &'static str {
         match self {
@@ -104,7 +95,7 @@ impl Edition {
     }
 
     /// Overrides folder (`overrides/<key>/`), its files added to those of `overrides/`.
-    pub fn overrides_subdir(self) -> &'static str {
+    pub(crate) fn overrides_subdir(self) -> &'static str {
         self.key()
     }
 
@@ -223,7 +214,7 @@ impl Rules {
     }
 
     /// Highest level of the content gray for a character of `level` (no XP).
-    pub fn gray_level(level: i64) -> i64 {
+    pub(crate) fn gray_level(level: i64) -> i64 {
         match level {
             l if l <= 5 => 0,
             l if l <= 39 => l - 5 - l / 10,
@@ -265,7 +256,7 @@ impl Rules {
 
     /// XP for discovering an area of `area` level at `level` (as the game computes it: capped
     /// above, reduced by 5% per level beyond 5 levels over the area).
-    pub fn exploration_xp(&self, level: i64, area: i64) -> i64 {
+    pub(crate) fn exploration_xp(&self, level: i64, area: i64) -> i64 {
         if level >= self.max_level || area <= 0 {
             return 0;
         }
@@ -294,7 +285,7 @@ const AZEROTH_ON_OUTLAND_MAP: [i64; 6] = [
 
 /// Expansion of the content at a place of the open world (game map and zone), for kill XP: 1 in
 /// Outland, 0 in Azeroth.
-pub fn content_at(map: i64, zone: i64) -> usize {
+pub(crate) fn content_at(map: i64, zone: i64) -> usize {
     usize::from(map == 530 && !AZEROTH_ON_OUTLAND_MAP.contains(&zone))
 }
 

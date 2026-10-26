@@ -225,7 +225,7 @@ fn a_dungeon_quest_without_its_run_is_an_error() {
     let run = (guide.plan.iter())
         .position(|s| matches!(s, RouteStep::Dungeon { dungeon: 1581 }))
         .expect("the forced run");
-    let mut draft = guide.plan.clone();
+    let mut draft = guide.plan;
     draft.remove(run);
     // Its turn-ins, which cannot be done without the run, go too.
     let report = editor.simulate(&draft, &names);
