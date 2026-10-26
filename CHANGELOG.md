@@ -45,6 +45,8 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ### Addon
 
+- `/fg check`: a self-check of what the addon sees in this game client, a line each, ok or to look at: the client's version, the guide followed and where it comes from, your position on the map, the XP buff spells and items it knows by number, your auras now with their numbers, the quest log, the add-ons it works with and the errors counted. The report is kept in the SavedVariables to send along with a problem.
+- The addons also load on the next WoW Forever client version (interface 16002), so that launch day does not need "Load out of date AddOns".
 - Re-plan from here: when your XP gets ahead of the guide or behind it by more than half a level (more mobs killed on the way than planned, deaths, a dungeon), or you stay far from the next step for two minutes, a bar on the guide offers to re-plan. The guide then picks up at the best step for your level and where you stand, leaving out what is no longer worth it (kept chains, class quests, planned rewards and training stay). `/fg replan` at any time, `/fg replan undo` to put the steps back, a key binding too. The gap and an automatic mode are in the options (Advice).
 - With the Factoruide app open, "Re-plan + app" also has it compute the whole route again from your character in the background: the app says when it is ready, and the next /reload follows it.
 - The addon counts where your XP comes from at each level: quests, the guide's quest mobs, mobs killed off the guide and the rest, and compares the kills off the guide with what the guide planned (`/fg xp`, or the "XP sources" key binding).
