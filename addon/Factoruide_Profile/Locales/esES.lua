@@ -241,4 +241,10 @@ FG.Locales.esES = {
     ["no XP recorded yet at this level"] = "aún no hay experiencia registrada en este nivel",
     ["kills off the guide since level %d: %s XP (planned %s)"] = "enemigos fuera de la guía desde el nivel %d: %s de experiencia (previsto %s)",
     ["XP sources (in the chat)"] = "Fuentes de experiencia (en el chat)",
+    ["Next dungeon: %s at level %d (~%d min), %d steps ahead"] = "Próxima mazmorra: %s a nivel %d (~%d min), dentro de %d pasos",
+    ["  in your log: %s"] = "  en tu registro: %s",
+    ["  to pick up first: %s (%s)"] = "  para aceptar antes: %s (%s)",
+    ["  starts inside: %s"] = "  empieza dentro: %s",
+    ["no dungeon ahead in the guide"] = "no hay mazmorras por delante en la guía",
+    ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg escribe el mensaje de grupo en el chat (Intro lo envía)",
 }

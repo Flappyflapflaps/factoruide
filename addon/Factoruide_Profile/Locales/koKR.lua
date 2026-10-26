@@ -241,4 +241,10 @@ FG.Locales.koKR = {
     ["no XP recorded yet at this level"] = "이 레벨에서 아직 기록된 경험치 없음",
     ["kills off the guide since level %d: %s XP (planned %s)"] = "레벨 %d 이후 가이드 밖 몹: 경험치 %s (계획 %s)",
     ["XP sources (in the chat)"] = "경험치 출처 (대화창에)",
+    ["Next dungeon: %s at level %d (~%d min), %d steps ahead"] = "다음 던전: %s, 레벨 %d (~%d분), %d단계 뒤",
+    ["  in your log: %s"] = "  퀘스트 목록에 있음: %s",
+    ["  to pick up first: %s (%s)"] = "  먼저 받을 것: %s (%s)",
+    ["  starts inside: %s"] = "  안에서 시작: %s",
+    ["no dungeon ahead in the guide"] = "가이드에 남은 던전이 없습니다",
+    ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg는 채팅에 파티 모집 메시지를 씁니다 (Enter로 전송)",
 }
