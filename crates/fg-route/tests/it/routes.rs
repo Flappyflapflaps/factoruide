@@ -672,7 +672,7 @@ fn cancelled_job_returns_no_route() {
     let request = request("orc", "warlock", 12, &["effort=100"]);
     let outcome = job::plan_interruptible(&database(), &overrides(), &request, &|_| {}, &interrupt, None);
     let error = outcome.expect_err("a cancelled job has no route");
-    assert!(error.downcast_ref::<job::Cancelled>().is_some(), "{error:#}");
+    assert!(matches!(error, job::JobError::Cancelled), "{error:#}");
 }
 
 /// The local search hands back a valid route (cutting the stops after the target level once

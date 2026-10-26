@@ -4,6 +4,7 @@
 mod character;
 mod draft;
 mod edit;
+mod error;
 mod flights;
 mod group;
 mod notes;
@@ -24,6 +25,7 @@ pub use edit::{
     CatalogDungeon, CatalogLink, CatalogPlace, CatalogQuest, EditCatalog, EditReport, Editor, Line, QuestRef,
     RouteStep, StepReport,
 };
+pub use error::{JobError, RequestError};
 pub use flights::inferred_flights;
 pub use options::{
     FactionOption, FlightOption, NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes,
@@ -49,7 +51,7 @@ use crate::params::Params;
 use crate::plan::Planner;
 use crate::terrain::Walks;
 use crate::world::World;
-use anyhow::{Result, bail};
+use anyhow::Result;
 use rusqlite::Connection;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -106,7 +108,7 @@ pub fn plan(
     overrides: &Overrides,
     req: &PlanRequest,
     progress: &(dyn Fn(&str) + Sync),
-) -> Result<PlanOutcome> {
+) -> Result<PlanOutcome, JobError> {
     plan_interruptible(conn, overrides, req, progress, &Interrupt::default(), None)
 }
 
@@ -122,18 +124,18 @@ pub fn plan_interruptible(
     progress: &(dyn Fn(&str) + Sync),
     interrupt: &Interrupt,
     walks: Option<&Arc<Walks>>,
-) -> Result<PlanOutcome> {
+) -> Result<PlanOutcome, JobError> {
     let mut prepared = prepare(conn, overrides, req, progress)?;
     if let Some(walks) = walks {
         prepared.world.terrain.share(Arc::clone(walks));
     }
     if interrupt.cancelled() {
-        return Err(Cancelled.into());
+        return Err(JobError::Cancelled);
     }
     let planner = Planner::new(&prepared.model, &prepared.world, &prepared.params, &prepared.profile);
     let best = optimize_interruptible(&planner, progress, interrupt);
     if interrupt.cancelled() {
-        return Err(Cancelled.into());
+        return Err(JobError::Cancelled);
     }
     // Objectives at the same place one after the other, done at once.
     let best = planner.route_together(best);
@@ -152,7 +154,7 @@ pub fn plan_interruptible(
             .diagnose(&best)
             .map(|(n, w)| format!("stop {n}: {w}"))
             .unwrap_or_default();
-        bail!("no valid route found ({why})");
+        return Err(JobError::NoRoute(why));
     }
     progress(&format!(
         "{}: level {} -> {} in {} with {} quests",
@@ -195,10 +197,10 @@ pub fn manual(
     overrides: &Overrides,
     req: &PlanRequest,
     walks: Option<&Arc<Walks>>,
-) -> Result<PlanOutcome> {
+) -> Result<PlanOutcome, JobError> {
     let editor = Editor::open(conn, overrides, req, walks)?;
     let notes = editor.prepared.notes.clone();
-    editor.save(&[], notes)
+    Ok(editor.save(&[], notes)?)
 }
 
 /// Everything a route is planned from: the character, the settings, the world and the quests.

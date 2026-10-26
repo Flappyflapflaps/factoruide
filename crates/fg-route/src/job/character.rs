@@ -4,10 +4,11 @@
 use super::StartState;
 use super::options::race_classes;
 use super::overrides::{Overrides, RaceDef};
-use super::request::{GROUP_MAX, GROUP_MIN_LEVEL, PlanRequest};
+use super::request::PlanRequest;
+use super::{GROUP_MAX, GROUP_MIN_LEVEL, RequestError};
 use crate::model::{Mate, Profile};
 use crate::params::Params;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use rusqlite::Connection;
 use std::collections::HashMap;
 
@@ -21,7 +22,7 @@ pub(super) fn character(conn: &Connection, overrides: &Overrides, req: &PlanRequ
         None => (req.race.to_lowercase().replace([' ', '-'], ""), req.class.clone()),
     };
     let Some(race) = overrides.races.get(&race_key) else {
-        bail!("unknown race {}", req.race);
+        return Err(RequestError::UnknownRace(req.race.clone()).into());
     };
     let (class_id, class_name) = class_of(conn, &class_key)?;
     check_playable(conn, race, &race_key, class_id, &class_name)?;
@@ -64,10 +65,11 @@ pub(super) fn character(conn: &Connection, overrides: &Overrides, req: &PlanRequ
     let start = members.first().copied().or(req.start.as_ref());
     let from_level = start.map_or(req.from_level, |s| s.level);
     if from_level >= req.to_level {
-        bail!(
-            "the character is level {from_level}: nothing to plan up to level {}",
-            req.to_level
-        );
+        return Err(RequestError::NothingToPlan {
+            from: from_level,
+            to: req.to_level,
+        }
+        .into());
     }
     let mut professions = req.professions.clone();
     if let Some(start) = start {
@@ -123,28 +125,28 @@ fn check_group(overrides: &Overrides, req: &PlanRequest, members: &[&StartState]
         return Ok(());
     }
     if req.start.is_none() {
-        bail!("a group guide starts from the characters as the addon recorded them");
+        return Err(RequestError::GroupWithoutProfiles.into());
     }
     if members.len() > GROUP_MAX {
-        bail!("a group has {GROUP_MAX} players at most");
+        return Err(RequestError::GroupTooBig.into());
     }
     let zone = |m: &StartState| m.position.as_ref().map(|p| p.map);
     let together = zone(members[0]).is_some() && members.iter().all(|m| zone(m) == zone(members[0]));
     let mut faction = None;
     for (k, m) in members.iter().enumerate() {
         if m.level < GROUP_MIN_LEVEL && !together {
-            bail!(
-                "{} is level {}: below level {GROUP_MIN_LEVEL}, the players of a group guide must all start in the same zone",
-                m.name,
-                m.level
-            );
+            return Err(RequestError::GroupMemberTooLow {
+                name: m.name.clone(),
+                level: m.level,
+            }
+            .into());
         }
         if members[..k].iter().any(|o| o.name == m.name) {
-            bail!("{} is twice in the group", m.name);
+            return Err(RequestError::GroupDuplicate(m.name.clone()).into());
         }
         let f = overrides.races[&race_key_of(overrides, m.race)?].faction;
         if faction.is_some_and(|g| g != f) {
-            bail!("the players of a group guide are all of the same faction");
+            return Err(RequestError::GroupMixedFactions.into());
         }
         faction = Some(f);
     }
@@ -178,12 +180,12 @@ fn check_playable(conn: &Connection, race: &RaceDef, race_key: &str, class_id: i
         |r| r.get(0),
     )?;
     if !allowed.is_empty() && !allowed.contains(&class_key) {
-        bail!(
-            "{} cannot be {} (playable: {})",
-            race_key,
-            class_name,
-            allowed.join(", ")
-        );
+        return Err(RequestError::ClassNotPlayable {
+            race: race_key.to_owned(),
+            class: class_name.to_owned(),
+            playable: allowed.clone(),
+        }
+        .into());
     }
     Ok(())
 }
