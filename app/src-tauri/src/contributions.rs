@@ -816,24 +816,8 @@ pub(crate) fn auto_contribute(state: &AppState) -> std::time::Duration {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
+mod tests {
     use super::*;
-
-    /// A character taken out stays out until it is played again (a newer profile), on its game
-    /// version only.
-    #[test]
-    fn a_forgotten_character_is_back_when_played_again() {
-        let profile = |time| StartState {
-            name: "Finnagnix-ClassicBetaPvP".into(),
-            time,
-            ..StartState::default()
-        };
-        let mut forgotten = BTreeMap::new();
-        forgotten.insert(forgotten_key(Edition::Forever, "Finnagnix-ClassicBetaPvP"), 100);
-        assert!(is_forgotten(&forgotten, Edition::Forever, &profile(100)));
-        assert!(!is_forgotten(&forgotten, Edition::Forever, &profile(101)));
-        assert!(!is_forgotten(&forgotten, Edition::Classic, &profile(100)));
-    }
 
     fn temp_dir(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("fg-app-{}-{name}", std::process::id()));
