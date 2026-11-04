@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 pub struct Params {
     /// Running speed in yards/second.
     pub run_speed: f64,
+    /// Assume Feral Swiftness and Improved Ghost Wolf are learned; forms still need unlocking.
+    pub assume_movement_talents: bool,
     /// Level at which the character gets a mount, and its speed bonus.
     pub mount_level: i64,
     pub mount_bonus: f64,
@@ -185,6 +187,17 @@ pub struct Params {
     /// Keep quests whose objective location is unknown, placing it near the quest giver
     /// (for comparisons on databases with gaps).
     pub approx_sources: bool,
+    /// Items no creature, object or vendor gives (made by a profession) that quests ask for:
+    /// bought at the auction house (`overrides/routing.toml`).
+    pub auction_items: Vec<i64>,
+    /// Buy there any other such item, quest items aside (Rough Dynamite): for players who use
+    /// the auction house.
+    pub auction_house: bool,
+    /// With professions: a stop at their trainer to learn each profession and, before the skill
+    /// reaches the cap of its rank, each next rank. A trainer close to the route (`train_radius`) is
+    /// a detour; a far one is a trip, once the skill needs the rank. Both count in the route's
+    /// time. No stop for a rank no trainer teaches.
+    pub profession_trainers: bool,
     /// Greedy construction: levels below the character a quest can be without penalty, and
     /// the penalty per level beyond (quests turned in late give less XP).
     pub fit_free_levels: i64,
@@ -234,6 +247,11 @@ pub struct Params {
     /// teleports (a mage's "Teleport: Stormwind").
     pub recall_cooldown: f64,
     pub teleport_cast: f64,
+    /// Die on purpose to respawn at the nearest spirit healer when that is faster ("death
+    /// skips"), up to `DEATH_SKIP_UNTIL` (no resurrection sickness before level 11), and what one
+    /// takes (dying, releasing, the spirit healer).
+    pub death_skips: bool,
+    pub death_skip_time: f64,
     /// New class spells every `train_every` levels; a trainer within `train_radius` is visited on
     /// the way, otherwise a dedicated trip is made once training is `train_max_delay` levels late.
     pub train_every: i64,
@@ -281,6 +299,8 @@ pub struct Params {
     pub dungeons: bool,
     /// Dungeons (instance area IDs) always run, dungeons on or off...
     pub forced_dungeons: Vec<i64>,
+    /// ...run with every quest of theirs the character can take (required as class quests are)...
+    pub forced_dungeon_quests: Vec<i64>,
     /// ...and never run.
     pub excluded_dungeons: Vec<i64>,
     /// The player's own level for dungeons, (instance area ID, level): the run is planned at
@@ -289,15 +309,18 @@ pub struct Params {
     pub dungeon_levels: Vec<(i64, i64)>,
     /// Dungeon quests are picked up when passing by, up to this many levels before the dungeon.
     pub dungeon_pickup_ahead: i64,
+    /// A child quest (taken while its parent is in the log) and its parent are put in a route
+    /// together, the child between the parent's accept and turn-in, for this share of the pairs
+    /// (drawn from the seed, the same pairs every time). 0: each is put alone, and the search
+    /// has to bring them together; 1: always together.
+    pub child_glue: f64,
+    /// Levels a dungeon is run at, from its monsters' level (`model::dungeon_levels`): from
+    /// `dungeon_from` to `dungeon_to` (-3 and +3: Ruins of Lordaeron's monsters at 18, run from 15
+    /// to 21), never out of them. The progression profile sets them (`Progression::dungeon_window`).
+    pub dungeon_from: i64,
+    pub dungeon_to: i64,
     /// Share of the solo XP of a dungeon's kills earned in a 5-man group (elites included).
     pub dungeon_xp_share: f64,
-    /// WoW Forever's XP buffs kept up while leveling: cooked food's Well Fed (+5% XP from kills)
-    /// and the Cozy Sleeping Bag (+1% a stack, 3 at most), as their tooltips say: kills give
-    /// `kill_xp_bonus` more. The character levels faster than without, so the route moves on to
-    /// the next zone sooner, onto quests and mobs of its level (mobs below it give less on
-    /// Forever). No effect on Classic and TBC, where food gives no XP.
-    pub xp_buffs: bool,
-    pub kill_xp_bonus: f64,
     /// How much a minute of grinding weighs against a minute of questing for the optimizer
     /// (1 = only total time matters; higher values trade time for less grinding).
     pub grind_weight: f64,
@@ -340,6 +363,10 @@ pub struct Params {
     /// hours later is grinding in disguise in a guide. Finishing it or leaving it out wins
     /// unless it saves more than that.
     pub abandon_weight: f64,
+    /// Seconds each level the character has gained since the start costs when it turns in a class
+    /// unlock that is below the levels of the guide (kept because the character lacks it): such a
+    /// quest gives little XP, so nothing else brings it forward, and the spell comes late.
+    pub unlock_delay_weight: f64,
     /// Seconds each quest of a leveled profession left out costs the optimizer (Camping 101 at
     /// the profession's trainer): their reward is the profession's, not XP, so they are planned
     /// whenever the route passes by, not at the cost of a long detour.
@@ -369,6 +396,10 @@ pub struct Params {
     pub group_sync_max: f64,
     /// Distance from an area's center at which passing by discovers it (exploration XP).
     pub explore_radius: f64,
+    /// Forever: keep the 5% Well Fed kill-XP bonus active, without food or refresh time.
+    pub food_xp: bool,
+    /// Forever: require the Sleeping Bag quest and keep its three-stack XP buff active after it.
+    pub sleeping_bag: bool,
     /// Game version: experience rules, level cap.
     pub edition: crate::xp::Edition,
 }
@@ -386,6 +417,18 @@ impl Params {
     /// Settings to change from these.
     pub fn builder(self) -> ParamsBuilder {
         ParamsBuilder(self)
+    }
+
+    /// The XP buffs the guide counts on being active, for the addon to warn about (WoW Forever).
+    pub fn xp_buffs(&self) -> Vec<String> {
+        if self.edition != crate::xp::Edition::Forever {
+            return Vec::new();
+        }
+        [(self.food_xp, "food"), (self.sleeping_bag, "bag")]
+            .into_iter()
+            .filter(|&(on, _)| on)
+            .map(|(_, key)| key.to_owned())
+            .collect()
     }
 }
 
@@ -441,6 +484,7 @@ impl Default for Params {
     fn default() -> Self {
         Self {
             run_speed: 7.0,
+            assume_movement_talents: true,
             mount_level: 40,
             mount_bonus: 0.6,
             flight_speed: 30.0,
@@ -506,6 +550,9 @@ impl Default for Params {
             link_wait: 120.0,
             elite_kill_factor: 3.0,
             approx_sources: false,
+            auction_items: vec![],
+            auction_house: false,
+            profession_trainers: false,
             fit_free_levels: 2,
             fit_penalty: 0.0,
             fit_above_penalty: 0.4,
@@ -530,6 +577,8 @@ impl Default for Params {
             hearth_min_saving: 180.0,
             recall_cooldown: 900.0,
             teleport_cast: 10.0,
+            death_skips: false,
+            death_skip_time: 45.0,
             train_every: 2,
             train_radius: 300.0,
             bag_weight: 20.0,
@@ -564,15 +613,18 @@ impl Default for Params {
             gold_weight: 3600.0,
             zone_change_weight: 240.0,
             abandon_weight: 600.0,
+            unlock_delay_weight: 300.0,
             profession_quest_weight: 300.0,
             dungeon_xp_share: 0.35,
-            xp_buffs: true,
-            kill_xp_bonus: 0.08,
             dungeons: true,
             forced_dungeons: vec![],
+            forced_dungeon_quests: vec![],
             excluded_dungeons: vec![],
             dungeon_levels: vec![],
             dungeon_pickup_ahead: 8,
+            child_glue: 0.5,
+            dungeon_from: -3,
+            dungeon_to: 3,
             construction: Construction::Greedy,
             threads: 8,
             seed: 42,
@@ -584,6 +636,8 @@ impl Default for Params {
             group_sync_weight: 1.0,
             group_sync_max: 1.0,
             explore_radius: 250.0,
+            food_xp: false,
+            sleeping_bag: false,
             edition: crate::xp::Edition::Forever,
         }
     }
@@ -660,17 +714,6 @@ impl Params {
             Progression::Cautious => 0,
             Progression::Normal => 1,
             Progression::Risky => 2,
-        }
-    }
-
-    /// Levels below its mobs (the median of its quests) the weakest of a group may be at the
-    /// earliest for a dungeon: their elites and packs are not the solo content of the profile's
-    /// margin.
-    pub(crate) fn dungeon_below(&self) -> i64 {
-        match self.progression {
-            Progression::Cautious => 0,
-            Progression::Normal => 3,
-            Progression::Risky => 5,
         }
     }
 
@@ -782,15 +825,6 @@ impl Params {
         1.0 + self.group_kill_speed * (self.group_size.clamp(1, 5) - 1) as f64
     }
 
-    /// Factor on the XP of every kill: the XP buffs kept up (`xp_buffs`, WoW Forever only).
-    pub fn kill_xp_factor(&self) -> f64 {
-        if self.xp_buffs && self.edition == crate::xp::Edition::Forever {
-            1.0 + self.kill_xp_bonus.max(0.0)
-        } else {
-            1.0
-        }
-    }
-
     /// Share of a mob's XP each member gets: the game's group bonus, split between members.
     pub(crate) fn group_xp_share(&self) -> f64 {
         let n = self.group_size.clamp(1, 5);
@@ -800,8 +834,11 @@ impl Params {
 
 impl Params {
     /// Apply `key=value` overrides (any field, value parsed as JSON or taken as a string).
+    /// A progression profile given without the dungeons' levels brings its own
+    /// (`Progression::dungeon_window`), as the app's choice of a profile does.
     pub fn with_overrides(&self, pairs: &[String]) -> anyhow::Result<Params> {
         let mut json = serde_json::to_value(self)?;
+        let mut keys = Vec::new();
         for pair in pairs {
             let (key, value) = pair
                 .split_once('=')
@@ -811,8 +848,17 @@ impl Params {
                 .ok_or_else(|| anyhow::anyhow!("unknown parameter {key}"))?;
             *field = serde_json::from_str(value.trim())
                 .unwrap_or_else(|_| serde_json::Value::String(value.trim().to_owned()));
+            keys.push(key.trim());
         }
-        Ok(serde_json::from_value(json)?)
+        let mut params: Params = serde_json::from_value(json)?;
+        if keys.contains(&"progression")
+            && !keys
+                .iter()
+                .any(|k| k.starts_with("dungeon_from") || k.starts_with("dungeon_to"))
+        {
+            (params.dungeon_from, params.dungeon_to) = params.progression.dungeon_window();
+        }
+        Ok(params)
     }
 }
 
@@ -850,6 +896,19 @@ pub enum Progression {
     Normal,
     /// Orange quests and borderline elites.
     Risky,
+}
+
+impl Progression {
+    /// The levels a dungeon is run at by default, from its monsters' level (`Params::dungeon_from`,
+    /// `Params::dungeon_to`): at their level or above when cautious, from 3 below when normal, 5
+    /// below when risky.
+    pub fn dungeon_window(self) -> (i64, i64) {
+        match self {
+            Self::Cautious => (0, 5),
+            Self::Normal => (-3, 3),
+            Self::Risky => (-5, 2),
+        }
+    }
 }
 
 /// How the first route is built.

@@ -5,7 +5,11 @@
     reason = "tauri commands take their arguments by value"
 )]
 
-use super::*;
+use super::{
+    AppState, CmdError, CmdResult, DATA_ADDON, Edition, GUIDE_ADDON, GuideId, Host, Ordering, PROFILE_ADDON, Path,
+    Settings, State, WowProblem, addon_snapshot, embedded, err, game, job, loaded_files, overrides, read_send_record,
+    send_record_file, sent_lua, update_settings,
+};
 
 /// The oldest addon this app works with (its .toc version): older ones are to be updated.
 pub(crate) const ADDON_VERSION: &str = embedded::ADDON_VERSION;
@@ -21,9 +25,10 @@ pub(crate) fn install_addon(state: State<'_, AppState>) -> CmdResult<usize> {
 
 /// What `install_addon` does.
 pub(crate) fn write_data(state: &AppState) -> CmdResult<usize> {
-    // Off the main thread, two writes could touch the same files at once: one at a time.
-    static INSTALLING: Mutex<()> = Mutex::new(());
-    let _one = INSTALLING.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _one = state
+        .installing
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let settings = state.settings();
     match game::status(&settings.wow_dir, settings.edition).problem {
         None => {}
@@ -49,7 +54,7 @@ pub(crate) fn write_data(state: &AppState) -> CmdResult<usize> {
     let count = guides.len();
     let mut lua = job::guides_lua(
         &state.open_db()?,
-        &overrides(settings.edition)?,
+        &*overrides(settings.edition)?,
         settings.edition,
         guides,
     )
@@ -67,20 +72,16 @@ pub(crate) fn write_data(state: &AppState) -> CmdResult<usize> {
         &lua,
         &interface,
         env!("CARGO_PKG_VERSION"),
-        now()?,
+        state.now()?,
     )
     .map_err(err)?;
     // A folder or a file the game does not load yet: it reads the .toc files when it starts.
     let after = loaded_files(&addons);
     let restart = after.iter().any(|(toc, files)| before.get(toc) != Some(files));
-    *state.restart_needed.locked() = restart;
-    write_settings(
-        state,
-        Settings {
-            addon_installed: Some(addon_snapshot(&settings)),
-            ..settings
-        },
-    )?;
+    state.restart_needed.store(restart, Ordering::Relaxed);
+    // Only what was installed: the other settings may have changed meanwhile.
+    let installed = addon_snapshot(&settings);
+    update_settings(state, |s| s.addon_installed = Some(installed))?;
     Ok(count)
 }
 
@@ -107,7 +108,7 @@ pub(crate) fn install_polestar(state: State<'_, AppState>) -> CmdResult<usize> {
     for (name, content) in files {
         std::fs::write(pack.join(name), content).map_err(err)?;
     }
-    *state.restart_needed.locked() = true;
+    state.restart_needed.store(true, Ordering::Relaxed);
     Ok(guides.len())
 }
 
@@ -115,20 +116,7 @@ pub(crate) fn install_polestar(state: State<'_, AppState>) -> CmdResult<usize> {
 /// the guides it has, or replaces the one of its name).
 #[tauri::command(async)]
 pub(crate) fn guide_text(state: State<'_, AppState>, guide: GuideId, version: u32) -> CmdResult<String> {
-    let v = state.library().version(&guide, version)?;
-    let edition = v.request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
-    let route = state.render(&v.outcome.route, None)?;
-    let lua = job::guides_lua(
-        &state.open_db()?,
-        &overrides(edition)?,
-        edition,
-        vec![(route, v.meta.created, version)],
-    )
-    .map_err(err)?;
-    Ok(fg_route::export::fgstring::encode(
-        fg_route::export::fgstring::GUIDE_PREFIX,
-        lua.as_bytes(),
-    ))
+    state.studio.guide_text(&*state, &guide, version)
 }
 
 /// What the player pastes on Polestar's Import page (`/polestar import`): one guide version, in
@@ -139,15 +127,7 @@ pub(crate) fn polestar_string(
     guide: GuideId,
     version: u32,
 ) -> CmdResult<fg_route::export::polestar::ImportString> {
-    if state.edition() != Edition::Forever {
-        return Err("Polestar is for WoW Forever only".into());
-    }
-    let route = state.render(&state.library().version(&guide, version)?.outcome.route, None)?;
-    Ok(fg_route::export::polestar::import_string(
-        &job::slug(&route.name),
-        &route,
-        version,
-    ))
+    state.studio.polestar_string(&*state, &guide, version)
 }
 
 /// Whether Polestar is installed in WoW Forever (it shows guides there only).
@@ -217,25 +197,6 @@ pub(crate) fn open_link(url: String) -> CmdResult<()> {
     };
     std::process::Command::new(program).arg(&url).spawn().map_err(err)?;
     Ok(())
-}
-
-/// A Lua string literal.
-pub(crate) fn lua_string(text: &str) -> String {
-    let mut out = String::from("\"");
-    for c in text.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '"' => out.push_str("\\\""),
-            '\n' => out.push_str("\\n"),
-            // Other control characters as decimal escapes, always 3 digits (a digit may follow).
-            c if c.is_ascii_control() => {
-                let _ = write!(out, "\\{:03}", c as u32);
-            }
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
 }
 
 /// The addon was called BrouzQuest, then was a single addon, Factoruide, before its profile and

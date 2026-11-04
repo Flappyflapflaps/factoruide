@@ -19,6 +19,8 @@ pub enum Edit {
     Link { first: usize, last: usize },
     /// Cast a class teleport (`Model::teleports`).
     Teleport { to: usize },
+    /// Die on purpose: back at the nearest spirit healer (`Model::graveyards`).
+    DeathSkip,
     /// Learn the class spells at a trainer (`Model::trainers`).
     Train { trainer: usize },
     /// Sell the bags' loot at a vendor (`Model::vendors`).
@@ -168,6 +170,7 @@ impl Planner<'_> {
                         Edit::Fly { from, to } => self.edit_fly(&mut s, from, to, &mut trace),
                         Edit::Link { first, last } => self.edit_link(&mut s, first, last, &mut trace),
                         Edit::Teleport { to } => self.edit_teleport(&mut s, to, &mut trace),
+                        Edit::DeathSkip => self.edit_death_skip(&mut s, &mut trace),
                         Edit::Train { trainer } => self.edit_train(&mut s, trainer, &mut trace),
                         Edit::Sell { vendor } => self.edit_sell(&mut s, vendor, &mut trace),
                         Edit::Abandon { quest } => {
@@ -261,8 +264,9 @@ impl Planner<'_> {
                 && step.outcome == Outcome::Done
             {
                 let i = stop.index as usize;
-                let undone =
-                    |(k, o): (usize, &crate::model::Objective)| o.dungeon.is_some() && s.objectives[i] & (1 << k) == 0;
+                let undone = |(k, o): (usize, &crate::model::Objective)| {
+                    o.dungeon_of().is_some() && s.objectives[i] & (1 << k) == 0
+                };
                 if !s.turned[i] && self.model.quests[i].objectives.iter().enumerate().any(undone) {
                     step.outcome = Outcome::Invalid("dungeon quest taken but its dungeon is not run");
                 }
@@ -310,7 +314,7 @@ impl Planner<'_> {
             && stop.kind == Kind::LearnFlight
             && s.landed == Landed::No
             && s.pos.dist(&self.world.taxi_nodes[i].pos) <= self.params.flight_learn_radius)
-            .then(|| 2.0 * self.trips().walk(&s.pos, &self.world.taxi_nodes[i].pos, s.level) + 5.0)
+            .then(|| 2.0 * self.trips().at(s).walk(&s.pos, &self.world.taxi_nodes[i].pos, s.level) + 5.0)
             .filter(|d| d.is_finite());
         if let Some(detour) = detour {
             s.time += detour;
@@ -324,6 +328,11 @@ impl Planner<'_> {
         self.farm_all.set(farm);
         self.apply(s, stop, Some(trace));
         self.farm_all.set(false);
+        if s.completion_error.is_some() {
+            *s = saved;
+            trace.truncate(mark);
+            return Outcome::Invalid("quest completion outside requested level range");
+        }
         if !s.time.is_finite() {
             *s = saved;
             trace.truncate(mark);
@@ -382,10 +391,9 @@ impl Planner<'_> {
         // As a trip taking the flight by itself: the walk to the flight master and the flight
         // count as flying, the walk on to the next stop ends it (`State::landed`).
         let (start, end) = (nodes[from].pos, nodes[to].pos);
-        let walk = self.trips().walk(&s.pos, &start, s.level);
+        let walk = self.trips().at(s).walk(&s.pos, &start, s.level);
         s.time += walk;
         s.spent.flights += walk;
-        record(s, Event::Fly { from, to });
         let seconds = time + self.params.flight_overhead;
         s.time += seconds;
         s.spent.flights += seconds;
@@ -393,6 +401,7 @@ impl Planner<'_> {
             s.spent.flight_cost += price as i64;
             s.spent.flight_gold += self.params.gold_weight_at(s.level) * price / 10_000.0;
         }
+        record(s, Event::Fly { from, to });
         s.pos = end;
         s.landed = Landed::Flight;
         Outcome::Done
@@ -405,15 +414,15 @@ impl Planner<'_> {
         if !ride.is_finite() {
             return Outcome::Invalid("no such crossing");
         }
-        let walk = self.trips().walk(&s.pos, &links[first].from, s.level);
+        let walk = self.trips().at(s).walk(&s.pos, &links[first].from, s.level);
         if !walk.is_finite() {
             return Outcome::Invalid("unreachable");
         }
         s.time += walk;
         s.spent.travel += walk;
-        recorder(&mut Some(trace))(s, Event::Link { first, last });
         s.time += ride;
         s.spent.travel += ride;
+        recorder(&mut Some(trace))(s, Event::Link { first, last });
         s.pos = links[last].to;
         s.landed = Landed::Transport;
         Outcome::Done
@@ -422,20 +431,46 @@ impl Planner<'_> {
     /// A class teleport of an edited route.
     fn edit_teleport(&self, s: &mut State, to: usize, trace: &mut Vec<Timed>) -> Outcome {
         let teleport = &self.model.teleports[to];
-        if !s.knows(teleport) {
+        if !s.knows(to, teleport) {
             return Outcome::Invalid("teleport not learned");
         }
-        recorder(&mut Some(trace))(s, Event::Teleport { to });
         s.time += self.params.teleport_cast;
         s.spent.travel += self.params.teleport_cast;
+        recorder(&mut Some(trace))(s, Event::Teleport { to });
         s.pos = teleport.to.pos;
+        s.landed = Landed::Transport;
+        Outcome::Done
+    }
+
+    /// A death skip of an edited route: at the spirit healer nearest to where the character
+    /// stands, while no player is past `DEATH_SKIP_UNTIL`.
+    fn edit_death_skip(&self, s: &mut State, trace: &mut Vec<Timed>) -> Outcome {
+        if !self.trips().may_die(s) {
+            return Outcome::Invalid("too high for a death skip");
+        }
+        let Some(g) = self.trips().graveyard(s) else {
+            return Outcome::Invalid("no spirit healer");
+        };
+        let gy = &self.model.graveyards[g];
+        s.time += self.params.death_skip_time;
+        s.spent.travel += self.params.death_skip_time;
+        recorder(&mut Some(trace))(
+            s,
+            Event::DeathSkip {
+                pos: gy.pos,
+                zone: gy.zone,
+            },
+        );
+        s.pos = gy.pos;
+        s.zone = gy.zone;
         s.landed = Landed::Transport;
         Outcome::Done
     }
 
     /// Training of an edited route, at the trainer it says.
     fn edit_train(&self, s: &mut State, trainer: usize, trace: &mut Vec<Timed>) -> Outcome {
-        if s.trained >= s.level {
+        let abilities = self.model.abilities.trained(s.abilities, s.level) & !s.abilities;
+        if s.trained >= s.level && abilities == 0 {
             return Outcome::Skipped("nothing to learn");
         }
         let (saved, mark) = (s.clone(), trace.len());
@@ -474,7 +509,7 @@ impl Planner<'_> {
             let mut learned = Vec::new();
             for t in &edited.trace[step.events.clone()] {
                 let next = match t.event {
-                    Event::Stop { stop, ref loc } => {
+                    Event::Stop { stop, ref loc, .. } => {
                         let farm = matches!(edit, Edit::Stop { stop: own, farm: true, .. } if *own == stop);
                         // Where it was done: replayed there.
                         let spot = match stop.kind {
@@ -507,16 +542,20 @@ impl Planner<'_> {
                     Event::Fly { from, to } => Edit::Fly { from, to },
                     Event::Link { first, last } => Edit::Link { first, last },
                     Event::Teleport { to } => Edit::Teleport { to },
+                    Event::DeathSkip { .. } => Edit::DeathSkip,
                     Event::Train { trainer, .. } => Edit::Train { trainer },
                     Event::Sell { vendor } => Edit::Sell { vendor },
                     Event::Abandon { quest } => Edit::Abandon { quest: quest as u32 },
                     Event::Grind { to_level, .. } => Edit::GrindTo { level: to_level },
                     Event::GrindMobs { mobs, .. } => Edit::Grind { mobs },
+                    // Profession trainer visits belong to the planner: an edited route has none.
+                    // A dungeon is entered by its first stop inside.
                     Event::Reward { .. }
+                    | Event::Enter { .. }
                     | Event::Farm { .. }
-                    | Event::DeathSkip { .. }
                     | Event::Shortcut { .. }
-                    | Event::CatchUp { .. } => {
+                    | Event::CatchUp { .. }
+                    | Event::ProfTrain { .. } => {
                         continue;
                     }
                 };
@@ -532,6 +571,7 @@ impl Planner<'_> {
                 Event::Fly { from, to } => out.push(Edit::Fly { from, to }),
                 Event::Link { first, last } => out.push(Edit::Link { first, last }),
                 Event::Teleport { to } => out.push(Edit::Teleport { to }),
+                Event::DeathSkip { .. } => out.push(Edit::DeathSkip),
                 _ => {}
             }
         }
@@ -544,7 +584,8 @@ impl Planner<'_> {
 fn is_action(event: &Event) -> bool {
     !matches!(
         event,
-        Event::Farm { .. } | Event::Reward { .. } | Event::Shortcut { .. }
+        // A dungeon is entered by the first step inside it: part of that step.
+        Event::Farm { .. } | Event::Reward { .. } | Event::Shortcut { .. } | Event::Enter { .. }
     )
 }
 
@@ -564,7 +605,9 @@ fn is_own(edit: Edit, event: &Event) -> bool {
         (Edit::Train { trainer }, Event::Train { trainer: done, .. }) => trainer == *done,
         (Edit::Sell { vendor }, Event::Sell { vendor: done }) => vendor == *done,
         (Edit::Abandon { quest }, Event::Abandon { quest: done }) => quest as usize == *done,
-        (Edit::Grind { .. }, Event::GrindMobs { .. }) | (Edit::GrindTo { .. }, Event::Grind { .. }) => true,
+        (Edit::Grind { .. }, Event::GrindMobs { .. })
+        | (Edit::GrindTo { .. }, Event::Grind { .. })
+        | (Edit::DeathSkip, Event::DeathSkip { .. }) => true,
         _ => false,
     }
 }

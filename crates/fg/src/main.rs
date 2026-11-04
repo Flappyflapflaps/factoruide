@@ -94,6 +94,9 @@ enum Command {
         /// Professions leveled along the route (their quests are planned, optional), as key[:target] (tailoring:300, fishing, cooking:225)
         #[arg(long, value_delimiter = ',')]
         profession: Vec<String>,
+        /// A must-have quest ID, exact name, or JSON {"quest":21,"min_level":3,"max_level":4} (repeatable); includes prerequisites
+        #[arg(long = "required-quest")]
+        required_quests: Vec<String>,
         /// Planner parameters, as key=value (repeatable)
         #[arg(long = "param")]
         params: Vec<String>,
@@ -218,6 +221,9 @@ enum Command {
         /// The guide's name (its id in the apps is made from it)
         #[arg(long)]
         name: String,
+        /// A must-have quest ID, exact name, or JSON {"quest":21,"min_level":3,"max_level":4} (repeatable); includes prerequisites
+        #[arg(long = "required-quest")]
+        required_quests: Vec<String>,
         /// Planner parameters, as key=value (repeatable)
         #[arg(long = "param")]
         params: Vec<String>,
@@ -297,6 +303,10 @@ enum Command {
         /// Also list the accepted findings
         #[arg(long)]
         all: bool,
+        /// Write the creatures the findings point at as facts to review (tab-separated:
+        /// npc:ID, side, check, finding), for `fgd review propose`
+        #[arg(long)]
+        proposals: Option<PathBuf>,
     },
     /// Write the leveling talent plans of the addon (TalentBuilds_<edition>.lua) from the game's talent trees
     Talents {
@@ -355,6 +365,7 @@ fn main() -> Result<()> {
             construction,
             name,
             profession,
+            required_quests,
             allow_elite,
             no_dungeons,
             pvp_quests,
@@ -377,6 +388,7 @@ fn main() -> Result<()> {
                 pvp_quests,
                 progression,
                 params,
+                required_quests,
                 locale,
                 start: players.start,
                 mates: players.mates,
@@ -464,6 +476,7 @@ fn main() -> Result<()> {
             to_level,
             effort,
             name,
+            required_quests,
             params,
             locale,
             out,
@@ -477,6 +490,7 @@ fn main() -> Result<()> {
                 to_level: to_level.unwrap_or(edition.rules().max_level),
                 effort,
                 name,
+                required_quests,
                 params,
                 locale,
             },
@@ -514,7 +528,9 @@ fn main() -> Result<()> {
         }
         Command::TerrainOverrides { faction } => travel::overrides(&open()?, &overrides, &faction)?,
         Command::Walks { route, out, cells } => walks::run(&open()?, &overrides, &route, &out, cells)?,
-        Command::Audit { checks, all } => audit::run(&open()?, &overrides, &checks, all)?,
+        Command::Audit { checks, all, proposals } => {
+            audit::run(&open()?, &overrides, &checks, all, proposals.as_deref())?;
+        }
         Command::Talents { out } => talents::run(
             &open()?,
             &out.unwrap_or_else(|| PathBuf::from(format!("addon/Factoruide_Guide/TalentBuilds_{}.lua", edition.key()))),

@@ -652,6 +652,10 @@ h3 {
   display: flex;
   gap: 8px;
 }
+.quest-entry { align-items: end; flex-wrap: wrap; }
+.quest-entry > input { flex: 1 1 15rem; min-width: 0; }
+.quest-level { flex: 0 1 10rem; max-width: 10rem; }
+.quest-level input { width: 100%; }
 .presets {
   display: flex;
   gap: 6px;
@@ -2119,7 +2123,115 @@ button.setting-reset:hover:not(:disabled) {
   top: 0;
   z-index: 1;
 }
-/* Dungeons: buttons by level, a click cycling automatic → forced → excluded. */
+/* Dungeons: buttons by level, a click cycling automatic → forced → forced with its quests →
+   excluded; beside them, those chosen. */
+.dungeons-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1000px) {
+  .dungeons-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.zone-group.dungeon-group.forced .zone-group-head,
+.zone-group.dungeon-group.quests .zone-group-head {
+  color: var(--good);
+}
+.dungeon-levels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 14px;
+}
+.dungeon-levels > span {
+  flex-basis: 100%;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.dual-range {
+  --thumb: 16px;
+  position: relative;
+  flex: 1;
+  min-width: 160px;
+  height: var(--thumb);
+}
+.dual-range::before,
+.dual-range::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--thumb) / 2 - 2px);
+  height: 4px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+.dual-range::before {
+  left: calc(var(--thumb) / 2);
+  right: calc(var(--thumb) / 2);
+  background: var(--border);
+}
+/* The levels chosen, between the handles' centers (a handle stays inside the slider: its center
+   goes from half a handle to the width less half a handle). */
+.dual-range::after {
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--from));
+  right: calc(var(--thumb) / 2 + (100% - var(--thumb)) * (1 - var(--to)));
+  background: var(--accent);
+}
+.dual-range input[type="range"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: var(--thumb);
+  margin: 0;
+  padding: 0;
+  background: none;
+  pointer-events: none;
+  appearance: none;
+  -webkit-appearance: none;
+  z-index: 1;
+}
+.dual-range input[type="range"]::-webkit-slider-runnable-track {
+  height: var(--thumb);
+  background: transparent;
+  border: none;
+}
+.dual-range input[type="range"]::-moz-range-track {
+  height: var(--thumb);
+  background: transparent;
+  border: none;
+}
+.dual-range input[type="range"]::-webkit-slider-thumb {
+  pointer-events: auto;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  margin: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface-0);
+  cursor: pointer;
+}
+.dual-range input[type="range"]::-moz-range-thumb {
+  pointer-events: auto;
+  box-sizing: border-box;
+  width: var(--thumb);
+  height: var(--thumb);
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface-0);
+  cursor: pointer;
+}
+.dual-range-value {
+  min-width: 8.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .dungeon-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -2165,8 +2277,15 @@ button.dungeon.excluded span {
 button.dungeon b {
   font-weight: 600;
 }
-button.dungeon.forced b {
+button.dungeon.forced b,
+button.dungeon.quests b {
   color: var(--good);
+}
+button.dungeon.quests,
+button.dungeon.quests:hover:not(:disabled) {
+  border-color: var(--good);
+  border-width: 2px;
+  background: color-mix(in srgb, var(--good) 24%, var(--surface-0));
 }
 button.dungeon.excluded b {
   color: var(--bad);
@@ -2697,23 +2816,26 @@ button.dungeon.excluded b {
   max-height: 230px;
 }
 
-/* Group of players, under the character ----------------------------------------- */
-.group-row {
+/* The players of the guide: a block each, and the button adding one ------------- */
+.player-head {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 12px;
-}
-.group-players {
-  display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
 }
-.group-label {
+.add-player {
+  width: 100%;
+  padding: 14px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
-  margin-right: 4px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.add-player:hover {
+  color: var(--text);
+  border-color: var(--accent-edge);
 }
 .companion {
   display: inline-flex;
@@ -2732,15 +2854,6 @@ button.dungeon.excluded b {
 }
 .companion.add:hover {
   color: var(--text);
-}
-.group-add {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface-2);
 }
 .tag {
   margin-left: 8px;
@@ -2968,6 +3081,11 @@ button.dungeon.excluded b {
 }
 .pick-list button.link:disabled {
   color: var(--text-muted);
+}
+.quest-choices {
+  max-height: 16em;
+  overflow-y: auto;
+  margin-top: 4px;
 }
 .fly-pick {
   display: flex;
@@ -3683,6 +3801,19 @@ button.link.cmp-jump {
   justify-content: space-between;
   align-items: baseline;
   padding: 9px 12px 4px;
+}
+.sl-find {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 12px 6px;
+}
+.sl-find input {
+  flex: 1;
+  min-width: 0;
+}
+.sl-row.found {
+  box-shadow: inset 3px 0 0 var(--accent-text);
 }
 .sl-next {
   color: var(--accent-text);

@@ -106,6 +106,7 @@ local KINDS = {
         color = "40c0ff",
         label = T("Teleport"),
     },
+    deathskip = { icon = "Interface\\Icons\\Spell_Holy_Resurrection", color = "c0c0ff", label = T("Death skip") },
     bind = { icon = "Interface\\GossipFrame\\BinderGossipIcon", color = "40c0ff", label = T("Inn") },
     sell = { icon = "Interface\\GossipFrame\\VendorGossipIcon", color = "ffffff", label = T("Vendor") },
     dungeon = { icon = "Interface\\Icons\\INV_Misc_Key_10", color = "ff4040", label = T("Dungeon") },
@@ -308,7 +309,9 @@ function IsDone(step, index)
         end
         return level > step.lvl or (level == step.lvl and (not step.xp or xp >= step.xp))
     elseif step.k == "fly" then
-        return UnitOnTaxi("player")
+        -- Done by its own take-off (see `Guide:Advance`): while in the air, the flights that follow
+        -- in the group are not done.
+        return state.marks[index or state.step] or false
     elseif step.k == "practice" then
         local rank = FG.ProfessionSkill(step.id)
         return rank ~= nil and rank >= step.sk
@@ -334,6 +337,10 @@ function IsDone(step, index)
         if inside and inside.di then return mark == "inside" or mark == true end
         return mark == true
     elseif step.k == "hearth" then
+        local d = Distance(step)
+        return d ~= nil and d < 100
+    elseif step.k == "deathskip" then
+        -- Died on purpose: done once back at the spirit healer the step stands at.
         local d = Distance(step)
         return d ~= nil and d < 100
     elseif step.k == "teleport" then
@@ -367,8 +374,12 @@ local function CanTake(step)
         if not QuestLog.IsQuestFlaggedCompleted(q) then return false end
     end
     if step.pa then
+        local need, done = math.min(step.pn or 1, #step.pa), 0
         for _, q in ipairs(step.pa) do
-            if QuestLog.IsQuestFlaggedCompleted(q) then return true end
+            if QuestLog.IsQuestFlaggedCompleted(q) then
+                done = done + 1
+                if done >= need then return true end
+            end
         end
         return false
     end
@@ -526,6 +537,7 @@ end
 -- Whether each step of the groups looked at was done at the last check (steps done while playing
 -- are recorded once, when they become done).
 local wasDone = {}
+local wasOnTaxi = false
 
 --- The first and last steps of step `index`'s group.
 local function GroupOf(index)
@@ -740,7 +752,7 @@ local function TaskView(step, index, withProgress)
     local v = { index = index, step = step, kind = step.k, icon = kind.icon, color = kind.color, chips = {} }
     if step.k == "accept" or step.k == "turnin" then
         v.name = title or step.t
-        if title then v.sub = kind.label .. (step.n and (" · " .. step.n) or "") end
+        if title then v.sub = kind.label .. (step.n and (" • " .. step.n) or "") end
         -- A turn-in whose quest is not complete yet (objectives passed by hand): how far it is.
         if step.k == "turnin" and withProgress and QuestLog.IsOnQuest(step.q) and not QuestLog.IsComplete(step.q) then
             local have, need = 0, 0
@@ -767,7 +779,7 @@ local function TaskView(step, index, withProgress)
             names[#names + 1] = (rank and rank ~= "") and (name .. " (" .. rank .. ")") or name
         end
         v.name = #names == #step.sp and table.concat(names, ", ") or step.t
-        v.sub = kind.label .. (step.n and (" · " .. step.n) or "")
+        v.sub = kind.label .. (step.n and (" • " .. step.n) or "")
     elseif step.k == "objective" then
         v.name = step.n or step.t
         if withProgress then
@@ -1211,6 +1223,17 @@ end
 --- already); until then the current step is the group's first one not done.
 function Guide:Advance()
     if route and route.steps[state.step] then
+        -- A take-off is the flight of the first fly step of the group not taken yet.
+        local onTaxi = UnitOnTaxi("player") and true or false
+        if onTaxi and not wasOnTaxi then
+            for _, index in ipairs(CurrentGroup()) do
+                if route.steps[index].k == "fly" and not state.marks[index] then
+                    state.marks[index] = true
+                    break
+                end
+            end
+        end
+        wasOnTaxi = onTaxi
         local first, last = GroupOf(state.step)
         local pending
         for i = first, math.min(last, #route.steps) do
@@ -1272,11 +1295,13 @@ local function PassVisits()
     end
 end
 
---- Go to the first step not done yet (on login, route change, or the resync button).
-function Guide:Resync()
+--- Go to the first step not done yet (route change, or the resync button); `resume`: from the
+--- step the character was on (login), since steps the game cannot say are done (a kill count, a
+--- grind, a use) would otherwise stop the guide far behind.
+function Guide:Resync(resume)
     if route then
         PassVisits()
-        state.step = 1
+        if not (resume and route.steps[state.step]) then state.step = 1 end
         SkipDone()
     end
     waypointStep, pointed, detour = nil, nil, nil
@@ -1388,7 +1413,7 @@ end
 
 --- Fields of the guide state that belong to the route in use: the step shown, the steps
 --- marked by their index and the quests marked done by hand.
-local PROGRESS = { "step", "marks", "skippedQuests", "handedIn" }
+local PROGRESS = { "step", "marks", "skippedQuests", "handedIn", "player" }
 
 --- Progress is kept per route: another guide starts from its first step with nothing marked,
 --- coming back to a guide finds where it was. A new version of the same guide keeps the
@@ -1413,7 +1438,10 @@ local function SwitchProgress(name)
         state.version = back.version
     end
     -- Saved before versions were tracked: taken as the same version.
-    if state.version and state.version ~= version then state.marks = {} end
+    if state.version and state.version ~= version then
+        state.marks = {}
+        state.step = 1 -- its steps moved
+    end
     state.version = version
     state.step = state.step or 1
     state.marks = state.marks or {}
@@ -1531,7 +1559,7 @@ FG:On("PLAYER_LOGIN", function()
             C_Map.ClearUserWaypoint()
         end
     end)
-    Guide:Resync()
+    Guide:Resync(true)
     C_Timer.NewTicker(1, function()
         FG:Try("guide tick", Guide.Advance, Guide)
         FG:Try("group tick", FG.Group.Tick, FG.Group, Guide:OwnStep())

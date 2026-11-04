@@ -808,6 +808,7 @@ mod tests {
             alt: Vec::new(),
             pre: Vec::new(),
             pre_any: Vec::new(),
+            pre_need: None,
             min_level: None,
             bg: false,
             try_buy: false,
@@ -828,6 +829,7 @@ mod tests {
                 x: 50.0,
                 y: 50.0,
             }),
+            floor: None,
             world: None,
             height: None,
             path: Vec::new(),
@@ -839,6 +841,7 @@ mod tests {
             mob_level: None,
             reward: None,
             reward_xp: None,
+            party_reward_xp: Vec::new(),
             route_xp: None,
             spells: Vec::new(),
             xp: None,
@@ -895,6 +898,7 @@ mod tests {
             sync_max: None,
             class_spells: Vec::new(),
             replan: None,
+            buffs: Vec::new(),
             steps,
         }
     }

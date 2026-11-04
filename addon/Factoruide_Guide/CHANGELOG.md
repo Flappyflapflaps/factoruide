@@ -19,7 +19,21 @@ under Unreleased; `scripts/release.sh` gives them the release's version.
 - Gear advice follows your talents: a balance or restoration druid, an elemental or restoration shaman, a holy or protection paladin, a holy or discipline priest and a protection warrior are told about the gear their spec wants (intellect, spell damage, healing, mana or stamina), not the leveling spec's; a reward the guide picked for another spec is no longer chosen for you.
 - Logging out away from an inn or a city warns that it banks no rested XP and points the compass at the closest innkeeper (Advice, "Rested XP reminder at logout").
 - WoW Forever: after a fight, a reminder of each XP bonus you are missing (Well Fed from cooked food, your Cozy Sleeping Bag when ready, a leatherworker's Camp Tent), at most every 10 minutes each (Advice, "Reminder of missing XP buffs").
+- WoW Forever: a guide that counts on Well Fed or the Sleeping Bag warns about them itself, so the "Reminder of missing XP buffs" no longer repeats those two for it (it still covers the Camp Tent, and the buffs of guides that don't count on them). Forever's own Well Fed XP aura is recognised.
 - WoW Forever: at your first Legacy point (level 25), the Legacy perks that save the most leveling time, best first, in the chat; again any time with a button in the options (Advice, "Legacy perk advice").
+- WoW Forever: the Sleeping Bag XP reminder starts after its reward quest is completed.
+
+## 0.15.0 (2026-11-01)
+
+- Two flights in a row: taking the first no longer counts the next one as done; each is done by its own take-off.
+- Group guides: quest XP counts each player's own reward, including its Sleeping Bag bonus.
+- WoW Forever: a guide made with the food or Sleeping Bag XP bonus warns when that buff is missing (out of combat, at most every ten minutes).
+- Logging in (or reloading) puts the guide back on the step you were on, instead of the first step the game cannot tell is done (GitHub #81).
+- The addon's separators are a bullet (•), which every client font has: the dot they used was a missing glyph in Russian (GitHub #78).
+- Death skip steps: done once back at the spirit healer.
+- A quest that needs a number of other quests done (ten library books) is offered once enough of them are.
+- Group guides: each player follows its own profession curve.
+- Group guides made for characters the app had no profile of: the addon finds yours by race and class; when several match, choose yours in /fg, Guides ("Player: …").
 - The wind guide (a gust of wind towards the step instead of the compass) is gone, with its settings and key binding; the compass stays.
 - Objectives done in the same area (mobs next to each other) are shown together in Now, and a level checkpoint between them no longer cuts them apart: it comes after them (GitHub #41).
 - Merchant, trainer, flight master and inn steps before the last quest you handed in are done on their own when a guide is loaded or reset, instead of each needing a right click.

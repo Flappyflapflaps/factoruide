@@ -1086,6 +1086,41 @@ end
 assert(taken == 3, "flight to the step's node taken")
 print("auto fly ok")
 
+-- Two flights in a row: taking off on the first does not do the second; it waits for its own
+-- take-off.
+do
+    local up, savedTaxi = false, UnitOnTaxi
+    UnitOnTaxi = function() return up end
+    FG.Routes["fly-two"] = {
+        race = 7,
+        class = 8,
+        faction = "Alliance",
+        fromLevel = 1,
+        toLevel = 60,
+        time = 1,
+        steps = {
+            { k = "fly", t = "Fly to Ironforge", e = "taxi", id = 6, n = "Ironforge", lvl = 3 },
+            { k = "fly", t = "Fly to Stormwind", e = "taxi", id = 2, n = "Stormwind", lvl = 3 },
+        },
+    }
+    useRoute("fly-two")
+    FG.Guide:Advance()
+    assert(char.guide.step == 1, "no flight yet: step " .. char.guide.step)
+    up = true
+    FG.Guide:Advance()
+    FG.Guide:Advance()
+    assert(char.guide.step == 2, "first flight taken, the second waits: step " .. char.guide.step)
+    up = false
+    FG.Guide:Advance()
+    assert(char.guide.step == 2, "landed: the second still waits, step " .. char.guide.step)
+    up = true
+    FG.Guide:Advance()
+    assert(char.guide.step == 3, "second flight taken: step " .. char.guide.step)
+    UnitOnTaxi = savedTaxi
+    useRoute("fly-test")
+    print("two flights ok")
+end
+
 -- Teleport: done once the character is there (around the city's class trainer).
 FG.Routes["teleport-test"] = {
     race = 7,
@@ -1109,6 +1144,30 @@ fire("QUEST_LOG_UPDATE")
 runTimers()
 assert(char.guide.step == 3, "arrived, step " .. char.guide.step)
 print("teleport ok")
+
+-- Death skip: done once back at the spirit healer the step stands at.
+FG.Routes["deathskip-test"] = {
+    race = 7,
+    class = 8,
+    faction = "Alliance",
+    fromLevel = 1,
+    toLevel = 60,
+    time = 1,
+    steps = {
+        { k = "deathskip", t = "Die and respawn at the spirit healer", m = 1426, x = 80, y = 20, lvl = 5 },
+        { k = "deathskip", t = "Die and respawn at the spirit healer", m = 1426, x = 30.1, y = 71.3, lvl = 5 },
+        { k = "grind", t = "Grind", lvl = 60 },
+    },
+}
+useRoute("deathskip-test")
+fire("QUEST_LOG_UPDATE")
+runTimers()
+assert(char.guide.step == 1, "far from the spirit healer: not there yet, step " .. char.guide.step)
+char.guide.step = 2
+fire("QUEST_LOG_UPDATE")
+runTimers()
+assert(char.guide.step == 3, "back at the spirit healer, step " .. char.guide.step)
+print("death skip ok")
 
 -- Group sync: a member's progress shows next to the objective.
 Ambiguate = function(name) return (name:gsub("%-.*", "")) end
@@ -1231,6 +1290,60 @@ do
     UnitXP = function() return 0 end
     onQuest[901], completed[902] = nil, nil
     print("group guide ok")
+end
+
+do
+    -- A group guide made for characters the app had no profile of: we are the player of our
+    -- race and class, with our own professions; with two of them, the one chosen in the options.
+    local skinning = { key = "skinning", name = "Skinning", line = 393, target = 150, start = 10, curve = {} }
+    local function group(players)
+        local rewards = #players == 2 and { 0, 100 } or { 0, 100, 103 }
+        return {
+            race = 1,
+            class = 1,
+            faction = "Alliance",
+            fromLevel = 1,
+            toLevel = 3,
+            time = 8,
+            professions = {},
+            players = players,
+            syncMax = 1,
+            steps = {
+                { k = "accept", t = "Accept A", q = 901, m = 1429, x = 50, y = 50, lvl = 1, gp = { 1, 0, 1, 0, 1, 0 } },
+                { k = "turnin", t = "Turn in A", q = 901, lvl = 1, rx = 100, rxp = rewards },
+            },
+        }
+    end
+    FG.Routes["group-new"] = group({
+        { n = "Player 1", race = 1, class = 1, professions = {} },
+        { n = "Player 2", race = 7, class = 8, professions = { skinning } },
+    })
+    assert(FG.Import.Fits(FG.Routes["group-new"]), "a guide of a group we are in fits us")
+    useRoute("group-new")
+    assert(FG.Group:Active() and not FG.Group:Choices(), "found by race and class")
+    assert(FG.Guide:Route().professions[1].key == "skinning", "our own professions")
+    assert(FG.Guide:Route().steps[2].rx == 100, "our own quest reward")
+    FG.Routes["group-twins"] = group({
+        { n = "Player 1", race = 1, class = 1, professions = {} },
+        { n = "Player 2", race = 7, class = 8, professions = {} },
+        { n = "Player 3", race = 7, class = 8, professions = { skinning } },
+    })
+    useRoute("group-twins")
+    local choices, me = FG.Group:Choices()
+    assert(choices and #choices == 2 and me == nil and not FG.Group:Active(), "two of us: to choose")
+    FG.Group:Choose(2)
+    assert(FG.Group:Active() and select(2, FG.Group:Choices()) == 2, "the one chosen")
+    assert(FG.Guide:Route().professions[1].key == "skinning", "the chosen player's professions")
+    assert(FG.Guide:Route().steps[2].rx == 103, "the chosen player's buffed quest reward")
+    FG.Group:Choose(1)
+    assert(FG.Guide:Route().steps[2].rx == 100, "changing player changes its reward")
+    FG.Group:Choose(2)
+    useRoute("group-new")
+    useRoute("group-twins")
+    assert(select(2, FG.Group:Choices()) == 2, "the choice is kept for the guide")
+    FG.Routes["group-new"], FG.Routes["group-twins"] = nil, nil
+    useRoute(nil)
+    print("group guide for new characters ok")
 end
 
 -- Merchant: grey items are sold.
@@ -2439,6 +2552,13 @@ do
     auras[2] = { name = "Bien reposé", icon = 1, applications = 2, spellId = 429959 }
     GetXPExhaustion = function() return 20 end
     assert(Keys() == "bag", "fed by the spell, 2 stacks, rested XP left: " .. Keys())
+    auras[1] = { name = "Bien nourri", icon = 2, applications = 0, spellId = 1243969 }
+    assert(Keys() == "bag", "fed by Forever's XP boost: " .. Keys())
+    auras[1] = nil
+    local realGuide = FG.Guide
+    FG.Guide = { Route = function() return { buffs = { "food", "bag" } } end }
+    assert(Keys() == "", "the guide's own buff warnings cover food and the bag: " .. Keys())
+    FG.Guide = realGuide
     auras[1], auras[2] = nil, nil
     bags[211527] = nil
     fire("PLAYER_REGEN_ENABLED")
@@ -3627,6 +3747,61 @@ WorldMapFrame.IsShown = function() return false end
 UIErrorsFrame, UnitHealth, UnitHealthMax, UnitIsDeadOrGhost = nil, nil, nil, nil
 StaticPopup_Hide = nil
 print("whole addon hide and show ok")
+
+-- XP buffs the guide counts on (WoW Forever): a warning when one is missing, not in combat, not
+-- twice within ten minutes, nothing when the game hides the aura.
+do
+    local told, auras, fighting, hidden = {}, {}, false, {}
+    UIErrorsFrame = { AddMessage = function(_, text) table.insert(told, text) end }
+    UnitIsDeadOrGhost = function() return false end
+    InCombatLockdown = function() return fighting end
+    C_UnitAuras = {
+        GetPlayerAuraBySpellID = function(id) return hidden[id] or (auras[id] and { spellId = id }) or nil end,
+    }
+    local route = FG.Guide:Route()
+    route.buffs = { "food", "bag" }
+    local savedSecret = issecretvalue
+    local savedTime = GetTime
+    local clock = 5000
+    GetTime = function() return clock end
+    local savedBagQuest = completed[79976]
+    completed[79976] = nil
+    fire("PLAYER_REGEN_ENABLED")
+    assert(#told == 1 and told[1]:find("food XP"), "only food warns before the bag is earned")
+    fire("UNIT_AURA", "player")
+    assert(#told == 1, "an unearned bag never warns")
+    completed[79976] = true
+    fire("PLAYER_REGEN_ENABLED")
+    assert(#told == 2 and told[2]:find("Sleeping Bag"), "the earned bag warns immediately")
+    fire("UNIT_AURA", "player")
+    assert(#told == 2, "not told twice in a row")
+    clock = clock + 601
+    auras[1243969] = true
+    fire("UNIT_AURA", "player")
+    assert(#told == 3 and told[3]:find("Sleeping Bag"), "only the bag is missing, told again later")
+    clock = clock + 601
+    auras[429959] = true
+    fire("UNIT_AURA", "player")
+    assert(#told == 3, "both active: no warning")
+    clock = clock + 601
+    auras[429959] = nil
+    fighting = true
+    fire("UNIT_AURA", "player")
+    assert(#told == 3, "no warning in combat")
+    fighting = false
+    hidden[429959] = { secret = true }
+    issecretvalue = function(v) return type(v) == "table" and v.secret == true end
+    fire("UNIT_AURA", "player")
+    assert(#told == 3, "an aura the game hides is not reported missing")
+    issecretvalue, hidden[429959] = savedSecret, nil
+    route.buffs = nil
+    fire("UNIT_AURA", "player")
+    assert(#told == 3, "a guide without buffs never warns")
+    completed[79976] = savedBagQuest
+    GetTime, C_UnitAuras, UIErrorsFrame, UnitIsDeadOrGhost = savedTime, nil, nil, nil
+    InCombatLockdown = function() return false end
+    print("buff warnings ok")
+end
 
 -- Classic Era (1.15) has no C_QuestLog log functions: the quest log is read through the older
 -- globals, and the guide still draws.

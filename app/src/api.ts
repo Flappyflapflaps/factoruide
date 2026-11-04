@@ -2,7 +2,8 @@
 // backend in Web Workers (crates/fg-web, see web/host.ts).
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { download, fromBase64 } from "./web/mode";
+import { sendWebIssue } from "./web/issue";
+import { download, fromBase64, IS_WEB } from "./web/mode";
 
 /** A file the web backend made for the browser to download (the desktop app writes it itself and gives its path). */
 export interface WebFile {
@@ -29,6 +30,14 @@ export interface PolestarString {
 }
 
 /** A character's export (Export my character) pasted in the web app. */
+/** A quest to choose as a must-have one: its name in the guide's language when known. */
+export interface QuestChoice {
+  id: number;
+  name: string;
+  level: number;
+  zone: string | null;
+}
+
 export interface ProfileImported {
   character: string;
   edition: Edition;
@@ -40,6 +49,7 @@ export interface Params {
   /** The zone the route begins in (AreaTable zone), chosen on the starts' preview; 0 or unset: the planner's choice. */
   start_zone?: number;
   run_speed: number;
+  assume_movement_talents: boolean;
   mount_level: number;
   mount_bonus: number;
   flight_speed: number;
@@ -99,6 +109,9 @@ export interface Params {
   hearth_cast: number;
   recall_cooldown: number;
   teleport_cast: number;
+  /** Die on purpose to respawn at the nearest spirit healer when faster, below level 10.5, and what one takes (s). */
+  death_skips: boolean;
+  death_skip_time: number;
   train_every: number;
   train_radius: number;
   train_max_delay: number;
@@ -131,9 +144,12 @@ export interface Params {
   gold_weight: number;
   zone_change_weight: number;
   abandon_weight: number;
+  unlock_delay_weight: number;
   profession_quest_weight: number;
   zone_stay: number;
   forced_dungeons: number[];
+  /** Dungeons run with every quest of theirs the character can take. */
+  forced_dungeon_quests: number[];
   excluded_dungeons: number[];
   /** The player's own level for dungeons: (instance area, level). */
   dungeon_levels?: [number, number][];
@@ -159,10 +175,11 @@ export interface Params {
   common_item_time: number;
   dungeons: boolean;
   dungeon_pickup_ahead: number;
+  child_glue: number;
+  /** Levels dungeons are run at, around their level (-3 and +3: from 15 to 21 for a level 18 dungeon). */
+  dungeon_from: number;
+  dungeon_to: number;
   dungeon_xp_share: number;
-  /** WoW Forever: Well Fed and the Cozy Sleeping Bag kept up, kills give `kill_xp_bonus` more. */
-  xp_buffs: boolean;
-  kill_xp_bonus: number;
   construction: string;
   threads: number;
   seed: number;
@@ -171,6 +188,10 @@ export interface Params {
   group_kill_speed: number;
   group_shared_drops: boolean;
   explore_radius: number;
+  food_xp: boolean;
+  sleeping_bag: boolean;
+  auction_house: boolean;
+  profession_trainers: boolean;
   edition: Edition;
 }
 
@@ -191,6 +212,8 @@ export interface PlanRequest {
   name?: string | null;
   params?: Params | null;
   required_class_quests?: string[] | null;
+  /** Exact quest IDs or names, optionally with inclusive turn-in levels. Prerequisites are included; omission fails generation. */
+  required_quests?: RequiredQuest[];
   professions?: ProfessionGoal[];
   /** Language of the guide texts (English where a name is not translated). */
   locale?: string | null;
@@ -198,7 +221,11 @@ export interface PlanRequest {
   start?: StartState | null;
   /** The other players of a group guide, as their addon recorded them (empty: solo). */
   mates?: StartState[];
+  /** The professions each of `mates` levels, in their order. */
+  mate_professions?: ProfessionGoal[][];
 }
+
+export type RequiredQuest = number | string | { quest: number | string; min_level?: number | null; max_level?: number | null };
 
 /** A point of a game map (uiMapID, percent coordinates). */
 export interface MapPos {
@@ -307,6 +334,8 @@ export interface Step {
   /** Mobs to target (to kill, or that drop the item): their names. */
   mobs?: string[];
   map?: { ui_map: number; x: number; y: number };
+  /** Inside a dungeon: where on its floor's map (a map of kind 4 of the index). */
+  floor?: { ui_map: number; x: number; y: number };
   /** World position: [continent (map ID), x, y]. */
   world?: [number, number, number];
   /** XP the guide has in `level` once the step is done. */
@@ -379,8 +408,8 @@ export interface ReputationReached {
 }
 
 export interface DungeonOption extends NamedId {
-  min_level: number | null;
-  max_level: number | null;
+  /** Its level (its monsters'): run from `dungeon_from` to `dungeon_to` around it. */
+  level: number | null;
 }
 
 export interface NamedId {
@@ -393,7 +422,7 @@ export interface NamedId {
 
 export interface Options {
   /** `classes`: class keys the race can play. */
-  races: { key: string; id: number; name: string; faction: string; classes: string[] }[];
+  races: { key: string; id: number; name: string; faction: string; classes: string[]; start_npc: number }[];
   classes: NamedId[];
   zones: { id: number; name: string; names?: Record<string, string>; continent: number }[];
   /** The flight paths of the game version (TaxiNodes), and the sides that can use them. */
@@ -517,6 +546,9 @@ export const api = {
   planRoute: (request: PlanRequest) => invoke<VersionMeta>("plan_route", { request }),
   /** The flight paths a character probably knows from its quests done in their towns. */
   inferredFlights: (start: StartState) => invoke<number[]>("inferred_flights", { start }),
+  /** Quests of the race and class whose ID is `query` or whose name holds it, the closest first. */
+  questChoices: (race: string, klass: string, query: string, locale: string | null) =>
+    invoke<QuestChoice[]>("quest_choices", { race, class: klass, query, locale }),
   /** The starts the character can choose from (fewer than two: nothing to choose), the best score first. */
   previewStarts: (request: PlanRequest) => invoke<StartPreview>("preview_starts", { request }),
   /** Saves a guide of no steps from the request's character and settings (edited by hand), to fill in the editor. */
@@ -587,7 +619,7 @@ export const api = {
   /** What players can check in game for the current game version, names in `locale`. */
   needHelp: (locale: string) => invoke<HelpCheck[]>("need_help", { locale }),
   /** Sends a problem report to the contribution server (rejects with "rate_limited" or the reason). */
-  sendIssue: (draft: IssueDraft) => invoke<"accepted" | "already_received">("send_issue", { draft }),
+  sendIssue: (draft: IssueDraft) => (IS_WEB ? sendWebIssue(draft) : invoke<"accepted" | "already_received">("send_issue", { draft })),
   /** Turns the automatic contributions on or off (that setting only). */
   setAutoContribute: (on: boolean) => invoke<void>("set_auto_contribute", { on }),
   /** Opens a version in the guide editor (`locale`: language of the lines and names shown). */
@@ -869,6 +901,8 @@ export type RouteStep =
   | { kind: "link"; first: LinkRef; last: LinkRef }
   /** Cast a class teleport (its spell name). */
   | { kind: "teleport"; spell: string }
+  /** Die on purpose, back at the nearest spirit healer. */
+  | { kind: "deathskip" }
   /** Learn the class spells at a trainer (NPC ID). */
   | { kind: "train"; trainer: number }
   /** Sell the bags' loot at a vendor (NPC ID). */

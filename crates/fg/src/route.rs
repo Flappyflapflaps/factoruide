@@ -2,10 +2,25 @@
 
 use anyhow::{Context, Result};
 use fg_route::Route;
+use fg_route::diagnostics::Diagnostics;
 use fg_route::export::StepKind;
-use fg_route::job::{self, Overrides, PlanRequest};
+use fg_route::job::{self, Overrides, PlanOutcome, PlanRequest};
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
+
+fn required_quests(choices: &[String]) -> Result<Vec<job::RequiredQuest>> {
+    choices
+        .iter()
+        .map(|q| {
+            if q.trim_start().starts_with('{') {
+                serde_json::from_str(q).context("required quest with completion levels")
+            } else {
+                Ok(q.parse::<i64>()
+                    .map_or_else(|_| job::RequiredQuest::Name(q.clone()), job::RequiredQuest::Id))
+            }
+        })
+        .collect()
+}
 
 pub struct RouteOptions {
     pub race: String,
@@ -23,6 +38,7 @@ pub struct RouteOptions {
     /// Planner parameter overrides (key=value).
     pub params: Vec<String>,
     pub professions: Vec<fg_route::profession::ProfessionGoal>,
+    pub required_quests: Vec<String>,
     /// Language of the guide texts.
     pub locale: Option<String>,
     /// Profiles (JSON) of the character and of the other players of a group guide, and where to
@@ -64,10 +80,12 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
         name: opts.out_name.clone(),
         params: Some(params),
         required_class_quests: None,
+        required_quests: required_quests(&opts.required_quests)?,
         professions: opts.professions.clone(),
         locale: opts.locale.clone(),
         start: opts.start.as_deref().map(read_profile).transpose()?,
         mates: opts.mates.iter().map(|p| read_profile(p)).collect::<Result<_>>()?,
+        mate_professions: vec![],
     };
     // FG_PREVIEW_STARTS: the starts the app offers to choose from, as JSON (not a guide).
     if std::env::var_os("FG_PREVIEW_STARTS").is_some() {
@@ -79,6 +97,7 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
             &|m| eprintln!("{m}"),
             &job::Interrupt::default(),
             None,
+            &Diagnostics::from_env(),
         )?;
         eprintln!(
             "{} starts in {:.0} s",
@@ -88,11 +107,7 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
         println!("{}", serde_json::to_string_pretty(&starts)?);
         return Ok(());
     }
-    let outcome = job::plan(conn, &overrides, &request, &|m| {
-        if !m.starts_with('@') {
-            eprintln!("{m}");
-        }
-    })?;
+    let outcome = plan(conn, &overrides, &request, None)?;
     for note in &outcome.notes {
         eprintln!("  {note}");
     }
@@ -144,6 +159,29 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
 }
 
 /// A character's profile (JSON, as `--profile-out` writes it).
+/// Plan `request`, its status lines on stderr, with the diagnostics the `FG_*` variables ask.
+fn plan(
+    conn: &Connection,
+    overrides: &Overrides,
+    request: &PlanRequest,
+    walks: Option<&std::sync::Arc<fg_route::terrain::Walks>>,
+) -> Result<PlanOutcome> {
+    let progress = |event: &job::JobEvent<'_>| {
+        if let Some(line) = event.status() {
+            eprintln!("{line}");
+        }
+    };
+    Ok(job::plan_interruptible(
+        conn,
+        overrides,
+        request,
+        &progress,
+        &job::Interrupt::default(),
+        walks,
+        &Diagnostics::from_env(),
+    )?)
+}
+
 fn read_profile(path: &Path) -> Result<job::StartState> {
     let text = std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     serde_json::from_str(&text).with_context(|| format!("{} is not a profile", path.display()))
@@ -237,6 +275,8 @@ pub struct ShareOptions {
     pub to_level: i64,
     pub effort: Option<f64>,
     pub name: String,
+    /// Must-have quests, by ID, exact name or JSON completion window.
+    pub required_quests: Vec<String>,
     /// Planner parameter overrides (key=value).
     pub params: Vec<String>,
     pub locale: String,
@@ -267,24 +307,15 @@ pub fn share(conn: &Connection, overrides_dir: &Path, opts: &ShareOptions, out: 
         name: Some(opts.name.clone()),
         params: Some(params),
         required_class_quests: Some(options.class_quests.get(&class_name).cloned().unwrap_or_default()),
+        required_quests: required_quests(&opts.required_quests)?,
         professions: vec![],
         locale: Some(opts.locale.clone()),
         mates: vec![],
+        mate_professions: vec![],
         start: None,
     };
     let walks = std::sync::Arc::new(fg_route::terrain::Walks::default());
-    let outcome = job::plan_interruptible(
-        conn,
-        &overrides,
-        &request,
-        &|m| {
-            if !m.starts_with('@') {
-                eprintln!("{m}");
-            }
-        },
-        &job::Interrupt::default(),
-        Some(&walks),
-    )?;
+    let outcome = plan(conn, &overrides, &request, Some(&walks))?;
     for note in &outcome.notes {
         eprintln!("  {note}");
     }
@@ -296,7 +327,7 @@ pub fn share(conn: &Connection, overrides_dir: &Path, opts: &ShareOptions, out: 
 fn write_shared(
     conn: &Connection,
     request: &PlanRequest,
-    outcome: &job::PlanOutcome,
+    outcome: &PlanOutcome,
     edited: bool,
     out: &Path,
 ) -> Result<()> {
@@ -377,15 +408,12 @@ pub fn replay(
             &|m| eprintln!("{m}"),
             &job::Interrupt::default(),
             None,
+            &Diagnostics::from_env(),
         )?;
         eprintln!("{} starts of {} tried", preview.options.len(), preview.tried);
         return Ok(());
     }
-    let outcome = job::plan(conn, &overrides, &request, &|m| {
-        if !m.starts_with('@') {
-            eprintln!("{m}");
-        }
-    })?;
+    let outcome = plan(conn, &overrides, &request, None)?;
     for note in &outcome.notes {
         eprintln!("  {note}");
     }

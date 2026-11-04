@@ -25,6 +25,18 @@ type Cells = FxHashMap<CellKey, Vec<Spawn>>;
 /// The zone and height of each spawn of a cell, in the order of its `Cells` (for the camps).
 type CellPlaces = FxHashMap<CellKey, Vec<(i64, Option<i16>)>>;
 
+/// A spawn of a normal mob as the database gives it.
+#[derive(Clone)]
+pub(super) struct MobRow {
+    pub(super) zone: i64,
+    pub(super) x: f64,
+    pub(super) y: f64,
+    pub(super) min_level: i64,
+    pub(super) max_level: i64,
+    pub(super) npc: i64,
+    pub(super) z: Option<f64>,
+}
+
 /// Mobs met along a walk: their level, how many, and the quests whose objectives are done on
 /// them (`FarmMobs::quests`; 0: none).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,32 +78,56 @@ impl FarmMobs {
             [],
             |r| r.get(0),
         )?;
-        let mut stmt = conn.prepare(&format!(
-            "SELECT s.zone_id, s.x, s.y, coalesce(n.min_level, 1), coalesce(n.max_level, n.min_level, 1), n.id, {}
-             FROM m_spawn s JOIN m_npc n ON n.id = s.entity_id
-             WHERE s.entity_type = 'npc' AND s.x >= 0 AND coalesce(n.rank, 0) = 0
-               AND coalesce(n.npc_flags, 0) = 0 AND coalesce(n.friendly_to, '') IN ('', 'AH')
-               AND s.zone_id NOT IN (SELECT ID FROM client_areatable WHERE (Flags_0 & 256) != 0)",
-            if heights { "s.z" } else { "NULL" }
-        ))?;
+        let rows = crate::memo::rows(conn, "farm mobs", 0, || {
+            let mut stmt = conn.prepare(&format!(
+                "SELECT s.zone_id, s.x, s.y, coalesce(n.min_level, 1), coalesce(n.max_level, n.min_level, 1), n.id, {}
+                 FROM m_spawn s JOIN m_npc n ON n.id = s.entity_id
+                 WHERE s.entity_type = 'npc' AND s.x >= 0 AND coalesce(n.rank, 0) = 0
+                   AND coalesce(n.npc_flags, 0) = 0 AND coalesce(n.friendly_to, '') IN ('', 'AH')
+                   AND s.zone_id NOT IN (SELECT ID FROM client_areatable WHERE (Flags_0 & 256) != 0)",
+                if heights { "s.z" } else { "NULL" }
+            ))?;
+            let rows = stmt
+                .query_map([], |r| {
+                    Ok(MobRow {
+                        zone: r.get::<_, i64>(0)?,
+                        x: r.get::<_, f64>(1)?,
+                        y: r.get::<_, f64>(2)?,
+                        min_level: r.get::<_, i64>(3)?,
+                        max_level: r.get::<_, i64>(4)?,
+                        npc: r.get::<_, i64>(5)?,
+                        z: r.get::<_, Option<f64>>(6)?,
+                    })
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(rows)
+        })?;
+        Ok(Self::from_rows(world, rows.to_vec(), &tags, by_tag))
+    }
+
+    /// The farm mobs of these spawns (zone, percent coordinates, levels, NPC), as the database's
+    /// query gives them: each tagged with `tags` (NPC ID to tag), the same one listed twice kept once.
+    pub(super) fn from_rows(
+        world: &World,
+        rows: Vec<MobRow>,
+        tags: &FxHashMap<i64, u32>,
+        by_tag: Vec<Box<[u32]>>,
+    ) -> Self {
         let mut cells = Cells::default();
         // The zone and height of each spawn, in the order of its cell's (for the camps).
         let mut zones = CellPlaces::default();
         // Each spawn kept: its cell and its place there.
         let mut seen: FxHashMap<(i64, i64, i64, u8), (CellKey, usize)> = FxHashMap::default();
-        let rows = stmt.query_map([], |r| {
-            Ok((
-                r.get::<_, i64>(0)?,
-                r.get::<_, f64>(1)?,
-                r.get::<_, f64>(2)?,
-                r.get::<_, i64>(3)?,
-                r.get::<_, i64>(4)?,
-                r.get::<_, i64>(5)?,
-                r.get::<_, Option<f64>>(6)?,
-            ))
-        })?;
-        for row in rows {
-            let (zone, x, y, min, max, npc, z) = row?;
+        for MobRow {
+            zone,
+            x,
+            y,
+            min_level: min,
+            max_level: max,
+            npc,
+            z,
+        } in rows
+        {
             let Some(p) = world.to_world(zone, x, y) else { continue };
             let level = i64::midpoint(min, max).clamp(1, 255) as u8;
             let tag = tags.get(&npc).copied().unwrap_or(0);
@@ -125,16 +161,16 @@ impl FarmMobs {
             }
         }
         let camps = Self::find_camps(&cells, &zones);
-        Ok(Self {
+        Self {
             cells,
             camps,
             quests: by_tag,
-        })
+        }
     }
 
     /// A tag for each mob (NPC ID) some quest's kill or loot objectives are done on, at any of
     /// their places, and the quests of each tag (tag 1 first).
-    fn quest_tags(quests: &[Quest]) -> (FxHashMap<i64, u32>, Vec<Box<[u32]>>) {
+    pub(super) fn quest_tags(quests: &[Quest]) -> (FxHashMap<i64, u32>, Vec<Box<[u32]>>) {
         let mut by_npc: FxHashMap<i64, Vec<u32>> = FxHashMap::default();
         for (i, q) in quests.iter().enumerate() {
             for o in q.objectives.iter().flat_map(super::types::Objective::places) {
@@ -332,6 +368,36 @@ impl FarmMobs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What the farm query takes of the spawns: normal mobs of no side, not those of a capital,
+    /// nor those with a role (a vendor, a quest giver), elites or friendly ones.
+    #[test]
+    fn farm_mobs_are_the_normal_hostile_mobs_outside_capitals() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE m_spawn (zone_id INT, x REAL, y REAL, entity_type TEXT, entity_id INT);
+             CREATE TABLE m_npc (id INT, min_level INT, max_level INT, rank INT, npc_flags INT, friendly_to TEXT);
+             CREATE TABLE client_areatable (ID INT, Flags_0 INT);
+             INSERT INTO client_areatable VALUES (1, 0), (2, 256);
+             INSERT INTO m_npc VALUES
+                 (10, 5, 5, 0, 0, NULL), (11, 5, 5, 0, 0, NULL), (12, 5, 5, 1, 0, NULL),
+                 (13, 5, 5, 0, 128, NULL), (14, 5, 5, 0, 0, 'A'), (15, 5, 5, 0, 0, 'AH');
+             INSERT INTO m_spawn VALUES
+                 (1, 10, 10, 'npc', 10), (2, 10, 10, 'npc', 11), (1, 20, 10, 'npc', 12),
+                 (1, 30, 10, 'npc', 13), (1, 40, 10, 'npc', 14), (1, 50, 10, 'npc', 15);",
+        )
+        .unwrap();
+        let world = World::flat(&[(1, "Field", 1, 0.0, 0.0), (2, "Capital", 1, 1000.0, 0.0)], &[], 0.0);
+        let farm = FarmMobs::load(&conn, &world, &[]).unwrap();
+        let at = |zone, x, y| world.to_world(zone, x, y).unwrap();
+        let near = |zone, x, y| farm.around(&at(zone, x, y), 20.0, 1..=10);
+        assert_eq!(near(1, 10.0, 10.0), 1, "a normal mob");
+        assert_eq!(near(2, 10.0, 10.0), 0, "in a capital");
+        assert_eq!(near(1, 20.0, 10.0), 0, "an elite");
+        assert_eq!(near(1, 30.0, 10.0), 0, "a vendor");
+        assert_eq!(near(1, 40.0, 10.0), 0, "friendly to the Alliance");
+        assert_eq!(near(1, 50.0, 10.0), 1, "flagged AH (hostile to both): kept");
+    }
 
     fn at(x: f64, y: f64) -> Pos {
         Pos {

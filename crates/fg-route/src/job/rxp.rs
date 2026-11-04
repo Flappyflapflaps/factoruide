@@ -148,6 +148,8 @@ pub fn import(
         locale: what.locale.clone(),
         mates: vec![],
         start: None,
+        required_quests: Vec::new(),
+        mate_professions: Vec::new(),
     };
     let editor = Editor::open(conn, overrides, &request, walks)?;
     let mut report = ImportReport::default();
@@ -342,6 +344,9 @@ pub struct RxpGuide {
     pub next: Vec<String>,
     /// Races and classes it is the default guide of (`#defaultfor`).
     pub default_for: Option<String>,
+    /// Its group (`#group`): RestedXP ships routes under the same guide names in several groups
+    /// (WoW Forever's speedrun and dungeon guides), a chain stays in the group it starts in.
+    pub group: Option<String>,
     /// False when the guide is for others (a header line `<< Horde` alone).
     pub available: bool,
     pub actions: Vec<Action>,
@@ -353,6 +358,7 @@ impl Default for RxpGuide {
             name: None,
             next: Vec::new(),
             default_for: None,
+            group: None,
             available: true,
             actions: Vec::new(),
         }
@@ -375,6 +381,7 @@ impl RxpGuide {
                     .collect();
             }
             "defaultfor" if self.default_for.is_none() => self.default_for = Some(value.to_owned()),
+            "group" if self.group.is_none() => self.group = Some(value.to_owned()),
             _ => {}
         }
     }
@@ -524,21 +531,23 @@ fn world_pos(args: &[&str]) -> Option<Pos> {
 }
 
 /// The guides to follow from a first one, by their `#next`: the first of each list found among
-/// the guides available.
+/// the guides available, in the group of the guide before when it has one of that name.
 pub fn chain<'a>(guides: &'a [RxpGuide], first: &str) -> Vec<&'a RxpGuide> {
-    let find = |name: &str| {
-        guides
-            .iter()
-            .find(|g| g.available && g.name.as_deref().is_some_and(|n| n.eq_ignore_ascii_case(name)))
+    let find = |name: &str, group: Option<&str>| {
+        let named = |g: &&RxpGuide| g.available && g.name.as_deref().is_some_and(|n| n.eq_ignore_ascii_case(name));
+        (guides.iter())
+            .filter(named)
+            .find(|g| group.is_none() || g.group.as_deref() == group)
+            .or_else(|| guides.iter().find(named))
     };
     let mut out: Vec<&RxpGuide> = Vec::new();
-    let mut next = find(first);
+    let mut next = find(first, None);
     while let Some(guide) = next {
         if out.iter().any(|g| std::ptr::eq(*g, guide)) {
             break;
         }
         out.push(guide);
-        next = guide.next.iter().find_map(|n| find(n));
+        next = guide.next.iter().find_map(|n| find(n, guide.group.as_deref()));
     }
     out
 }
@@ -950,5 +959,40 @@ step
             .filter_map(|g| g.name.clone())
             .collect();
         assert_eq!(names, vec!["1-6 Northshire", "6-11 Elwynn Forest"]);
+    }
+
+    /// RestedXP's WoW Forever speedrun and dungeon guides share their names: the chain stays in
+    /// the group it starts in.
+    #[test]
+    fn stays_in_its_group() {
+        let guide = |group: &str, name: &str, next: &str, quest: i64| {
+            format!(
+                "RXPGuides.RegisterGuide([[\n#group {group}\n#name {name}\n#next {next}\nstep\n.accept {quest}\n]])\n"
+            )
+        };
+        let text = [
+            guide("Speedrun", "1-6 Northshire", "6-11 Elwynn Forest", 1),
+            guide("Speedrun", "6-11 Elwynn Forest", "11-13 Loch Modan", 2),
+            guide("Dungeon", "1-6 Northshire", "6-11 Elwynn Forest", 3),
+            guide("Dungeon", "11-13 Loch Modan", "", 4),
+            guide("Dungeon", "6-11 Elwynn Forest", "11-13 Loch Modan", 5),
+        ]
+        .concat();
+        let guides = human_warrior().parse(&text);
+        let groups: Vec<_> = (chain(&guides, "1-6 Northshire").iter())
+            .map(|g| g.group.clone().unwrap_or_default())
+            .collect();
+        assert_eq!(
+            groups,
+            ["Speedrun", "Speedrun", "Dungeon"],
+            "a name only the other group has"
+        );
+        // The dungeon guides first: their chain does not wander into the speedrun ones.
+        let mut dungeon_first: Vec<RxpGuide> = guides[2..].to_vec();
+        dungeon_first.extend_from_slice(&guides[..2]);
+        let actions: Vec<Action> = (chain(&dungeon_first, "1-6 Northshire").iter())
+            .flat_map(|g| g.actions.clone())
+            .collect();
+        assert_eq!(actions, [Action::Accept(3), Action::Accept(5), Action::Accept(4)]);
     }
 }

@@ -1,55 +1,21 @@
-//! The guide editor on the Classic database: a guide edited by hand is replayed like the
-//! optimizer's own routes, its impossible steps reported.
+//! The guide editor: a guide edited by hand is replayed like the optimizer's own routes, its
+//! impossible steps reported. The guides are those of a small scenario built by hand (a valley, a
+//! plain and a far barrens, a trainer, two flight masters).
 
-use crate::common::{database, repo};
-use fg_route::job::{self, Editor, Overrides, PlanOutcome, PlanRequest, RouteStep};
+use crate::common::leveling;
+use fg_route::job::{Editor, PlanOutcome, RouteStep};
 use fg_route::model::Names;
-use fg_route::xp::Edition;
+use fg_route::testing::{Q, Scenario};
 use std::sync::OnceLock;
 
-fn overrides() -> Overrides {
-    Overrides::load_edition(&repo().join("overrides"), Edition::Classic).unwrap()
-}
-
-fn request() -> PlanRequest {
-    request_to(10)
-}
-
-fn request_to(to_level: i64) -> PlanRequest {
-    PlanRequest {
-        race: "orc".into(),
-        class: "warlock".into(),
-        from_level: 1,
-        to_level,
-        name: None,
-        params: Some(
-            overrides()
-                .params
-                .with_overrides(&["progression=cautious".to_owned()])
-                .unwrap(),
-        ),
-        required_class_quests: None,
-        professions: vec![],
-        locale: None,
-        mates: vec![],
-        start: None,
-    }
-}
-
-/// An orc warlock guide to 10 (its first routes, no optimization).
+/// The scenario's guide to 10 (its first routes, no optimization).
 fn guide() -> &'static PlanOutcome {
     static OUTCOME: OnceLock<PlanOutcome> = OnceLock::new();
-    OUTCOME.get_or_init(|| {
-        let interrupt = job::Interrupt::default();
-        interrupt.stop();
-        job::plan_interruptible(&database(), &overrides(), &request(), &|_| {}, &interrupt, None).unwrap()
-    })
+    OUTCOME.get_or_init(|| leveling(10).guide().1)
 }
 
 fn editor() -> (Editor, Names) {
-    let conn = database();
-    let editor = Editor::open(&conn, &overrides(), &request(), None).unwrap();
-    (editor, Names::load(&conn, "enUS").unwrap())
+    (leveling(10).guide().0, Names::default())
 }
 
 fn first(steps: &[RouteStep], pick: impl Fn(&RouteStep) -> bool) -> usize {
@@ -73,13 +39,8 @@ fn unedited_guide_keeps_its_time() {
 #[test]
 fn every_thing_done_is_a_step_of_its_own() {
     use fg_route::export::StepKind;
-    let conn = database();
-    let interrupt = job::Interrupt::default();
-    interrupt.stop();
-    let request = request_to(25);
-    let guide = job::plan_interruptible(&conn, &overrides(), &request, &|_| {}, &interrupt, None).unwrap();
-    let editor = Editor::open(&conn, &overrides(), &request, None).unwrap();
-    let names = Names::load(&conn, "enUS").unwrap();
+    let (editor, guide) = leveling(25).guide();
+    let names = Names::default();
     let (steps, _) = editor.steps(&guide);
     let count = |pick: fn(&RouteStep) -> bool| steps.iter().filter(|s| pick(s)).count();
     assert!(count(|s| matches!(s, RouteStep::Fly { .. })) > 0, "a guide to 25 flies");
@@ -109,6 +70,7 @@ fn every_thing_done_is_a_step_of_its_own() {
             RouteStep::Fly { .. } => StepKind::Fly,
             RouteStep::Link { .. } => StepKind::Link,
             RouteStep::Teleport { .. } => StepKind::Teleport,
+            RouteStep::DeathSkip => StepKind::DeathSkip,
             RouteStep::Train { .. } => StepKind::Train,
             RouteStep::Sell { .. } => StepKind::Sell,
             RouteStep::Dungeon { .. } => StepKind::Dungeon,
@@ -239,8 +201,8 @@ fn farm_on_the_way_gives_its_estimate() {
 fn flight_needs_known_flight_paths() {
     let (editor, names) = editor();
     let mut steps = guide().plan.clone();
-    // Orgrimmar to the Crossroads.
-    steps.insert(0, RouteStep::Fly { from: 23, to: 25 });
+    // The Crossroads to Orgrimmar (the orc knows Orgrimmar's from the start).
+    steps.insert(0, RouteStep::Fly { from: 25, to: 23 });
     let report = editor.simulate(&steps, &names);
     assert_eq!(report.steps[0].status, "error");
     assert_eq!(report.steps[0].reason, Some("flight path not known"));
@@ -251,15 +213,14 @@ fn flight_needs_known_flight_paths() {
 /// one by one in the editor, the grinding left at the end shrinks, and the guide saved has them.
 #[test]
 fn manual_guide_starts_empty_and_takes_its_steps() {
-    let conn = database();
-    let names = Names::load(&conn, "enUS").unwrap();
-    let manual = job::manual(&conn, &overrides(), &request(), None).unwrap();
+    let names = Names::default();
+    let (editor, _) = editor();
+    let manual = editor.blank_guide();
     assert!(manual.plan.is_empty() && manual.explicit);
     let route = &manual.route;
     assert_eq!((route.from_level, route.to_level, route.quests), (1, 10, 0));
     assert!(route.total_time.is_finite() && route.total_time > 0.0);
 
-    let (editor, _) = editor();
     let (steps, rebuilt) = editor.steps(&manual);
     assert!(steps.is_empty() && !rebuilt);
     let empty = editor.simulate(&steps, &names);
@@ -273,11 +234,62 @@ fn manual_guide_starts_empty_and_takes_its_steps() {
     assert_ne!(fg_route::export::polestar::source("manual", route), "");
 
     // The computed guide's first steps, added one by one: less grinding at the end.
-    let added = &guide().plan[..6];
+    let end = first(&guide().plan, |s| matches!(s, RouteStep::TurnIn { .. })) + 1;
+    let added = &guide().plan[..end];
     let report = editor.simulate(added, &names);
     assert_eq!(report.errors, 0);
     assert!(report.final_grind < empty.final_grind);
     let saved = editor.save(added, vec![]).unwrap();
     assert_eq!(saved.plan, added);
     assert!(saved.route.quests > 0);
+}
+
+/// A guide with a quest whose child is handed in on the way (The Videre Elixir) replays in the
+/// editor as it was computed (GitHub #86).
+#[test]
+fn a_guide_with_a_child_quest_replays_in_the_editor() {
+    use fg_route::testing::{At, Obj};
+    let (editor, outcome) = Scenario::new()
+        .levels(45, 50)
+        .quest(
+            Q::new(3909, "The Videre Elixir")
+                .level(48)
+                .giver(1, 40.0, 40.0)
+                .objective(
+                    Obj::visit(
+                        "Videre Elixir",
+                        At {
+                            zone: 1,
+                            x: 40.0,
+                            y: 40.0,
+                        },
+                    )
+                    .handed_by(&[4041]),
+                ),
+        )
+        .quest(
+            Q::new(4041, "The Videre Elixir")
+                .level(48)
+                .while_in_log(&[3909])
+                .giver(1, 60.0, 60.0)
+                .kill("Imp", 48, 4, 1, 62.0, 62.0),
+        )
+        .quest(
+            Q::new(3912, "Meet at the Grave")
+                .level(48)
+                .after(&[3909])
+                .giver(1, 41.0, 41.0)
+                .kill("Ghoul", 48, 4, 1, 45.0, 45.0),
+        )
+        .required(3912)
+        .guide();
+    let (steps, _) = editor.steps(&outcome);
+    let report = editor.simulate(&steps, &Names::default());
+    let broken: Vec<_> = steps
+        .iter()
+        .zip(&report.steps)
+        .filter(|(_, r)| r.status == "error")
+        .map(|(s, r)| (s, r.reason))
+        .collect();
+    assert_eq!(report.errors, 0, "{broken:?}");
 }

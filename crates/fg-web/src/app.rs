@@ -4,9 +4,10 @@
 //! the app (`import_profile`).
 
 use crate::{embedded, host, store};
-use fg_app::{CmdError, Host, Studio, now};
+use fg_app::{CmdError, Host, Settings, SettingsStore, Studio, now};
 use fg_library::{GuideId, Library};
 use fg_route::Route;
+use fg_route::diagnostics::Diagnostics;
 use fg_route::export::fgstring;
 use fg_route::job::{self, Overrides, PlanRequest, RouteStep, StartState};
 use fg_route::sync::LockExt;
@@ -14,8 +15,8 @@ use fg_route::xp::Edition;
 use rusqlite::Connection;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap};
-use std::sync::{LazyLock, Mutex};
+use std::collections::HashMap;
+use std::sync::{Arc, LazyLock, Mutex};
 
 type CmdResult<T> = Result<T, CmdError>;
 
@@ -41,12 +42,21 @@ impl Host for WebHost {
         open_db(edition)
     }
 
-    fn overrides(&self, edition: Edition) -> CmdResult<Overrides> {
+    fn overrides(&self, edition: Edition) -> CmdResult<Arc<Overrides>> {
         overrides(edition)
     }
 
-    fn progress(&self, line: &str) {
-        host::event("plan-progress", &serde_json::Value::String(line.to_owned()));
+    fn event(&self, event: &job::JobEvent<'_>) {
+        host::event("plan-progress", &serde_json::Value::String(event.to_string()));
+    }
+
+    fn now(&self) -> CmdResult<u64> {
+        now()
+    }
+
+    /// No `FG_*` variables in the browser: nothing to tell.
+    fn diagnostics(&self) -> &Diagnostics {
+        &fg_route::diagnostics::OFF
     }
 }
 
@@ -70,65 +80,30 @@ const APP_VERSION: &str = match option_env!("FG_VERSION") {
 
 // Settings -----------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Settings {
-    /// Kept for the pages written for the desktop app: the browser has no game folder.
-    #[serde(default)]
-    wow_dir: String,
-    #[serde(default)]
-    edition: Edition,
-    #[serde(default)]
-    language: Option<String>,
-    #[serde(default)]
-    all_guides: bool,
-    #[serde(default)]
-    welcome_done: bool,
-    #[serde(default)]
-    forgotten_characters: BTreeMap<String, i64>,
-}
-
-impl Default for Settings {
-    fn default() -> Self {
-        Self {
-            wow_dir: String::new(),
-            edition: Edition::Forever,
-            language: None,
-            all_guides: false,
-            welcome_done: false,
-            forgotten_characters: BTreeMap::new(),
-        }
-    }
-}
-
 const SETTINGS_FILE: &str = "settings.json";
 
-static SETTINGS: LazyLock<Mutex<Settings>> = LazyLock::new(|| {
-    Mutex::new(
-        store::read(SETTINGS_FILE)
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default(),
-    )
-});
+/// The settings, in the browser's storage (those of older versions read the same).
+static SETTINGS: LazyLock<SettingsStore<store::Browser>> =
+    LazyLock::new(|| SettingsStore::open(store::Browser, SETTINGS_FILE).0);
 
-fn settings() -> Settings {
-    SETTINGS.locked().clone()
+fn settings() -> Arc<Settings> {
+    SETTINGS.get()
 }
 
 fn edition() -> Edition {
-    SETTINGS.locked().edition
-}
-
-fn write_settings(settings: Settings) -> CmdResult<()> {
-    let mut current = SETTINGS.locked();
-    store::write(SETTINGS_FILE, serde_json::to_vec_pretty(&settings).map_err(err)?);
-    *current = settings;
-    Ok(())
+    SETTINGS.get().edition
 }
 
 // Game data ----------------------------------------------------------------------------
 
 /// The databases fetched so far, unpacked (kept for good: each connection reads them in place).
 static DATABASES: LazyLock<Mutex<HashMap<Edition, &'static [u8]>>> = LazyLock::new(Mutex::default);
+
+/// Forget the databases fetched (tests serve different worlds of an edition one after the other).
+#[cfg(test)]
+pub(crate) fn forget_databases() {
+    DATABASES.locked().clear();
+}
 
 /// An edition's database, fetched and unpacked the first time (`data/<edition>.sqlite.zst`).
 fn database(edition: Edition) -> CmdResult<&'static [u8]> {
@@ -173,39 +148,18 @@ fn open_db(edition: Edition) -> CmdResult<Connection> {
     conn.deserialize_bytes("main", bytes).map_err(err)?;
     // No folder for temporary files in the browser: sorts and temporary tables in memory.
     conn.pragma_update(None, "temp_store", "MEMORY").map_err(err)?;
+    // The same bytes at every call: what is worked out from them is kept.
+    fg_route::world::name_database(&conn, bytes.as_ptr() as u64 ^ bytes.len() as u64).map_err(err)?;
     Ok(conn)
 }
 
-fn overrides(edition: Edition) -> CmdResult<Overrides> {
-    Overrides::parse_edition(override_file, edition).map_err(err)
+fn overrides(edition: Edition) -> CmdResult<Arc<Overrides>> {
+    fg_app::embedded_overrides(embedded::OVERRIDES, edition)
 }
 
-fn override_file(name: &str) -> Option<String> {
-    let (_, bytes) = embedded::OVERRIDES.iter().find(|(n, _)| *n == name)?;
-    Some(String::from_utf8_lossy(bytes).into_owned())
-}
-
-#[derive(Serialize)]
-struct EditionInfo {
-    key: &'static str,
-    name: &'static str,
-    available: bool,
-    /// The browser cannot tell which games are installed: every one.
-    installed: bool,
-    max_level: i64,
-}
-
-fn list_editions() -> Vec<EditionInfo> {
-    Edition::ALL
-        .iter()
-        .map(|e| EditionInfo {
-            key: e.key(),
-            name: e.rules().edition_name,
-            available: e.rules().known(),
-            installed: true,
-            max_level: e.rules().max_level,
-        })
-        .collect()
+fn list_editions() -> Vec<fg_app::EditionInfo> {
+    // The browser cannot tell which games are installed: every one.
+    fg_app::editions(|_| true, |_| true)
 }
 
 // Guides -------------------------------------------------------------------------------
@@ -224,17 +178,7 @@ fn guides(edition: Edition) -> Library<'static, store::Browser> {
 /// What the player pastes in game with `/fg import`: one guide version (the addon adds it to the
 /// guides it has, or replaces the one of its name).
 fn guide_text(guide: &GuideId, n: u32) -> CmdResult<serde_json::Value> {
-    let edition = edition();
-    let v = guides(edition).version(guide, n)?;
-    let route = render(edition, &v.outcome.route, None)?;
-    let lua = job::guides_lua(
-        &open_db(edition)?,
-        &overrides(edition)?,
-        edition,
-        vec![(route, v.meta.created, n)],
-    )
-    .map_err(err)?;
-    Ok(serde_json::json!({ "text": fgstring::encode(fgstring::GUIDE_PREFIX, lua.as_bytes()) }))
+    Ok(serde_json::json!({ "text": STUDIO.guide_text(&WebHost, guide, n)? }))
 }
 
 /// Every guide (see `followed_guides`) as the data addon the desktop app writes
@@ -245,11 +189,12 @@ fn data_zip() -> CmdResult<serde_json::Value> {
     if guides.is_empty() {
         return Err("no guide yet".into());
     }
-    let lua = job::guides_lua(&open_db(edition)?, &overrides(edition)?, edition, guides).map_err(err)?;
-    let files: Vec<(String, Vec<u8>)> = job::data_addon_files(&lua, embedded::ADDON_INTERFACE, APP_VERSION, now()?)
-        .into_iter()
-        .map(|(name, content)| (format!("{}/{name}", job::DATA_ADDON), content.into_bytes()))
-        .collect();
+    let lua = job::guides_lua(&open_db(edition)?, &*overrides(edition)?, edition, guides).map_err(err)?;
+    let files: Vec<(String, Vec<u8>)> =
+        job::data_addon_files(&lua, embedded::ADDON_INTERFACE, APP_VERSION, WebHost.now()?)
+            .into_iter()
+            .map(|(name, content)| (format!("{}/{name}", job::DATA_ADDON), content.into_bytes()))
+            .collect();
     Ok(serde_json::json!({
         "file": format!("{}.zip", job::DATA_ADDON),
         "base64": base64(&crate::zip::zip(&files)),
@@ -295,16 +240,7 @@ fn base64(bytes: &[u8]) -> String {
 /// What the player pastes on Polestar's Import page (`/polestar import`): one guide version, in
 /// the game's language. Polestar exists on WoW Forever only.
 fn polestar_string(guide: &GuideId, v: u32) -> CmdResult<serde_json::Value> {
-    if edition() != Edition::Forever {
-        return Err("Polestar is for WoW Forever only".into());
-    }
-    let route = render(
-        Edition::Forever,
-        &guides(Edition::Forever).version(guide, v)?.outcome.route,
-        None,
-    )?;
-    let s = fg_route::export::polestar::import_string(&job::slug(&route.name), &route, v);
-    serde_json::to_value(s).map_err(err)
+    serde_json::to_value(STUDIO.polestar_string(&WebHost, guide, v)?).map_err(err)
 }
 
 /// A guide version written for Polestar's own tools: a zip of a pack folder holding its
@@ -361,26 +297,6 @@ struct CharacterInfo {
     profile: StartState,
 }
 
-fn rested_now(p: &StartState, now: i64) -> i64 {
-    if p.xp_max <= 0 || p.time <= 0 {
-        return p.rested;
-    }
-    let hours = (now - p.time).max(0) as f64 / 3600.0;
-    let per_hour = 0.05 / 8.0 * p.xp_max as f64 * if p.resting { 1.0 } else { 0.25 };
-    let cap = p.xp_max * 3 / 2;
-    (p.rested + (hours * per_hour) as i64).min(cap.max(p.rested))
-}
-
-fn forgotten_key(edition: Edition, character: &str) -> String {
-    format!("{}/{character}", edition.key())
-}
-
-fn is_forgotten(forgotten: &BTreeMap<String, i64>, edition: Edition, profile: &StartState) -> bool {
-    forgotten
-        .get(&forgotten_key(edition, &profile.name))
-        .is_some_and(|&time| profile.time <= time)
-}
-
 /// A file name for a character's key ("Name-Realm" holds no slash, but a realm could).
 fn character_file(dir: &str, edition: Edition, key: &str) -> String {
     format!("{dir}/{}/{}.json", edition.key(), key.replace('/', "_"))
@@ -399,31 +315,19 @@ fn profiles(edition: Edition) -> Vec<serde_json::Value> {
 fn characters() -> CmdResult<Vec<CharacterInfo>> {
     let settings = settings();
     let edition = settings.edition;
-    let races = overrides(edition)?.races;
-    let now = i64::try_from(now()?).map_err(err)?;
+    let races = &overrides(edition)?.races;
+    let now = i64::try_from(WebHost.now()?).map_err(err)?;
     Ok(profiles(edition)
         .into_iter()
         .filter_map(|json| serde_json::from_value::<StartState>(json).ok())
-        .filter(|profile| !is_forgotten(&settings.forgotten_characters, edition, profile))
+        .filter(|profile| !settings.is_forgotten(edition, profile))
         .map(|mut profile| {
-            profile.rested = rested_now(&profile, now);
+            profile.rested = fg_app::rested_now(&profile, now);
             CharacterInfo {
                 full_name: None,
-                race: races
-                    .iter()
-                    .find(|(_, r)| r.id == profile.race)
-                    .map(|(key, _)| key.clone()),
+                race: fg_app::race_key(races, &profile),
                 class: profile.class.to_lowercase(),
-                professions: profile
-                    .professions
-                    .iter()
-                    .filter_map(|s| {
-                        let def = fg_route::profession::PROFESSIONS
-                            .iter()
-                            .find(|d| d.skill_id == s.line)?;
-                        Some((def.key.to_owned(), s.rank))
-                    })
-                    .collect(),
+                professions: fg_app::profession_ranks(&profile),
                 profile,
             }
         })
@@ -435,24 +339,10 @@ fn forget_character(character: &str) -> CmdResult<()> {
         .into_iter()
         .find(|c| c.profile.name == character)
         .map_or(i64::MAX, |c| c.profile.time);
-    let mut settings = settings();
-    let edition = settings.edition;
-    settings
-        .forgotten_characters
-        .insert(forgotten_key(edition, character), time);
-    write_settings(settings)
-}
-
-/// What the addon's export holds (`/fg export`, see the addon's Profile.lua).
-#[derive(Deserialize)]
-struct ProfileExport {
-    format: String,
-    version: u32,
-    edition: Option<String>,
-    #[serde(default)]
-    addon: Option<String>,
-    character: String,
-    profile: serde_json::Value,
+    SETTINGS.update(|s| {
+        let edition = s.edition;
+        s.forget(edition, character, time);
+    })
 }
 
 /// A character's export pasted: what it was read as.
@@ -477,14 +367,7 @@ fn last_export_file(edition: Edition) -> String {
 /// Keep a character's export (its text as the addon gives it): its profile replaces the one
 /// kept.
 fn import_profile(content: &str) -> CmdResult<ProfileImported> {
-    let json = fgstring::decode(fgstring::PROFILE_PREFIX, content).map_err(|e| match e.as_str() {
-        "not_this_kind" => "not_a_profile".to_owned(),
-        _ => "corrupt_profile".to_owned(),
-    })?;
-    let export: ProfileExport = serde_json::from_slice(&json).map_err(|_| "corrupt_profile".to_owned())?;
-    if export.format != "factoruide-profile" || export.version != 1 {
-        return Err("not_a_profile".into());
-    }
+    let export = fgstring::read_profile(content)?;
     let edition = match export.edition.as_deref() {
         Some(key) => Edition::ALL
             .iter()
@@ -493,34 +376,20 @@ fn import_profile(content: &str) -> CmdResult<ProfileImported> {
             .ok_or_else(|| format!("unknown game version {key}"))?,
         None => edition(),
     };
-    let key = export.character.trim().to_owned();
-    if key.is_empty() || key.len() > 100 {
-        return Err("corrupt_profile".into());
-    }
-    let mut profile = export.profile;
-    if profile["name"].as_str().is_none_or(str::is_empty) {
-        profile["name"] = key.clone().into();
-    }
+    let (key, profile) = (export.character, export.profile);
     let parsed: StartState = serde_json::from_value(profile.clone()).map_err(|e| format!("corrupt_profile: {e}"))?;
     store::write(
         &character_file("characters", edition, &key),
         serde_json::to_vec(&profile).map_err(err)?,
     );
     let last = LastExport {
-        time: i64::try_from(now()?).map_err(err)?,
+        time: i64::try_from(WebHost.now()?).map_err(err)?,
         version: export.addon.unwrap_or_default(),
     };
     store::write(&last_export_file(edition), serde_json::to_vec(&last).map_err(err)?);
     // Pasted again after being taken out: back.
-    let mut settings = settings();
-    if settings
-        .forgotten_characters
-        .remove(&forgotten_key(edition, &key))
-        .is_some()
-    {
-        write_settings(settings)?;
-    } else {
-        drop(settings);
+    if settings().is_out(edition, &key) {
+        SETTINGS.update(|s| s.remember(edition, &key))?;
     }
     Ok(ProfileImported {
         character: key,
@@ -542,20 +411,6 @@ struct AddonState {
     seen: Option<LastExport>,
 }
 
-/// Whether version `a` ("0.13.0") is older than `b`; versions that do not read as numbers are
-/// never older (an addon built by hand).
-fn older(a: &str, b: &str) -> bool {
-    let parse = |v: &str| {
-        v.split('.')
-            .map(|p| p.trim().parse::<u32>().ok())
-            .collect::<Option<Vec<_>>>()
-    };
-    match (parse(a), parse(b)) {
-        (Some(a), Some(b)) => a < b,
-        _ => false,
-    }
-}
-
 fn last_export(edition: Edition) -> Option<LastExport> {
     serde_json::from_slice(&store::read(&last_export_file(edition))?).ok()
 }
@@ -568,7 +423,7 @@ fn addon_health() -> AddonState {
         required_version: embedded::ADDON_VERSION,
         outdated: seen
             .as_ref()
-            .is_some_and(|s| older(&s.version, embedded::ADDON_VERSION)),
+            .is_some_and(|s| fg_app::older(&s.version, embedded::ADDON_VERSION)),
         seen,
     }
 }
@@ -576,30 +431,7 @@ fn addon_health() -> AddonState {
 // Maps ------------------------------------------------------------------------------------
 
 fn map_index() -> CmdResult<serde_json::Value> {
-    let db = open_db(edition())?;
-    let text: String = db
-        .query_row("SELECT value FROM app_meta WHERE key = 'map_index'", [], |r| r.get(0))
-        .map_err(err)?;
-    let mut index: serde_json::Value = serde_json::from_str(&text).map_err(err)?;
-    let mut names: HashMap<i64, serde_json::Map<String, serde_json::Value>> = HashMap::new();
-    if let Ok(mut stmt) =
-        db.prepare("SELECT id, locale, name FROM l10n WHERE entity_type = 'zone' AND name IS NOT NULL")
-    {
-        let rows = stmt
-            .query_map([], |r| {
-                Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
-            })
-            .map_err(err)?;
-        for (id, locale, name) in rows.flatten() {
-            names.entry(id).or_default().insert(locale, name.into());
-        }
-    }
-    for map in index.as_array_mut().into_iter().flatten() {
-        if let Some(n) = map["area"].as_i64().and_then(|a| names.get(&a)) {
-            map["names"] = serde_json::Value::Object(n.clone());
-        }
-    }
-    Ok(index)
+    fg_app::map_index(&open_db(edition())?)
 }
 
 // Calls -----------------------------------------------------------------------------------
@@ -660,28 +492,27 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
     use serde_json::{Value, json};
     match cmd {
         "updates_enabled" => Ok(Value::Bool(false)),
-        "get_settings" => to_json(Ok(settings())),
+        "get_settings" => to_json(Ok(Settings::clone(&settings()))),
         "set_settings" => {
             #[derive(Deserialize)]
             struct A {
                 settings: Settings,
             }
             let s = args::<A>(a)?.settings;
-            to_json(write_settings(s))
+            to_json(SETTINGS.update(|current| *current = s))
         }
         "set_edition" => {
             #[derive(Deserialize)]
             struct A {
                 edition: Edition,
             }
-            let mut s = settings();
-            s.edition = args::<A>(a)?.edition;
-            to_json(write_settings(s))
+            let edition = args::<A>(a)?.edition;
+            to_json(SETTINGS.update(|s| s.edition = edition))
         }
         "list_editions" => to_json(Ok(list_editions())),
         "get_options" => {
             let edition = edition();
-            to_json(job::options(&open_db(edition)?, &overrides(edition)?).map_err(err))
+            to_json(job::options(&open_db(edition)?, &*overrides(edition)?).map_err(err))
         }
         "plan_route" => {
             #[derive(Deserialize)]
@@ -697,6 +528,17 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
             }
             let start = args::<A>(a)?.start;
             to_json(STUDIO.inferred_flights(&WebHost, &start))
+        }
+        "quest_choices" => {
+            #[derive(Deserialize)]
+            struct A {
+                race: String,
+                class: String,
+                query: String,
+                locale: Option<String>,
+            }
+            let a = args::<A>(a)?;
+            to_json(STUDIO.quest_choices(&WebHost, &a.race, &a.class, &a.query, a.locale.as_deref()))
         }
         "preview_starts" => {
             #[derive(Deserialize)]
@@ -756,6 +598,18 @@ fn run(cmd: &str, a: serde_json::Value) -> CmdResult<serde_json::Value> {
             }
             let x = args::<Versions>(a)?;
             to_json(STUDIO.compare_versions(&WebHost, &x.guide, x.a, x.b, x.locale.as_deref()))
+        }
+        // The report document the page posts to /v1/issues (the browser has no id of its own: the
+        // page keeps one).
+        "issue_document" => {
+            #[derive(Deserialize)]
+            struct Report {
+                draft: fg_app::IssueDraft,
+                contributor: String,
+                os: String,
+            }
+            let r = args::<Report>(a)?;
+            to_json(STUDIO.issue(&WebHost, r.draft, (APP_VERSION, &r.os, r.contributor), None))
         }
         "set_installed" => {
             let g = args::<GuideArgs>(a)?;

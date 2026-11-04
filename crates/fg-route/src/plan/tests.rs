@@ -7,46 +7,74 @@ use crate::model::{Guard, Initial, Objective};
 use crate::xp::Edition;
 use rusqlite::Connection;
 use std::path::PathBuf;
-use std::sync::Mutex;
+
+mod dungeons;
+mod movement;
+mod profession_trainers;
+mod xp_buffs;
+#[test]
+fn completion_window_is_checked_after_exploration_on_the_trip() {
+    let mut p = quests_at_start(1);
+    p.world.terrain = crate::terrain::Terrain::default();
+    p.params.explore_radius = 50.0;
+    p.model.initial.xp = 399;
+    p.model.initial.accepted = vec![0];
+    let q = &mut p.model.quests[0];
+    q.required = true;
+    q.completion_window.max_level = Some(1);
+    q.ends[0].pos.x += 1000.0;
+    let area = crate::model::ExploreArea {
+        zone: q.ends[0].zone,
+        level: 1,
+        pos: q.ends[0].pos,
+    };
+    p.model.explore_by_zone.insert(q.ends[0].zone, vec![0]);
+    p.model.explore.push(area);
+    let edit = super::Edit::Stop {
+        stop: Stop::quest(0, Kind::TurnIn),
+        farm: false,
+        spot: None,
+    };
+    let report = planner(&p).edit(&[edit]);
+    assert_eq!(
+        report.steps[0].outcome,
+        super::Outcome::Invalid("quest completion outside requested level range")
+    );
+    p.model.explore.clear();
+    p.model.explore_by_zone.clear();
+    assert_eq!(planner(&p).edit(&[edit]).errors(), 0);
+}
 
 fn repo() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
-/// The Classic database, unpacked next to the packed one when missing or older.
-fn database() -> Connection {
-    static UNPACK: Mutex<()> = Mutex::new(());
-    let _guard = UNPACK.lock().unwrap();
-    let (path, packed) = (
-        repo().join("data/classic.sqlite"),
-        repo().join("data/classic.sqlite.zst"),
-    );
-    let modified = |p: &PathBuf| std::fs::metadata(p).and_then(|m| m.modified()).ok();
-    if !path.exists() || modified(&packed) > modified(&path) {
-        let data = zstd::decode_all(std::fs::File::open(&packed).unwrap()).unwrap();
-        std::fs::write(&path, data).unwrap();
-    }
-    Connection::open(path).unwrap()
+/// The fixtures' base of an edition (`scripts/test-base.sh`): the game's classes, races, zones and
+/// class spells, no quest.
+pub(crate) fn base_of(edition: &str) -> Connection {
+    fixture_of(edition, &[])
+}
+
+/// The fixtures' base of an edition with the fixture `files` (`tests/fixtures/<file>.toml`).
+pub(crate) fn fixture_of(edition: &str, files: &[&str]) -> Connection {
+    let base = crate::fixture::Fixture::new(Edition::from_key(edition).expect("an edition"));
+    files.iter().fold(base, |f, name| f.file(name)).open()
 }
 
 /// Level 1 human warrior with only `n` quests of its own: taken and turned in at the start NPC,
 /// nothing to do, no XP (each test sets what it checks). Nothing done on the way.
 pub(crate) fn quests_at_start(n: usize) -> Prepared {
-    let overrides = Overrides::load_edition(&repo().join("overrides"), Edition::Classic).unwrap();
-    let request = PlanRequest {
-        race: "human".into(),
-        class: "warrior".into(),
-        from_level: 1,
-        to_level: 2,
-        name: None,
-        params: Some(overrides.params.clone()),
-        required_class_quests: None,
-        professions: vec![],
-        locale: None,
-        mates: vec![],
-        start: None,
-    };
-    let mut p = job::prepare(&database(), &overrides, &request, &|_| {}).unwrap();
+    use crate::testing::{Q, Scenario};
+    at_start(
+        Scenario::new()
+            .levels(1, 2)
+            .quest(Q::new(900, "Quest").level(1))
+            .build(),
+        n,
+    )
+}
+
+fn at_start(mut p: Prepared, n: usize) -> Prepared {
     let here = p.model.start.clone();
     let template = p.model.quests[0].clone();
     p.model.quests = (0..n)
@@ -65,14 +93,38 @@ pub(crate) fn quests_at_start(n: usize) -> Prepared {
         .collect();
     p.model.index = p.model.quests.iter().enumerate().map(|(i, q)| (q.id, i)).collect();
     (p.model.chain_top, p.model.unlocks, p.model.rewards) = (vec![1; n], vec![0.0; n], vec![(vec![], vec![]); n]);
-    p.model.initial = Initial::default();
+    p.model.bundles = vec![Vec::new(); n];
+    p.model.initial = Initial {
+        abilities: p.model.initial.abilities,
+        trained: p.model.initial.trained,
+        ..Initial::default()
+    };
     p.model.power = None;
     p.model.trainers.clear();
+    p.model.teleports.clear();
     p.model.vendors.clear();
     p.model.explore.clear();
     p.model.explore_by_zone.clear();
     (p.params.camp_radius, p.params.farm_on_way, p.params.flight_learn_radius) = (0.0, false, 0.0);
     p
+}
+
+/// The character of a request with its class's spells and power from the database, and one quest.
+pub(crate) fn class_scenario(conn: &Connection, overrides: &Overrides, req: &PlanRequest) -> crate::testing::Scenario {
+    use crate::testing::{Q, Scenario};
+    let level = req.from_level.max(1);
+    let mut scenario = Scenario::of_class(conn, overrides, req)
+        .unwrap()
+        .quest(Q::new(900, "Quest").level(level).min_level(level));
+    // The quests the character did.
+    for done in req.start.iter().flat_map(|s| &s.completed) {
+        scenario = scenario.quest(Q::new(done.0, "Done").level(level).min_level(level));
+    }
+    scenario
+}
+
+pub(crate) fn class_prepared(conn: &Connection, overrides: &Overrides, req: &PlanRequest) -> Prepared {
+    class_scenario(conn, overrides, req).build()
 }
 
 fn planner(p: &Prepared) -> Planner<'_> {
@@ -138,11 +190,10 @@ fn quests_at_hand_are_looked_for_where_the_stop_went() {
         alts: vec![],
         after: 0,
         handed_by: vec![],
-        child: None,
-        child_name: None,
         vendors: vec![],
         auction: vec![],
         slot: None,
+        lasts: None,
         stock: None,
     };
     let mut other = objective.clone();
@@ -200,11 +251,10 @@ fn objective_started_counts_its_share_at_another_place() {
         alts: vec![],
         after: 0,
         handed_by: vec![],
-        child: None,
-        child_name: None,
         vendors: vec![],
         auction: vec![],
         slot: None,
+        lasts: None,
         stock: None,
     };
     let mut other = objective.clone();
@@ -231,7 +281,7 @@ fn objective_started_counts_its_share_at_another_place() {
 fn gathering_next_to_kills_saves_time_when_consecutive() {
     let p = camp_of_two_objectives();
     let planner = planner(&p);
-    let fighting = |route: &[Stop]| planner.simulate_full(route, None).unwrap().1.fighting;
+    let fighting = |route: &[Stop]| fighting_with_turn_ins(&planner, route);
     let (kill, gather) = (Stop::quest(0, Kind::Objective(0)), Stop::quest(1, Kind::Objective(0)));
     let (k, g) = (fighting(&[kill]), fighting(&[gather]));
     let saved = g.min(k * p.params.gather_overlap);
@@ -241,6 +291,19 @@ fn gathering_next_to_kills_saves_time_when_consecutive() {
     // Another stop between them (a quest taken at the start).
     let apart = fighting(&[kill, Stop::quest(2, Kind::Accept), gather]);
     assert!((apart - (k + g)).abs() < 1e-6, "{apart} with a stop between");
+}
+
+/// The fighting of `route` with the quests whose objective it does turned in at its end: a quest
+/// left in the log is grinding (`Planner::count_unfinished_as_grind`), not fighting.
+fn fighting_with_turn_ins(planner: &Planner<'_>, route: &[Stop]) -> f64 {
+    let mut full = route.to_vec();
+    full.extend(
+        route
+            .iter()
+            .filter(|s| s.kind == Kind::Objective(0))
+            .map(|s| Stop::quest(s.index, Kind::TurnIn)),
+    );
+    planner.simulate_full(&full, None).unwrap().1.fighting
 }
 
 /// Kill and gathering objectives at a camp 100 yards east of the start, for quests 0 and 1 (in
@@ -272,11 +335,10 @@ fn camp_of_two_objectives() -> Prepared {
         alts: vec![],
         after: 0,
         handed_by: vec![],
-        child: None,
-        child_name: None,
         vendors: vec![],
         auction: vec![],
         slot: None,
+        lasts: None,
         stock: None,
     };
     let mut gather = Objective {
@@ -304,7 +366,7 @@ fn objectives_at_one_place_are_brought_together() {
     let apart = vec![kill, accept, gather];
     let together = planner.route_together(apart.clone());
     assert_eq!(together, vec![kill, gather, accept]);
-    let fighting = |route: &[Stop]| planner.simulate_full(route, None).unwrap().1.fighting;
+    let fighting = |route: &[Stop]| fighting_with_turn_ins(&planner, route);
     assert!(fighting(&together) < fighting(&apart) - 1.0);
 }
 
@@ -352,6 +414,32 @@ fn a_quest_taken_and_given_up_costs_the_route() {
     p.params.abandon_weight = 0.0;
     let (given_up, _) = score(&p, &route);
     assert!(given_up - left_out < 30.0, "{given_up} vs {left_out}");
+}
+
+/// A class unlock kept below the guide's levels costs `unlock_delay_weight` for each level gained
+/// before it is turned in: the same route with it done first is better by that much.
+#[test]
+fn a_late_class_unlock_costs_each_level_it_waits() {
+    let mut p = quests_at_start(2);
+    p.profile.to_level = 20;
+    // Quest 1 takes the character to level 7.
+    p.model.quests[1].xp = 11_200;
+    p.model.quests[0].late_unlock = true;
+    p.model.quests[0].level = 10;
+    let (accept, turn_in) = (|i| Stop::quest(i, Kind::Accept), |i| Stop::quest(i, Kind::TurnIn));
+    let first = [accept(0), turn_in(0), accept(1), turn_in(1)];
+    let last = [accept(1), turn_in(1), accept(0), turn_in(0)];
+    let score = |p: &Prepared, route: &[Stop]| {
+        planner(p)
+            .simulate_full(route, None)
+            .unwrap_or_else(|| panic!("{route:?}"))
+            .0
+    };
+    p.params.unlock_delay_weight = 0.0;
+    let free = score(&p, &last) - score(&p, &first);
+    p.params.unlock_delay_weight = 300.0;
+    let weighed = score(&p, &last) - score(&p, &first);
+    assert!(weighed - free > 1700.0, "{weighed} vs {free}");
 }
 
 /// A profession quest (Camping 101: its reward is the trainer's recipe, not XP) taken early and
@@ -448,11 +536,10 @@ fn road_of_mobs() -> (Prepared, crate::world::Pos, crate::world::Pos) {
         alts: vec![],
         after: 0,
         handed_by: vec![],
-        child: None,
-        child_name: None,
         vendors: vec![],
         auction: vec![],
         slot: None,
+        lasts: None,
         stock: None,
     }];
     p.model.farm = crate::model::FarmMobs::from_spawns(&spawns, &p.model.quests);
@@ -557,11 +644,10 @@ fn greedy_grinds_to_the_mobs_of_a_quest_in_reach() {
         alts: vec![],
         after: 0,
         handed_by: vec![],
-        child: None,
-        child_name: None,
         vendors: vec![],
         auction: vec![],
         slot: None,
+        lasts: None,
         stock: None,
     }];
     let route = planner(&p).greedy();
@@ -573,7 +659,30 @@ fn greedy_grinds_to_the_mobs_of_a_quest_in_reach() {
 #[test]
 fn trips_fly_to_a_boat_and_from_it() {
     use super::state::Leg;
-    let mut p = quests_at_start(0);
+    use crate::testing::{At, Scenario};
+    let mut p = Scenario::new()
+        .levels(1, 2)
+        .zone(2, "Wetlands")
+        .zone(3, "Dustwallow")
+        .flight_master(1, "Ironforge", 1, 50.0, 50.0)
+        .flight_master(2, "Menethil Harbor", 2, 50.0, 50.0)
+        .flight_master(3, "Theramore", 3, 50.0, 50.0)
+        .boat(
+            "Boat Menethil Harbor - Theramore",
+            At {
+                zone: 2,
+                x: 52.0,
+                y: 50.0,
+            },
+            At {
+                zone: 3,
+                x: 48.0,
+                y: 50.0,
+            },
+            30.0,
+        )
+        .params(|p| p.link_wait = 0.0)
+        .build();
     p.params.gold_weight = 0.0;
     let planner = planner(&p);
     let trips = planner.trips();
@@ -607,11 +716,41 @@ fn trips_fly_to_a_boat_and_from_it() {
 
 /// A trip flies to a port, takes its boat and flies on from where it lands, when that is faster:
 /// Ironforge to Gadgetzan by the flight to Menethil Harbor, the boat to Theramore and the flight
-/// to Gadgetzan.
+/// to Gadgetzan (here the sea is five zones wide and the boat crosses it in 30 seconds).
 #[test]
 fn trips_fly_to_a_boat_and_on_from_it() {
     use super::state::Leg;
-    let mut p = quests_at_start(0);
+    use crate::testing::{At, Scenario};
+    let mut p = Scenario::new()
+        .levels(1, 2)
+        .zone(2, "Wetlands")
+        .zone(3, "Sea 1")
+        .zone(4, "Sea 2")
+        .zone(5, "Sea 3")
+        .zone(6, "Sea 4")
+        .zone(7, "Sea 5")
+        .zone(8, "Dustwallow")
+        .zone(9, "Tanaris")
+        .flight_master(1, "Ironforge", 1, 50.0, 50.0)
+        .flight_master(2, "Menethil Harbor", 2, 50.0, 50.0)
+        .flight_master(3, "Theramore", 8, 50.0, 50.0)
+        .flight_master(4, "Gadgetzan", 9, 50.0, 50.0)
+        .boat(
+            "Boat Menethil Harbor - Theramore",
+            At {
+                zone: 2,
+                x: 52.0,
+                y: 50.0,
+            },
+            At {
+                zone: 8,
+                x: 48.0,
+                y: 50.0,
+            },
+            30.0,
+        )
+        .params(|p| p.link_wait = 0.0)
+        .build();
     p.params.gold_weight = 0.0;
     let planner = planner(&p);
     let trips = planner.trips();
@@ -684,7 +823,8 @@ fn quest_items_take_a_slot_until_the_turn_in() {
     let mut s = planner.initial_state();
     planner.accept(&mut s, 0);
     assert_eq!(s.held, 1);
-    planner.turn_in(&mut s, 0);
+    let rewards = planner.growth().quest_rewards(&s, 0);
+    planner.turn_in(&mut s, 0, &rewards);
     assert_eq!(s.held, 0);
 }
 
@@ -743,6 +883,17 @@ fn the_class_and_gathering_keep_bag_room() {
         (warrior - herbalist - p.params.gather_share * crate::params::bag_slots(30)).abs() < 1e-9,
         "{herbalist}"
     );
+    // A group goes to the vendor when the fullest bags are: a hunter's, with a quiver.
+    p.profile.professions.clear();
+    p.profile.mates = vec![crate::model::Mate {
+        class_name: "Hunter".into(),
+        name: "Hunter".into(),
+        race_id: 2,
+        class_id: 3,
+        spell_weights: vec![],
+        professions: vec![],
+    }];
+    assert!((planner(&p).growth().bag_room(30) - hunter).abs() < 1e-9);
 }
 
 /// A timed quest whose mob is too strong for the character is taken once it is strong enough
@@ -775,11 +926,10 @@ fn timed_quest_taken_once_strong_enough_for_its_objectives() {
         alts: vec![],
         after: 0,
         handed_by: vec![],
-        child: None,
-        child_name: None,
         vendors: vec![],
         auction: vec![],
         slot: Some(1),
+        lasts: None,
         stock: None,
     }];
     // Of the mob's level (not gray once there), offered from level 1.
@@ -802,8 +952,14 @@ fn timed_quest_taken_once_strong_enough_for_its_objectives() {
     p.model.quests[0].time_limit = Some(600.0);
     let (accept, objective) = gates(&p);
     assert_eq!(accept, objective, "timed: taken at the mob's level");
+    p.model.quests[0].required = true;
+    p.model.quests[0].mandatory = true;
+    p.model.quests[0].completion_window.min_level = Some(18);
+    assert_eq!(gates(&p).0, 18, "wait for the turn-in window before starting the clock");
     let mut trace = Vec::new();
-    planner(&p).simulate(&route, Some(&mut trace)).expect("a valid route");
+    let plan = planner(&p);
+    let result = plan.simulate(&route, Some(&mut trace));
+    assert!(result.is_some(), "a valid route: {:?}", plan.diagnose(&route));
     let at = |kind: Kind| {
         trace.iter().find_map(|t| match t.event {
             super::state::Event::Stop { stop, .. } if stop.kind == kind => Some(t.level),
@@ -943,4 +1099,153 @@ fn the_player_behind_catches_up() {
         [(1, 200), (1, 100)],
         "a quarter of a level apart: within the most"
     );
+}
+
+mod abilities;
+
+#[test]
+fn an_unbounded_required_quest_stays_in_the_log_when_gray() {
+    let conn = crate::fixture::Fixture::new(Edition::Classic)
+        .file("classic_northshire")
+        .open();
+    let o = Overrides::load_edition(&repo().join("overrides"), Edition::Classic).unwrap();
+    let req=serde_json::from_value(serde_json::json!({"race":"human","class":"warrior","from_level":20,"to_level":21,"required_class_quests":[],"required_quests":[783],"start":{"level":20,"log":[{"id":783,"complete":true}]}})).unwrap();
+    let p = job::prepare(&conn, &o, &req, &|_| {}).unwrap();
+    let i = p.model.index[&783];
+    assert!(
+        p.model.quests[i].required && p.model.quests[i].mandatory,
+        "model construction makes exact requirements mandatory"
+    );
+    let plan = planner(&p);
+    let mut state = plan.initial_state();
+    plan.abandon_hopeless(&mut state, &mut |_, _| {});
+    assert!(state.accepted[i]);
+}
+
+/// Two versions of a must-have class quest, of two steps each: taking one closes the other. The
+/// first is far away, the second at the start.
+fn far_and_near_versions() -> Prepared {
+    let mut p = quests_at_start(4);
+    p.world.terrain = crate::terrain::Terrain::default();
+    let ids: Vec<i64> = p.model.quests.iter().map(|q| q.id).collect();
+    for q in &mut p.model.quests {
+        q.mandatory = true;
+    }
+    p.model.quests[1].pre_all = vec![ids[0]];
+    p.model.quests[3].pre_all = vec![ids[2]];
+    for i in 0..2 {
+        p.model.quests[i].exclusive = vec![ids[2], ids[3]];
+        p.model.quests[i + 2].exclusive = vec![ids[0], ids[1]];
+        p.model.quests[i].starts[0].pos.x += 5000.0;
+        p.model.quests[i].ends[0].pos.x += 5000.0;
+    }
+    p
+}
+
+fn far_version_route() -> Vec<Stop> {
+    vec![
+        Stop::quest(0, Kind::Accept),
+        Stop::quest(0, Kind::TurnIn),
+        Stop::quest(1, Kind::Accept),
+        Stop::quest(1, Kind::TurnIn),
+    ]
+}
+
+/// No other move can change the version: a must-have quest stays, and the other is closed.
+#[test]
+fn the_other_version_of_a_class_quest_replaces_the_one_in_the_route() {
+    use rand::SeedableRng;
+    let p = far_and_near_versions();
+    let planner = planner(&p);
+    let mut route = far_version_route();
+    let run = planner.run(&route).unwrap();
+    let mut changed = None;
+    let mut rng = rand::rngs::SmallRng::seed_from_u64(1);
+    for _ in 0..64 {
+        changed = changed.or_else(|| planner.swap_version(&mut route, &run, &mut rng));
+    }
+    let change = changed.expect("the other version is open");
+    assert_eq!(change.first, 0);
+    let quests: Vec<u32> = route.iter().map(|s| s.index).collect();
+    assert!(quests.iter().all(|&q| q >= 2), "the old version is gone: {quests:?}");
+    assert_eq!(route.len(), 4, "the whole new version: {quests:?}");
+    let (with, spent) = planner.simulate_full(&route, None).unwrap();
+    assert_eq!(spent.missing_class_quests, 0);
+    assert!(with < run.total, "{with} vs {}", run.total);
+}
+
+#[test]
+fn the_search_changes_to_the_better_version_of_a_class_quest() {
+    let p = far_and_near_versions();
+    let route = planner(&p).improve_while(
+        far_version_route(),
+        super::Effort::Tries(4000),
+        || true,
+        |_| {},
+        |_, _, _| {},
+    );
+    let quests: Vec<u32> = route.iter().filter(|s| s.is_quest()).map(|s| s.index).collect();
+    assert!(quests.contains(&2) && quests.contains(&3), "{quests:?}");
+    assert!(!quests.contains(&0) && !quests.contains(&1), "{quests:?}");
+}
+
+/// A quest with no other version: the move does nothing, and draws nothing (routes of every
+/// other character stay the same).
+#[test]
+fn a_class_quest_with_one_version_has_nothing_to_swap() {
+    use rand::{RngExt, SeedableRng};
+    let mut p = quests_at_start(2);
+    p.model.quests[0].mandatory = true;
+    let planner = planner(&p);
+    let mut route = vec![Stop::quest(0, Kind::Accept), Stop::quest(0, Kind::TurnIn)];
+    let run = planner.run(&route).unwrap();
+    let mut rng = rand::rngs::SmallRng::seed_from_u64(1);
+    let mut same = rand::rngs::SmallRng::seed_from_u64(1);
+    assert!(planner.swap_version(&mut route, &run, &mut rng).is_none());
+    assert_eq!(route.len(), 2);
+    assert_eq!(rng.random::<u64>(), same.random::<u64>());
+}
+
+/// The move shares its slot with adding a new quest, the only one: a character with versions
+/// still gets most of those tries, for the whole search.
+#[test]
+fn a_route_with_another_version_still_tries_new_quests() {
+    use rand::SeedableRng;
+    let p = far_and_near_versions();
+    let planner = planner(&p);
+    let route = far_version_route();
+    let run = planner.run(&route).unwrap();
+    let mut rng = rand::rngs::SmallRng::seed_from_u64(1);
+    let swaps = (0..1000)
+        .filter(|_| planner.swap_version(&mut route.clone(), &run, &mut rng).is_some())
+        .count();
+    assert!((50..=250).contains(&swaps), "{swaps} swaps of 1000 tries");
+}
+
+/// A quest the route took and never turned in is grinding in all but name: the time of its
+/// objectives is counted as grinding, not as the fighting of a quest; turned in, it stays fighting.
+#[test]
+fn a_quest_never_turned_in_counts_as_grinding() {
+    use crate::testing::{Q, Scenario};
+    let p = Scenario::new()
+        .levels(1, 3)
+        .quest(
+            Q::new(1, "Kills")
+                .level(1)
+                .xp(50)
+                .giver(1, 40.0, 40.0)
+                .kill("Boar", 1, 10, 1, 45.0, 45.0),
+        )
+        .build();
+    let planner = planner(&p);
+    let (accept, objective, turn_in) = (
+        Stop::quest(0, Kind::Accept),
+        Stop::quest(0, Kind::Objective(0)),
+        Stop::quest(0, Kind::TurnIn),
+    );
+    let (_, done) = planner.simulate_full(&[accept, objective, turn_in], None).unwrap();
+    let (_, left) = planner.simulate_full(&[accept, objective], None).unwrap();
+    assert!(done.fighting > 1.0, "turned in: the quest's fighting {done:?}");
+    assert!(left.fighting < 1.0, "never turned in: grinding {left:?}");
+    assert!(left.grinding > done.grinding, "{} vs {}", left.grinding, done.grinding);
 }

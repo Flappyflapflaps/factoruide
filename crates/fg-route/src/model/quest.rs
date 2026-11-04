@@ -5,7 +5,7 @@ use super::builder::QuestBuilder;
 use super::givers::Givers;
 use super::selection::QuestSkill;
 use super::sources::{LinkKind, ObjectiveKind, QuestRow, SourceKind};
-use super::types::{Objective, Quest};
+use super::types::{CompletionWindow, EntityKind, Objective, Quest};
 
 impl QuestBuilder<'_> {
     pub(super) fn assemble(
@@ -23,7 +23,15 @@ impl QuestBuilder<'_> {
         let (pre_all, pre_any) = self.prerequisites(r.id, &givers.item_pre);
         let guard = |locs: &[super::types::Loc]| {
             locs.iter()
-                .map(|l| self.sources.guards.around(&l.pos))
+                // A creature gives the quest in a town its own side's guards watch; an item is
+                // found where it lies, among the camps of the other side too.
+                .map(|l| {
+                    if l.kind == EntityKind::Item {
+                        self.sources.guards.around_hostile(&l.pos)
+                    } else {
+                        self.sources.guards.around(&l.pos)
+                    }
+                })
                 .fold(super::types::Guard::default(), super::types::Guard::max)
         };
         let (start_guard, end_guard) = (guard(&givers.starts), guard(&givers.ends));
@@ -41,6 +49,7 @@ impl QuestBuilder<'_> {
             objectives,
             pre_all,
             pre_any,
+            pre_need: self.pre_need(r.id),
             exclusive: self.links(r.id, LinkKind::Exclusive),
             pre_held: self.pre_held(r),
             breadcrumb_for: r.breadcrumb_for.filter(|b| *b > 0),
@@ -52,19 +61,34 @@ impl QuestBuilder<'_> {
             start_dungeon: givers.start_dungeon,
             held: givers.held,
             carried: r.source_item.is_some_and(|i| i > 0),
+            late_unlock: false,
             mandatory: zone_forced
                 || group_class_quest
-                    && (self.profile.required_class_quests.iter().any(|n| n == &r.name)
-                        || self.params.all_class_quests
-                            && r.min_level.unwrap_or(1) <= self.profile.to_level
-                            && !self.sources.repeatable.contains(&r.id)),
+                    && (self
+                        .profile
+                        .class_requirements
+                        .iter()
+                        .any(|c| c.selected && c.quests.contains(&r.id))
+                        || self.params.all_class_quests && r.min_level.unwrap_or(1) <= self.profile.to_level),
             zone_forced,
+            required: false,
+            completion_window: CompletionWindow::default(),
+            implicit_window: false,
+            priority_deadline: None,
             skill: skill.flatten(),
             power: class_quest
-                .then(|| self.profile.class_powers.iter().position(|(n, _)| n == &r.name))
+                .then(|| {
+                    let requirement = (self.profile.class_requirements.iter())
+                        .find(|c| c.class_id == self.profile.class_id && c.quests.contains(&r.id))?;
+                    self.profile
+                        .class_powers
+                        .iter()
+                        .position(|(n, _)| *n == requirement.name)
+                })
                 .flatten()
                 .map(|k| (k as u8, self.profile.class_powers[k].1)),
             reward_spell: r.reward_spell,
+            reward_items: Vec::new(),
             start_guard,
             end_guard,
             reputation: r
@@ -72,7 +96,12 @@ impl QuestBuilder<'_> {
                 .into_iter()
                 .map(|(f, v)| (f, v as f64 * self.profile.reputation_rate()))
                 .collect(),
-            members: self.profile.members_of(r.races, r.classes),
+            // A profession quest is for those leveling the profession.
+            members: self.profile.members_of(r.races, r.classes)
+                & skill
+                    .flatten()
+                    .and_then(|(p, _)| self.profile.profession_goals().get(p).map(|(_, m)| *m))
+                    .unwrap_or(u8::MAX),
         }
     }
 
@@ -81,7 +110,7 @@ impl QuestBuilder<'_> {
     fn zone_forced(&self, r: &QuestRow, givers: &Givers, objectives: &[Objective]) -> bool {
         let zones = &self.params.forced_zones;
         if zones.is_empty()
-            || objectives.iter().any(|o| o.dungeon.is_some())
+            || objectives.iter().any(|o| o.dungeon_of().is_some())
             || self.min_level(r, givers) > self.profile.to_level
         {
             return false;
@@ -115,6 +144,15 @@ impl QuestBuilder<'_> {
         }
     }
 
+    /// How many of the quest's `pre_any` it needs done: one unless an override says more.
+    fn pre_need(&self, id: i64) -> usize {
+        (self.profile.quest_overrides.iter())
+            .find(|o| o.id == id)
+            .and_then(|o| o.pre_count)
+            .unwrap_or(1)
+            .max(1)
+    }
+
     /// All of `pre_all` and one of `pre_any`. The quest handing the item that starts this one is
     /// one more prerequisite: any of them when several do.
     fn prerequisites(&self, id: i64, item_pre: &[i64]) -> (Vec<i64>, Vec<i64>) {
@@ -128,15 +166,20 @@ impl QuestBuilder<'_> {
         (pre_all, pre_any)
     }
 
-    /// The quests to hold in the log when taking it: those giving a bag that holds an item it
-    /// asks for, unless its own starting item gives it.
+    /// The quests to hold in the log when taking it: its parent when it is a child quest, and
+    /// those giving a bag that holds an item it asks for, unless its own starting item gives it.
     fn pre_held(&self, r: &QuestRow) -> Vec<i64> {
         let own = |item: i64| {
             r.source_item.is_some_and(|s| {
                 s == item || (self.sources.item_origins.get(&item)).is_some_and(|o| o.contains(&(SourceKind::Item, s)))
             })
         };
-        let mut held: Vec<i64> = Vec::new();
+        // A child quest is offered while its parent is in the log.
+        let mut held: Vec<i64> = (self.sources.links.iter())
+            .filter(|(_, links)| links.iter().any(|(k, c)| *k == LinkKind::Child && *c == r.id))
+            .map(|(parent, _)| *parent)
+            .collect();
+        held.sort_unstable();
         for o in self.sources.objectives.get(&r.id).into_iter().flatten() {
             if o.0 != ObjectiveKind::Item {
                 continue;
@@ -151,7 +194,7 @@ impl QuestBuilder<'_> {
         held
     }
 
-    fn links(&self, id: i64, kind: LinkKind) -> Vec<i64> {
+    pub(super) fn links(&self, id: i64, kind: LinkKind) -> Vec<i64> {
         self.sources
             .links
             .get(&id)

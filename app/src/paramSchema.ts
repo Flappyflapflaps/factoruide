@@ -16,10 +16,19 @@ export interface Section {
 
 export const sections: Section[] = [
   {
+    title: "Bonus d'XP",
+    help: "Estimation : les bonus s'additionnent avant l'XP de repos, qui reste limitée au stock du personnage.",
+    fields: [
+      { key: "food_xp", kind: "bool", label: "Bonus d'XP de nourriture (+5 %)", help: "XP des kills uniquement. Le bonus est supposé actif en permanence, sans temps ni coût de nourriture." },
+      { key: "sleeping_bag", kind: "bool", label: "Sac de couchage (+3 %)", help: "Inclut la suite de quêtes. Après la récompense, trois charges sont supposées actives en permanence sur les kills et les quêtes, sans temps de repos. Une quête déjà terminée dans le profil active le bonus dès le départ." },
+    ],
+  },
+  {
     title: "Contenu",
     fields: [
       { key: "dungeons", kind: "bool", label: "Faire les donjons rentables en groupe", help: "Un donjon est fait, avec ses quêtes, quand il fait gagner du temps." },
       { key: "dungeon_pickup_ahead", kind: "number", label: "Prendre les quêtes de donjon jusqu'à N niveaux avant", help: "Prises en passant à côté du donneur, gardées jusqu'au donjon.", unit: "niveaux", min: 0, max: 20, step: 1 },
+      { key: "auction_house", kind: "bool", label: "Acheter à l'hôtel des ventes", help: "Les objets demandés par une quête que rien d'autre ne donne (faits par un métier, comme la Dynamite basique) sont achetés à l'hôtel des ventes le plus proche. Sans cela, ces quêtes sont laissées de côté." },
       { key: "allow_elite", kind: "bool", label: "Quêtes élites (groupe)", help: "Quêtes dont les objectifs sont des mobs élites hors donjon." },
       { key: "all_class_quests", kind: "bool", label: "Toutes les quêtes de classe", help: "Impose toutes les quêtes de ta classe, pas seulement celles qui donnent un sort : plus long, mais rien n'est laissé de côté." },
       { key: "solo_elite_kills", kind: "number", label: "Élites seules (en solo)", help: "Sans les quêtes élites, garde celles qui demandent au plus ce nombre de kills d'élite (Hogger, Tharil'zun, Mor'Ladim...). 0 = aucune.", min: 0, max: 5, step: 1 },
@@ -53,8 +62,6 @@ export const sections: Section[] = [
     help: "Ajustez à votre façon de jouer : un joueur rapide tue plus vite et se repose moins.",
     fields: [
       { key: "kill_time", kind: "number", label: "Temps par mob de quête", unit: "s", min: 5, max: 60, step: 1, help: "Recherche et repos compris, mob de votre niveau, avec un équipement de base et tous les sorts." },
-      { key: "xp_buffs", kind: "bool", label: "Bonus d'XP entretenus (WoW Forever)", help: "Nourriture cuisinée (Bien nourri, +5 % d'XP des mobs tués) et Sac de couchage douillet (+3 %) gardés actifs : le guide compte ce bonus. Vous montez plus vite, il passe donc plus tôt à la zone suivante, sur des quêtes et des mobs de votre niveau. Sans effet sur Classic et TBC." },
-      { key: "kill_xp_bonus", kind: "number", label: "Bonus d'XP des mobs tués", help: "Avec les bonus d'XP entretenus : 8 % = Bien nourri (5 %) et Sac de couchage douillet (3 %).", unit: "%", scale: 0.01, min: 0, max: 50, step: 1 },
       { key: "grind_kill_time", kind: "number", label: "Temps par mob en farm", help: "Temps par mob quand le guide farme sans quête : plus de recherche et de repos qu'un mob de quête.", unit: "s", min: 10, max: 90, step: 1 },
       { key: "object_time", kind: "number", label: "Temps par objet à ramasser", help: "Temps pour utiliser ou ramasser un objet de quête (coffre, plante, caisse…).", unit: "s", min: 2, max: 60, step: 1 },
       { key: "gather_overlap", kind: "number", label: "Récolte entre deux kills", help: "Part du temps d'un kill (repos, recherche du mob suivant) pendant laquelle on ramasse les objets de quête autour : une étape de récolte juste avant ou après une étape de kills au même endroit se fait en partie pendant les kills. 0 = l'une après l'autre.", unit: "%", scale: 0.01, min: 0, max: 80, step: 5 },
@@ -70,6 +77,7 @@ export const sections: Section[] = [
   {
     title: "Déplacements",
     fields: [
+      { key: "assume_movement_talents", kind: "bool", label: "Supposer les talents de déplacement appris", help: "Rapidité farouche (félin) et Loup fantôme amélioré, après déblocage des formes. Aucun talent requis pour Aspect du guépard. Bonus limité aux trajets entièrement à découvert sans nage ; la plupart des trajets gardent l'estimation normale." },
       { key: "run_speed", kind: "number", label: "Vitesse de course", help: "Vitesse à pied, sans monture (7 dans le jeu).", unit: "m/s", min: 5, max: 10, step: 0.1 },
       { key: "mount_level", kind: "number", label: "Niveau de la monture", help: "Niveau où le personnage a sa monture : les trajets au sol vont plus vite ensuite.", min: 1, max: 60, step: 1 },
       { key: "mount_bonus", kind: "number", label: "Bonus de vitesse de la monture", help: "Vitesse en plus avec la monture (60 % pour la première).", unit: "%", scale: 0.01, min: 0, max: 100, step: 5 },
@@ -88,9 +96,11 @@ export const sections: Section[] = [
       { key: "hearth_cast", kind: "number", label: "Incantation de la pierre", help: "Durée de l'incantation de la pierre de foyer.", unit: "s", min: 0, max: 20, step: 1 },
       { key: "recall_cooldown", kind: "number", label: "Recharge du Rappel astral (chaman)", help: "Deuxième pierre de foyer du chaman, apprise au niveau 30.", unit: "min", scale: 60, min: 0, max: 60, step: 5 },
       { key: "teleport_cast", kind: "number", label: "Incantation des téléportations", help: "Téléportations du mage vers les capitales, et Rappel astral du chaman.", unit: "s", min: 0, max: 20, step: 1 },
+      { key: "death_skip_time", kind: "number", label: "Durée d'une mort volontaire", help: "Mourir, libérer l'esprit et se faire ressusciter par l'ange de la mort (morts volontaires, jusqu'au niveau 10 et demi).", unit: "s", min: 10, max: 300, step: 5 },
       { key: "gold_weight", kind: "number", label: "Économiser l'or des vols", help: "Temps que vaut une pièce d'or dépensée en vols jusqu'au niveau 30, quand l'argent manque (0 = vols gratuits), moins ensuite car les quêtes rapportent plus : 60 min (défaut) jusqu'au niveau 30, 25 min au 40, 8 min au 60.", unit: "min", scale: 60, min: 0, max: 240, step: 10 },
       { key: "zone_change_weight", kind: "number", label: "Coût d'un changement de zone", help: "Temps compté en plus du trajet à chaque changement de zone : regroupe les quêtes par zone au lieu d'aller chercher quelques quêtes loin. 4 min par défaut.", unit: "min", scale: 60, min: 0, max: 15, step: 1 },
       { key: "abandon_weight", kind: "number", label: "Coût d'une quête abandonnée", help: "Temps compté pour chaque quête prise puis abandonnée (devenue grise, donjon fait sans elle) : la route la finit ou ne la prend pas, sauf si elle fait gagner plus. 10 min par défaut.", unit: "min", scale: 60, min: 0, max: 60, step: 1 },
+      { key: "unlock_delay_weight", kind: "number", label: "Coût d'un déblocage de classe tardif", help: "Temps compté par niveau gagné avant de rendre un déblocage de classe (forme, familier, sort) que le personnage n'a pas et que les niveaux du guide laissaient de côté : il rapporte peu d'XP, rien d'autre ne le fait avancer. 5 min par niveau par défaut.", unit: "min", scale: 60, min: 0, max: 30, step: 1 },
       { key: "profession_quest_weight", kind: "number", label: "Coût d'une quête de métier laissée", help: "Avec des métiers : temps compté pour chaque quête de métier (Camping 101) que le guide ne fait pas : elle est prévue quand la route passe près de son maître, même grise, sans long détour. 5 min par défaut.", unit: "min", scale: 60, min: 0, max: 60, step: 1 },
       { key: "preferred_zone_weight", kind: "number", label: "Poids des zones privilégiées", help: "Part du temps passé hors des zones privilégiées comptée en plus : 0,5 (défaut) = une heure ailleurs compte comme une heure et demie. 0 = les zones privilégiées guident seulement le début de la recherche.", min: 0, max: 2, step: 0.1 },
       { key: "reputation_weight", kind: "number", label: "Valeur d'un point de réputation manquant", help: "Avec des objectifs de réputation (onglet principal) : temps de jeu que vaut chaque point qui manque à la fin du guide. 10 s (défaut) = une quête qui rapproche de 100 points de l'objectif vaut 17 minutes de plus.", unit: "s", min: 0, max: 60, step: 1 },
@@ -193,7 +203,7 @@ export const sections: Section[] = [
 ];
 
 /** Settings of the simple view (left out of the advanced sections). */
-export const SIMPLE_KEYS: (keyof Params)[] = ["dungeons", "allow_elite", "crowded", "progression"];
+export const SIMPLE_KEYS: (keyof Params)[] = ["dungeons", "allow_elite", "crowded", "progression", "dungeon_from", "dungeon_to", "death_skips"];
 
 /** Speed presets applied on top of the defaults. */
 export const presets: { label: string; values: Partial<Params> }[] = [

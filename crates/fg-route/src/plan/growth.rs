@@ -23,6 +23,40 @@ impl<'g> Growth<'g> {
         &self.model.quests[i as usize]
     }
 
+    /// Three maintained stacks, after this member has earned the bag. Imported completion
+    /// remains evidence even when the quest is outside the guide's level range.
+    fn bag_bonus(self, s: &State, member: u8) -> f64 {
+        if self.params.edition != xp::Edition::Forever || !self.params.sleeping_bag {
+            return 0.0;
+        }
+        let earned = self.model.initial.done_by(usize::from(member), xp::SLEEPING_BAG_QUEST)
+            || self
+                .model
+                .index
+                .get(&xp::SLEEPING_BAG_QUEST)
+                .is_some_and(|&i| s.rewarded(i));
+        if earned { 0.03 } else { 0.0 }
+    }
+
+    /// Well Fed (1243969): kills only. Well-Rested (429959): kills and quests.
+    /// https://www.wowhead.com/forever/spell=1243969
+    /// https://www.wowhead.com/forever/spell=429959
+    pub(crate) fn kill_factor(self, s: &State, member: u8) -> f64 {
+        let food = self.params.edition == xp::Edition::Forever && self.params.food_xp;
+        1.0 + if food { 0.05 } else { 0.0 } + self.bag_bonus(s, member)
+    }
+
+    pub(crate) fn quest_factor(self, s: &State, member: u8) -> f64 {
+        1.0 + self.bag_bonus(s, member)
+    }
+
+    /// Unmodified kill XP needed for a target gain, and rested XP consumed. Buff bonuses are
+    /// applied before rested XP; the rested pool is still a finite amount of bonus XP.
+    pub(crate) fn kill_work(self, s: &State, member: u8, need: i64, rested: i64) -> (f64, i64) {
+        let bonus = (need / 2).min(rested.max(0));
+        ((need - bonus) as f64 / self.kill_factor(s, member), bonus)
+    }
+
     /// The loot of `kills` mobs into the bags (`Params::bag_weight`): what no longer fits is
     /// left behind, at a cost.
     pub(crate) fn fill_bags(self, s: &mut State, kills: f64) {
@@ -39,25 +73,31 @@ impl<'g> Growth<'g> {
     /// Bag slots left for loot and quest items at `level` (`Params::bag_weight`): the bags less
     /// what is always carried (hearthstone, food, drink, potions), the class's own (a hunter's
     /// quiver and a warlock's soul pouch take a bag, a shaman's totems a slot each, a rogue's
-    /// poisons two) and the gathering professions' materials (`Params::gather_share` each).
+    /// poisons two) and the gathering professions' materials (`Params::gather_share` each). In a
+    /// group, the fullest bags of its players: they go to the vendor together.
     pub(crate) fn bag_room(self, level: i64) -> f64 {
         const CARRIED: f64 = 4.0;
         let slots = crate::params::bag_slots(level);
         let bag = (slots - crate::params::bag_slots(1)) / 4.0;
-        let class = match self.profile.class_id {
-            3 => bag,
-            9 if level >= 10 => bag,
-            7 => [4, 10, 20, 30].iter().filter(|&&l| level >= l).count() as f64,
-            4 if level >= 20 => 2.0,
-            _ => 0.0,
+        let room = |class_id: i64, professions: &[crate::profession::ProfessionGoal]| {
+            let class = match class_id {
+                3 => bag,
+                9 if level >= 10 => bag,
+                7 => [4, 10, 20, 30].iter().filter(|&&l| level >= l).count() as f64,
+                4 if level >= 20 => 2.0,
+                _ => 0.0,
+            };
+            let gathering = (professions.iter())
+                .filter(|g| {
+                    crate::profession::find(&g.key).is_some_and(|d| d.kind == crate::profession::Kind::Gathering)
+                        && level >= g.start_level.unwrap_or(crate::profession::START_LEVEL)
+                })
+                .count() as f64;
+            slots - CARRIED - class - gathering * self.params.gather_share * slots
         };
-        let gathering = (self.profile.professions.iter())
-            .filter(|g| {
-                crate::profession::find(&g.key).is_some_and(|d| d.kind == crate::profession::Kind::Gathering)
-                    && level >= g.start_level.unwrap_or(crate::profession::START_LEVEL)
-            })
-            .count() as f64;
-        slots - CARRIED - class - gathering * self.params.gather_share * slots
+        (self.profile.mates.iter())
+            .map(|m| room(m.class_id, &m.professions))
+            .fold(room(self.profile.class_id, &self.profile.professions), f64::min)
     }
 
     /// Common loot `kills` normal mobs of `zone` drop (`Model::loot`), into the bags.
@@ -76,7 +116,7 @@ impl<'g> Growth<'g> {
         let mut bonus = s.class_bonus;
         if let Some(p) = &self.model.power {
             let spells = if p.has_spells() {
-                p.spell_bonus(s.trained, s.level)
+                p.spell_bonus(s.trained, s.level, s.abilities)
             } else {
                 0.0
             };
@@ -96,11 +136,17 @@ impl<'g> Growth<'g> {
     /// Levels of power the rewards of quest `i` would add (the best choice, and a class power
     /// not gained yet), quickly.
     pub(crate) fn reward_gain(self, s: &State, i: u32) -> f64 {
-        let class = match self.quest_at(i).power {
+        let mut class = match self.quest_at(i).power {
             Some((k, power)) if s.powers & (1 << k) == 0 => Self::class_power_levels(power),
             _ => 0.0,
         };
         let Some(p) = &self.model.power else { return class };
+        class += self.params.power_scale
+            * p.quest_gain(
+                s.abilities,
+                s.abilities | self.model.abilities.quest(self.quest_at(i).id),
+                s.level.max(self.quest_at(i).min_level),
+            );
         let (fixed, choices) = &self.model.rewards[i as usize];
         if fixed.is_empty() && choices.is_empty() {
             return class;
@@ -113,21 +159,23 @@ impl<'g> Growth<'g> {
         class + self.params.power_scale * (fixed.iter().map(|&c| p.quick_gain(&s.gear, c, level)).sum::<f64>() + best)
     }
 
-    /// The power a class quest gives (once per quest name).
+    /// Abilities and power actually granted by completing a class quest.
     pub(crate) fn gain_power(self, s: &mut State, i: u32) {
+        s.abilities |= self.model.abilities.quest(self.quest_at(i).id);
         if let Some((k, power)) = self.quest_at(i).power
             && s.powers & (1 << k) == 0
         {
             s.powers |= 1 << k;
             s.class_bonus += Self::class_power_levels(power);
-            self.refresh_power(s);
         }
+        self.refresh_power(s);
     }
 
     /// XP of kills: doubled while the character is rested, up to its rested XP. Returns the XP
     /// gained.
     pub(crate) fn gain_kills(self, s: &mut State, amount: i64) -> i64 {
-        self.mates_kill(s, amount);
+        self.mates_kill(s, amount as f64);
+        let amount = (amount as f64 * self.kill_factor(s, s.order[0])).round() as i64;
         let bonus = amount.min(s.rested).max(0);
         s.rested -= bonus;
         self.gain(s, amount + bonus);
@@ -155,22 +203,24 @@ impl<'g> Growth<'g> {
 
     /// The other players' XP of kills worth `amount` to the character: the same mobs, at their
     /// own level (fewer when above it, none once gray), doubled while they are rested.
-    pub(crate) fn mates_kill(self, s: &mut State, amount: i64) {
+    pub(crate) fn mates_kill(self, s: &mut State, amount: f64) {
         let n = self.mates();
-        if n == 0 || amount <= 0 {
+        if n == 0 || amount <= 0.0 {
             return;
         }
         let rules = self.rules();
         let content = xp::content_at(s.pos.continent, s.pos.zone);
         let own = rules.mob_xp(s.level, s.level, content);
         for k in 0..n {
+            let factor = self.kill_factor(s, s.order[k + 1]);
             let m = &mut s.mates[k];
             let each = if own > 0.0 {
                 rules.mob_xp(m.level, s.level, content) / own
             } else {
                 1.0
             };
-            let gained = (amount as f64 * each) as i64;
+            let base = amount * each;
+            let gained = (base * factor).round() as i64;
             let bonus = gained.min(m.rested).max(0);
             m.rested -= bonus;
             Self::mate_gain(rules, m, gained + bonus);
@@ -187,19 +237,27 @@ impl<'g> Growth<'g> {
 
     /// The XP of turning in quest `i` to each member it is still for (`Initial::need`); returns
     /// the character's.
-    pub(crate) fn reward(self, s: &mut State, i: u32) -> i64 {
+    pub(crate) fn quest_rewards(self, s: &State, i: u32) -> [i64; crate::job::GROUP_MAX] {
         let q = self.quest_at(i);
         let need = self.model.initial.need(i as usize);
-        for k in 0..self.mates() {
-            if need & (1 << s.order[k + 1]) != 0 {
-                let m = &mut s.mates[k];
-                Self::mate_gain(self.rules(), m, self.quest_reward(q, m.level));
+        let mut rewards = [0; crate::job::GROUP_MAX];
+        for k in 0..=self.mates() {
+            let member = s.order[k];
+            if need & (1 << member) != 0 {
+                let level = if k == 0 { s.level } else { s.mates[k - 1].level };
+                rewards[usize::from(member)] =
+                    (self.quest_reward(q, level) as f64 * self.quest_factor(s, member)).round() as i64;
             }
         }
-        if need & (1 << s.order[0]) == 0 {
-            return 0;
+        rewards
+    }
+
+    /// Award the snapshot taken before the turn-in changed any player's level or buff.
+    pub(crate) fn reward(self, s: &mut State, rewards: &[i64; crate::job::GROUP_MAX]) -> i64 {
+        for k in 0..self.mates() {
+            Self::mate_gain(self.rules(), &mut s.mates[k], rewards[usize::from(s.order[k + 1])]);
         }
-        let reward = self.quest_reward(q, s.level);
+        let reward = rewards[usize::from(s.order[0])];
         self.gain(s, reward);
         reward
     }
@@ -257,7 +315,13 @@ impl<'g> Growth<'g> {
         if self.params.gear_value <= 0.0 {
             return 0.0;
         }
-        let gain = self.reward_gain(s, i);
+        // A quest asking for several (ten books for the library's necklace) shares its reward
+        // among them: each is worth its part, as long as the reward is not earned.
+        let share: f64 = (self.model.bundles[i as usize].iter())
+            .filter(|&&f| !s.rewarded(f as usize))
+            .map(|&f| self.reward_gain(s, f) / self.quest_at(f).pre_need as f64)
+            .sum();
+        let gain = self.reward_gain(s, i) + share;
         if gain <= 0.0 {
             return 0.0;
         }
@@ -273,7 +337,7 @@ impl<'g> Growth<'g> {
     /// their XP was received in game, the factor already in).
     pub(crate) fn quest_reward(self, q: &Quest, level: i64) -> i64 {
         let reward = xp::quest_xp(q.xp, q.level, level);
-        if !q.xp_observed && q.objectives.iter().any(|o| o.dungeon.is_some()) {
+        if !q.xp_observed && q.objectives.iter().any(|o| o.dungeon_of().is_some()) {
             (reward as f64 * self.rules().dungeon_quest_xp).round() as i64
         } else {
             reward
@@ -287,11 +351,14 @@ impl<'g> Growth<'g> {
             dungeons: &self.model.dungeons,
         };
         let mut xp = s.xp;
+        let mut rested = s.rested;
         (s.level..level.min(self.rules().max_level))
             .map(|l| {
                 let need = self.rules().to_next_level(l) - xp;
                 xp = 0;
-                need as f64 / combat.grind_rate(l, s.bonus, &s.pos)
+                let (work, consumed) = self.kill_work(s, s.order[0], need, rested);
+                rested -= consumed;
+                work / combat.grind_rate(l, s.bonus, &s.pos)
             })
             .sum()
     }
@@ -308,23 +375,21 @@ impl<'g> Growth<'g> {
                 dungeons: &self.model.dungeons,
             };
             let rate = combat.grind_rate(s.level, s.bonus, &s.pos);
-            // Rested XP doubles the kills' XP: only half of what it covers is killed.
-            let killed = need - (need / 2).min(s.rested.max(0));
+            let (killed, consumed) = self.kill_work(s, s.order[0], need, s.rested);
             let over = (need - self.grind_budget(s).max(0)).max(0);
-            let time = killed as f64 / rate;
+            let time = killed / rate;
             let each = self
                 .rules()
                 .mob_xp(s.level, s.level, xp::content_at(s.pos.continent, s.pos.zone))
-                * self.params.group_xp_share()
-                * self.params.kill_xp_factor();
+                * self.params.group_xp_share();
             if each > 0.0 {
-                self.gather(s, s.pos.zone, killed as f64 / each);
+                self.gather(s, s.pos.zone, killed / each);
             }
             t += time;
             s.spent.grind_over += over as f64 / need as f64 * time;
             s.spent.grind_xp += need;
             s.grind_used += need;
-            s.rested -= need - killed;
+            s.rested -= consumed;
             self.mates_kill(s, killed);
             self.gain(s, need);
         }
@@ -346,9 +411,7 @@ impl<'g> Growth<'g> {
             if s.level >= self.rules().max_level {
                 break;
             }
-            let each = (self.rules().mob_xp(s.level, s.level, content)
-                * self.params.group_xp_share()
-                * self.params.kill_xp_factor()) as i64;
+            let each = (self.rules().mob_xp(s.level, s.level, content) * self.params.group_xp_share()) as i64;
             let time = each as f64 / combat.grind_rate(s.level, s.bonus, &s.pos);
             if self.grind_budget(s) <= 0 {
                 s.spent.grind_over += time;

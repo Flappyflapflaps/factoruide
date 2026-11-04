@@ -13,6 +13,9 @@ pub struct RaceDef {
     pub id: i64,
     pub faction: crate::faction::Faction,
     pub start_npc: i64,
+    /// Flight paths a new character knows (TaxiNodes IDs): the game gives the capital's.
+    #[serde(default)]
+    pub start_flights: Vec<i64>,
 }
 
 /// Everything configurable on disk in `overrides/`.
@@ -26,6 +29,7 @@ pub struct Overrides {
     pub class_power: HashMap<String, ClassPower>,
     /// Class trainer spells that count for power, by class (spells.toml).
     pub spells: HashMap<String, BTreeMap<String, crate::power::SpellWeight>>,
+    pub abilities: Vec<crate::abilities::MovementDef>,
     pub dungeons: Vec<DungeonDef>,
     /// Objectives done only once others of their quest are (`[[order]]` of objectives.toml).
     pub objective_orders: Vec<crate::model::ObjectiveOrder>,
@@ -76,7 +80,7 @@ impl ClassPower {
 
 /// A curve given by (level, value) points at every level from 0 to `top`: straight lines
 /// between the points, the first and last values beyond them (empty without points).
-pub(crate) fn curve_by_level(points: &[(i64, f64)], top: i64) -> Vec<f64> {
+pub fn curve_by_level(points: &[(i64, f64)], top: i64) -> Vec<f64> {
     let mut points = points.to_vec();
     points.sort_by_key(|p| p.0);
     points.dedup_by_key(|p| p.0);
@@ -131,6 +135,36 @@ fn merge(common: &mut toml::Table, own: toml::Table) {
 }
 
 impl Overrides {
+    /// The flight paths a character of race `race_id` (ChrRaces ID) knows from its creation.
+    /// The boats, portals and the like a character of a race can take: links kept to some races
+    /// (the Skyborne's portals) are those of its race.
+    pub fn links_of_race(&self, race_id: i64) -> Vec<LinkDef> {
+        (self.links.iter())
+            .filter(|l| {
+                l.races.is_empty() || (l.races.iter()).any(|r| self.races.get(r).is_some_and(|d| d.id == race_id))
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// A group takes on what its weakest class does at each level: `curve` lowered to the curve
+    /// of each of the `classes` (lowercase) of the other players, by level up to `top`.
+    pub fn weakest_curve(&self, curve: &mut [f64], classes: &[String], top: i64) -> Result<()> {
+        for other in classes {
+            let points = self.class_power.get(other).cloned().unwrap_or_default().points()?;
+            for (mine, theirs) in curve.iter_mut().zip(curve_by_level(&points, top)) {
+                *mine = mine.min(theirs);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn start_flights(&self, race_id: i64) -> &[i64] {
+        (self.races.values())
+            .find(|r| r.id == race_id)
+            .map_or(&[], |r| &r.start_flights)
+    }
+
     pub fn load(dir: &Path) -> Result<Self> {
         Self::parse(|name| std::fs::read_to_string(dir.join(name)).ok())
     }
@@ -165,6 +199,13 @@ impl Overrides {
             required: Vec<String>,
             #[serde(default)]
             power: BTreeMap<String, f64>,
+        }
+        #[derive(Deserialize, Default)]
+        struct Abilities {
+            #[serde(default)]
+            ability: Vec<crate::abilities::MovementDef>,
+            #[serde(default)]
+            training: BTreeMap<String, i64>,
         }
         #[derive(Deserialize, Default)]
         struct Dungeons {
@@ -202,6 +243,10 @@ impl Overrides {
         let class_quests: HashMap<String, ClassQuests> = parse_toml(&file, "class_quests.toml")?;
         let passes = parse_toml::<Passes>(&file, "passes.toml")?;
         let travel = parse_toml::<Travel>(&file, "travel.toml")?;
+        let mut movement = parse_toml::<Abilities>(&file, "movement.toml")?;
+        for ability in &mut movement.ability {
+            ability.trained_at = movement.training.get(&ability.name).copied();
+        }
         Ok(Self {
             races: parse_toml(&file, "races.toml")?,
             class_powers: class_quests
@@ -210,6 +255,7 @@ impl Overrides {
                 .collect(),
             class_quests: class_quests.into_iter().map(|(k, v)| (k, v.required)).collect(),
             spells: parse_toml(&file, "spells.toml")?,
+            abilities: movement.ability,
             class_power: parse_toml(&file, "class_power.toml")?,
             dungeons: parse_toml::<Dungeons>(&file, "dungeons.toml")?.dungeon,
             objective_orders: parse_toml::<Objectives>(&file, "objectives.toml")?.order,

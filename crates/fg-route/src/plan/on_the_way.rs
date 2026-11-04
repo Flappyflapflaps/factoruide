@@ -48,9 +48,10 @@ impl Planner<'_> {
             self.trips().fastest(s, target)
         } else {
             (
-                self.trips().walk(&s.pos, target, s.level),
+                self.trips().at(s).walk(&s.pos, target, s.level),
                 super::state::Via {
                     teleport: None,
+                    death: None,
                     leg: Leg::Walk,
                 },
             )
@@ -58,8 +59,9 @@ impl Planner<'_> {
         // A trip by flight alone counts as flying, walks included; one with boats as travel,
         // its flight apart.
         let flying = landed == Landed::Flight || matches!(via.leg, Leg::Fly(..));
-        // Events are recorded when they happen (casting the hearthstone, boarding), so that
-        // each step of the guide holds the time up to the next one.
+        // A trip step (flight, boat, hearthstone, teleport) is recorded once its trip is over, so
+        // that it holds its own time; the others when they happen, each holding the time up to
+        // the next one.
         let spend = |s: &mut State, seconds: f64, flight: bool| {
             s.time += seconds;
             if flying || flight {
@@ -71,14 +73,29 @@ impl Planner<'_> {
         let mut left = t;
         let mut from = start;
         if let Some(to) = via.teleport {
-            record(s, Event::Teleport { to });
             spend(s, self.params.teleport_cast, false);
             left -= self.params.teleport_cast;
+            record(s, Event::Teleport { to });
             from = self.model.teleports[to].to.pos;
+        }
+        // The death is the step's own time (finding a mob, dying, the spirit healer): recorded
+        // once back up.
+        if let Some(g) = via.death {
+            let gy = &self.model.graveyards[g];
+            spend(s, self.params.death_skip_time, false);
+            left -= self.params.death_skip_time;
+            record(
+                s,
+                Event::DeathSkip {
+                    pos: gy.pos,
+                    zone: gy.zone,
+                },
+            );
+            from = gy.pos;
         }
         // Walked to `at`, at most what is left of the trip.
         let walk_to = |s: &mut State, from: &Pos, at: &Pos, left: &mut f64| {
-            let walk = self.trips().walk(from, at, s.level).min(*left);
+            let walk = self.trips().at(s).walk(from, at, s.level).min(*left);
             spend(s, walk, false);
             *left -= walk;
         };
@@ -102,32 +119,37 @@ impl Planner<'_> {
             Leg::Fly(a, b) => {
                 walk_to(s, &from, &nodes[a].pos, &mut left);
                 pay(s, a, b);
+                let flight = self.trips().flight_table(s.known).0[a][b] + self.params.flight_overhead;
+                ride(s, flight, true, &mut left);
                 record(s, Event::Fly { from: a, to: b });
             }
             Leg::Link(first, last) => {
                 walk_to(s, &from, &links[first].from, &mut left);
+                let boats = self.world.link_chain(self.trips().open_links(s))[first][last];
+                ride(s, boats, false, &mut left);
                 record(s, Event::Link { first, last });
             }
             Leg::FlyLink(a, b, first, last) => {
                 walk_to(s, &from, &nodes[a].pos, &mut left);
                 pay(s, a, b);
-                record(s, Event::Fly { from: a, to: b });
                 let flight = self.trips().flight_table(s.known).0[a][b] + self.params.flight_overhead;
                 ride(s, flight, true, &mut left);
+                record(s, Event::Fly { from: a, to: b });
                 walk_to(s, &nodes[b].pos, &links[first].from, &mut left);
+                let boats = self.world.link_chain(self.trips().open_links(s))[first][last];
+                ride(s, boats, false, &mut left);
                 record(s, Event::Link { first, last });
             }
             Leg::LinkFly(first, last, a, b) => {
                 walk_to(s, &from, &links[first].from, &mut left);
-                record(s, Event::Link { first, last });
                 let boats = self.world.link_chain(self.trips().open_links(s))[first][last];
                 ride(s, boats, false, &mut left);
+                record(s, Event::Link { first, last });
                 walk_to(s, &links[last].to, &nodes[a].pos, &mut left);
                 pay(s, a, b);
-                record(s, Event::Fly { from: a, to: b });
-                // What is left: the flight and the walk from its landing.
                 let flight = self.trips().flight_table(s.known).0[a][b] + self.params.flight_overhead;
                 ride(s, flight, true, &mut left);
+                record(s, Event::Fly { from: a, to: b });
             }
             Leg::FlyLinkFly(a, b, first, last, c, d) => {
                 walk_to(s, &from, &nodes[a].pos, &mut left);
@@ -155,7 +177,8 @@ impl Planner<'_> {
         }
         spend(s, left, false);
         // Areas discovered: around the arrival, and along a walk inside the zone.
-        let walking = matches!(via.leg, Leg::Walk) && via.teleport.is_none() && landed == Landed::No;
+        let walking =
+            matches!(via.leg, Leg::Walk) && via.teleport.is_none() && via.death.is_none() && landed == Landed::No;
         let from = (walking && s.zone == zone).then_some(s.pos);
         self.explore(s, from, target, zone);
         if walking {
@@ -224,7 +247,7 @@ impl Planner<'_> {
             if self.model.farm.quests(m.tag).iter().any(|&q| in_log(q)) {
                 continue;
             }
-            let each = self.rules().mob_xp(s.level, level, content) * p.group_xp_share() * p.kill_xp_factor();
+            let each = self.rules().mob_xp(s.level, level, content) * p.group_xp_share();
             if each <= 0.0 {
                 continue;
             }
@@ -359,7 +382,7 @@ impl Planner<'_> {
                                 })
                                 && q.objectives
                                     .iter()
-                                    .all(|o| o.dungeon.is_none_or(|d| self.availability().dungeon_allowed(d)))
+                                    .all(|o| o.dungeon_of().is_none_or(|d| self.availability().dungeon_allowed(d)))
                                 && at_level()
                         } else {
                             self.availability().objectives_done(s, i) && at_level()
@@ -377,13 +400,28 @@ impl Planner<'_> {
             if Self::timed(stop.kind) && self.failed_in_time(s, stop.index, record) {
                 continue;
             }
+            let rewards = if stop.kind == Kind::TurnIn {
+                self.growth().quest_rewards(s, stop.index)
+            } else {
+                [0; crate::job::GROUP_MAX]
+            };
             let picked = if stop.kind == Kind::Accept {
                 self.accept(s, stop.index);
                 None
             } else {
-                self.turn_in(s, stop.index)
+                self.turn_in(s, stop.index, &rewards)
             };
-            record(s, Event::Stop { stop, loc: loc.clone() });
+            if s.completion_error.is_some() {
+                return;
+            }
+            record(
+                s,
+                Event::Stop {
+                    stop,
+                    loc: loc.clone(),
+                    reward_xp: rewards,
+                },
+            );
             if let Some(item) = picked {
                 record(
                     s,

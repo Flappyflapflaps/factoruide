@@ -137,6 +137,9 @@ pub struct Step {
     pub pre: Vec<i64>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pre_any: Vec<i64>,
+    /// How many of `pre_any` must be done, when more than one (the library's books).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pre_need: Option<usize>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_level: Option<i64>,
     /// Objective done along the way while doing other quests (does not block the guide).
@@ -164,8 +167,9 @@ pub struct Step {
     /// needs (an item it uses). None in guides made before it was written.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub slot: Option<u8>,
-    /// Objective steps handing in a child quest on the way to its parent's turn-in (Distracting
-    /// Jarven for Bitter Rivals): done once that quest is turned in.
+    /// Old guides only (made before child quests were quests of their own): objective steps handing in a child quest on the way to its
+    /// parent's turn-in (Distracting Jarven for Bitter Rivals), done once that quest is turned in.
+    /// Child quests are quests of their own now; guides made so are still read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub child: Option<i64>,
     /// That child quest's name.
@@ -187,6 +191,9 @@ pub struct Step {
     pub zone_id: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub map: Option<MapPointOut>,
+    /// Inside a dungeon: where on its floor's map (`ui_map` a floor of `dungeon_floor`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub floor: Option<MapPointOut>,
     /// Other places its mobs are, closest first: where to look when there is nothing at `map`
     /// (mobs to kill or loot, the mob dropping the item that starts a quest).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -210,8 +217,8 @@ pub struct Step {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub path: Vec<[f64; 2]>,
     /// Profession skill a profession quest needs (its accept step is optional: skipped without
-    /// it); in routes made before professions left the guide, the skill to reach (practice) or
-    /// the rank cap learned (profession).
+    /// it); on a profession step (`Params::profession_trainers`; practice steps only in routes made
+    /// before professions left the guide) the rank cap learned, or the skill to reach.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skill: Option<i64>,
     /// Profession skill line of that skill.
@@ -231,10 +238,13 @@ pub struct Step {
     /// Reward to pick among the quest's choices (item ID) on a turn-in.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reward: Option<i64>,
-    /// XP a turn-in gives at the level it is planned at: a quest complete in the log counts for
-    /// the grind steps aiming at a level it is turned in before.
+    /// XP a turn-in gives at its planned level (the least positive reward in a group). Used
+    /// by older addons; current group guides also record each player's reward below.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reward_xp: Option<i64>,
+    /// Actual turn-in rewards in the guide's player order; empty in solo and older guides.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub party_reward_xp: Vec<i64>,
     /// XP the route has in `level` once the step is done: where the player should be, for the
     /// addon's XP bars.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -289,6 +299,7 @@ impl Step {
             alt: Vec::new(),
             pre: Vec::new(),
             pre_any: Vec::new(),
+            pre_need: None,
             min_level: None,
             bg: false,
             try_buy: false,
@@ -305,6 +316,7 @@ impl Step {
             zone: None,
             zone_id: None,
             map: None,
+            floor: None,
             spots: Vec::new(),
             patrol: false,
             world: None,
@@ -318,6 +330,7 @@ impl Step {
             mob_level: None,
             reward: None,
             reward_xp: None,
+            party_reward_xp: Vec::new(),
             route_xp: None,
             spells: Vec::new(),
             xp: None,
@@ -405,6 +418,10 @@ pub struct Route {
     /// here"): the addon makes that character follow it once loaded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replan: Option<Replanned>,
+    /// The XP buffs the guide counts on being active (`food`, `bag`: WoW Forever): the addon warns
+    /// when one is missing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub buffs: Vec<String>,
     pub steps: Vec<Step>,
 }
 
@@ -426,6 +443,9 @@ pub struct Player {
     pub name: String,
     pub race_id: i64,
     pub class_id: i64,
+    /// The professions it levels, as the guide's `professions` for the character.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub professions: Vec<RouteProfession>,
 }
 
 /// A reputation goal and how far the guide gets: points counted from the bottom of Neutral.

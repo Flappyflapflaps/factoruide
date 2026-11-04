@@ -14,7 +14,7 @@ FG.XpLedger = XpLedger
 
 local L = {
     title = T("XP by source, level %d:"),
-    line = T("quests %s · quest mobs %s · kills off the guide %s (planned %s) · other %s"),
+    line = T("quests %s • quest mobs %s • kills off the guide %s (planned %s) • other %s"),
     none = T("no XP recorded yet at this level"),
     total = T("kills off the guide since level %d: %s XP (planned %s)"),
 }

@@ -5,6 +5,98 @@ use super::state::{Event, Kind, State, Stop};
 use std::collections::HashSet;
 
 impl Planner<'_> {
+    /// Exact requirements checked against what the simulation actually turned in.
+    fn required_missing(&self, route: &[Stop]) -> Vec<String> {
+        let Some(end) = self.end_of(route) else {
+            return vec![
+                self.diagnose(route)
+                    .map_or_else(|| "route cannot be simulated".into(), |(_, why)| why),
+            ];
+        };
+        self.model
+            .quests
+            .iter()
+            .enumerate()
+            .filter(|(i, q)| q.required && !end.turned.contains(i))
+            .map(|(_, q)| {
+                let label = format!("{} ({})", q.name, q.id);
+                if q.completion_window.min_level.is_some() || q.completion_window.max_level.is_some() {
+                    format!("{label}, completion at {}", q.completion_window)
+                } else {
+                    label
+                }
+            })
+            .collect()
+    }
+
+    /// The forced dungeons the route does not run (as `finish` counts them, but exact).
+    fn forced_dungeons_missing(&self, route: &[Stop]) -> Vec<String> {
+        let Some((_, end)) = self.simulate_state(route, None) else {
+            return Vec::new();
+        };
+        (0..self.model.dungeons.len())
+            .filter(|&d| {
+                self.availability().dungeon_forced(d)
+                    && end.dungeons & (1u128 << d) == 0
+                    && self.model.dungeons[d].min_level < self.profile.to_level
+            })
+            .map(|d| self.model.dungeons[d].name.clone())
+            .collect()
+    }
+
+    pub fn validate_required(&self, route: &[Stop]) -> anyhow::Result<()> {
+        let dungeons = self.forced_dungeons_missing(route);
+        anyhow::ensure!(
+            dungeons.is_empty(),
+            "no route running every forced dungeon was found: {}",
+            dungeons.join(", ")
+        );
+        if !self.model.quests.iter().any(|q| q.required) {
+            return Ok(());
+        }
+        let missing = self.required_missing(route);
+        anyhow::ensure!(
+            missing.is_empty(),
+            "no route completing every required quest was found: {}",
+            missing.join(", ")
+        );
+        Ok(())
+    }
+
+    /// Editor replays include explicit actions, so validate their actual trace, not a fresh
+    /// replay that could insert automatic actions or finish at a different time.
+    pub(crate) fn validate_required_trace(&self, trace: &[super::Timed]) -> anyhow::Result<()> {
+        let initial = self.initial_state();
+        let turned: HashSet<_> = trace
+            .iter()
+            .filter_map(|t| match t.event {
+                Event::Stop {
+                    stop:
+                        Stop {
+                            index,
+                            kind: Kind::TurnIn,
+                        },
+                    ..
+                } => Some(index as usize),
+                _ => None,
+            })
+            .collect();
+        let missing: Vec<_> = self
+            .model
+            .quests
+            .iter()
+            .enumerate()
+            .filter(|(i, q)| q.required && !initial.rewarded(*i) && !turned.contains(i))
+            .map(|(_, q)| format!("{} ({})", q.name, q.id))
+            .collect();
+        anyhow::ensure!(
+            missing.is_empty(),
+            "required quests are missing: {}",
+            missing.join(", ")
+        );
+        Ok(())
+    }
+
     /// Class quests the route does not turn in, with why they could not be placed.
     pub fn missing_class_quests(&self, route: &[Stop]) -> Vec<String> {
         self.missing_required(route, false)
@@ -30,7 +122,8 @@ impl Planner<'_> {
                 _ => None,
             })
             .filter(|&i| {
-                self.model.quests[i].time_limit.is_some()
+                let q = &self.model.quests[i];
+                (q.time_limit.is_some() || q.objectives.iter().any(|o| o.lasts.is_some()))
                     && route.iter().any(|s| s.kind == Kind::TurnIn && s.index as usize == i)
             })
             .collect();
@@ -38,8 +131,23 @@ impl Planner<'_> {
         late.into_iter()
             .map(|i| {
                 let q = &self.model.quests[i];
-                let minutes = q.time_limit.unwrap_or_default() / 60.0;
-                format!("{} ({}): not turned in within its {minutes:.0} minutes", q.name, q.id)
+                if let Some(limit) = q.time_limit {
+                    format!(
+                        "{} ({}): not turned in within its {:.0} minutes",
+                        q.name,
+                        q.id,
+                        limit / 60.0
+                    )
+                } else {
+                    let o = (q.objectives.iter())
+                        .find(|o| o.lasts.is_some())
+                        .expect("an item that does not last");
+                    let minutes = o.lasts.unwrap_or_default() / 60.0;
+                    format!(
+                        "{} ({}): {} gone after its {minutes:.0} minutes",
+                        q.name, q.id, o.loc.name
+                    )
+                }
             })
             .collect()
     }
@@ -128,7 +236,7 @@ impl Planner<'_> {
             let Kind::Objective(k) = s.kind else { continue };
             let q = self.quest(s.index);
             let o = &q.objectives[k as usize];
-            if o.kills <= 0.0 || o.dungeon.is_some() || self.model.unlocks[s.index as usize] > 0.0 {
+            if o.kills <= 0.0 || o.dungeon_of().is_some() || self.model.unlocks[s.index as usize] > 0.0 {
                 continue;
             }
             if o.kills * self.combat().kill_time(q.level, 0.0, o) < 240.0 {

@@ -134,6 +134,8 @@ pub fn import_polestar(
         locale: what.locale.clone(),
         mates: vec![],
         start: None,
+        required_quests: Vec::new(),
+        mate_professions: Vec::new(),
     };
     let editor = Editor::open(conn, overrides, &request, walks)?;
     let report = editor.follow(&polestar::steps(&chain, &who));

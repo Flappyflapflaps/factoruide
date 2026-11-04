@@ -1,5 +1,6 @@
 //! Which quests and stops the character can do now: prerequisites, exclusive quests, gray quests, dungeons, chains.
 
+use super::Planner;
 use super::state::{Kind, State, Stop};
 use crate::model::{Model, Profile, Quest};
 use crate::params::Params;
@@ -47,32 +48,74 @@ pub(crate) struct Availability<'v> {
     pub(crate) profile: &'v Profile,
     /// Replaying an imposed route: gray quests are taken as it says.
     pub(crate) replaying: bool,
+    /// Doing only what an imposed route says (the guide editor).
+    pub(crate) explicit: bool,
     pub(crate) followers: &'v [Vec<u32>],
 }
 
 impl Availability<'_> {
+    /// Only members still needing the quest must meet its completion window.
+    pub(crate) fn completion_error(&self, s: &State, i: u32) -> Option<(u8, i64)> {
+        let quest = self.quest_at(i);
+        if (self.replaying || self.explicit) && quest.implicit_window {
+            return None;
+        }
+        let window = quest.completion_window;
+        self.completion_members(s, i)
+            .find(|&(_, level)| !window.contains(level))
+    }
+
+    fn completion_members<'s>(&self, s: &'s State, i: u32) -> impl Iterator<Item = (u8, i64)> + 's {
+        let need = self.model.initial.need(i as usize);
+        s.member_levels(self.model.initial.mates.len())
+            .filter(move |&(member, _)| need & (1 << member) != 0)
+    }
+
+    pub(crate) fn completion_floor(&self, s: &State, i: u32) -> i64 {
+        self.completion_members(s, i)
+            .map(|(_, level)| level)
+            .min()
+            .unwrap_or(s.level)
+    }
+
+    pub(crate) fn completion_ceiling(&self, s: &State, i: u32) -> i64 {
+        self.completion_members(s, i)
+            .map(|(_, level)| level)
+            .max()
+            .unwrap_or(s.level)
+    }
     /// The prerequisites of quest `i` are done: in a group, by each member it is for (before the
     /// route, or turned in on it). The quests to hold in the log are the character's own.
     pub(crate) fn prereqs_met(&self, s: &State, i: u32) -> bool {
         let q = self.quest_at(i);
         let init = &self.model.initial;
+        let known = |id: &i64| {
+            !q.required
+                && !q.zone_forced
+                && self.model.known_class_prerequisites.contains(id)
+                && self
+                    .model
+                    .index
+                    .get(id)
+                    .is_none_or(|&i| !self.model.quests[i].required && !self.model.quests[i].zone_forced)
+        };
         // In the log: taken, not turned in nor given up.
         let held = |id: &i64| self.model.index.get(id).is_some_and(|&j| s.accepted[j] && !s.turned[j]);
         if init.mates.is_empty() {
             let done = |id: &i64| match self.model.index.get(id) {
-                Some(&i) => s.rewarded(i),
+                Some(&i) => s.rewarded(i) || known(id),
                 // Not plannable (other class, removed, gray...): known for a character met in
                 // game, else assumed done only when starting mid-way.
-                None => init.done_outside(*id, self.profile.from_level),
+                None => init.done_outside(*id, self.profile.from_level) || known(id),
             };
-            return q.pre_all.iter().all(done)
-                && (q.pre_any.is_empty() || q.pre_any.iter().any(done))
-                && q.pre_held.iter().all(held);
+            return q.pre_all.iter().all(done) && q.pre_any_met(done) && q.pre_held.iter().all(held);
         }
         let need = init.need(i as usize);
         (0..=init.mates.len()).filter(|m| need & (1 << m) != 0).all(|m| {
-            let done = |id: &i64| init.done_by(m, *id) || self.model.index.get(id).is_some_and(|&j| s.rewarded(j));
-            q.pre_all.iter().all(done) && (q.pre_any.is_empty() || q.pre_any.iter().any(done))
+            let done = |id: &i64| {
+                known(id) || init.done_by(m, *id) || self.model.index.get(id).is_some_and(|&j| s.rewarded(j))
+            };
+            q.pre_all.iter().all(done) && q.pre_any_met(done)
         }) && q.pre_held.iter().all(held)
     }
 
@@ -155,6 +198,13 @@ impl Availability<'_> {
 
     pub(crate) fn valid(&self, s: &State, stop: Stop) -> bool {
         let i = stop.index as usize;
+        // Inside a dungeon: there, or entering it.
+        if stop.kind != Kind::Dungeon
+            && !Planner::already_done(s, stop)
+            && super::places::stop_inside(self.model, s, stop).is_some_and(|d| !self.can_be_in(s, d))
+        {
+            return false;
+        }
         match stop.kind {
             // Taken or turned in on the spot already: the stop is skipped.
             Kind::Accept if s.accepted[i] || s.turned[i] => true,
@@ -165,7 +215,7 @@ impl Availability<'_> {
                         .quest_at(stop.index)
                         .objectives
                         .iter()
-                        .all(|o| o.dungeon.is_none_or(|d| self.dungeon_allowed(d)))
+                        .all(|o| o.dungeon_of().is_none_or(|d| self.dungeon_allowed(d)))
             }
             // Done on the way already (even turned in since): the stop is skipped.
             Kind::Objective(k) => {
@@ -184,11 +234,9 @@ impl Availability<'_> {
                 (i == 0 && !self.params.excluded_zones.contains(&self.model.inns[s.bind].zone))
                     || (i == 1 && self.model.recall.is_some())
             }
-            Kind::Dungeon => {
-                self.dungeon_allowed(i)
-                    && s.dungeons & (1u128 << i) == 0
-                    && self.model.dungeons[i].min_level <= self.profile.to_level
-            }
+            // Never past its levels (`Params::dungeon_to`); below them, the guide grinds to them.
+            // In it already: nothing more to do.
+            Kind::Dungeon => self.can_be_in(s, i),
         }
     }
 
@@ -211,11 +259,15 @@ impl Availability<'_> {
                 let fq = self.quest_at(f);
                 let needs_it = (fq.pre_all.iter().chain(&fq.pre_held))
                     .any(|id| self.model.index.get(id) == Some(&(i as usize)))
-                    || fq
-                        .pre_any
-                        .iter()
-                        .filter_map(|id| self.model.index.get(id))
-                        .all(|&j| chain.contains(&(j as u32)) || !in_route(j as u32));
+                    || {
+                        // Still enough of the others in the route without the chain's quests.
+                        let others = (fq.pre_any.iter())
+                            .filter_map(|id| self.model.index.get(id))
+                            .filter(|&&j| !chain.contains(&(j as u32)) && in_route(j as u32))
+                            .count();
+                        let listed = fq.pre_any.iter().filter_map(|id| self.model.index.get(id)).count();
+                        listed == 0 || others < fq.pre_any_needed(listed)
+                    };
                 if needs_it {
                     chain.push(f);
                 }
@@ -228,20 +280,35 @@ impl Availability<'_> {
     /// Quests with objectives inside dungeon `d`.
     pub(crate) fn dungeon_quests(&self, d: usize) -> impl Iterator<Item = u32> + '_ {
         (0..self.model.quests.len() as u32)
-            .filter(move |&i| self.quest_at(i).objectives.iter().any(|o| o.dungeon == Some(d)))
+            .filter(move |&i| self.quest_at(i).objectives.iter().any(|o| o.dungeon_of() == Some(d)))
+    }
+
+    /// Dungeon `d` may be entered now: allowed, not entered before, within its levels.
+    pub(crate) fn enterable(&self, s: &State, d: usize) -> bool {
+        self.dungeon_allowed(d)
+            && s.dungeons & (1u128 << d) == 0
+            && self.model.dungeons[d].min_level <= self.profile.to_level
+            && s.level <= self.model.dungeons[d].max_level
+    }
+
+    /// The character is in dungeon `d`, or may enter it.
+    pub(crate) fn can_be_in(&self, s: &State, d: usize) -> bool {
+        s.inside.is_some_and(|i| usize::from(i) == d) || self.enterable(s, d)
     }
 
     /// Dungeon `d` may be run: dungeons on (or this one forced), and not excluded.
     pub(crate) fn dungeon_allowed(&self, d: usize) -> bool {
         let area = self.model.dungeons[d].area;
-        !self.params.excluded_dungeons.contains(&area)
-            && (self.params.dungeons || self.params.forced_dungeons.contains(&area))
+        !self.params.excluded_dungeons.contains(&area) && (self.params.dungeons || self.dungeon_forced(d))
     }
 
-    /// Dungeon `d` must be run (when the route reaches its levels).
+    /// Dungeon `d` must be run (when the route reaches its levels), with its quests or not.
     pub(crate) fn dungeon_forced(&self, d: usize) -> bool {
         let area = self.model.dungeons[d].area;
-        self.params.forced_dungeons.contains(&area) && !self.params.excluded_dungeons.contains(&area)
+        (self.model.dungeons[d].needed
+            || self.params.forced_dungeons.contains(&area)
+            || self.params.forced_dungeon_quests.contains(&area))
+            && !self.params.excluded_dungeons.contains(&area)
     }
 
     fn quest_at(&self, i: u32) -> &Quest {

@@ -1,11 +1,45 @@
 //! The addon's data file: every route as Lua tables.
 
 use super::phrase::Arg;
-use super::types::{Route, Step, TargetKind};
+use super::types::{Route, RouteProfession, Step, TargetKind};
 use std::fmt::Write as _;
 
-pub fn lua_str(s: &str) -> String {
-    format!("{s:?}")
+/// A Lua string literal: what Lua 5.1 reads back as `text`. Control characters are decimal
+/// escapes (Lua 5.1 has no `\u{..}`), other characters are written as they are (UTF-8).
+pub fn lua_str(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('"');
+    for c in text.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            c if c.is_ascii_control() => {
+                let _ = write!(out, "\\{:03}", c as u32);
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// Professions as the addon reads them: key, name, skill line, target, start and curve.
+fn lua_professions(professions: &[RouteProfession]) -> String {
+    (professions.iter())
+        .map(|p| {
+            format!(
+                "{{ key = {}, name = {}, line = {}, target = {}, start = {}, curve = {{ {} }} }}",
+                lua_str(&p.key),
+                lua_str(&p.name),
+                p.skill_line,
+                p.target,
+                p.start,
+                p.curve.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// How many of its item an item objective asks for (the number of its sentence).
@@ -33,10 +67,11 @@ pub fn to_lua(routes: &[Route]) -> String {
                 r.players
                     .iter()
                     .map(|p| format!(
-                        "{{ n = {}, race = {}, class = {} }}",
+                        "{{ n = {}, race = {}, class = {}, professions = {{ {} }} }}",
                         lua_str(&p.name),
                         p.race_id,
-                        p.class_id
+                        p.class_id,
+                        lua_professions(&p.professions)
                     ))
                     .collect::<Vec<_>>()
                     .join(", "),
@@ -62,9 +97,17 @@ pub fn to_lua(routes: &[Route]) -> String {
                 p.level
             )
         });
+        let buffs = if r.buffs.is_empty() {
+            String::new()
+        } else {
+            format!(
+                " buffs = {{ {} }},",
+                r.buffs.iter().map(|b| lua_str(b)).collect::<Vec<_>>().join(", ")
+            )
+        };
         let _ = writeln!(
             out,
-            "FG.Routes[{}] = {{ race = {}, class = {}, faction = {}, locale = {}, fromLevel = {}, toLevel = {}, time = {}, levels = {{ {} }}, professions = {{ {} }}, reputations = {{ {} }}, spells = {{ {} }}, checkpoints = {{ {} }},{players}{replan} steps = {{",
+            "FG.Routes[{}] = {{ race = {}, class = {}, faction = {}, locale = {}, fromLevel = {}, toLevel = {}, time = {}, levels = {{ {} }}, professions = {{ {} }}, reputations = {{ {} }}, spells = {{ {} }}, checkpoints = {{ {} }},{players}{buffs}{replan} steps = {{",
             lua_str(&r.name),
             r.race_id,
             r.class_id,
@@ -82,19 +125,7 @@ pub fn to_lua(routes: &[Route]) -> String {
                     .map(|s| format!("[{l}] = {}", s.time.round())))
                 .collect::<Vec<_>>()
                 .join(", "),
-            r.professions
-                .iter()
-                .map(|p| format!(
-                    "{{ key = {}, name = {}, line = {}, target = {}, start = {}, curve = {{ {} }} }}",
-                    lua_str(&p.key),
-                    lua_str(&p.name),
-                    p.skill_line,
-                    p.target,
-                    p.start,
-                    p.curve.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
-                ))
-                .collect::<Vec<_>>()
-                .join(", "),
+            lua_professions(&r.professions),
             // Reputation goals: points from the bottom of Neutral, where the guide gets to.
             r.reputation
                 .iter()
@@ -162,6 +193,9 @@ pub fn to_lua(routes: &[Route]) -> String {
                         ids.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
                     ));
                 }
+            }
+            if let Some(n) = s.pre_need {
+                fields.push(format!("pn = {n}"));
             }
             if let Some(l) = s.min_level {
                 fields.push(format!("min = {l}"));
@@ -242,6 +276,16 @@ pub fn to_lua(routes: &[Route]) -> String {
             }
             if let Some(xp) = s.reward_xp {
                 fields.push(format!("rx = {xp}"));
+            }
+            if !s.party_reward_xp.is_empty() {
+                fields.push(format!(
+                    "rxp = {{ {} }}",
+                    s.party_reward_xp
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
             }
             if !s.spells.is_empty() {
                 fields.push(format!(
@@ -330,4 +374,19 @@ fn lighten_walk(step: &Step) -> Vec<[f64; 2]> {
     }
     kept.pop();
     kept.iter().map(|[x, y]| [x.round(), y.round()]).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lua_str;
+
+    /// Lua 5.1 reads `\ddd` (always three digits here: a digit after one stays a digit) and no
+    /// `\u{..}`: a no-break space or a zero-width space go as they are.
+    #[test]
+    fn a_string_is_written_as_lua_5_1_reads_it() {
+        assert_eq!(
+            lua_str("a\"b\\c\nd\te\u{7f}1\u{a0}\u{200b}é"),
+            "\"a\\\"b\\\\c\\nd\\009e\\1271\u{a0}\u{200b}é\""
+        );
+    }
 }

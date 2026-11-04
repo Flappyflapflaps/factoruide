@@ -14,13 +14,12 @@ anyhow.workspace = true
 fg-app = { path = "../../crates/fg-app" }
 fg-library = { path = "../../crates/fg-library" }
 fg-route = { path = "../../crates/fg-route" }
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 zstd = "0.14"
 fg-contrib.workspace = true
 ureq = { version = "3", features = ["json"] }
-getrandom = "0.4"
 tauri = { version = "2", features = [] }
 # Updates published with the GitHub releases (latest.json), and the restart after installing one.
 tauri-plugin-updater = "2"

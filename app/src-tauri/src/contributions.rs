@@ -78,7 +78,7 @@ pub(crate) fn sent_lua(state: &SendState) -> String {
          FactoruideSent = {\n",
     );
     for (character, last_seq) in state.sent_by_name() {
-        let _ = writeln!(lua, "  [{}] = {last_seq},", lua_string(&character));
+        let _ = writeln!(lua, "  [{}] = {last_seq},", fg_route::export::lua_str(&character));
     }
     lua.push_str("}\n");
     lua
@@ -146,23 +146,19 @@ pub(crate) fn server_endpoint(settings: &Settings, path: &str) -> Option<String>
 /// This install's contributor id, created the first time (settings locked meanwhile: the
 /// automatic sends may ask for it while the settings page saves).
 pub(crate) fn contributor_id(state: &AppState) -> CmdResult<String> {
-    let mut settings = state.settings.locked();
-    if let Some(id) = settings
-        .contributor
-        .clone()
-        .filter(|id| id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit()))
-    {
+    let valid = |id: &String| id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit());
+    if let Some(id) = state.settings().contributor.clone().filter(valid) {
         return Ok(id);
     }
-    let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes).map_err(err)?;
-    let id = bytes.iter().fold(String::with_capacity(32), |mut id, b| {
-        let _ = write!(id, "{b:02x}");
-        id
-    });
-    settings.contributor = Some(id.clone());
-    save_settings_file(&state.config_file, &settings)?;
-    Ok(id)
+    let fresh = fg_contrib::contribution::random_hex(16).map_err(err)?;
+    // Another send may have made one meanwhile: that one is kept.
+    state.settings.update(|s| {
+        if let Some(id) = s.contributor.clone().filter(valid) {
+            return id;
+        }
+        s.contributor = Some(fresh.clone());
+        fresh
+    })
 }
 
 /// What is new in a game version's client folder since `sent` (one document of it), the
@@ -224,7 +220,7 @@ pub(crate) fn preview(state: &AppState) -> CmdResult<ContributionPreview> {
         more,
         url: contribution_endpoint(&settings),
         last_sent: record.last_sent,
-        retry_after: record.retry_after.filter(|&t| now().is_ok_and(|now| now < t)),
+        retry_after: record.retry_after.filter(|&t| state.now().is_ok_and(|now| now < t)),
         automatic,
     })
 }
@@ -436,7 +432,7 @@ pub(crate) async fn send_contribution(app: AppHandle) -> CmdResult<SendReport> {
         let url = contribution_endpoint(&state.settings()).ok_or("no contribution server configured")?;
         let file = send_record_file(&state.data_dir, edition);
         let mut record = read_send_record(&file)?;
-        if record.retry_after.is_some_and(|t| now().is_ok_and(|now| now < t)) {
+        if record.retry_after.is_some_and(|t| state.now().is_ok_and(|now| now < t)) {
             return Err("rate_limited".into());
         }
         let burst = send_burst(|| {
@@ -451,7 +447,7 @@ pub(crate) async fn send_contribution(app: AppHandle) -> CmdResult<SendReport> {
                 next,
                 more,
             };
-            let (posted, sent) = send(&state, &url, out, now()?, false)?;
+            let (posted, sent) = send(&state, &url, out, state.now()?, false)?;
             record = sent;
             Ok(Some((posted, more)))
         })?;
@@ -468,81 +464,6 @@ pub(crate) async fn send_contribution(app: AppHandle) -> CmdResult<SendReport> {
     })
     .await
     .map_err(err)?
-}
-
-/// A problem the player reports, as the report form gives it.
-#[derive(Deserialize)]
-pub(crate) struct IssueDraft {
-    /// `guide` or `other`.
-    kind: String,
-    message: String,
-    #[serde(default)]
-    name: Option<String>,
-    /// The app's language.
-    language: String,
-    #[serde(default)]
-    guide: Option<IssueGuide>,
-    /// Join how the game and the addon are set up (`setup_report`).
-    #[serde(default)]
-    setup: bool,
-}
-
-#[derive(Deserialize)]
-pub(crate) struct IssueGuide {
-    guide: GuideId,
-    version: u32,
-    /// Indices of the steps pointed at.
-    #[serde(default)]
-    steps: Vec<usize>,
-    /// Language the steps were shown in.
-    locale: String,
-}
-
-/// What a report says of a guide: everything it was computed from, so that it is computed again
-/// exactly (all its settings, seed included), without the character's name.
-pub(crate) fn guide_report(state: &AppState, g: &IssueGuide) -> CmdResult<(Edition, fg_contrib::issue::GuideReport)> {
-    let v = state.library().version(&g.guide, g.version)?;
-    let mut request = v.request;
-    let edition = request.params.as_ref().map_or_else(|| state.edition(), |p| p.edition);
-    if request.params.is_none() {
-        request.params = Some(overrides(edition)?.params);
-    }
-    request.name = None;
-    if let Some(start) = &mut request.start {
-        start.name.clear();
-    }
-    let route = state.render(&v.outcome.route, Some(&g.locale))?;
-    let mut steps = Vec::new();
-    for &i in &g.steps {
-        let step = serde_json::to_value(route.steps.get(i).ok_or("no such step")?).map_err(err)?;
-        let map = &step["map"];
-        steps.push(fg_contrib::issue::ReportedStep {
-            index: i as u32,
-            kind: step["kind"].as_str().unwrap_or_default().to_owned(),
-            quest: step["quest"].as_u64().map(|q| q as u32),
-            objective: step["objective"].as_u64().map(|o| o as u32),
-            text: step["text"].as_str().unwrap_or_default().chars().take(500).collect(),
-            zone: step["zone"].as_str().map(str::to_owned),
-            level: step["level"].as_u64().unwrap_or_default() as u32,
-            map: map["ui_map"]
-                .as_u64()
-                .zip(map["x"].as_f64().zip(map["y"].as_f64()))
-                .map(|(m, (x, y))| (m as u32, x, y)),
-        });
-    }
-    Ok((
-        edition,
-        fg_contrib::issue::GuideReport {
-            request: serde_json::to_value(&request).map_err(err)?,
-            plan: serde_json::to_value(&v.outcome.plan).map_err(err)?,
-            data: v.meta.data,
-            version: g.version,
-            edited: v.meta.edited,
-            imported: v.meta.imported,
-            total_time: v.meta.total_time,
-            steps,
-        },
-    ))
 }
 
 /// What players can check in game for the current game version ("Need help" page), with the
@@ -569,34 +490,13 @@ pub(crate) async fn need_help(app: AppHandle, locale: String) -> CmdResult<Vec<f
 /// Send a problem the player reports to the contribution server. Errors: "rate_limited", or
 /// the reason (the report's check, the server's message).
 #[tauri::command]
-pub(crate) async fn send_issue(app: AppHandle, draft: IssueDraft) -> CmdResult<&'static str> {
+pub(crate) async fn send_issue(app: AppHandle, draft: fg_app::IssueDraft) -> CmdResult<&'static str> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
         let url = server_endpoint(&state.settings(), "issues").ok_or("no contribution server configured")?;
-        let (edition, guide) = match &draft.guide {
-            Some(g) => {
-                let (e, report) = guide_report(&state, g)?;
-                (e, Some(report))
-            }
-            None => (state.edition(), None),
-        };
-        let now = now()?;
-        let issue = fg_contrib::issue::Issue {
-            format: fg_contrib::issue::FORMAT.into(),
-            version: fg_contrib::issue::VERSION,
-            edition: edition.key().into(),
-            app_version: env!("CARGO_PKG_VERSION").into(),
-            contributor: contributor_id(&state)?,
-            day: (now / 86_400) as u32,
-            os: std::env::consts::OS.into(),
-            language: draft.language,
-            kind: draft.kind,
-            message: draft.message.trim().to_owned(),
-            name: draft.name.map(|n| n.trim().to_owned()).filter(|n| !n.is_empty()),
-            guide,
-            setup: draft.setup.then(|| setup_of(&state)),
-        };
-        fg_contrib::issue::validate(&issue, now).map_err(err)?;
+        let setup = draft.setup.then(|| setup_of(&state));
+        let app = (env!("CARGO_PKG_VERSION"), std::env::consts::OS, contributor_id(&state)?);
+        let issue = state.studio.issue(&*state, draft, app, setup)?;
         let post = |issue: &fg_contrib::issue::Issue| {
             let body = serde_json::to_vec(issue).map_err(err)?;
             if body.len() > fg_contrib::issue::MAX_BYTES {
@@ -646,7 +546,7 @@ pub(crate) fn setup_of(state: &AppState) -> fg_contrib::issue::Setup {
     let status = game::status(&settings.wow_dir, settings.edition);
     let polestar = settings.edition == Edition::Forever && polestar_installed_in(&settings);
     let health = game::addon_health(&status.root, settings.edition, ADDON_VERSION);
-    let today = now().unwrap_or_default().cast_signed();
+    let today = state.now().unwrap_or_default().cast_signed();
     fg_contrib::issue::Setup {
         wow_dir: private_path(&status.root).chars().take(300).collect(),
         clients: status.clients.into_iter().take(20).collect(),
@@ -662,7 +562,7 @@ pub(crate) fn setup_of(state: &AppState) -> fg_contrib::issue::Setup {
         not_loaded: health.not_loaded,
         disabled: u32::try_from(health.disabled_for.len()).unwrap_or(u32::MAX),
         saved_variables: health.saved_variables,
-        restart_needed: *state.restart_needed.locked(),
+        restart_needed: state.restart_needed.load(Ordering::Relaxed),
     }
 }
 
@@ -755,7 +655,7 @@ pub(crate) fn auto_contribute_loop(app: &AppHandle, wake: &std::sync::mpsc::Rece
 pub(crate) fn auto_contribute(state: &AppState) -> std::time::Duration {
     let mut next = AUTO_CHECK_EVERY;
     let settings = state.settings();
-    let (Some(url), Ok(now)) = (contribution_endpoint(&settings), now()) else {
+    let (Some(url), Ok(now)) = (contribution_endpoint(&settings), state.now()) else {
         return std::time::Duration::from_secs(next);
     };
     for edition in Edition::ALL {

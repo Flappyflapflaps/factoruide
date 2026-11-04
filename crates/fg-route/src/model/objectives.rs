@@ -5,8 +5,8 @@ use super::builder::{QuestBuilder, Skip};
 use super::entities::{alternatives, best_cluster};
 use super::givers::Givers;
 use super::sources::{
-    LinkKind, ObjectiveKind, QuestRow, Role, SourceKind, asks_for_work, count_for, on_reachable, one_place,
-    parse_requirements, talks_to, tames,
+    ObjectiveKind, QuestRow, SourceKind, asks_for_work, count_for, on_reachable, one_place, parse_requirements,
+    talks_to, tames,
 };
 use super::types::{EntityKind, Guard, Loc, Objective, Spots};
 use crate::world::Pos;
@@ -14,19 +14,20 @@ use std::collections::HashMap;
 
 /// An object this close to the NPC giving or taking back the quest (yards) is used in their camp.
 const BESIDE_GIVER: f64 = 30.0;
+/// Creatures this close to a dungeon's entrance (yards) are done with its group, before the run.
+const OUTSIDE_NEAR: f64 = 600.0;
 
 /// Objects used right beside the NPC giving or taking back the quest, no elite around them (the
 /// campfire to sit at next to Kaga Wildhoof, The Great Outdoors): the character stands there to
 /// talk to the NPC anyway, so they require no power (`Objective::beside_giver`). The quest's level asked of them
 /// otherwise made the character come back a level later, which the route never did.
-fn mark_beside_givers(givers: &Givers, objs: &mut [Objective]) {
+pub(super) fn mark_beside_givers(starts: &[Loc], ends: &[Loc], objs: &mut [Objective]) {
     let beside = |o: &Objective| {
-        o.dungeon.is_none()
+        o.dungeon_of().is_none()
             && o.kills <= 0.0
             && o.loc.kind == EntityKind::Object
             && !o.guard.elite
-            && (givers.starts.iter().chain(&givers.ends))
-                .any(|l| l.kind == EntityKind::Npc && l.pos.dist(&o.loc.pos) <= BESIDE_GIVER)
+            && (starts.iter().chain(ends)).any(|l| l.kind == EntityKind::Npc && l.pos.dist(&o.loc.pos) <= BESIDE_GIVER)
     };
     for o in objs {
         o.beside_giver = beside(o);
@@ -77,11 +78,10 @@ impl Objective {
             after: 0,
             handed_by: vec![],
             stock: None,
-            child: None,
-            child_name: None,
             vendors: vec![],
             auction: vec![],
             slot: None,
+            lasts: None,
         }
     }
 }
@@ -95,17 +95,15 @@ impl QuestBuilder<'_> {
         if rows.is_empty()
             && let Some(d) = r.sort.and_then(|s| self.sources.dungeon_by_area.get(&s).copied())
         {
-            let dungeon = &self.sources.dungeons[d];
-            let mut objs = vec![Objective {
-                dungeon: Some(d),
-                ..Objective::plain(dungeon.entrance.clone(), dungeon.name.clone(), 0.0)
-            }];
-            self.add_dungeon_givers(r, &mut objs);
-            return Ok(objs);
+            // Taken during the run of its prerequisite and handed in outside: nothing of its own.
+            if self.follows_in_the_run(r.id, d) {
+                return Ok(Vec::new());
+            }
+            let name = self.sources.dungeons[d].name.clone();
+            return Ok(vec![Objective::plain(self.inside(d), name, 0.0)]);
         }
-        let children = self.children(r.id);
         // Without them the quest would look free (some recent quests are only described).
-        if rows.is_empty() && children.is_empty() && asks_for_work(r.requirements.as_deref()) {
+        if rows.is_empty() && asks_for_work(r.requirements.as_deref()) {
             return Err("objectives unknown (only described)");
         }
         if rows.is_empty() && r.catalogued_only() {
@@ -113,26 +111,18 @@ impl QuestBuilder<'_> {
         }
         let mut objs = self.source_items(&quest, &rows);
         let first = (1u8 << objs.len().min(8)) - 1;
+        // An item that does not last is got for the objectives using it, kills too (the carcass
+        // Ishamuhale comes to): not before.
+        let lasting = objs.iter().any(|o| o.lasts.is_some());
         for (slot, row) in rows.into_iter().enumerate() {
             let kind = row.0;
             // The item the quest is offered for: in the bags from the accept on.
             if kind == ObjectiveKind::Item && row.1.is_some() && row.1 == givers.held {
                 continue;
             }
-            // An item a child hands over (the Warsong scouts' updates): got at its hand-in, one
-            // of this quest's objectives.
-            let rewarded = |item: i64| {
-                self.sources
-                    .reward_of
-                    .get(&item)
-                    .is_some_and(|q| q.iter().any(|q| children.contains(q)))
-            };
-            if kind == ObjectiveKind::Item && row.1.is_some_and(rewarded) {
-                continue;
-            }
             if let Some(mut o) = self.objective(&quest, row)? {
                 // Mobs are killed and items got without the item; the rest uses it.
-                if !(kind == ObjectiveKind::Item || kind == ObjectiveKind::Creature && o.kills > 0.0) {
+                if lasting || !(kind == ObjectiveKind::Item || kind == ObjectiveKind::Creature && o.kills > 0.0) {
                     o.after = first;
                 }
                 let slot = u8::try_from(slot + 1).ok();
@@ -143,7 +133,6 @@ impl QuestBuilder<'_> {
                 objs.push(o);
             }
         }
-        self.add_children(&quest, &children, &mut objs);
         self.order(r.id, &mut objs);
         self.measure(r, &mut objs);
         for o in &mut objs {
@@ -152,8 +141,7 @@ impl QuestBuilder<'_> {
             o.alts.retain(|a| elite || !a.elite);
             self.measure(r, &mut o.alts);
         }
-        mark_beside_givers(givers, &mut objs);
-        self.add_dungeon_givers(r, &mut objs);
+        mark_beside_givers(&givers.starts, &givers.ends, &mut objs);
         Ok(objs)
     }
 
@@ -173,97 +161,6 @@ impl QuestBuilder<'_> {
         }
     }
 
-    /// The quest's children handed in on its way (`LinkKind::Child`): those the sources mark
-    /// repeatable, which are never planned on their own (the others are quests of their own).
-    fn children(&self, id: i64) -> Vec<i64> {
-        let links = self.sources.links.get(&id).into_iter().flatten();
-        links
-            .filter(|(k, c)| *k == LinkKind::Child && self.sources.repeatable.contains(c))
-            .map(|(_, c)| *c)
-            .filter(|c| self.sources.rows.iter().any(|r| r.id == *c))
-            .collect()
-    }
-
-    /// Each child as objectives of the parent: the items it asks for (the Thunder Ale Jarven
-    /// wants), then its hand-in where it ends, after them and after the children it needs first.
-    /// A child that cannot be placed is left out, as before.
-    fn add_children(&self, quest: &QuestContext<'_>, children: &[i64], objs: &mut Vec<Objective>) {
-        let bits = |range: std::ops::Range<usize>| range.filter(|i| *i < 8).fold(0u8, |b, i| b | 1 << i);
-        let mut handed: Vec<(i64, usize)> = Vec::new();
-        let mut order: Vec<i64> = children.to_vec();
-        // A child another one needs first comes first.
-        order.sort_by_key(|c| {
-            let needs = |c: &i64| {
-                self.sources
-                    .links
-                    .get(c)
-                    .into_iter()
-                    .flatten()
-                    .filter(|(k, o)| matches!(k, LinkKind::PreAll | LinkKind::PreAny) && children.contains(o))
-                    .count()
-            };
-            needs(c)
-        });
-        for child in order {
-            let Some(row) = self.sources.rows.iter().find(|r| r.id == child) else {
-                continue;
-            };
-            let end = self
-                .sources
-                .relations
-                .get(&child)
-                .into_iter()
-                .flatten()
-                .find(|(role, kind, _)| *role == Role::End && matches!(kind, EntityKind::Npc | EntityKind::Object));
-            let Some(&(_, kind, id)) = end else { continue };
-            let first = objs.len();
-            // Items the parent already asks for (Seal of the Earth's runestones for Tremors of
-            // the Earth) are got once: the hand-in comes after them.
-            let mut asked = 0u8;
-            for item in self.sources.objectives.get(&child).into_iter().flatten() {
-                if item.0 != ObjectiveKind::Item {
-                    continue;
-                }
-                let got = objs[..first]
-                    .iter()
-                    .position(|o| o.loc.kind == EntityKind::Item && Some(o.loc.id) == item.1);
-                if let Some(at) = got {
-                    asked |= bits(at..at + 1);
-                } else if let Ok(Some(o)) = self.objective(quest, item.clone()) {
-                    objs.push(o);
-                }
-            }
-            let text = format!("Turn in {} to {}", row.name, self.sources.entities.name(kind, id));
-            let Ok(mut hand_in) = self.use_at(quest, kind, id, Some(text), Some(1.0)) else {
-                objs.truncate(first);
-                continue;
-            };
-            let needed = self
-                .sources
-                .links
-                .get(&child)
-                .into_iter()
-                .flatten()
-                .filter_map(|(k, o)| matches!(k, LinkKind::PreAll | LinkKind::PreAny).then_some(*o));
-            let mut after = asked | bits(first..objs.len());
-            for o in needed {
-                if let Some(&(_, at)) = handed.iter().find(|(c, _)| *c == o) {
-                    after |= bits(at..at + 1);
-                }
-            }
-            hand_in.child = Some(child);
-            hand_in.child_name = Some(row.name.clone());
-            hand_in.after = after;
-            for alt in &mut hand_in.alts {
-                alt.child = Some(child);
-                alt.child_name = Some(row.name.clone());
-                alt.after = after;
-            }
-            handed.push((child, objs.len()));
-            objs.push(hand_in);
-        }
-    }
-
     /// What the place of each objective holds: elites per pull, guards, spot and crowd.
     fn measure(&self, r: &QuestRow, objs: &mut [Objective]) {
         for o in objs.iter_mut().filter(|o| o.elite) {
@@ -271,7 +168,7 @@ impl QuestBuilder<'_> {
         }
         // Mobs to kill set the power by themselves; objects, areas and NPCs to talk to may
         // stand among stronger ones.
-        for o in objs.iter_mut().filter(|o| o.kills <= 0.0 && o.dungeon.is_none()) {
+        for o in objs.iter_mut().filter(|o| o.kills <= 0.0 && o.dungeon_of().is_none()) {
             o.guard = self.sources.guards.around(&o.loc.pos);
         }
         self.spots_and_crowd(r, objs);
@@ -317,7 +214,8 @@ impl QuestBuilder<'_> {
             }
             // Not found where it can be got (from elites, a source unknown): left out, as an
             // item probably given along the quest.
-            if let Ok(Some(o)) = self.objective(quest, (ObjectiveKind::Item, Some(item), None, None, Some(1))) {
+            if let Ok(Some(mut o)) = self.objective(quest, (ObjectiveKind::Item, Some(item), None, None, Some(1))) {
+                o.lasts = self.sources.item_durations.get(&item).copied();
                 objs.push(o);
             }
         }
@@ -367,6 +265,8 @@ impl QuestBuilder<'_> {
             kind: EntityKind::Area,
             id: 0,
             name: name.clone(),
+            inside: None,
+            floor: None,
         };
         let text = format!("Battleground: {}", text.unwrap_or_else(|| format!("{name} x{count}")));
         Objective {
@@ -421,18 +321,65 @@ impl QuestBuilder<'_> {
             ObjectiveKind::Trigger | ObjectiveKind::Other => None,
         }?;
         let dungeon = &self.sources.dungeons[d];
-        let text = text.clone().unwrap_or_else(|| {
-            format!(
-                "{}: {}",
-                dungeon.name,
-                self.sources.entities.name(kind.entity(), target)
-            )
-        });
+        let name = self.sources.entities.name(kind.entity(), target);
+        // Done by the group outside: said with the dungeon's name (`dungeon_quests`).
+        let text = text.clone().unwrap_or_else(|| format!("{}: {name}", dungeon.name));
+        // An item only creatures outside the instance carry (the Miners' Union Cards of the
+        // Deadmines' quarry): done with the dungeon's group, at the place they stand, which is
+        // next to the entrance, not inside.
+        let place = (kind == ObjectiveKind::Item)
+            .then(|| self.outside_place(target, &quest.parts, &dungeon.entrance))
+            .flatten();
+        // Shown in the guide ("Defias Prisoner x10").
+        let count = amount.map_or(1.0, |n| n.max(1) as f64);
+        // Done by the dungeon's group outside: when entering it.
+        if let Some(place) = place {
+            return Some(Objective {
+                dungeon: Some(d),
+                count,
+                ..Objective::plain(place, text, 0.0)
+            });
+        }
+        // Inside: what to get there, by its name ("Deviate Hide"), where the target stands, or
+        // for an item the first of its sources in the dungeon.
+        let at = match kind {
+            ObjectiveKind::Item => (self.item_sources(target, &quest.parts).into_iter())
+                .filter_map(|(t, id)| Some((t.entity()?, id)))
+                .find(|&(e, id)| self.dungeon_of(e, id) == Some(d)),
+            _ => Some((kind.entity(), target)),
+        };
+        let loc = at.map_or_else(|| self.inside(d), |(e, id)| self.inside_at(d, e, id));
         Some(Objective {
-            dungeon: Some(d),
-            // Shown in the guide ("Defias Prisoner x10").
-            count: amount.map_or(1.0, |n| n.max(1) as f64),
-            ..Objective::plain(dungeon.entrance.clone(), text, 0.0)
+            count,
+            ..Objective::plain(loc, row.2.clone().unwrap_or(name), 0.0)
+        })
+    }
+
+    /// Where an item whose every source lives outside the dungeons stands closest to `entrance`
+    /// (None when one of its sources is inside, or none is placed).
+    fn outside_place(&self, item: i64, parts: &[i64], entrance: &Loc) -> Option<Loc> {
+        let sources = self.item_sources(item, parts);
+        let creatures: Vec<(EntityKind, i64)> = sources
+            .iter()
+            .filter(|(t, _)| *t != SourceKind::Item)
+            .filter_map(|(t, id)| t.entity().map(|e| (e, *id)))
+            .collect();
+        if creatures.is_empty() || creatures.iter().any(|(e, id)| self.dungeon_of(*e, *id).is_some()) {
+            return None;
+        }
+        let (pos, zone) = creatures
+            .iter()
+            .flat_map(|(e, id)| self.sources.entities.points(self.world, *e, *id))
+            .min_by(|a, b| a.0.dist(&entrance.pos).total_cmp(&b.0.dist(&entrance.pos)))?;
+        // Beside the entrance only: a source far from it is not the dungeon's to do.
+        (pos.dist(&entrance.pos) <= OUTSIDE_NEAR).then(|| Loc {
+            pos,
+            zone,
+            kind: EntityKind::Item,
+            id: item,
+            name: self.sources.entities.name(EntityKind::Item, item),
+            inside: None,
+            floor: None,
         })
     }
 
@@ -458,11 +405,14 @@ impl QuestBuilder<'_> {
             .iter()
             .flat_map(|id| entities.points(self.world, EntityKind::Npc, *id))
             .collect();
-        // A creature found nowhere is summoned where the quest's extra objectives are done.
-        if points.is_empty() {
-            points = (quest.row.extra_objects.iter())
-                .flat_map(|id| entities.points(self.world, EntityKind::Object, *id))
-                .collect();
+        // A creature found nowhere, or only in other zones, is summoned where the quest's extra
+        // objectives are done: The Binding's demon at the quest's own circle, whichever city's
+        // the data has seen it at.
+        let objects: Vec<_> = (quest.row.extra_objects.iter())
+            .flat_map(|id| entities.points(self.world, EntityKind::Object, *id))
+            .collect();
+        if !objects.is_empty() && !points.iter().any(|p| objects.iter().any(|o| o.1 == p.1)) {
+            points = objects;
         }
         let needed = amount.or_else(|| count_for(&quest.requirements, &name)).unwrap_or(
             if one_place(&points) && !quest.row.numbered {
@@ -504,6 +454,8 @@ impl QuestBuilder<'_> {
             kind: EntityKind::Npc,
             id: target,
             name: name.clone(),
+            inside: None,
+            floor: None,
         };
         if friendly {
             return Ok(Objective::plain(
@@ -613,6 +565,8 @@ impl QuestBuilder<'_> {
                 kind,
                 id: target,
                 name: name.clone(),
+                inside: None,
+                floor: None,
             };
             Objective {
                 uses,
@@ -658,6 +612,8 @@ impl QuestBuilder<'_> {
             kind: EntityKind::Area,
             id: 0,
             name: text.clone().unwrap_or_default(),
+            inside: None,
+            floor: None,
         };
         Ok(Objective::plain(
             loc,
@@ -666,33 +622,13 @@ impl QuestBuilder<'_> {
         ))
     }
 
-    /// A giver or turn-in that lives inside a dungeon (a corpse, a scout in the instance) is
-    /// only met during a run of it.
-    fn add_dungeon_givers(&self, r: &QuestRow, objs: &mut Vec<Objective>) {
-        for (role, kind, id) in self.sources.relations.get(&r.id).into_iter().flatten() {
-            let (kind, id) = if *kind == EntityKind::Item {
-                // An item starting it dropped by a boss inside (Unending Torment's Abominable Head).
-                let boss = (self.sources.item_origins.get(id).into_iter().flatten()).find(|(t, n)| {
-                    *role == Role::Start && *t == SourceKind::Npc && self.dungeon_of(EntityKind::Npc, *n).is_some()
-                });
-                match boss {
-                    Some((_, n)) => (EntityKind::Npc, *n),
-                    None => continue,
-                }
-            } else {
-                (*kind, *id)
-            };
-            let (kind, id) = (&kind, &id);
-            if let Some(d) = self.dungeon_of(*kind, *id)
-                && !objs.iter().any(|o| o.dungeon == Some(d))
-            {
-                let dungeon = &self.sources.dungeons[d];
-                let text = format!("{}: {}", dungeon.name, self.sources.entities.name(*kind, *id));
-                objs.push(Objective {
-                    dungeon: Some(d),
-                    ..Objective::plain(dungeon.entrance.clone(), text, 0.0)
-                });
-            }
-        }
+    /// A quest whose prerequisite has its giver or turn-in inside dungeon `d` too is taken during
+    /// the run of the prerequisite (Heartwoven, given by Ardin Grassman once Lost in the Thicket
+    /// Things is ended to him): a dungeon is run once, it asks no run of its own.
+    fn follows_in_the_run(&self, quest: i64, d: usize) -> bool {
+        self.links(quest, super::sources::LinkKind::PreAll).iter().any(|pre| {
+            (self.sources.relations.get(pre).into_iter().flatten())
+                .any(|(_, kind, id)| self.dungeon_of(*kind, *id) == Some(d))
+        })
     }
 }

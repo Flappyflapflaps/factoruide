@@ -15,6 +15,7 @@ FG.SelfCheck = SelfCheck
 -- What the XP buff reminders and the rested reminder look for (XpBuffs.lua, Rested.lua).
 SelfCheck.SPELLS = {
     { 19705, "Well Fed" },
+    { 1243969, "Well Fed XP boost (WoW Forever)" },
     { 429959, "Cozy Sleeping Bag buff" },
     { 1229451, "Boosted Rest (Camp Tent)" },
 }

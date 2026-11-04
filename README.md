@@ -40,7 +40,27 @@ zones to do, the level to reach before moving on from each, and where the XP is.
   to see again.
 - **Your dungeons**: force or exclude each dungeon, do the worthwhile ones in a group, take their
   quests a few levels ahead.
+- **Your quests**: search a must-have quest by name or ID (bottom of the new guide page). The guide
+  includes its prerequisites and finishes the chain, even past your target level. It cannot be saved with
+  a required quest missing. Each selected quest can have an inclusive minimum and/or maximum
+  turn-in level, before reward XP; its prerequisites may be done earlier. Tight deadlines can
+  displace optional quests.
+- **Your XP buffs** (Forever): food adds 5% kill XP. Sleeping Bag adds 3% kill and quest XP
+  after its quest chain is completed; enabling it includes the chain. Both buffs stay active,
+  with no upkeep time; the addon warns when a buff the guide counts on is missing. Both are off by
+  default. Rested XP remains finite, including when pre-grinding or catching up
+  with a group in any supported edition.
+- **Your travel spells**: learned Cat Form, Travel Form, Ghost Wolf and Aspect of the Cheetah
+  affect walking estimates only for walks entirely outdoors without swimming; few walks currently
+  qualify. In Advanced, **Assume movement talents are learned** is on by default. Cheetah needs
+  no talent. Forms become available through the quests or trainers of your game version.
+- **Your class spells**: quest rewards and trainer visits determine which spells are known.
+  Form attacks need both the form and its learned attack rank. Imported characters use their
+  recorded spells and completed quests. Without a character profile, earlier class unlocks
+  are assumed known; selecting class quests does not change that starting assumption.
 - **Your class quests**: the ones you want to do are kept, even when they are not the fastest.
+  Missing unlocks keep their prerequisites, and known unlocks are not repeated. Druids include
+  Moonglade by default.
 - **Your play style**: a relaxed, normal or fast pace (time per fight, per loot, per stop), how far
   above your level you take quests and fight mobs, how much grinding you accept, flights or
   walking to save gold, finishing a zone before leaving, staying on one continent, elite quests

@@ -150,14 +150,15 @@ impl Planner<'_> {
         } else {
             self.random_move(&mut candidate, &search.run, &mut search.rng)
         };
-        let Some(change) = change else { return };
+        let Some(mut change) = change else { return };
+        self.gather_dungeons(&mut candidate, &mut change);
         // The start chosen (`Params::start_zone`) is kept: the route begins in that zone.
         if self.begins_in_start_zone(&search.route) && !self.begins_in_start_zone(&candidate) {
             return;
         }
         // Replayed up to a window past the change, the rest estimated; to the end only when the
         // estimate would keep it (and always when it changes the dungeons run).
-        let dungeons = |r: &[Stop]| r.iter().filter(|s| s.kind == Kind::Dungeon).count();
+        let dungeons = |r: &[Stop]| self.places().entered(r);
         // The last stop changed: past it, both routes end alike (the moves that edit a route
         // only say it changes up to its end).
         let same_end = (candidate.iter().rev())
@@ -289,10 +290,6 @@ impl Planner<'_> {
             route = kept;
             run = done(self.run(&route).expect("dropped route was valid"));
         }
-        if let Some(kept) = self.drop_idle_runs(&route) {
-            route = kept;
-            run = done(self.run(&route).expect("route without idle runs was valid"));
-        }
         (route, run.0)
     }
 
@@ -300,14 +297,12 @@ impl Planner<'_> {
     /// cut past the target level, or never planned): they cannot be finished, so they go
     /// whatever they save. Those another quest needs stay. None when there is nothing to remove.
     pub(crate) fn drop_dungeonless(&self, route: &[Stop]) -> Option<Vec<Stop>> {
-        let runs: HashSet<u32> = (route.iter())
-            .filter(|s| s.kind == Kind::Dungeon)
-            .map(|s| s.index)
-            .collect();
+        let runs = self.places().entered(route);
         let mut left: Vec<u32> = (route.iter())
             .filter(|s| s.kind == Kind::Accept && !self.quest(s.index).mandatory)
             .filter(|s| {
-                (self.quest(s.index).objectives.iter()).any(|o| o.dungeon.is_some_and(|d| !runs.contains(&(d as u32))))
+                (self.quest(s.index).objectives.iter())
+                    .any(|o| o.dungeon_of().is_some_and(|d| !runs.contains(&(d as u32))))
             })
             .map(|s| s.index)
             .collect();
@@ -322,33 +317,6 @@ impl Planner<'_> {
             }
         }
         changed.then_some(best)
-    }
-
-    /// The route without the dungeon runs done for none of its quests once the character is past
-    /// the dungeon's levels, its kills gray (Ragefire Chasm at level 27): the search may leave
-    /// one whose quests went. A dungeon the player asked for stays. None when there is none.
-    pub fn drop_idle_runs(&self, route: &[Stop]) -> Option<Vec<Stop>> {
-        let mut trace = Vec::new();
-        self.simulate_full(route, Some(&mut trace))?;
-        let taken = |q: u32| route.contains(&Stop::quest(q, Kind::Accept)) || self.in_log_at_start(q);
-        let idle: Vec<Stop> = (trace.iter())
-            .filter_map(|t| match &t.event {
-                Event::Stop { stop, .. } if stop.kind == Kind::Dungeon => Some((*stop, t.level)),
-                _ => None,
-            })
-            .filter(|(stop, level)| {
-                let d = stop.index as usize;
-                !self.availability().dungeon_forced(d)
-                    && *level > self.model.dungeons[d].max_level
-                    && !self.availability().dungeon_quests(d).any(taken)
-            })
-            .map(|(stop, _)| stop)
-            .collect();
-        if idle.is_empty() {
-            return None;
-        }
-        let candidate: Vec<Stop> = (route.iter().copied()).filter(|s| !idle.contains(s)).collect();
-        self.simulate(&candidate, None).is_some().then_some(candidate)
     }
 
     /// The run of `candidate`, built once the states of `run` (of `route`) are released: two

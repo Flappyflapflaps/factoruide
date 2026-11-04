@@ -35,6 +35,7 @@ mod hearth;
 mod moves;
 mod on_the_way;
 mod places;
+mod profession_trainers;
 mod regions;
 mod report;
 mod search;
@@ -56,11 +57,13 @@ pub use evaluate::End;
 pub use follow::{Followed, Want};
 pub(crate) use on_the_way::segment_dist;
 pub use places::Places;
+pub(crate) use profession_trainers::RANKS;
 pub use regions::Group;
 pub use search::Effort;
 pub use share::{Exchange, Member};
 pub use state::{Breakdown, Event, Kind, Stop, Timed, fmt_time};
 
+use crate::diagnostics::{self, Diagnostics};
 use crate::model::{Model, Profile, Quest};
 use crate::params::Params;
 use crate::world::{Pos, World};
@@ -74,7 +77,7 @@ use state::{Flags, Landed, Planned};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use step::{CampIndex, VendorIndex, camp_index, vendor_index};
-use travel::{FlightTables, Legs, Trips};
+use travel::{FlightTables, Grounds, Legs, Trips};
 use worth::Worth;
 
 /// What a planner simulates: its own routes, or an imposed route replayed as it is (no grinding
@@ -97,6 +100,7 @@ pub struct Planner<'a> {
     flights: FlightTables,
     /// Trips already computed (see `travel::Legs`).
     legs: Legs,
+    grounds: Grounds,
     /// Mobs farmed on each walk, by level (see `on_the_way::farm_along`).
     farm_walks: FarmWalks,
     /// The camps nearest to each place grinding starts at (see `camp::camp`).
@@ -129,8 +133,10 @@ pub struct Planner<'a> {
     /// by quest: accept, turn-in, then its objectives. The insertions ask it all the time.
     from_start: Vec<Vec<Pos>>,
     /// Check every incremental evaluation of the search against a full replay (`verified`, or
-    /// the FG_VERIFY environment variable).
+    /// the diagnostics' `verify`).
     verify: bool,
+    /// What the job is asked to tell (`diagnosed`).
+    pub(crate) diagnostics: &'a Diagnostics,
     /// Tells the construction to give up (`abortable`).
     abort: Option<&'a dyn Fn() -> bool>,
     /// The search's seat at the meetings of the final (`sharing`).
@@ -154,7 +160,7 @@ impl<'a> Planner<'a> {
         let mut in_dungeon = vec![Vec::new(); model.dungeons.len()];
         for (i, q) in model.quests.iter().enumerate() {
             for (k, o) in q.objectives.iter().enumerate() {
-                if let Some(d) = o.dungeon {
+                if let Some(d) = o.dungeon_of() {
                     in_dungeon[d].push((i as u32, k as u8));
                 }
             }
@@ -166,6 +172,7 @@ impl<'a> Planner<'a> {
             profile,
             flights: FlightTables::default(),
             legs: Legs::default(),
+            grounds: Grounds::default(),
             farm_walks: FarmWalks::default(),
             near_camps: NearCamps::default(),
             farm_all: Cell::new(false),
@@ -180,7 +187,8 @@ impl<'a> Planner<'a> {
             followers: followers(model),
             in_dungeon,
             from_start: Vec::new(),
-            verify: std::env::var_os("FG_VERIFY").is_some(),
+            verify: false,
+            diagnostics: &diagnostics::OFF,
             abort: None,
             share: None,
             explicit: false,
@@ -235,6 +243,16 @@ impl<'a> Planner<'a> {
     /// The zone changes of the last greedy construction: (level, time, from, to).
     pub(crate) fn zone_changes(&self) -> Vec<ZoneChange> {
         self.zone_changes.borrow().clone()
+    }
+
+    /// The same planner telling and checking what `diagnostics` asks.
+    #[must_use]
+    pub fn diagnosed(self, diagnostics: &'a Diagnostics) -> Self {
+        Self {
+            verify: self.verify || diagnostics.verify,
+            diagnostics,
+            ..self
+        }
     }
 
     /// The same planner doing only what the route says (`explicit`).
@@ -295,11 +313,23 @@ impl<'a> Planner<'a> {
             hearth_ready: if init.unbound { f64::INFINITY } else { 0.0 },
             recall_ready: if init.unbound { f64::INFINITY } else { 0.0 },
             trained: init.trained.unwrap_or(level).min(level),
+            // A character met in game knows the teleports its training gives (taught anywhere).
+            taught: if init.trained.is_some() {
+                (self.model.teleports.iter().enumerate())
+                    .filter(|(_, tp)| tp.level <= level)
+                    .fold(0, |mask, (i, _)| mask | 1 << i)
+            } else {
+                0
+            },
+            abilities: init.abilities,
+            ranks: self.ranks_known_at_start(level),
             dungeons: 0,
+            inside: None,
             accepted: Flags::new(n),
             turned: Flags::new(n),
             dropped: Vec::new(),
             objectives: vec![0; n],
+            completion_error: None,
             timers: Vec::new(),
             started: Vec::new(),
             together: state::Together::default(),
@@ -308,14 +338,21 @@ impl<'a> Planner<'a> {
             landed: Landed::No,
             planned: Rc::new(Planned::default()),
             at: 0,
-            class_bonus: 0.0,
-            powers: 0,
+            class_bonus: self
+                .profile
+                .class_powers
+                .iter()
+                .enumerate()
+                .filter(|(k, _)| self.model.known_class_powers & (1 << k) != 0)
+                .map(|(_, (_, power))| Growth::class_power_levels(*power))
+                .sum(),
+            powers: self.model.known_class_powers,
             gear: crate::power::Gear::default(),
             bonus: 0.0,
             gear_bonus: 0.0,
             gear_quality: 0.0,
             explored: Flags::new(self.model.explore.len()),
-            abandon_check: (0, 0),
+            abandon_check: (0, 0, None),
             log: 0,
             grind_used: 0,
             farm_used: 0,
@@ -323,6 +360,7 @@ impl<'a> Planner<'a> {
                 .map(|g| init.reputation.get(g).copied().unwrap_or(0.0) as f32)
                 .collect(),
             forced_left: 0,
+            required_left: 0,
             spent: Breakdown::default(),
         };
         for &i in &init.turned {
@@ -354,6 +392,13 @@ impl<'a> Planner<'a> {
         }
         self.growth().refresh_power(&mut s);
         s.synced = self.growth().spread(&s) <= self.params.group_sync_window;
+        s.required_left = self
+            .model
+            .quests
+            .iter()
+            .enumerate()
+            .filter(|(i, q)| q.required && !s.rewarded(*i))
+            .count() as u32;
         s.forced_left = (self.model.quests.iter().enumerate())
             .filter(|(i, q)| q.zone_forced && !s.turned[*i])
             .count() as u32;
@@ -383,6 +428,7 @@ impl<'a> Planner<'a> {
     pub(crate) fn ended(&self, s: &State) -> bool {
         self.growth().lowest_level(s) >= self.profile.to_level
             && s.forced_left == 0
+            && s.required_left == 0
             && self.reputation_missing(s) <= 0.0
     }
 
@@ -394,6 +440,7 @@ impl<'a> Planner<'a> {
             params: self.params,
             profile: self.profile,
             replaying: self.mode == Mode::Replay,
+            explicit: self.explicit,
             followers: &self.followers,
         }
     }
@@ -428,6 +475,8 @@ impl<'a> Planner<'a> {
             model: self.model,
             flights: &self.flights,
             legs: &self.legs,
+            grounds: &self.grounds,
+            abilities: self.model.initial.abilities,
             explicit: self.explicit,
             open_walks: self.open_walks.get(),
         }

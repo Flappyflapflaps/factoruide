@@ -70,9 +70,13 @@ pub fn run(conn: &Connection, opts: &ReadyOptions) -> Result<()> {
                 locale: Some("enUS".into()),
                 mates: vec![],
                 start: None,
+                required_quests: vec![],
+                mate_professions: vec![],
             };
             let outcome = job::plan(conn, &overrides, &request, &|m| {
-                if !m.starts_with('@') && !m.starts_with("  ") {
+                if let Some(m) = m.status()
+                    && !m.starts_with("  ")
+                {
                     eprintln!("  {m}");
                 }
             })?;
