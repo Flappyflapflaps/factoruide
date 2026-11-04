@@ -12,6 +12,7 @@ pub struct End {
     pub level: i64,
     pub xp: i64,
     pub rested: i64,
+    pub abilities: u64,
     pub pos: Pos,
     pub zone: i64,
     /// Inn the hearthstone is bound to, flight paths known (a bit per taxi node).
@@ -50,6 +51,7 @@ impl Planner<'_> {
             + self.params.zone_change_weight * f64::from(spent.zone_changes)
             + self.params.preferred_zone_weight * spent.outside_preferred
             + self.params.abandon_weight * f64::from(spent.abandoned)
+            + self.params.unlock_delay_weight * spent.unlock_delay
             + self.params.group_sync_weight * spent.desync
     }
 
@@ -92,6 +94,7 @@ impl Planner<'_> {
             level: s.level,
             xp: s.xp,
             rested: s.rested,
+            abilities: s.abilities,
             pos: s.pos,
             zone: s.zone,
             bind: s.bind,
@@ -112,7 +115,7 @@ impl Planner<'_> {
     }
 
     /// The score of `route` and the character's state at its end.
-    fn simulate_state(&self, route: &[Stop], mut trace: Option<&mut Vec<Timed>>) -> Option<(f64, State)> {
+    pub(super) fn simulate_state(&self, route: &[Stop], mut trace: Option<&mut Vec<Timed>>) -> Option<(f64, State)> {
         let mut s = self.start_state(self.planned(route));
         for (k, &stop) in route.iter().enumerate() {
             if self.ended(&s) {
@@ -124,11 +127,14 @@ impl Planner<'_> {
             s.at = k as u32;
             s.next = self.next_pos(&s, route, k);
             self.apply(&mut s, stop, trace.as_deref_mut());
-            if !s.time.is_finite() {
+            if !s.time.is_finite() || s.completion_error.is_some() {
                 return None;
             }
         }
         let total = self.finish(&mut s, trace);
+        if s.completion_error.is_some() {
+            return None;
+        }
         Some((total, s))
     }
 
@@ -158,7 +164,7 @@ impl Planner<'_> {
             s.at = k as u32;
             s.next = self.next_pos(&s, route, k);
             self.apply(&mut s, stop, None);
-            if !s.time.is_finite() {
+            if !s.time.is_finite() || s.completion_error.is_some() {
                 return None;
             }
             states.push(s.clone());
@@ -166,6 +172,9 @@ impl Planner<'_> {
         }
         let reached = self.ended(&s);
         let total = self.finish(&mut s, None);
+        if s.completion_error.is_some() {
+            return None;
+        }
         Some(Run {
             states,
             total,
@@ -297,7 +306,7 @@ impl Planner<'_> {
             s.at = k as u32;
             s.next = self.next_pos(&s, candidate, k);
             self.apply(&mut s, candidate[k], None);
-            if !s.time.is_finite() {
+            if !s.time.is_finite() || s.completion_error.is_some() {
                 return None;
             }
             k += 1;
@@ -322,7 +331,11 @@ impl Planner<'_> {
                     && s.recall_ready <= s.time
                     && old.recall_ready <= old.time
                     && s.trained == old.trained
+                    && s.taught == old.taught
+                    && s.abilities == old.abilities
+                    && s.ranks == old.ranks
                     && s.dungeons == old.dungeons
+                    && s.inside == old.inside
                     && s.abandon_check == old.abandon_check
                     && s.accepted == old.accepted
                     && s.turned == old.turned
@@ -344,7 +357,8 @@ impl Planner<'_> {
                 }
             }
         }
-        Some((self.finish(&mut s, None), true))
+        let total = self.finish(&mut s, None);
+        s.completion_error.is_none().then_some((total, true))
     }
 
     /// The cost of a route whose replay reached state `s`, estimated from the evaluated route
@@ -421,6 +435,19 @@ impl Planner<'_> {
             s.at = n as u32;
             s.next = self.next_pos(&s, route, n);
             self.apply(&mut s, stop, None);
+            if let Some((quest, member, level)) = s.completion_error {
+                let q = self.quest(quest);
+                return Some((
+                    n,
+                    format!(
+                        "{} ({}): member {} attempted turn-in at level {level}, outside requested {}",
+                        q.name,
+                        q.id,
+                        member + 1,
+                        q.completion_window
+                    ),
+                ));
+            }
             if !s.time.is_finite() {
                 let loc = self.places().loc(&s, stop);
                 return Some((

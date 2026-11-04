@@ -3,10 +3,14 @@
 mod builder;
 mod chains;
 mod crowd;
+mod derive;
 mod dungeons;
+pub use dungeons::dungeon_levels;
 mod entities;
 mod explore;
 mod farm;
+#[cfg(any(test, feature = "testing"))]
+pub mod fixture;
 mod givers;
 mod guard;
 mod item;
@@ -16,20 +20,25 @@ mod objectives;
 mod places;
 mod pvp;
 mod quest;
+mod required;
+pub mod requirements;
 mod rewards;
 mod selection;
 mod sources;
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
 mod types;
 
-pub(crate) use chains::{class_sort, required_by_name};
+pub(crate) use chains::class_sort;
 pub use farm::{FarmMobs, Met};
 pub use givers::{Dropper, UNKNOWN_START_CHANCE, assumed_start_chance};
 pub use guard::Guards;
 pub use loot::CommonLoot;
 pub use names::Names;
 pub use types::{
-    Dungeon, DungeonDef, EntityKind, ExploreArea, Guard, Initial, Loc, Mate, MateStart, Model, Objective,
-    ObjectiveOrder, ProfessionPlan, Profile, Quest, QuestOverride, Spots, Teleport, TeleportDef, Vendor, race_bit,
+    ClassRequirement, CompletionWindow, Dungeon, DungeonDef, EntityKind, ExploreArea, FloorPoint, Guard, Initial, Loc,
+    Mate, MateStart, Model, Objective, ObjectiveOrder, ProfessionPlan, ProfessionTrainer, Profile, Quest,
+    QuestOverride, QuestRequirement, Spots, Teleport, TeleportDef, Vendor, race_bit,
 };
 
 use crate::params::Params;
@@ -38,31 +47,113 @@ use anyhow::Result;
 use builder::QuestBuilder;
 use places::Places;
 use rusqlite::Connection;
-use rustc_hash::FxHashMap;
 use sources::Sources;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params) -> Result<Model> {
-    let mut sources = Sources::read(conn, world, profile, params)?;
+pub fn load(
+    conn: &Connection,
+    world: &World,
+    profile: &Profile,
+    params: &Params,
+    starts: &[&crate::job::StartState],
+) -> Result<Model> {
+    let abilities = crate::abilities::Abilities::load(conn, profile)?;
+    let mut mate_abilities = Vec::new();
+    for m in &profile.mates {
+        mate_abilities.push(crate::abilities::Abilities::load(
+            conn,
+            &Profile {
+                race_id: m.race_id,
+                class_id: m.class_id,
+                class_name: m.class_name.clone(),
+                spell_weights: m.spell_weights.clone(),
+                abilities: Vec::new(),
+                ..profile.clone()
+            },
+        )?);
+    }
+    let mut knowledge = HashMap::<i64, (bool, bool)>::new();
+    for (i, book) in std::iter::once(&abilities).chain(&mate_abilities).enumerate() {
+        let start = starts.get(i).copied();
+        let known = book.initial(start, start.map_or(profile.from_level, |s| s.level));
+        for (quest, learned, unique) in book.reward_knowledge(known) {
+            let entry = knowledge.entry(quest).or_insert((true, true));
+            entry.0 &= learned;
+            entry.1 &= unique || start.is_some_and(|s| s.completed.contains(&crate::job::QuestId(quest)));
+        }
+    }
+    let reward_quests: HashSet<_> = knowledge.keys().copied().collect();
+    let known_prerequisites: HashSet<_> = knowledge
+        .iter()
+        .filter_map(|(&q, &(_, known))| known.then_some(q))
+        .collect();
+    let known_rewards: HashSet<_> = knowledge
+        .into_iter()
+        .filter_map(|(q, (known, _))| known.then_some(q))
+        .collect();
+    let logged: HashSet<_> = starts.iter().flat_map(|s| s.log.iter().map(|q| q.id.0)).collect();
+    let finished: HashSet<_> = starts.iter().flat_map(|s| s.completed.iter().map(|q| q.0)).collect();
+    let skip_known: HashSet<_> = known_rewards
+        .iter()
+        .copied()
+        .filter(|q| !logged.contains(q) && !finished.contains(q))
+        .collect();
+    let mut sources = Sources::read(
+        conn,
+        world,
+        profile,
+        params,
+        &skip_known,
+        &known_prerequisites,
+        &reward_quests,
+    )?;
     let (mut quests, mut skipped) = build_quests(&sources, world, profile, params);
-    chains::drop_unhanded(&mut quests, &mut skipped);
-    report_skipped_class_quests(&sources, &skipped);
-    let loot = CommonLoot::load(conn, &mut quests)?;
-    let places = Places::load(conn, world, &sources.entities, profile, &sources.start, params.edition)?;
-    chains::narrow_class_quests_to_spells(&mut quests, params.all_class_quests);
-    chains::require_prerequisites(&mut quests);
-    chains::release_impossible_class_quests(&mut quests);
-    dungeons::set_dungeon_levels(
+    let mut known = derive::Knowledge {
+        rewards: known_rewards,
+        prerequisites: known_prerequisites,
+        reward_quests,
+        logged,
+        class_quests: std::mem::take(&mut sources.class_quest_ids),
+        assumed: starts.is_empty(),
+    };
+    let levels = dungeon_levels(conn, &profile.dungeons)?;
+    let known_names = derive::settle(
+        &mut quests,
+        &mut skipped,
         &mut sources.dungeons,
-        &quests,
-        params.dungeon_below(),
-        &params.dungeon_levels,
-    );
-    let index: FxHashMap<i64, usize> = quests.iter().enumerate().map(|(i, q)| (q.id, i)).collect();
+        &sources.rows,
+        &mut known,
+        &levels,
+        profile,
+        params,
+    )?;
+    sources.class_quest_ids = known.class_quests;
+    let known_prerequisites = known.prerequisites;
+    report_skipped_class_quests(&sources, &skipped);
+    let places = Places::load(
+        conn,
+        world,
+        &sources.entities,
+        profile,
+        &sources.start,
+        params.edition,
+        params.profession_trainers && !profile.profession_goals().is_empty(),
+    )?;
+    let loot = CommonLoot::load(conn, &mut quests)?;
+    let derive::Indexes {
+        index,
+        unlocks,
+        chain_top,
+        bundles,
+    } = derive::indexes(&quests, params);
     let mut teleports = places.teleports;
-    teleports.extend(places::quest_teleports(world, profile, &quests));
-    let unlocks = chains::chain_values(&quests, &index, &chains::quest_work(&quests, params));
-    let chain_top = chains::chain_tops(&quests, &index);
+    teleports.extend(places::quest_teleports(
+        world,
+        profile,
+        &quests,
+        &known_names,
+        &abilities,
+    ));
     let (explore, explore_by_zone) = explore::load_explore(conn, world)?;
     let farm = FarmMobs::load(conn, world, &quests)?;
     let power = crate::power::PowerModel::load(
@@ -72,10 +163,11 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         profile.to_level.max(60),
         &profile.spell_weights,
         params,
+        &abilities,
     )?;
     // A group's other classes: the spells each one learns (the addon of each player trains its own).
     let mut mate_spells = Vec::new();
-    for m in &profile.mates {
+    for (m, abilities) in profile.mates.iter().zip(&mate_abilities) {
         let mate = crate::power::PowerModel::load(
             conn,
             m.class_id,
@@ -83,8 +175,12 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
             profile.to_level.max(60),
             &m.spell_weights,
             params,
+            abilities,
         )?;
-        mate_spells.push(mate.map(|p| p.ranks().map(|r| r.id).collect()).unwrap_or_default());
+        mate_spells.push(
+            mate.map(|p| p.ranks().map(|r| r.id).chain(abilities.spells()).collect())
+                .unwrap_or_default(),
+        );
     }
     let patrols = (sources.entities.paths.keys())
         .map(|&id| (id, sources.entities.path(world, id)))
@@ -97,22 +193,48 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
             vec![Vec::new(); sources.dungeons.len()],
         ),
     };
+    let graveyards = graveyards(conn, world, &sources)?;
+    let own_knowledge = abilities.initial(starts.first().copied(), profile.from_level);
+    let known_class_powers = profile
+        .class_powers
+        .iter()
+        .enumerate()
+        .filter(|(_, (name, _))| {
+            // The quests of the requirement of that name (a pet, a form) give the power.
+            (profile.class_requirements.iter())
+                .filter(|c| &c.name == name)
+                .flat_map(|c| &c.quests)
+                .any(|id| abilities.quest(*id) & own_knowledge != 0)
+        })
+        .fold(0, |bits, (k, _)| bits | (1 << k));
     Ok(Model {
+        known_class_powers,
+        abilities,
         quests,
         dungeons: sources.dungeons,
-        professions: profile.professions.iter().filter_map(ProfessionPlan::new).collect(),
+        professions: (profile.profession_goals().into_iter())
+            .filter_map(|(goal, members)| {
+                Some(ProfessionPlan {
+                    members,
+                    ..ProfessionPlan::new(goal)?
+                })
+            })
+            .collect(),
         index,
         start: sources.start,
         unlocks,
         chain_top,
         trainers: places.trainers,
+        profession_trainers: places.profession_trainers,
         inns: places.inns,
         vendors: places.vendors,
         start_inn: places.start_inn,
         teleports,
+        graveyards,
         recall: places.recall,
         skipped,
         initial: Initial::default(),
+        known_class_prerequisites: known_prerequisites,
         names: Names::load(conn, profile.locale.as_deref().unwrap_or("enUS"))?,
         faction_names: faction_names(conn, params),
         explore,
@@ -122,9 +244,71 @@ pub fn load(conn: &Connection, world: &World, profile: &Profile, params: &Params
         power,
         mate_spells,
         rewards,
+        bundles,
         dungeon_loot,
         patrols,
     })
+}
+
+/// What follows from the quests built, without the data: the class quests that teach a spell, the
+/// quests of the dungeons run with all their quests, what a quest needs first, the class quests
+/// that cannot be done, and the must-haves as mandatory.
+pub(crate) fn settle_quests(
+    quests: &mut [Quest],
+    dungeons: &[Dungeon],
+    params: &Params,
+    known: &HashSet<i64>,
+    profile: &Profile,
+) {
+    let (completed, requirements) = (&profile.completed_quests, &profile.class_requirements);
+    let versions = chains::class_quest_versions(quests, requirements, params.all_class_quests);
+    for q in quests.iter_mut() {
+        let forced = |d: usize| params.forced_dungeon_quests.contains(&dungeons[d].area);
+        q.mandatory |= q.objectives.iter().any(|o| o.dungeon_of().is_some_and(forced));
+    }
+    chains::require_alternatives(quests, requirements);
+    chains::require_prerequisites(quests);
+    chains::release_impossible_class_quests(quests, known, completed);
+    chains::settle_class_quest_versions(quests, &versions);
+    for q in quests.iter_mut() {
+        q.mandatory |= q.required;
+    }
+    chains::default_completion_windows(quests, profile, params);
+}
+
+/// A dungeon holding an objective of a must-have quest is run like a forced one, and past its
+/// levels too: the quest asks for it. A dungeon the player forced stays within its levels, the
+/// route being refused when it cannot be run there.
+pub(crate) fn settle_dungeons(dungeons: &mut [Dungeon], quests: &[Quest], profile: &Profile) {
+    for q in quests.iter().filter(|q| q.required) {
+        for d in q.objectives.iter().filter_map(Objective::dungeon_of) {
+            dungeons[d].needed = true;
+        }
+    }
+    for d in dungeons.iter_mut().filter(|d| d.needed) {
+        d.max_level = d.max_level.max(profile.to_level);
+    }
+}
+
+/// The spirit healers the character can reach: where one dying respawns.
+fn graveyards(conn: &Connection, world: &World, sources: &Sources) -> Result<Vec<Loc>> {
+    let mut stmt = conn.prepare("SELECT id FROM m_npc WHERE name = 'Spirit Healer'")?;
+    let ids = stmt
+        .query_map([], |r| r.get::<_, i64>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok((ids.iter())
+        .flat_map(|&id| {
+            (sources.entities.points(world, EntityKind::Npc, id).into_iter()).map(move |(pos, zone)| Loc {
+                pos,
+                zone,
+                kind: EntityKind::Npc,
+                id,
+                name: "Spirit Healer".to_owned(),
+                inside: None,
+                floor: None,
+            })
+        })
+        .collect())
 }
 
 /// Names of the factions of the reputation goals.
@@ -154,9 +338,20 @@ fn build_quests(
     params: &Params,
 ) -> (Vec<Quest>, Vec<(i64, String, String)>) {
     let builder = QuestBuilder::new(sources, world, profile, params);
+    // The quests the player asked for are done even when their mobs are elites.
+    let with_elites = Params {
+        allow_elite: true,
+        ..params.clone()
+    };
+    let asked = QuestBuilder::new(sources, world, profile, &with_elites);
     let mut quests = Vec::new();
     let mut skipped = Vec::new();
     for row in &sources.rows {
+        let builder = if profile.required_quests.iter().any(|q| q.id == row.id) {
+            &asked
+        } else {
+            &builder
+        };
         match builder.build(row) {
             // The objectives done are a mask of 8 bits (`State::objectives`).
             Ok(Some(quest)) if quest.objectives.len() > 8 => {
@@ -167,14 +362,19 @@ fn build_quests(
             Err(reason) => skipped.push((row.id, row.name.clone(), reason.to_owned())),
         }
     }
+    let index: HashMap<i64, usize> = quests.iter().enumerate().map(|(i, q)| (q.id, i)).collect();
+    for (&item, givers) in &sources.reward_of {
+        for i in givers.iter().filter_map(|q| index.get(q)) {
+            quests[*i].reward_items.push(item);
+        }
+    }
     (quests, skipped)
 }
 
-/// Class quests the planner cannot do are worth knowing about (not the repeatable ones that only
-/// hand an item again, like the paladin's tome).
+/// Class quests the planner cannot do are worth knowing about.
 fn report_skipped_class_quests(sources: &Sources, skipped: &[(i64, String, String)]) {
     for (id, name, reason) in skipped {
-        if sources.class_quest_ids.contains(id) && !sources.repeatable.contains(id) {
+        if sources.class_quest_ids.contains(id) {
             eprintln!("  class quest skipped: {name} ({id}): {reason}");
         }
     }

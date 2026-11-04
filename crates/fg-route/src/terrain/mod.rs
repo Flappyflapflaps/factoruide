@@ -160,6 +160,8 @@ type TileLabels = (Vec<u32>, Vec<u32>);
 type SnapKey = (u32, i64, i32, i32, Option<i16>);
 /// Where a place stands for the walks: its cell and its height when known (`Pos::z`).
 type Spot = ((i32, i32), Option<i16>);
+/// Walks `MEMO` remembers in a thread, beyond which it starts over (some 80 MB).
+const MEMO_MAX: usize = 1 << 21;
 /// Cells `SNAPS` remembers, beyond which it starts over.
 const SNAPS_MAX: usize = 1 << 18;
 /// The turns of the walks already followed (`Terrain::waypoints`), by continent, pair of cells
@@ -267,6 +269,7 @@ fn move_cost(moves: u32, d: usize) -> u32 {
 
 /// A tile's floors (its nodes): the first floor of each cell is node `i` (the cell's index, row
 /// by row; a cell without floor has its node never stood on), the others follow from 4096.
+#[derive(Clone)]
 struct TileNodes {
     /// Index of each cell's second floor among the nodes, less 4096 (its other floors follow),
     /// and one past the last cell's.
@@ -373,6 +376,7 @@ struct Grid {
 /// A cave (`[[cave]]` of `overrides/passes.toml`) the floors miss: the places on no large
 /// walkable area within `reach` cells of `inside` are walked to through the mouth, a floor of a
 /// large area.
+#[derive(Clone)]
 struct Cave {
     inside: (i32, i32),
     reach: i32,
@@ -400,12 +404,39 @@ pub struct CellView {
 }
 
 /// The areas of a tile's nodes: one for the whole tile, else each node's.
+#[derive(Clone)]
 enum TileAreas {
     Uniform(u32),
     Nodes(Box<[u32]>),
 }
 
 impl Grid {
+    /// A copy with the floors, their areas and the stored graphs of the gates; the walks found
+    /// since are not copied.
+    fn fork(&self) -> Self {
+        Self {
+            r0: self.r0,
+            c0: self.c0,
+            rows: self.rows,
+            cols: self.cols,
+            tile_cols: self.tile_cols,
+            tiles: self.tiles.clone(),
+            extra_base: self.extra_base.clone(),
+            extras: self.extras,
+            areas: self.areas.clone(),
+            sizes: self.sizes.clone(),
+            graphs: (self.graphs.iter())
+                .map(|g| g.get().map_or_else(std::sync::OnceLock::new, |g| g.clone().into()))
+                .collect(),
+            ends: (0..self.ends.len()).map(|_| Mutex::default()).collect(),
+            local_areas: (0..self.local_areas.len())
+                .map(|_| std::sync::OnceLock::new())
+                .collect(),
+            caves: self.caves.clone(),
+            drop_tier: self.drop_tier,
+        }
+    }
+
     /// Index of a cell's tile and its index in it, None out of the box.
     #[inline]
     fn tile(&self, r: i32, c: i32) -> Option<(usize, usize)> {
@@ -1299,9 +1330,9 @@ fn tile_nodes(l: &TileLayers) -> Box<TileNodes> {
 impl Terrain {
     /// The terrain of the database's floors, taking drops up to the tier `drop_tier` of
     /// `layers::DROP_HEIGHTS` (0: only the safe fall).
-    pub fn load(conn: &Connection, drop_tier: usize) -> rusqlite::Result<Self> {
-        let drop_tier = drop_tier.min(layers::FARTHER);
-        let mut terrain = Self {
+    /// A terrain without any floor: every walk is the straight line (times the detour).
+    pub fn empty() -> Self {
+        let terrain = Self {
             id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
             fingerprint: 0,
             grids: FxHashMap::default(),
@@ -1310,6 +1341,38 @@ impl Terrain {
             enclosed: HashMap::new(),
             turns: (0..SHARDS).map(|_| Mutex::default()).collect(),
         };
+        terrain.walks.bind(terrain.fingerprint);
+        terrain
+    }
+
+    /// The terrain of a database: built from its tiles the first time (about a fifth of a second
+    /// of work on every core), then a copy of what was built.
+    pub fn load(conn: &Connection, drop_tier: usize) -> anyhow::Result<Self> {
+        let drop_tier = drop_tier.min(layers::FARTHER);
+        let built = crate::memo::rows(conn, "terrain", crate::memo::setting(drop_tier), || {
+            Ok(Self::read(conn, drop_tier)?)
+        })?;
+        Ok(built.fork())
+    }
+
+    /// A copy to work on with its own memory of walks, to close and join areas of: the floors and
+    /// the stored graphs of the gates, none of what is found while walking.
+    fn fork(&self) -> Self {
+        let terrain = Self {
+            id: NEXT_ID.fetch_add(1, Ordering::Relaxed),
+            fingerprint: self.fingerprint,
+            grids: self.grids.iter().map(|(&map, grid)| (map, grid.fork())).collect(),
+            walks: Arc::new(Walks::default()),
+            used: (0..SHARDS).map(|_| Mutex::new(HashSet::new())).collect(),
+            enclosed: self.enclosed.clone(),
+            turns: (0..SHARDS).map(|_| Mutex::default()).collect(),
+        };
+        terrain.walks.bind(terrain.fingerprint);
+        terrain
+    }
+
+    fn read(conn: &Connection, drop_tier: usize) -> rusqlite::Result<Self> {
+        let mut terrain = Self::empty();
         let exists: bool = conn.query_row(
             "SELECT count(*) > 0 FROM sqlite_schema WHERE name = 'client_terrain_layers'",
             [],
@@ -1524,6 +1587,35 @@ impl Terrain {
         (Self::cell(p), p.z)
     }
 
+    /// Whether the whole segment stays on known outdoor terrain without swimming.
+    pub(crate) fn exposed_ground_line(&self, a: &Pos, b: &Pos) -> bool {
+        let Some(grid) = self.grids.get(&a.continent) else {
+            return false;
+        };
+        if a.continent != b.continent {
+            return false;
+        }
+        let (Some(from), Some(to)) = (
+            self.snapped(grid, a.continent, Self::spot(a)),
+            self.snapped(grid, b.continent, Self::spot(b)),
+        ) else {
+            return false;
+        };
+        if from.cell() != Self::cell(a) || to.cell() != Self::cell(b) {
+            return false;
+        }
+        Self::line_with(grid, from, to, |n| {
+            let Some((tile, local)) = grid.locate(n) else {
+                return false;
+            };
+            let Some(nodes) = grid.nodes(tile) else { return false };
+            nodes.flags[local] & (NO_GO | SWIM) == 0
+                && nodes.kind[local] & (SURFACE | layers::UNDER | layers::MODEL) == SURFACE
+                && n.f() + 1 == grid.floors(n.r(), n.c())
+        })
+        .is_some()
+    }
+
     /// `Grid::snap_at` of a place of continent `map`, remembered in the thread.
     fn snapped(&self, grid: &Grid, map: i64, ((r, c), z): Spot) -> Option<Node> {
         // Most places: a single floor, in a large area (whatever their height: the floors keep
@@ -1554,10 +1646,14 @@ impl Terrain {
     /// -1 when all are walked, else what its swum steps make it cost (yards). None when it
     /// cannot be followed.
     fn line(grid: &Grid, a: Node, b: Node) -> Option<f64> {
+        Self::line_with(grid, a, b, |_| true)
+    }
+
+    fn line_with(grid: &Grid, a: Node, b: Node, allowed: impl Fn(Node) -> bool) -> Option<f64> {
         let (ca, cb) = (a.cell(), b.cell());
         let (dr, dc) = (cb.0 - ca.0, cb.1 - ca.1);
         let n = dr.abs().max(dc.abs()) * 2;
-        if grid.blocked(a) {
+        if grid.blocked(a) || !allowed(a) {
             return None;
         }
         let height = |x: Node| {
@@ -1594,6 +1690,9 @@ impl Terrain {
                 let (m, step, _) = next?;
                 (m, step)
             };
+            if !allowed(m) {
+                return None;
+            }
             swum |= step != WALKED[diagonal];
             cost += step;
             at = m;
@@ -1628,7 +1727,14 @@ impl Terrain {
             let w = self
                 .walk_cells(grid, a.continent, sa, sb)
                 .map_or(f32::NAN, |d| d as f32);
-            MEMO.with(|m| m.borrow_mut().insert(key, w));
+            MEMO.with(|m| {
+                let mut m = m.borrow_mut();
+                // The walks of older terrains stay too (their id is in the key): start over.
+                if m.len() >= MEMO_MAX {
+                    m.clear();
+                }
+                m.insert(key, w);
+            });
             w
         });
         // From or to a cave: through its mouth (two places of the same cave: straight).
@@ -1741,7 +1847,7 @@ impl Terrain {
     /// A way the floors hold that the game keeps closed (a locked gate, `[[closed]]` of
     /// `overrides/passes.toml`): the floors within `radius` yards of `p` are never stood on.
     /// Before `enclose` (the areas are labelled again). Whether there were floors there.
-    pub fn close(&mut self, p: &Pos, radius: f64) -> bool {
+    pub(crate) fn close(&mut self, p: &Pos, radius: f64) -> bool {
         let Some(grid) = self.grids.get_mut(&p.continent) else {
             return false;
         };
@@ -1774,7 +1880,7 @@ impl Terrain {
     /// The large area at `p` is left only by boat, portal or lift (Rut'theran Village, at the
     /// foot of Teldrassil): no walk between it and the other areas. Its area and size, None when
     /// `p` is not in a large area.
-    pub fn enclose(&mut self, p: &Pos, place: u32) -> Option<(u32, u32)> {
+    pub(crate) fn enclose(&mut self, p: &Pos, place: u32) -> Option<(u32, u32)> {
         let (area, size) = self.area_of(p).filter(|&(a, size)| a != 0 && size >= LARGE_AREA)?;
         // Swimming joins the shore to the mainland: enclosing it would enclose the continent.
         if self.main_area(p.continent) == Some(area) {
@@ -2248,3 +2354,20 @@ impl Terrain {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+#[derive(Clone, Copy)]
+pub(crate) enum TestGround {
+    Dry,
+    Shallow,
+    Mixed,
+    Covered,
+    Indoor,
+    Passage,
+    Unknown,
+}
+
+#[cfg(test)]
+pub(crate) fn movement_test_ground(kind: TestGround) -> Terrain {
+    tests::movement_ground(kind)
+}

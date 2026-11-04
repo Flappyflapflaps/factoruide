@@ -5,10 +5,16 @@
     reason = "tauri commands take their arguments by value"
 )]
 
-use fg_app::{CmdError, EditOpened, Host, Studio, now};
+use fg_app::{CmdError, EditOpened, Host, Settings, SettingsStore, Studio, now};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// The settings file, in the app's config folder.
+const SETTINGS_FILE: &str = "settings.json";
 use fg_contrib::contribution::{Contribution, SendState};
 use fg_library::{Comparison, DiskFiles, GuideId, GuideSummary, GuideVersion, Library, Origin, VersionMeta};
 use fg_route::Route;
+use fg_route::diagnostics::Diagnostics;
 use fg_route::job::{self, Options, Overrides, PlanOutcome, PlanRequest, RouteStep, StartState};
 use fg_route::sync::LockExt;
 use fg_route::xp::Edition;
@@ -30,7 +36,7 @@ mod characters;
 /// Contributions to the contribution server.
 mod contributions;
 use addon::{
-    ADDON_VERSION, addon_synced, export_polestar, guide_text, install_addon, install_polestar, lua_string, open_link,
+    ADDON_VERSION, addon_synced, export_polestar, guide_text, install_addon, install_polestar, open_link,
     polestar_installed, polestar_installed_in, polestar_string, write_data,
 };
 use job::DATA_ADDON;
@@ -38,11 +44,12 @@ use job::DATA_ADDON;
 mod guides;
 /// "Re-plan from here": the routes the addon asks to compute again, answered in the background.
 mod replan;
-use characters::{forget_character, list_characters};
+use characters::{forget_character, import_profile, list_characters};
 use guides::{
     cancel_plan, compare_versions, delete_guide, delete_version, edit_close, edit_open, edit_save, edit_simulate,
     edit_suggest, export_version, get_guide, get_version, guide_timeline, import_guide, import_polestar, import_rxp,
-    inferred_flights, list_guides, manual_route, migrate_results, plan_route, preview_starts, set_installed, stop_plan,
+    inferred_flights, list_guides, manual_route, migrate_results, plan_route, preview_starts, quest_choices,
+    set_installed, stop_plan,
 };
 /// The game's maps.
 mod maps;
@@ -56,56 +63,6 @@ mod embedded {
     include!(concat!(env!("OUT_DIR"), "/embedded.rs"));
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Settings {
-    wow_dir: PathBuf,
-    /// Game version the app works on (forever, classic, tbc).
-    #[serde(default)]
-    edition: Edition,
-    /// App language (also the default guide language); unset: the system language.
-    #[serde(default)]
-    language: Option<String>,
-    /// Contribution server (its base address); unset: the one the app was built with.
-    #[serde(default)]
-    contribution_url: Option<String>,
-    /// Random id of this install, sent with its contributions (tells how many different
-    /// players back what they report; nothing else about the player).
-    #[serde(default)]
-    contributor: Option<String>,
-    /// Send what is new to the contribution server on its own, once a day at most (off unless
-    /// the player turns it on).
-    #[serde(default)]
-    auto_contribute: bool,
-    /// Addon behaviour, written to the addon's Config.lua on install.
-    #[serde(default)]
-    addon: serde_json::Map<String, serde_json::Value>,
-    /// What shows the guides in game on WoW Forever (see `guide_addon`).
-    #[serde(default)]
-    guide_addon: GuideAddon,
-    /// Language the guides are written in in the addon (game locale); unset: each guide in the
-    /// language it was made in.
-    #[serde(default)]
-    guide_locale: Option<String>,
-    /// Offer every guide to every character, not only those of its race and class.
-    #[serde(default)]
-    all_guides: bool,
-    /// What the addon in the game was last installed with (`addon_snapshot`): the settings page
-    /// saves at once, the game gets them when asked.
-    #[serde(default)]
-    addon_installed: Option<String>,
-    /// Whether the addon's setup questions were answered (or skipped): asked once, then on demand.
-    #[serde(default)]
-    addon_setup_done: bool,
-    /// Whether the first launch's questions (where the game is) were answered or skipped.
-    #[serde(default)]
-    welcome_done: bool,
-    /// Characters taken out of the Characters page ("<edition>/<Name-Realm>" -> the time of the
-    /// profile then): deleted in game, but the game keeps their files and the addon their
-    /// profile. One played again (a newer profile) is back.
-    #[serde(default)]
-    forgotten_characters: BTreeMap<String, i64>,
-}
-
 /// The settings the installed addon depends on (its options, the guides' language, what shows
 /// the guides).
 fn addon_snapshot(settings: &Settings) -> String {
@@ -117,73 +74,30 @@ fn addon_snapshot(settings: &Settings) -> String {
     .unwrap_or_default()
 }
 
-/// What shows the guides in game: the addon's guide part, or Polestar (WoW Forever only) with a
-/// guide pack of them; the addon's profile part records in both cases.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum GuideAddon {
-    #[default]
-    Factoruide,
-    Polestar,
-}
-
 use game::{GUIDE_ADDON, PROFILE_ADDON, WowProblem, game_root};
 
-impl Default for Settings {
-    fn default() -> Self {
-        let wow_dir = if cfg!(windows) {
-            PathBuf::from(r"C:\Program Files (x86)\World of Warcraft")
-        } else if cfg!(target_os = "macos") {
-            PathBuf::from("/Applications/World of Warcraft")
-        } else {
-            // Under WSL, the Windows game; otherwise Battle.net in Lutris' default Wine prefix.
-            let wsl = PathBuf::from("/mnt/c/Program Files (x86)/World of Warcraft");
-            match std::env::var_os("HOME") {
-                Some(home) if !wsl.is_dir() => {
-                    PathBuf::from(home).join("Games/battlenet/drive_c/Program Files (x86)/World of Warcraft")
-                }
-                _ => wsl,
+/// Where the game usually is, when no folder was chosen.
+fn default_wow_dir() -> PathBuf {
+    if cfg!(windows) {
+        PathBuf::from(r"C:\Program Files (x86)\World of Warcraft")
+    } else if cfg!(target_os = "macos") {
+        PathBuf::from("/Applications/World of Warcraft")
+    } else {
+        // Under WSL, the Windows game; otherwise Battle.net in Lutris' default Wine prefix.
+        let wsl = PathBuf::from("/mnt/c/Program Files (x86)/World of Warcraft");
+        match std::env::var_os("HOME") {
+            Some(home) if !wsl.is_dir() => {
+                PathBuf::from(home).join("Games/battlenet/drive_c/Program Files (x86)/World of Warcraft")
             }
-        };
-        Self {
-            wow_dir,
-            edition: Edition::Forever,
-            language: None,
-            contribution_url: None,
-            contributor: None,
-            auto_contribute: false,
-            addon: serde_json::Map::new(),
-            guide_addon: GuideAddon::Factoruide,
-            guide_locale: None,
-            all_guides: false,
-            addon_installed: None,
-            addon_setup_done: false,
-            welcome_done: false,
-            forgotten_characters: BTreeMap::new(),
-        }
-    }
-}
-
-impl Settings {
-    /// The addons folder of a game version's client.
-    fn addons_dir(&self, edition: Edition) -> PathBuf {
-        edition.client_dir(&self.wow_dir).join("Interface/AddOns")
-    }
-    /// What shows the guides in a game version: Polestar exists on WoW Forever only.
-    fn guide_addon(&self, edition: Edition) -> GuideAddon {
-        if edition == Edition::Forever {
-            self.guide_addon
-        } else {
-            GuideAddon::Factoruide
+            _ => wsl,
         }
     }
 }
 
 struct AppState {
-    settings: Mutex<Settings>,
+    settings: SettingsStore<DiskFiles>,
     /// The last install added files the game reads only when it starts.
-    restart_needed: Mutex<bool>,
-    config_file: PathBuf,
+    restart_needed: AtomicBool,
     /// Where the embedded databases are unpacked, and those unpacked so far.
     db_dir: PathBuf,
     dbs: Mutex<HashMap<Edition, PathBuf>>,
@@ -199,8 +113,13 @@ struct AppState {
     /// Held while a contribution is read, sent and recorded: one send at a time, manual or
     /// automatic.
     send_lock: Mutex<()>,
+    /// Held while the addon's files are written: off the main thread, two installs could touch
+    /// the same files at once.
+    installing: Mutex<()>,
     /// Wakes the automatic contributions up (turned on in the settings).
     auto_wake: std::sync::mpsc::Sender<()>,
+    /// What the `FG_*` variables the app started with ask the generations to tell or check.
+    diagnostics: Diagnostics,
 }
 
 type CmdResult<T> = Result<T, CmdError>;
@@ -210,31 +129,26 @@ fn err(e: impl std::fmt::Display) -> CmdError {
 }
 
 /// Embedded overrides of an edition.
-fn overrides(edition: Edition) -> CmdResult<Overrides> {
-    Overrides::parse_edition(
-        |name| {
-            let (_, bytes) = embedded::OVERRIDES.iter().find(|(n, _)| *n == name)?;
-            Some(String::from_utf8_lossy(bytes).into_owned())
-        },
-        edition,
-    )
-    .map_err(err)
+fn overrides(edition: Edition) -> CmdResult<Arc<Overrides>> {
+    fg_app::embedded_overrides(embedded::OVERRIDES, edition)
 }
 
 impl AppState {
-    fn settings(&self) -> Settings {
-        self.settings.locked().clone()
+    fn settings(&self) -> Arc<Settings> {
+        self.settings.get()
     }
     fn edition(&self) -> Edition {
-        self.settings.locked().edition
+        self.settings.get().edition
     }
-    /// The database of an edition, unpacked the first time.
+    /// The database of an edition, unpacked the first time (locked meanwhile: an unpack removes
+    /// the files of other builds, so two at once could remove the one just written).
     fn db_path(&self, edition: Edition) -> CmdResult<PathBuf> {
-        if let Some(p) = self.dbs.locked().get(&edition) {
+        let mut dbs = self.dbs.locked();
+        if let Some(p) = dbs.get(&edition) {
             return Ok(p.clone());
         }
         let path = unpack_database(&self.db_dir, edition).map_err(err)?;
-        self.dbs.locked().insert(edition, path.clone());
+        dbs.insert(edition, path.clone());
         Ok(path)
     }
     fn open_db(&self) -> CmdResult<Connection> {
@@ -261,14 +175,22 @@ impl Host for AppState {
         open_db(&self.db_path(edition)?)
     }
 
-    fn overrides(&self, edition: Edition) -> CmdResult<Overrides> {
+    fn overrides(&self, edition: Edition) -> CmdResult<Arc<Overrides>> {
         overrides(edition)
     }
 
-    fn progress(&self, line: &str) {
+    fn event(&self, event: &job::JobEvent<'_>) {
         if let Some(app) = self.app.get() {
-            let _ = app.emit("plan-progress", line.to_owned());
+            let _ = app.emit("plan-progress", event.to_string());
         }
+    }
+
+    fn now(&self) -> CmdResult<u64> {
+        now()
+    }
+
+    fn diagnostics(&self) -> &Diagnostics {
+        &self.diagnostics
     }
 }
 
@@ -305,30 +227,13 @@ fn unpack_database(dir: &Path, edition: Edition) -> anyhow::Result<PathBuf> {
 }
 
 /// An edition the app knows: whether its data is bundled and its game client installed.
-#[derive(Serialize)]
-struct EditionInfo {
-    key: &'static str,
-    name: &'static str,
-    /// Data bundled in this build.
-    available: bool,
-    /// Game client folder found in the WoW folder.
-    installed: bool,
-    max_level: i64,
-}
-
 #[tauri::command]
-fn list_editions(state: State<'_, AppState>) -> Vec<EditionInfo> {
+fn list_editions(state: State<'_, AppState>) -> Vec<fg_app::EditionInfo> {
     let settings = state.settings();
-    Edition::ALL
-        .iter()
-        .map(|e| EditionInfo {
-            key: e.key(),
-            name: e.rules().edition_name,
-            available: embedded::DATABASES.iter().any(|(k, _)| *k == e.key()) && e.rules().known(),
-            installed: e.installed_in(&settings.wow_dir),
-            max_level: e.rules().max_level,
-        })
-        .collect()
+    fg_app::editions(
+        |e| embedded::DATABASES.iter().any(|(k, _)| *k == e.key()),
+        |e| e.installed_in(&settings.wow_dir),
+    )
 }
 
 /// Routes and results used to live in the Factoruide checkout (`workspace` setting): copy them
@@ -368,58 +273,53 @@ fn updates_enabled() -> bool {
 
 #[tauri::command]
 fn get_settings(state: State<'_, AppState>) -> Settings {
-    state.settings()
+    Settings::clone(&state.settings())
 }
 
 #[tauri::command]
-fn set_settings(state: State<'_, AppState>, mut settings: Settings) -> CmdResult<()> {
-    let before = state.settings();
-    // Not edited by the settings page: kept.
-    if settings.contributor.is_none() {
-        settings.contributor = before.contributor;
-    }
-    if settings.addon_installed.is_none() {
-        settings.addon_installed = before.addon_installed;
-    }
-    let wake = settings.auto_contribute && !before.auto_contribute;
-    write_settings(&state, settings)?;
+fn set_settings(state: State<'_, AppState>, settings: Settings) -> CmdResult<()> {
+    let wake = update_settings(&state, |current| {
+        let wake = settings.auto_contribute && !current.auto_contribute;
+        let before = std::mem::replace(current, settings);
+        // Not edited by the settings page: kept.
+        if current.contributor.is_none() {
+            current.contributor = before.contributor;
+        }
+        if current.addon_installed.is_none() {
+            current.addon_installed = before.addon_installed;
+        }
+        wake
+    })?;
     if wake {
         let _ = state.auto_wake.send(());
     }
     Ok(())
 }
 
-fn write_settings(state: &AppState, mut settings: Settings) -> CmdResult<()> {
-    settings.wow_dir = game_root(&settings.wow_dir);
-    let mut current = state.settings.locked();
-    // Created meanwhile by a contribution (see `contributor_id`): never lost to an older copy.
-    if settings.contributor.is_none() {
-        settings.contributor.clone_from(&current.contributor);
-    }
-    save_settings_file(&state.config_file, &settings)?;
-    *current = settings;
-    Ok(())
+/// Change the settings and save them, the settings locked from the read to the write: a change
+/// made meanwhile elsewhere (the settings page, an install, a contribution) is never lost to an
+/// older copy.
+fn update_settings<T>(state: &AppState, change: impl FnOnce(&mut Settings) -> T) -> CmdResult<T> {
+    state.settings.update(|settings| {
+        let out = change(settings);
+        settings.wow_dir = game_root(&settings.wow_dir);
+        out
+    })
 }
 
 /// Turn the automatic contributions on or off (only that setting: the pages showing it hold
 /// copies of the others).
 #[tauri::command]
 fn set_auto_contribute(state: State<'_, AppState>, on: bool) -> CmdResult<()> {
-    let mut settings = state.settings();
-    let wake = on && !settings.auto_contribute;
-    settings.auto_contribute = on;
-    write_settings(&state, settings)?;
+    let wake = update_settings(&state, |settings| {
+        let wake = on && !settings.auto_contribute;
+        settings.auto_contribute = on;
+        wake
+    })?;
     if wake {
         let _ = state.auto_wake.send(());
     }
     Ok(())
-}
-
-fn save_settings_file(file: &Path, settings: &Settings) -> CmdResult<()> {
-    if let Some(dir) = file.parent() {
-        std::fs::create_dir_all(dir).map_err(err)?;
-    }
-    std::fs::write(file, serde_json::to_string_pretty(settings).map_err(err)?).map_err(err)
 }
 
 /// Off the main thread: the window stays responsive while the database is unpacked and read.
@@ -427,7 +327,7 @@ fn save_settings_file(file: &Path, settings: &Settings) -> CmdResult<()> {
 async fn get_options(app: AppHandle) -> CmdResult<Options> {
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
-        job::options(&state.open_db()?, &overrides(state.edition())?).map_err(err)
+        job::options(&state.open_db()?, &*overrides(state.edition())?).map_err(err)
     })
     .await
     .map_err(err)?
@@ -489,7 +389,7 @@ fn addon_health(state: State<'_, AppState>) -> AddonState {
     let settings = state.settings();
     AddonState {
         health: game::addon_health(&settings.wow_dir, settings.edition, ADDON_VERSION),
-        restart_needed: *state.restart_needed.locked(),
+        restart_needed: state.restart_needed.load(Ordering::Relaxed),
     }
 }
 
@@ -577,7 +477,8 @@ fn main() {
                 });
             }
             migrate_app_dirs(app.handle());
-            let config_file = app.path().app_config_dir()?.join("settings.json");
+            let config_dir = app.path().app_config_dir()?;
+            let config_file = config_dir.join(SETTINGS_FILE);
             let data_dir = app.path().app_data_dir()?;
             let config: Option<serde_json::Value> = std::fs::read_to_string(&config_file)
                 .ok()
@@ -587,19 +488,22 @@ fn main() {
             }
             let first_launch = config.is_none();
             let mut settings: Settings = config.and_then(|c| serde_json::from_value(c).ok()).unwrap_or_default();
+            if settings.wow_dir.as_os_str().is_empty() {
+                settings.wow_dir = default_wow_dir();
+            }
             // A version's folder chosen by older versions of the app: the game's folder above.
             settings.wow_dir = game_root(&settings.wow_dir);
+            let settings = SettingsStore::with(DiskFiles::new(&config_dir), SETTINGS_FILE, settings);
             if first_launch {
-                find_game(&mut settings);
                 // Found once: not looked for again at every launch.
-                let _ = save_settings_file(&config_file, &settings);
+                let _ = settings.update(find_game);
             }
             let db_dir = app.path().app_local_data_dir()?;
             let (auto_wake, wake) = std::sync::mpsc::channel();
             app.manage(AppState {
-                settings: Mutex::new(settings),
-                restart_needed: Mutex::new(false),
-                config_file,
+                settings,
+                restart_needed: AtomicBool::new(false),
+                installing: Mutex::new(()),
                 db_dir,
                 dbs: Mutex::new(HashMap::default()),
                 files: DiskFiles::new(data_dir.clone()),
@@ -608,6 +512,7 @@ fn main() {
                 app: OnceLock::new(),
                 send_lock: Mutex::new(()),
                 auto_wake,
+                diagnostics: Diagnostics::from_env(),
             });
             // The events of a generation go to this window.
             let _ = app.state::<AppState>().app.set(app.handle().clone());
@@ -628,6 +533,7 @@ fn main() {
             get_options,
             plan_route,
             inferred_flights,
+            quest_choices,
             preview_starts,
             manual_route,
             stop_plan,
@@ -667,6 +573,7 @@ fn main() {
             minimap_index,
             minimap_image,
             list_characters,
+            import_profile,
             guide_timeline,
             edit_open,
             edit_simulate,
@@ -699,9 +606,7 @@ fn find_game(settings: &mut Settings) {
 /// Switch the edition the app works on (saved with the settings).
 #[tauri::command]
 fn set_edition(state: State<'_, AppState>, edition: Edition) -> CmdResult<()> {
-    let mut settings = state.settings();
-    settings.edition = edition;
-    set_settings(state, settings)
+    update_settings(&state, |s| s.edition = edition)
 }
 
 /// Guides made before editions existed (`guides/<slug>/`) are WoW Forever guides.

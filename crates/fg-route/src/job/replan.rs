@@ -63,6 +63,8 @@ pub fn default_request(options: &Options, race: &str, class: &str, name: String,
         locale: None,
         start: Some(start),
         mates: Vec::new(),
+        required_quests: Vec::new(),
+        mate_professions: Vec::new(),
     }
 }
 
@@ -125,6 +127,8 @@ mod tests {
             locale: Some("frFR".into()),
             start: Some(character("Brouz-Realm", 5)),
             mates: vec![character("Pata-Realm", 6), character("Gone-Realm", 7)],
+            required_quests: Vec::new(),
+            mate_professions: Vec::new(),
         };
         let profiles = [character("Pata-Realm", 15), character("Other-Realm", 30)];
         let request = replan_request(&base, "Gnome Mage".into(), character("Brouz-Realm", 14), &profiles);

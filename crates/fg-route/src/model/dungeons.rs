@@ -102,23 +102,30 @@ pub(super) fn load_dungeons(
                 kind: EntityKind::Dungeon,
                 id: area,
                 name: name.clone(),
+                inside: None,
+                floor: None,
             },
             name,
-            min_level: def.min_level.unwrap_or(0),
-            max_level: def.max_level.unwrap_or(0),
+            min_level: 0,
+            max_level: 0,
             minutes: def.minutes.unwrap_or(0.0),
             kills: def.kills.unwrap_or(0.0),
             mob_level: 0,
             content: expansion.map_or_else(|| xp::content_at(pos.continent, ez), |e| e.max(0) as usize),
+            needed: false,
         });
     }
     let mut inside = HashMap::new();
-    let mut stmt = conn.prepare("SELECT DISTINCT entity_type, entity_id, zone_id FROM m_spawn")?;
-    for row in stmt.query_map([], |r| {
-        Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
-    })? {
-        let (t, id, zone) = row?;
-        if let (Some(&d), Some(kind)) = (by_area.get(&zone), EntityKind::parse(&t)) {
+    let places = crate::memo::rows(conn, "places of spawns", 0, || {
+        let mut stmt = conn.prepare("SELECT DISTINCT entity_type, entity_id, zone_id FROM m_spawn")?;
+        let rows = stmt.query_map([], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    })?;
+    for (t, id, zone) in places.iter() {
+        let (id, zone) = (*id, *zone);
+        if let (Some(&d), Some(kind)) = (by_area.get(&zone), EntityKind::parse(t)) {
             inside.insert((kind, id), d);
         }
     }
@@ -160,37 +167,98 @@ pub(super) fn faction_entrances(conn: &Connection, faction: Faction) -> Result<H
     Ok(entrances)
 }
 
-/// Dungeon levels from their quests, and default run time and kills. A dungeon without quests
-/// is not planned. `chosen`: the player's own level for some (area, level), run at that level or
-/// the next one.
-pub(super) fn set_dungeon_levels(dungeons: &mut [Dungeon], quests: &[Quest], below: i64, chosen: &[(i64, i64)]) {
+/// The level of each dungeon (AreaTable ID): the middle of the game's range when set
+/// (`DungeonDef::levels`), else the median level of its quests: those filed under it, else those
+/// with an objective that lives only inside it. The app shows it and the planner runs the dungeon from it
+/// (`Params::dungeon_from`, `Params::dungeon_to`).
+pub fn dungeon_levels(conn: &Connection, defs: &[DungeonDef]) -> Result<HashMap<i64, i64>> {
+    let mut out = HashMap::clone(filed_levels(conn)?.as_ref());
+    for def in defs {
+        if let Some([low, high]) = def.levels {
+            out.insert(def.area, (low + high + 1) / 2);
+        }
+    }
+    Ok(out)
+}
+
+/// The median level of the quests filed under, or done only inside, each dungeon: the same at
+/// every plan with the same database, so kept (the query takes a third of a second).
+fn filed_levels(conn: &Connection) -> Result<std::sync::Arc<HashMap<i64, i64>>> {
+    crate::memo::rows(conn, "filed levels", 0, || read_filed_levels(conn))
+}
+
+fn read_filed_levels(conn: &Connection) -> Result<HashMap<i64, i64>> {
+    let mut stmt = conn.prepare(
+        "WITH inside(dungeon, zone) AS (
+           SELECT area, area FROM dungeon
+           UNION SELECT d.area, j.value FROM dungeon d, json_each(coalesce(d.alt_areas, '[]')) j),
+         -- What lives only in one dungeon (nowhere outside it).
+         -- Only the creatures and objects with a spawn in a dungeon are looked at.
+         within(dungeon, entity_type, entity_id) AS (
+           SELECT min(i.dungeon), s.entity_type, s.entity_id
+           FROM (SELECT DISTINCT entity_type, entity_id FROM m_spawn WHERE zone_id IN (SELECT zone FROM inside)) e
+           JOIN m_spawn s ON s.entity_type = e.entity_type AND s.entity_id = e.entity_id
+           LEFT JOIN inside i ON i.zone = s.zone_id
+           GROUP BY s.entity_type, s.entity_id HAVING count(i.dungeon) = count(*) AND min(i.dungeon) = max(i.dungeon)),
+         filed(dungeon, id, level) AS (
+           SELECT i.dungeon, q.id, q.level FROM inside i JOIN m_quest q ON q.zone_or_sort = i.zone
+           WHERE q.status = 'available' AND q.level > 0),
+         done_inside(dungeon, id, level) AS (
+           SELECT w.dungeon, q.id, q.level FROM m_quest_objective o JOIN m_quest q ON q.id = o.quest_id
+           JOIN within w ON w.entity_type = CASE o.type WHEN 'object' THEN 'object' ELSE 'npc' END AND w.entity_id = o.target_id
+           WHERE q.status = 'available' AND q.level > 0 AND o.type != 'item'
+           UNION SELECT w.dungeon, q.id, q.level FROM m_quest_objective o JOIN m_quest q ON q.id = o.quest_id
+           JOIN m_item_source i ON i.item_id = o.target_id AND i.from_type IN ('npc', 'object')
+           JOIN within w ON w.entity_type = i.from_type AND w.entity_id = i.from_id
+           WHERE q.status = 'available' AND q.level > 0 AND o.type = 'item')
+         SELECT dungeon, level FROM filed
+         UNION ALL SELECT dungeon, level FROM done_inside WHERE dungeon NOT IN (SELECT dungeon FROM filed)",
+    )?;
+    let mut levels: HashMap<i64, Vec<i64>> = HashMap::new();
+    for row in stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))? {
+        let (dungeon, level) = row?;
+        levels.entry(dungeon).or_default().push(level);
+    }
+    Ok((levels.into_iter())
+        .map(|(dungeon, mut l)| {
+            l.sort_unstable();
+            (dungeon, l[l.len() / 2])
+        })
+        .collect())
+}
+
+/// Each dungeon's level (`dungeon_levels`, else its planned quests' median) and the window it is
+/// run in (`window` around it, within the game's levels up to `max_level`; empty when the window
+/// leaves none), with the default run time and kills. A dungeon without quests is not planned.
+/// `chosen`: the player's own level for some (area, level), run at that level or the next one.
+pub(super) fn set_dungeon_levels(
+    dungeons: &mut [Dungeon],
+    quests: &[Quest],
+    levels: &HashMap<i64, i64>,
+    window: (i64, i64),
+    max_level: i64,
+    chosen: &[(i64, i64)],
+) {
     for (d, dungeon) in dungeons.iter_mut().enumerate() {
-        let qs: Vec<&Quest> = quests
-            .iter()
-            .filter(|q| q.objectives.iter().any(|o| o.dungeon == Some(d)))
+        let mut own: Vec<i64> = (quests.iter())
+            .filter(|q| q.objectives.iter().any(|o| o.dungeon_of() == Some(d)))
+            .map(|q| q.level)
             .collect();
-        if qs.is_empty() {
+        if own.is_empty() {
+            // Not planned, but its levels are known when a request forces it (`check_dungeon_levels`).
             dungeon.min_level = i64::MAX;
+            if let Some(&level) = levels.get(&dungeon.area) {
+                dungeon.mob_level = level;
+                dungeon.max_level = (level + window.1).min(max_level);
+            }
             continue;
         }
-        let mut levels: Vec<i64> = qs.iter().map(|q| q.level).collect();
-        levels.sort_unstable();
-        dungeon.mob_level = levels[levels.len() / 2];
-        // Not before the group can face the dungeon's mobs, `below` levels under them at most:
-        // the quests may start well below them (the Deadmines' first quest, level 14, for mobs
-        // of level 20).
-        if dungeon.min_level == 0 {
-            dungeon.min_level = qs
-                .iter()
-                .map(|q| q.min_level)
-                .min()
-                .expect("a dungeon with quests")
-                .max(levels[0] - 2)
-                .max(dungeon.mob_level - below);
-        }
-        if dungeon.max_level == 0 {
-            dungeon.max_level = levels[levels.len() - 1] + 3;
-        }
+        own.sort_unstable();
+        dungeon.mob_level = levels.get(&dungeon.area).copied().unwrap_or(own[own.len() / 2]);
+        // A window above the game's levels is run at its highest one (a level-60 dungeon at 60 when
+        // dungeons are run above their monsters' level).
+        dungeon.min_level = (dungeon.mob_level + window.0).clamp(1, max_level);
+        dungeon.max_level = (dungeon.mob_level + window.1).min(max_level);
         if dungeon.minutes == 0.0 {
             dungeon.minutes = (40.0 + dungeon.mob_level as f64).clamp(50.0, 120.0);
         }

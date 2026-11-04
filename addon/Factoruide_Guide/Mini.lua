@@ -15,7 +15,7 @@ local L = {
     farm = T("mobs on the way"),
     next = T("NEXT"),
     pickup = T("TO PICK UP"),
-    pickups = T("To pick up · %d"),
+    pickups = T("To pick up • %d"),
     steps = T("Steps"),
     levelMark = T("level %d planned here"),
     more = T("+%d more"),
@@ -618,7 +618,7 @@ function Mini:Render(view)
     strip.dot:SetColorTexture(r, g, b, 1)
     strip.verb:SetText(
         (kind.label or "")
-            .. " · "
+            .. " • "
             .. string.format(L.stepOf, view.step, view.total)
             .. (main.done and ("  " .. Skin.Hex("green") .. L.done .. "|r") or "")
     )
@@ -669,8 +669,8 @@ function Mini:Render(view)
     if view.ahead or view.replan then
         aheadBar.text:SetText(
             view.ahead
-                    and (string.format(L.ahead, view.ahead.lvl) .. "  ·  " .. string.format(L.skip, view.ahead.steps))
-                or (view.replan.text .. "  ·  " .. view.replan.go)
+                    and (string.format(L.ahead, view.ahead.lvl) .. "  •  " .. string.format(L.skip, view.ahead.steps))
+                or (view.replan.text .. "  •  " .. view.replan.go)
         )
         aheadBar:SetWidth((tonumber(aheadBar.text:GetStringWidth()) or 200) + 24)
         aheadBar:ClearAllPoints()

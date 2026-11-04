@@ -4,12 +4,13 @@
 use super::dungeons::load_dungeons;
 use super::entities::{EliteSpawns, Entities};
 use super::pvp::pvp_quests;
-use super::types::{Dungeon, EntityKind, Loc, Profile};
+use super::types::{Dungeon, EntityKind, FloorPoint, Loc, Profile};
 use crate::params::Params;
 use crate::world::{Pos, World};
 use anyhow::{Context, Result};
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 /// Objective rows by quest: (kind, target, text, extra, amount).
 pub(super) type ObjectiveRows =
@@ -122,19 +123,22 @@ pub(super) struct Sources {
     pub(super) dungeons: Vec<Dungeon>,
     pub(super) dungeon_by_area: HashMap<i64, usize>,
     pub(super) inside: HashMap<(EntityKind, i64), usize>,
+    /// Where the creatures and objects inside dungeons stand on their floors (`dungeon_spawn`).
+    pub(super) floors: Arc<HashMap<(EntityKind, i64), FloorPoint>>,
     pub(super) rows: Vec<QuestRow>,
     pub(super) class_quest_ids: HashSet<i64>,
     pub(super) relations: Relations,
     pub(super) links: HashMap<i64, Vec<(LinkKind, i64)>>,
     pub(super) objectives: ObjectiveRows,
-    pub(super) item_origins: HashMap<i64, Vec<(SourceKind, i64)>>,
-    pub(super) drop_chance: HashMap<(i64, i64), f64>,
+    pub(super) item_origins: Arc<HashMap<i64, Vec<(SourceKind, i64)>>>,
+    pub(super) drop_chance: Arc<HashMap<(i64, i64), f64>>,
+    /// Seconds the items that do not last are kept, by item.
+    pub(super) item_durations: HashMap<i64, f64>,
     /// XP of quests the quest data has no value for: the most common reward column for their level.
     pub(super) default_xp: HashMap<i64, i64>,
     pub(super) pvp: HashSet<i64>,
     /// Quests whose reward is an item (an item that starts another quest is got there).
     pub(super) reward_of: HashMap<i64, Vec<i64>>,
-    pub(super) repeatable: HashSet<i64>,
     /// Items without any known source that several quests ask for (marks of honor, tokens,
     /// crafted goods): not a gap in the drop data, never approximated by mobs.
     pub(super) tokens: HashSet<i64>,
@@ -143,7 +147,15 @@ pub(super) struct Sources {
 }
 
 impl Sources {
-    pub(super) fn read(conn: &Connection, world: &World, profile: &Profile, params: &Params) -> Result<Self> {
+    pub(super) fn read(
+        conn: &Connection,
+        world: &World,
+        profile: &Profile,
+        params: &Params,
+        known_rewards: &HashSet<i64>,
+        known_prerequisites: &HashSet<i64>,
+        reward_quests: &HashSet<i64>,
+    ) -> Result<Self> {
         let mut entities = Entities::load(conn, profile.faction)?;
         let start = start_place(&entities, world, profile)?;
         let reachable = world.reachable_continents(start.pos.continent);
@@ -157,18 +169,21 @@ impl Sources {
         let links = links(conn, profile)?;
         Ok(Self {
             elites: EliteSpawns::new(&entities, world),
-            guards: super::Guards::load(conn, world)?,
-            class_quest_ids: class_quest_ids(&rows, profile, &links),
+            guards: super::Guards::load(conn, world, profile.faction)?,
+            class_quest_ids: class_quest_ids(
+                &rows,
+                profile,
+                &links,
+                known_rewards,
+                known_prerequisites,
+                reward_quests,
+                params.max_quest_above,
+            ),
             relations: relations(conn)?,
             links,
             default_xp: default_xp(conn, params)?,
             pvp: pvp_quests(conn, &rows, &objectives)?,
             reward_of: reward_of(conn)?,
-            repeatable: rows
-                .iter()
-                .filter(|r| r.special.unwrap_or(0) & 1 != 0)
-                .map(|r| r.id)
-                .collect(),
             tokens: tokens(&objectives, &item_origins),
             entities,
             start,
@@ -176,9 +191,11 @@ impl Sources {
             dungeons,
             dungeon_by_area,
             inside,
+            floors: floor_points(conn)?,
             rows,
             objectives,
             item_origins,
+            item_durations: item_durations(conn)?,
             drop_chance,
             area_parents: if params.forced_zones.is_empty() {
                 HashMap::new()
@@ -203,6 +220,40 @@ impl Sources {
     }
 }
 
+/// The first spawn of each creature and object on a dungeon floor; none in a database without
+/// them (`dungeon_spawn`, Classic and Forever).
+fn floor_points(conn: &Connection) -> Result<Arc<HashMap<(EntityKind, i64), FloorPoint>>> {
+    let has: bool = conn.query_row(
+        "SELECT count(*) > 0 FROM sqlite_master WHERE name = 'dungeon_spawn'",
+        [],
+        |r| r.get(0),
+    )?;
+    if !has {
+        return Ok(Arc::default());
+    }
+    crate::memo::rows(conn, "dungeon spawns", 0, || {
+        let mut stmt = conn.prepare("SELECT entity_type, entity_id, ui_map, x, y FROM dungeon_spawn ORDER BY rowid")?;
+        let mut out = HashMap::new();
+        for row in stmt.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)?,
+                FloorPoint {
+                    ui_map: r.get(2)?,
+                    x: r.get(3)?,
+                    y: r.get(4)?,
+                },
+            ))
+        })? {
+            let (kind, id, point) = row?;
+            if let Some(kind) = EntityKind::parse(&kind) {
+                out.entry((kind, id)).or_insert(point);
+            }
+        }
+        Ok(out)
+    })
+}
+
 fn area_parents(conn: &Connection) -> Result<HashMap<i64, i64>> {
     let mut stmt = conn.prepare("SELECT ID, ParentAreaID FROM client_areatable WHERE ParentAreaID > 0")?;
     let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
@@ -220,6 +271,8 @@ fn start_place(entities: &Entities, world: &World, profile: &Profile) -> Result<
         kind: EntityKind::Npc,
         id: profile.start_npc,
         name: entities.name(EntityKind::Npc, profile.start_npc),
+        inside: None,
+        floor: None,
     })
 }
 
@@ -287,7 +340,6 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
             sort: r.get(5)?,
             races: r.get(6)?,
             classes: r.get(7)?,
-            special: r.get(8)?,
             skill: r.get(9)?,
             rep: r.get(10)?,
             spell: r.get(11)?,
@@ -312,27 +364,49 @@ fn quest_rows(conn: &Connection) -> Result<Vec<QuestRow>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// The class quests the profile requires, of the classes in the group; another player's come
-/// with the rest of their chain (its prerequisites are of that class too, under other names).
-fn class_quest_ids(rows: &[QuestRow], profile: &Profile, links: &HashMap<i64, Vec<(LinkKind, i64)>>) -> HashSet<i64> {
-    let mut ids: HashSet<i64> = rows
+/// Retain missing spell-unlock chains; known rewards do not require repeating their quests.
+fn class_quest_ids(
+    rows: &[QuestRow],
+    profile: &Profile,
+    links: &HashMap<i64, Vec<(LinkKind, i64)>>,
+    known: &HashSet<i64>,
+    known_prerequisites: &HashSet<i64>,
+    reward_quests: &HashSet<i64>,
+    max_above: i64,
+) -> HashSet<i64> {
+    let mut ids: HashSet<_> = rows
         .iter()
         .filter(|r| profile.class_ids().iter().any(|c| r.of_class(*c)))
-        .filter(|r| profile.required_class_quests.iter().any(|n| n == &r.name))
-        // Of a member's race and class.
+        .filter(|r| {
+            profile
+                .class_requirements
+                .iter()
+                .any(|c| c.selected && c.quests.contains(&r.id))
+                || reward_quests.contains(&r.id)
+        })
+        .filter(|r| !known.contains(&r.id))
+        .filter(|r| {
+            reward_quests.contains(&r.id)
+                || r.classes.is_some_and(|m| m & profile.class_bit() == 0)
+                || profile.within_levels(r.level.unwrap_or(1).max(1), r.min_level.unwrap_or(1).max(1), max_above)
+        })
         .filter(|r| r.classes.is_some_and(|m| m != 0) && profile.members_of(r.races, r.classes) != 0)
         .filter(|r| r.min_level.unwrap_or(1) <= profile.to_level)
         .map(|r| r.id)
         .collect();
-    let others: HashSet<i64> = rows
+    let eligible: HashSet<_> = rows
         .iter()
-        .filter(|r| r.classes.is_some_and(|m| m != 0 && m & profile.class_bit() == 0))
+        .filter(|r| profile.members_of(r.races, r.classes) != 0)
         .map(|r| r.id)
         .collect();
-    let mut stack: Vec<i64> = ids.iter().copied().filter(|id| others.contains(id)).collect();
+    let mut stack: Vec<_> = ids.iter().copied().collect();
     while let Some(id) = stack.pop() {
         for &(kind, pre) in links.get(&id).into_iter().flatten() {
-            if matches!(kind, LinkKind::PreAll | LinkKind::PreAny) && others.contains(&pre) && ids.insert(pre) {
+            if matches!(kind, LinkKind::PreAll | LinkKind::PreAny)
+                && eligible.contains(&pre)
+                && !known_prerequisites.contains(&pre)
+                && ids.insert(pre)
+            {
                 stack.push(pre);
             }
         }
@@ -389,7 +463,13 @@ fn links(conn: &Connection, profile: &Profile) -> Result<HashMap<i64, Vec<(LinkK
             .push((kind, other, profile.members_of(races, classes) != 0));
     }
     let mut scope = conn.prepare("SELECT races_mask,classes_mask FROM m_quest WHERE id=?1")?;
+    let mut known = conn.prepare("SELECT 1 FROM m_quest WHERE id=?1")?;
     for correction in &profile.quest_overrides {
+        // A correction of a quest the database does not have (a database of a few quests, in
+        // tests) has nothing to correct.
+        if !known.exists([correction.id])? {
+            continue;
+        }
         for (kind, required) in [
             (LinkKind::PreAll, &correction.pre_all),
             (LinkKind::PreAny, &correction.pre_any),
@@ -398,7 +478,12 @@ fn links(conn: &Connection, profile: &Profile) -> Result<HashMap<i64, Vec<(LinkK
             let alternatives = links.entry(correction.id).or_default();
             alternatives.retain(|(existing, _, _)| *existing != kind);
             for id in required {
-                let (races, classes) = scope.query_row([id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+                let (races, classes) = scope.query_row([id], |r| Ok((r.get(0)?, r.get(1)?))).with_context(|| {
+                    format!(
+                        "the correction of quest {} requires quest {id}, which the database does not have",
+                        correction.id
+                    )
+                })?;
                 alternatives.push((kind, *id, profile.members_of(races, classes) != 0));
             }
         }
@@ -447,6 +532,13 @@ fn objective_rows(conn: &Connection) -> Result<ObjectiveRows> {
     Ok(objectives)
 }
 
+/// Seconds each item that does not last is kept (`m_item.duration`).
+fn item_durations(conn: &Connection) -> Result<HashMap<i64, f64>> {
+    let mut stmt = conn.prepare("SELECT id, duration FROM m_item WHERE duration > 0")?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, f64>(1)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
 /// Where items come from, and their drop chance from each mob. World treasure chests (Battered
 /// Chest: 700 possible items) are not where a quest item is farmed: objects looting more than
 /// `max_object_loot` different items do not count as sources of an item found elsewhere too.
@@ -457,19 +549,41 @@ fn objective_rows(conn: &Connection) -> Result<ObjectiveRows> {
 fn item_origins(
     conn: &Connection,
     params: &Params,
+) -> Result<(Arc<HashMap<i64, Vec<(SourceKind, i64)>>>, Arc<HashMap<(i64, i64), f64>>)> {
+    // The same for a database and the limit on what a container holds.
+    let kept = crate::memo::rows(
+        conn,
+        "item origins",
+        crate::memo::setting(params.max_object_loot),
+        || {
+            let (origins, chances) = read_item_origins(conn, params)?;
+            Ok((Arc::new(origins), Arc::new(chances)))
+        },
+    )?;
+    Ok((Arc::clone(&kept.0), Arc::clone(&kept.1)))
+}
+
+#[expect(
+    clippy::type_complexity,
+    reason = "two maps read by one query, destructured by the caller"
+)]
+fn read_item_origins(
+    conn: &Connection,
+    params: &Params,
 ) -> Result<(HashMap<i64, Vec<(SourceKind, i64)>>, HashMap<(i64, i64), f64>)> {
     let mut item_sources: HashMap<i64, Vec<(SourceKind, i64)>> = HashMap::new();
     let mut drop_chance: HashMap<(i64, i64), f64> = HashMap::new();
     let mut stmt = conn.prepare(&format!(
         "WITH loot AS (SELECT from_id, count(DISTINCT item_id) AS n FROM m_item_source
                        WHERE from_type = 'object' GROUP BY from_id),
-              chest AS (SELECT from_id FROM loot WHERE {limit} > 0 AND n > {limit})
+              chest AS (SELECT from_id FROM loot WHERE {limit} > 0 AND n > {limit}),
+              -- Items with a source that is not a chest.
+              other AS (SELECT DISTINCT item_id FROM m_item_source
+                        WHERE from_type != 'object' OR from_id NOT IN chest)
          SELECT s.item_id, s.from_type, s.from_id, s.chance, coalesce(l.n, 0)
          FROM m_item_source s
          LEFT JOIN loot l ON s.from_type = 'object' AND l.from_id = s.from_id
-         WHERE s.from_type != 'object' OR s.from_id NOT IN chest OR NOT EXISTS (
-           SELECT 1 FROM m_item_source o WHERE o.item_id = s.item_id
-             AND NOT (o.from_type = 'object' AND o.from_id IN chest))",
+         WHERE s.from_type != 'object' OR s.from_id NOT IN chest OR s.item_id NOT IN other",
         limit = params.max_object_loot
     ))?;
     for row in stmt.query_map([], |r| {
@@ -527,7 +641,7 @@ fn tokens(objectives: &ObjectiveRows, item_origins: &HashMap<i64, Vec<(SourceKin
 }
 
 /// A row of `m_quest`.
-#[cfg_attr(test, derive(Default))]
+#[cfg_attr(any(test, feature = "testing"), derive(Default))]
 pub(super) struct QuestRow {
     pub(super) id: i64,
     pub(super) name: String,
@@ -538,7 +652,6 @@ pub(super) struct QuestRow {
     pub(super) sort: Option<i64>,
     pub(super) races: Option<i64>,
     pub(super) classes: Option<i64>,
-    pub(super) special: Option<i64>,
     pub(super) skill: Option<i64>,
     pub(super) skill_value: Option<i64>,
     pub(super) rep: Option<i64>,
@@ -595,7 +708,11 @@ pub(super) fn parse_requirements(json: Option<String>) -> Vec<(String, f64)> {
     list.iter()
         .filter_map(|r| match r.rsplit_once(" x ") {
             Some((name, count)) => Some((name.trim().to_lowercase(), count.trim().parse().ok()?)),
-            None if r.contains(':') || r.trim().is_empty() => None,
+            // Gold ("Money:2") and reputations ("The Defilers:"); a name may hold one
+            // ("Picture Book: Fun with Elementals").
+            None if r.trim().is_empty() || r.trim_end().ends_with(':') || r.to_lowercase().starts_with("money:") => {
+                None
+            }
             None => Some((r.trim().to_lowercase(), 1.0)),
         })
         .collect()
@@ -704,6 +821,20 @@ mod tests {
         assert!(asks_for_work(Some(r#"["Nord'el"]"#)));
     }
 
+    /// One of an item whose name holds a colon (Forever's "Picture Book: Fun with Elementals"),
+    /// not gold nor a reputation.
+    #[test]
+    fn requirements_with_a_colon() {
+        let reqs = |json: &str| parse_requirements(Some(json.to_owned()));
+        assert_eq!(
+            reqs(r#"["Picture Book: Fun with Elementals","Lost Book x 6","Money:2","The Defilers:"]"#),
+            [
+                ("picture book: fun with elementals".to_owned(), 1.0),
+                ("lost book".to_owned(), 6.0)
+            ]
+        );
+    }
+
     /// Talks the sources give as creature objectives: named in a requirement after a verb.
     #[test]
     fn requirements_talking_to() {
@@ -730,5 +861,130 @@ mod tests {
         assert!(tames(&reqs(r#"["Tame a Vuldren"]"#), "Vuldren Alpha"));
         assert!(!tames(&reqs(r#"["Large Crag Boar x 8"]"#), "Large Crag Boar"));
         assert!(!tames(&reqs(r#"["Tame a Snow Leopard"]"#), "Ice Claw Bear"));
+    }
+}
+
+#[cfg(test)]
+mod links_tests {
+    use super::*;
+    use crate::faction::Faction;
+    use crate::model::Mate;
+    use crate::model::testing::profile;
+
+    const ORC: i64 = 2;
+    const HUMAN: i64 = 1;
+    const WARRIOR: i64 = 1;
+    const WARLOCK: i64 = 9;
+
+    fn character(faction: Faction, race_id: i64, class_id: i64) -> Profile {
+        Profile {
+            race_id,
+            class_id,
+            ..profile(faction, 1, 30)
+        }
+    }
+
+    /// The quests (id, races mask, classes mask) and their links (quest, kind, other).
+    fn db(quests: &[(i64, i64, i64)], links: &[(i64, &str, i64)]) -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE m_quest(id INTEGER, races_mask INTEGER, classes_mask INTEGER);
+             CREATE TABLE m_quest_link(quest_id INTEGER, kind TEXT, other_id INTEGER);",
+        )
+        .unwrap();
+        for q in quests {
+            conn.execute(
+                "INSERT INTO m_quest VALUES (?1, ?2, ?3)",
+                rusqlite::params![q.0, q.1, q.2],
+            )
+            .unwrap();
+        }
+        for l in links {
+            conn.execute(
+                "INSERT INTO m_quest_link VALUES (?1, ?2, ?3)",
+                rusqlite::params![l.0, l.1, l.2],
+            )
+            .unwrap();
+        }
+        conn
+    }
+
+    fn any_of(links: &HashMap<i64, Vec<(LinkKind, i64)>>, quest: i64) -> Vec<i64> {
+        let mut ids: Vec<i64> = links[&quest]
+            .iter()
+            .filter(|(k, _)| *k == LinkKind::PreAny)
+            .map(|l| l.1)
+            .collect();
+        ids.sort_unstable();
+        ids
+    }
+
+    /// Vile Familiars' follow-up (794) has a branch for each class: the warrior's quest (792) and
+    /// the warlock's (1499). A character keeps the branch it can do; one that can do none, or both
+    /// (a group), keeps them all.
+    #[test]
+    fn a_follow_up_keeps_the_branch_of_the_character() {
+        let orc = 1 << (ORC - 1);
+        let warrior = 1 << (WARRIOR - 1);
+        let warlock = 1 << (WARLOCK - 1);
+        let conn = db(
+            &[(792, orc, warrior), (1499, orc, warlock), (794, orc, 0)],
+            &[(794, "pre_any", 792), (794, "pre_any", 1499)],
+        );
+        let links_of = |profile: &Profile| links(&conn, profile).unwrap();
+        assert_eq!(any_of(&links_of(&character(Faction::Horde, ORC, WARRIOR)), 794), [792]);
+        assert_eq!(any_of(&links_of(&character(Faction::Horde, ORC, WARLOCK)), 794), [1499]);
+        // A human can do neither: the links stay as they are.
+        assert_eq!(
+            any_of(&links_of(&character(Faction::Alliance, HUMAN, WARRIOR)), 794),
+            [792, 1499]
+        );
+        // A group of a warrior and a warlock needs both branches.
+        let mut group = character(Faction::Horde, ORC, WARRIOR);
+        group.mates = vec![Mate {
+            class_name: "Warlock".into(),
+            name: "Warlock-Realm".into(),
+            race_id: ORC,
+            class_id: WARLOCK,
+            spell_weights: Vec::new(),
+            professions: Vec::new(),
+        }];
+        assert_eq!(any_of(&links_of(&group), 794), [792, 1499]);
+    }
+
+    /// Forever's Windborne Cat quest has a predecessor for each side (the Horde's 98340, the
+    /// Alliance's 98393): each side keeps its own, and both stay when the quest's race scope is
+    /// the same.
+    #[test]
+    fn each_side_keeps_its_own_predecessor() {
+        let (horde, alliance) = (1 << 32, 1 << (HUMAN - 1));
+        let conn = db(
+            &[(98340, horde, 0), (98393, alliance, 0), (98400, 0, 0)],
+            &[(98400, "pre_any", 98340), (98400, "pre_any", 98393)],
+        );
+        let skyborne_horde = character(Faction::Horde, 95, WARRIOR);
+        assert_eq!(any_of(&links(&conn, &skyborne_horde).unwrap(), 98400), [98340]);
+        let human = character(Faction::Alliance, HUMAN, WARRIOR);
+        assert_eq!(any_of(&links(&conn, &human).unwrap(), 98400), [98393]);
+    }
+
+    /// Links from the quest data are kept once each, with their kind.
+    #[test]
+    fn a_link_is_kept_once_with_its_kind() {
+        let conn = db(
+            &[(1, 0, 0), (2, 0, 0), (3, 0, 0)],
+            &[
+                (3, "pre_all", 1),
+                (3, "pre_all", 1),
+                (3, "exclusive", 2),
+                (3, "child", 2),
+                (3, "breadcrumb", 1),
+            ],
+        );
+        let kept = &links(&conn, &character(Faction::Horde, ORC, WARRIOR)).unwrap()[&3];
+        assert_eq!(kept.iter().filter(|l| **l == (LinkKind::PreAll, 1)).count(), 1);
+        assert!(kept.contains(&(LinkKind::Exclusive, 2)));
+        assert!(kept.contains(&(LinkKind::Child, 2)));
+        assert!(kept.contains(&(LinkKind::Other, 1)));
     }
 }

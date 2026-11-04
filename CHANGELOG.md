@@ -13,16 +13,94 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 - A character that asks in game to re-plan from here (the addon's "Re-plan + app") gets its route computed again in the background from where it stands, with its guide's settings, as a guide of its own; the app says when it is installed, and a /reload in game follows it.
 - **Import from RestedXP…** on the Guides page makes a guide from the free RestedXP guides of the RestedXP Guides addon installed in the game, for the race and class you choose: their quests in their order, replayed with Factoruide's data (the steps it finds impossible are left out, and said in the guide's notes). Nothing of RestedXP is shipped with Factoruide (their guides are CC BY-NC-SA 4.0). `fg rxp` does the same from the command line.
 - A forced dungeon can be given your own level (Dungeons panel, under its name): the guide runs it at that level or the next one, for a group met at 22 for the Deadmines (GitHub #48).
+- The steps inside a dungeon are a block of their own on the guide page, shown on the map of the dungeon's floor they are on (Classic and WoW Forever dungeons, from the game's own dungeon maps).
+- The first guide of a game version no longer fails now and then because another command removed its data while unpacking it.
+- A settings change made while the addon installs, or while a character is added back or forgotten, is no longer lost.
+- A dungeon quest with one objective inside shows its name in the guide ("An Ancient Grudge: Faldrim Anvilmar"), not the dungeon's ("The Hall of Thanes: Faldrim Anvilmar").
+
+### Guides
+
+- A trip can fly to a port, take the boat and fly on from where it lands (Ironforge to Gadgetzan by Menethil Harbor and Theramore), instead of walking the end of it or using the hearthstone.
+- Polestar's leveling guides can be timed against ours: `fg polestar-import` replays the guides a race and class follows in Polestar, quest by quest, under the same time model, compares them level by level with our guide, and can keep the result as a guide to follow or edit (credited to Polestar, GPL-3.0).
+- Desktop app, WoW Forever: **Import from Polestar…** on the Guides page makes a guide from Polestar's leveling guides for a race and class, from the guides folder of a Polestar download (replayed with our data, credited to Polestar).
+- A dungeon's quests are steps inside it: taken from a boss's drop or a giver inside, objectives and hand-ins, each where it is done, the dungeon entered once (its run's time and mobs counted then). Guides made before get those steps when opened.
+- After a quest at an NPC who walks around, the level checkpoint's arrow points at the checkpoint, not along the NPC's path.
+- A guide text with a control character or a character name with an unusual letter is written into the data addon as the game reads it, not as stray letters.
+- "On the way: buy ... at the auction house" comes before the flight, boat or zeppelin that leaves the city, not after it (GitHub #115).
+- WoW Forever: the Orc mage takes the Undercity mage quests (Investigate the Alchemist Shop, Spellfire Robes, Speak with Deino...), the Troll warlock the Voidwalker's Creature of the Void and The Binding, and the High Order Skyborne mage and druid the Human, Gnome and Night Elf quests of their sides, instead of leaving them out of the guide (GitHub #111, #114).
+- Class quests: the guide takes one version of each (the Skyborne shaman's two Call of Fire chains, the human priest's Divine Grace, the warlocks' demons by race...) instead of all of them, and a class quest no version of which can be planned is reported. The races of the class quests follow the quests' pages (the troll warlock gets its Voidwalker and Incubus, Piercing the Veil is the orc and undead warlocks') (GitHub #110, #111, #112, #114).
+- Web app: when the backend stops, the message carries what it wrote on its error output (a panic's place and reason) and the error's own message, so that a report says why (GitHub #109).
+- A must-have quest asked at a minimum level ("complete it at level 18") has its dungeon run from that level, instead of before it and the hand-in after (GitHub #108).
+- WoW Forever: Lost in the Thicket Things (Excavation Site: Wetlands) is ended to Ardin Grassman inside the dungeon, who gives Heartwoven to take back to Caitlin Grassman in Menethil Harbor: the guide runs the dungeon once for both (GitHub #107).
+- A quest the guide takes and never hands in is grinding in all but name: the time of its kills counts as grinding, in the planner's score and against the grind limit. Guides no longer end on a many-hour step for a quest they never hand in, nor keep quests only for their kills (GitHub #117, #124).
+- A must-have quest (one you ask for, or a class quest the guide requires) is done while the game shows it yellow (orange with the risky profile) or green, not before and not once it is gray; a guide that cannot do it in time is refused instead of doing it levels late: the warlock's Felhunter comes by level 37 and the Felsteed by 50 instead of 44-51 (GitHub #113). Guides already made are not refused for it.
+- A quest started by an item found in a dungeon's object is planned with the run and taken in it: WoW Forever's The Treaty of Understanding, from the Hall of Thanes.
+- Dungeons run above their monsters' level: the level-60 dungeons are run at 60 instead of leaving the guide impossible to make (GitHub #99).
+- "Profession trainer stops" option (under the professions of a player of the new guide, off by default): with professions, the route goes to the trainer to learn each profession and, before the skill reaches the cap of its rank, each next rank. A trainer near the route is a detour, a far one a trip, both counted in the route's time; a rank no trainer teaches has no stop (GitHub #106).
+- "Buy at the auction house" option (advanced settings, off by default): the items a quest asks for that nothing else gives, made by a profession like Rough Dynamite, are bought at the nearest auction house instead of leaving the quest out (GitHub #97).
+
+### Addon
+
+- Dungeon prep: when a dungeon of the guide comes near, the chat lists the quests to have in your log going in (in it already, to pick up first and from whom, or starting inside), with its level and time. `/fg dungeon` shows it at any time, and `/fg lfg` writes a group message ("LF4M The Deadmines, level 18, quests: ...") in the chat's input line, for you to send with Enter. On by default (Advice).
+- `/fg check`: a self-check of what the addon sees in this game client, a line each, ok or to look at: the client's version, the guide followed and where it comes from, your position on the map, the XP buff spells and items it knows by number, your auras now with their numbers, the quest log, the add-ons it works with and the errors counted. The report is kept in the SavedVariables to send along with a problem.
+- The addons also load on the next WoW Forever client version (interface 16002), so that launch day does not need "Load out of date AddOns".
+- Re-plan from here: when your XP gets ahead of the guide or behind it by more than half a level (more mobs killed on the way than planned, deaths, a dungeon), or you stay far from the next step for two minutes, a bar on the guide offers to re-plan. The guide then picks up at the best step for your level and where you stand, leaving out what is no longer worth it (kept chains, class quests, planned rewards and training stay). `/fg replan` at any time, `/fg replan undo` to put the steps back, a key binding too. The gap and an automatic mode are in the options (Advice).
+- With the Factoruide app open, "Re-plan + app" also has it compute the whole route again from your character in the background: the app says when it is ready, and the next /reload follows it.
+- The addon counts where your XP comes from at each level: quests, the guide's quest mobs, mobs killed off the guide and the rest, and compares the kills off the guide with what the guide planned (`/fg xp`, or the "XP sources" key binding).
+- With the new Factoruide_Ready addon installed, a character with no guide of its own follows the ready-made guide of its race and class: no app needed. A guide made in the app for it still comes first.
+- A step's tooltip says why it is in the guide: the XP its quest gives, the reward planned for you, the quests it opens, or what a trainer, flight, inn or grind step is for.
+- Off the guide's planned walk (after a death, a detour or a hearth), the compass and the 3D arrow lead you back to the walk a bit ahead of where it is closest, up to 1000 yards away, instead of straight at the step across the ground the walk goes round; close to the step, they still go straight to it.
+- Gear advice follows your talents: a balance or restoration druid, an elemental or restoration shaman, a holy or protection paladin, a holy or discipline priest and a protection warrior are told about the gear their spec wants (intellect, spell damage, healing, mana or stamina), not the leveling spec's; a reward the guide picked for another spec is no longer chosen for you.
+- WoW Forever: a guide that counts on Well Fed or the Sleeping Bag warns about them itself, so the "Reminder of missing XP buffs" no longer repeats those two for it (it still covers the Camp Tent, and the buffs of guides that don't count on them). Forever's own Well Fed XP aura is recognised.
+- WoW Forever: the Sleeping Bag XP reminder starts after its reward quest is completed.
+
+### WoW data
+
+- WoW Forever's Hall of Thanes: Underground Map is planned (the Dark Iron Map drops from the Dark Iron Spies and Captain Beld), and Old Ironforge Incursion after it (GitHub #98).
+- WoW Forever: the warlocks' pets and the Theramore Emissaries no longer count as hostile creatures in Stormwind (they kept low-level characters from its auction house), and A Dynamite Plan asks for its 10 Rough Dynamite.
+
+## 0.15.0 (2026-11-01)
+
+Forced dungeons run inside their levels, optional XP buffs and turn-in levels for must-have quests, class unlocks kept and done soon, flights followed one by one in the addon, and the fixes of your reports (GitHub #73 to #88).
+
+### App
+
+- Optional Forever food and Sleeping Bag XP bonuses, with the bag's quest chain included.
+- Must-have quests can have an optional minimum and maximum turn-in level.
+- The dungeons' levels are chosen with a slider above their list: from how many levels below their monsters to how many above (the progression profile sets them back to its own). Each dungeon shows the levels it will be run at, and the guide never runs it outside them.
+- A dungeon can be forced with its quests (a click more): the guide takes every quest of it the character can take, even those worth little (GitHub #46).
+- New guide: a block for the guide (name, target level) and one for each player (a recorded character, a pasted export or a new one, its level, race, class and professions); "+ Add a player" makes a group guide, up to 5 players.
+- Choose must-have quests at the bottom of the new guide page, searched among your race and class's quests by name, zone, level or ID ("barrens 20").
+- Group guides: in the desktop app too, a player who plays on another computer is added by pasting the export of their character (in game: /fg, "Export my character").
+- The web app can send a problem report from its form, like the desktop app (GitHub #80).
+- Problem reports of a group guide call the players Player 1, Player 2... instead of their characters' names (GitHub #88).
+- A search box above the guide's steps marks every step of a quest (typed by name or ID) and goes from one to the next (GitHub #79).
+- In the guide editor, a quest already in the guide says at which step ("already in the guide · step 313"); the number shows that step.
+- Advanced settings let you turn off the assumption that movement talents are learned.
 - In the guide editor, a step that only a zone too strong for the character makes possible (the flight path of Gadgetzan from Thousand Needles at level 34) is accepted, with a warning on the step, instead of being impossible. Computed guides still keep out of those zones.
 - A new guide's character shows the flight paths it knows, by continent, and you can tick or untick them: the game only gives the addon those of the continent where a flight master's map is open, so the others are deduced from the quests done in their towns (marked as such), and what you change is kept for the character.
 - Before a guide is computed for a character already on its way, the app can show a few ways to begin (a zone, a flight, the hearthstone) with their estimated time, steps and quests, and you choose; the fastest is chosen at first. It is only shown when there is really a choice, and can be turned off ("Compare the starts").
 
 ### Guides
 
-- WoW Forever guides count the XP buffs you keep up, Well Fed food (+5% XP from kills) and the Cozy Sleeping Bag (+3%): you level faster, so the guide moves on sooner to quests and mobs of your level (a human warrior's 1-21 is about an hour shorter). It can be turned off, or the bonus changed, in the advanced settings ("XP buffs kept up").
-- A trip can fly to a port, take the boat and fly on from where it lands (Ironforge to Gadgetzan by Menethil Harbor and Theramore), instead of walking the end of it or using the hearthstone.
-- Polestar's leveling guides can be timed against ours: `fg polestar-import` replays the guides a race and class follows in Polestar, quest by quest, under the same time model, compares them level by level with our guide, and can keep the result as a guide to follow or edit (credited to Polestar, GPL-3.0).
-- Desktop app, WoW Forever: **Import from Polestar…** on the Guides page makes a guide from Polestar's leveling guides for a race and class, from the guides folder of a Polestar download (replayed with our data, credited to Polestar).
+- Rested XP reduces pre-grinding and group catch-up work in every edition and is consumed from the character's finite pool. Group kill work is rounded only at the final player reward in every edition. Group guides export each player's quest XP, including its own Sleeping Bag bonus.
+- Death skips (option, off by default, in the play style): up to level 10 and a half, the guide has the character die to respawn at the nearest spirit healer when that is faster (no resurrection sickness before level 11). The guide editor has them as steps ("Die here").
+- Group guides: each player levels its own professions, from its own skill: their profession quests are planned for them, the group goes to the vendor when the fullest bags are, and each player's addon follows its own profession curve.
+- A quest item that rots is looted right before the objective using it: the Fresh Zhevra Carcass (30 minutes) just before Ishamuhale, instead of hours earlier (WoW Forever and Classic).
+- A must-have quest is planned even when its mobs are elites (Forever's Rare Books, whose books drop from Mother Fang and two other elites).
+- A quest item whose name holds a colon ("Picture Book: Fun with Elementals") is looted once, not six times.
+- Missing class unlocks keep their prerequisites; known unlocks are not repeated. Druids include Moonglade by default.
+- Without a combat spell catalog, trainer steps let the addon train all available spells.
+- Learned class movement spells affect walks entirely on exposed ground without swimming; most walks keep the usual estimate.
+- Guides complete must-have quests and their prerequisites, even past the target level.
+- Deadmines' Collecting Memories and Oh Brother... say they are done outside the dungeon, beside its entrance, with the dungeon's group (GitHub #82).
+- A quest started by an item lying in a camp of the other side (the Aged Envelope among the Kul Tiras marines, for the Horde) waits for a level that can face them, instead of being fetched at level 1 (GitHub #83).
+- Repeatable quests are planned like any other, once. A child quest (Finding the Antidote, for Need for a Cure) is taken while its parent is in the log and turned in before it, with its own accept and turn-in steps; a timed parent and its children are done one after the other (GitHub #74).
+- A must-have quest whose objectives are inside a dungeon (Trolls of a Feather, Sunken Temple) runs that dungeon, without having to force it too.
+- WoW Forever: the new dungeons follow the game's level ranges, not their quests' levels: Ruins of Lordaeron 15-20 (was 21-22), Excavation Site 24-29, City of Dalaran 28-33.
+- WoW Forever: Ruins of Lordaeron's quests started by an item found inside (Crest of Lordaeron, Remember That I Love You) are planned, taken during the run.
+- A new character knows its capital's flight path from the start, as in the game (Stormwind for humans, Ironforge for dwarves and gnomes, Orgrimmar for orcs and trolls...): guides no longer stop to learn it, and fly from there right away.
+- Class quests teach their spells; form attacks count only after the form and attack rank are learned. Imported profiles supply known spells and completed quests; starts without a profile assume earlier class unlocks are known.
 - Quest prerequisites keep the eligible race and class branches; Sleeping Bag uses your faction's starter.
 - Walks jump down higher cliffs the bolder the profile: 15 yards for "cautious" (no fall damage), 30 for "normal" (about a third of the health), 50 for "risky" (two thirds); the health lost is paid as time resting.
 - Quests in your log with nothing done are no longer tied to the guide: it takes them like any other, or abandons them first. The ones you can turn in, and those you have begun, are still kept.
@@ -42,19 +120,25 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 - Walks up Mount Hyjal and out of Timbermaw Hold follow Darkwhisper Gorge and the tunnel all the way instead of cutting their last corners.
 - The Affray: the grate is stepped on before Big Will is fought, and timed quests are only taken once the character is strong enough to finish them in time.
 - Mobs, NPCs and objects stand on their real floor: the kobolds inside Fargodeep Mine rather than on the hill above it, Undercity's NPCs down in the city, the watchtower's NPCs on Zephras Isle at its top.
+- Dungeons forced together are all run, each inside its levels (GitHub #66, #71, #84).
+- Warlock quests asking for Soul Shards, Robes of Arcana or Fine Gold Thread (Components for the Enchanted Gold Bloodrobe) can be planned, and items dropped under 3% no longer keep a quest from being planned (GitHub #72, #73).
+- A trip step (flight, boat, hearthstone, teleport, death skip) shows the time its trip takes, instead of the step after it (GitHub #68).
+- Mages learn each city's teleport from its trainer: the guide teleports only to the cities where it has trained (GitHub #75).
+- WoW Forever: the Alliance warlock's The Binding looks for the voidwalker in Stormwind, not Undercity; A Pain in the Neck (Enchanting, Echo Isles) is planned with the trolls' Hexed Pendants (GitHub #69, #76).
+- WoW Forever: the library's rewards ask for ten, twenty and twenty-five different books, not every book, and the guide can take books on its way to earn them (GitHub #56).
+- A forced dungeon is run around the middle of its levels, with its quests first (Ragefire Chasm at 16, not 47). A guide that cannot run every forced dungeon is refused, and so is one that starts after a forced dungeon's levels (GitHub #84).
+- A must-have quest you already handed in, or finished in your log, no longer asks for its dungeon (GitHub #87).
+- A class unlock you lack is done soon, not late, even when its quests are gray (advanced setting "Coût d'un déblocage de classe tardif").
 
 ### Addon
 
-- Dungeon prep: when a dungeon of the guide comes near, the chat lists the quests to have in your log going in (in it already, to pick up first and from whom, or starting inside), with its level and time. `/fg dungeon` shows it at any time, and `/fg lfg` writes a group message ("LF4M The Deadmines, level 18, quests: ...") in the chat's input line, for you to send with Enter. On by default (Advice).
-- `/fg check`: a self-check of what the addon sees in this game client, a line each, ok or to look at: the client's version, the guide followed and where it comes from, your position on the map, the XP buff spells and items it knows by number, your auras now with their numbers, the quest log, the add-ons it works with and the errors counted. The report is kept in the SavedVariables to send along with a problem.
-- The addons also load on the next WoW Forever client version (interface 16002), so that launch day does not need "Load out of date AddOns".
-- Re-plan from here: when your XP gets ahead of the guide or behind it by more than half a level (more mobs killed on the way than planned, deaths, a dungeon), or you stay far from the next step for two minutes, a bar on the guide offers to re-plan. The guide then picks up at the best step for your level and where you stand, leaving out what is no longer worth it (kept chains, class quests, planned rewards and training stay). `/fg replan` at any time, `/fg replan undo` to put the steps back, a key binding too. The gap and an automatic mode are in the options (Advice).
-- With the Factoruide app open, "Re-plan + app" also has it compute the whole route again from your character in the background: the app says when it is ready, and the next /reload follows it.
-- The addon counts where your XP comes from at each level: quests, the guide's quest mobs, mobs killed off the guide and the rest, and compares the kills off the guide with what the guide planned (`/fg xp`, or the "XP sources" key binding).
-- With the new Factoruide_Ready addon installed, a character with no guide of its own follows the ready-made guide of its race and class: no app needed. A guide made in the app for it still comes first.
-- A step's tooltip says why it is in the guide: the XP its quest gives, the reward planned for you, the quests it opens, or what a trainer, flight, inn or grind step is for.
-- Off the guide's planned walk (after a death, a detour or a hearth), the compass and the 3D arrow lead you back to the walk a bit ahead of where it is closest, up to 1000 yards away, instead of straight at the step across the ground the walk goes round; close to the step, they still go straight to it.
-- Gear advice follows your talents: a balance or restoration druid, an elemental or restoration shaman, a holy or protection paladin, a holy or discipline priest and a protection warrior are told about the gear their spec wants (intellect, spell damage, healing, mana or stamina), not the leveling spec's; a reward the guide picked for another spec is no longer chosen for you.
+- Two flights in a row: taking the first no longer counts the next one as done; each is done by its own take-off.
+- Group guides: quest XP counts each player's own reward, including its Sleeping Bag bonus.
+- WoW Forever: a guide made with the food or Sleeping Bag XP bonus warns when that buff is missing (out of combat, at most every ten minutes).
+- The addon's separators are a bullet (•), which every client font has: the dot they used was a missing glyph in Russian (GitHub #78).
+- Death skip steps: done once back at the spirit healer.
+- Group guides: each player follows its own profession curve.
+- Group guides made for characters the app had no profile of: the addon finds yours by race and class; when several match, choose yours in /fg, Guides ("Player: …").
 - The wind guide (a gust of wind towards the step instead of the compass) is gone, with its settings and key binding; the compass stays.
 - Objectives done in the same area are shown together under Now; a level checkpoint between them comes after them.
 - Merchant, trainer, flight master and inn steps before the last quest you handed in are done on their own when a guide is loaded or reset, instead of each needing a right click.
@@ -62,6 +146,7 @@ An addon change also goes, in the same words, under Unreleased in that addon's o
 
 ### WoW data
 
+- WoW Forever's Hall of Thanes: An Ancient Grudge is planned (its giver and its objective were missing), and The Restless Dead asks to put Faldrim Anvilmar to rest (GitHub #82).
 - Quest, NPC and spawn data brought up to date, with 51 more contributions from players: WoW Forever gets quests it had wrongly left out or marked unavailable, and corrected XP, races, classes and zones; TBC gets 11 quests it lacked; Classic is unchanged.
 - 206 contributed names, titles, levels and objectives checked against public pages and added: Spanish and French translations that were old or literal, minimum levels, a few objectives.
 - WoW Forever, Zephras Isle: Skyborne guides leave the island by its zeppelin (Alliance, to Dalaran) or airship (Horde, to Mulgore) without its last quests, take In Service of Zephras alongside Avenged Tenfold and Unfortunate News before Al'Aketh Assassins is done, and gather Restocking the Larders' eggs and meat on the island's Galestriders instead of the Barrens.

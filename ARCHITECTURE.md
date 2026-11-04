@@ -15,10 +15,30 @@ dungeons, forced dungeons, class quests to keep, professions to level.
 
 Duplicate prerequisite links from different sources count once. Race and class alternatives
 keep eligible branches when any exist. Edition-specific `quests.toml` can replace `pre_all`
-or `pre_any`; these corrections apply whenever a database is loaded, including after a refresh.
+or `pre_any`, and list the `spells` a quest grants. These corrections apply whenever a database
+is loaded, including after a refresh.
+
+Must-have quests (`PlanRequest.required_quests`, CLI `--required-quest`) resolve by ID or exact
+name for the character or group. Their prerequisites stay in the model outside the usual level
+window; unsupported or conflicting choices are reported. Required quests keep a route running
+past its target level until they are complete. Generated guides and saved edits check completion.
+Entries can include `min_level` and/or `max_level`, inclusive at turn-in before reward XP:
+`--required-quest '{"quest":21,"min_level":3,"max_level":4}'`. IDs and exact names without
+bounds keep their existing meaning. Prerequisites and child quests inherit deadline priority,
+not the lower bound. Near a deadline, the chain's available quest work takes priority, though
+forced and must-have dungeons (their quest pickups and runs) can come first. Replay omits optional
+work needing grinding beyond a scheduled deadline. Turn-ins check each member
+still needing the quest, including after travel; imported completion already satisfies the goal.
+Planning and edited-guide saves reject missed windows.
 
 `world.rs` gives the geography: zone coordinates converted to world coordinates, the passes
 between zones, boats, zeppelins and tram (`overrides/`), and the flight path network.
+
+The quest data itself is corrected in `overrides/database/` (`*.toml` for every edition,
+`<edition>/` for one): races and classes of a quest, prerequisites, objectives, spawns, drop
+chances, an NPC's side. The database builder applies them on top of its sources at every build,
+so a data fix goes there (the format is at the top of `overrides/database/quests.toml`), never
+into the packed database alone.
 
 A guide can start from a character met in game (`job/start.rs`): the profile the addon saves
 (`Profile.lua`, read by the app from the SavedVariables) becomes the simulation's initial state:
@@ -44,12 +64,31 @@ level:
   "normal", 50 for "risky"); a fall that hurts costs the time to rest the health back
   (`DROP_COST` in `terrain/mod.rs`, a full heal a minute), so the walk goes round when the way
   down saves less than that.
+  Learned Cat Form, Travel Form, Ghost Wolf and Aspect of the Cheetah are compared with walking
+  and mounts, including activation time (`overrides/movement.toml`). A bonus requires a whole
+  path on known outdoor terrain without swimming. Covered or unknown paths and group guides
+  keep the baseline estimate.
+  Few walks currently qualify. `assume_movement_talents` (on by default) adds Feral Swiftness
+  and Improved Ghost Wolf at the edition's level and rank. Acquisition follows each edition's
+  quests and trainer data. An edition's `movement.toml` can supply missing trainer levels;
+  native records take precedence. Aquatic Form travel is not modeled.
 - **Fights and loot**: kill time grows with the level difference and shrinks with the
   character's **power** (below); elites are slower (or need a group); items to loot take as many
   kills as their drop rate requires.
 - **XP**: quest XP with the level penalty, mob XP with the classic formula (`5 × level + 45`,
   adjusted by the level difference). Level-ups change everything that follows: which quests are
   worth it, how fast mobs die, how much XP they give.
+  Forever's optional `food_xp` and `sleeping_bag` assume continuous buff uptime. The bag requires
+  quest 79976 and activates after its turn-in; imported completion also counts, per group member.
+  Food adds 5% to kill XP and the bag adds 3% to kill and quest XP. The estimate adds the kill
+  bonuses before applying the finite rested pool, including grinding and group catch-up.
+  Pre-grinding estimates and group catch-up consume rested XP in every edition. Group kill
+  work stays fractional until the final member reward is rounded in every edition. Turn-ins
+  carry each player's awarded XP (`party_reward_xp`, Lua `rxp`); the addon selects its own
+  reward. Older guides retain their shared `reward_xp` estimate.
+  Exploration, food costs and buff refresh time are outside this estimate. Effect scopes:
+  [Well Fed](https://www.wowhead.com/forever/spell=1243969/well-fed-xp-boost),
+  [Well-Rested](https://www.wowhead.com/forever/spell=429959/well-rested).
 - **On the way**: class training when the new spells are worth it, the loot sold at a vendor nearby
   once the bags are half full, flight paths picked up nearby,
   dungeon runs, the normal mobs met on foot (`farm_on_way`, mobs near the character's level, up to
@@ -57,9 +96,15 @@ level:
   `farm_share` (80%) of the mobs met are killed, fewer on a crowded server (the other players
   take their share, as at an objective's spot); the mobs of the log's quests are left to their
   objectives, which count them where they are done.
-  Professions add no time: only their quests are planned, once the skill curve reaches them
-  (optional in the guide). Their reward is the profession's, not XP: they are kept once gray,
-  and each one left out costs `profession_quest_weight`.
+  By default professions add no time or steps: only their quests are planned, once the skill curve reaches
+  them (optional in the guide). Their reward is the profession's, not XP: they are kept once gray,
+  and each one left out costs `profession_quest_weight`. With `profession_trainers` (off by
+  default) the planner also visits the trainers (`plan/profession_trainers.rs`, called after every
+  step with the class training): a trainer within `train_radius` teaches each rank the character can
+  learn (level and skill the rank asks) as a detour; a farther one is a trip, once the curve passes
+  the cap of the rank before. The time counts in the route, the visit is a `profession` step, and
+  the state (`State::ranks`) remembers the ranks learned. A rank no trainer teaches gets no
+  visit. A guide edited by hand has none (the editor plans no trainer).
 - **Every action is a step**: each take, objective and turn-in of a quest is a stop of the route,
   done at that stop and nowhere else (no quest taken in passing at another stop, no objective
   finished on the way), so that each one can be moved or removed in the guide editor. What doing
@@ -127,19 +172,38 @@ quest whose objectives are far out of reach is not picked up.
   healing, buff value). The character trains on the way once the new spells make fights
   `train_min_gain` faster, and makes a trip at `train_trip_gain`; the training steps list the
   spells that count, and the addon buys only those. Spells not listed (and talents) do not count.
-- **Required class quests**: those of `overrides/class_quests.toml` and every class quest the data
-  says teaches a spell (`m_quest.reward_spell`), by name; the app lists them, the player can take
-  some out. Where quests of a name teach a spell, the spell is what is required: those quests and
-  the steps of the name leading to them, not a later quest of the same name (the orc's second
-  Vile Familiars, in Durotar, is not the undead warlock's). A quest the route takes and gives up
-  costs it `abandon_weight`.
-- **Class quests** giving a pet or a form (`overrides/class_quests.toml`) add levels of power
-  too (a 1.4 times faster fight is 3.2 levels), and count like an upgrade when choosing quests;
-  the quest teaching that spell gives it, whatever its name (Piercing the Veil, the undead's
-  Imp, like Vile Familiars).
+  `abilities.rs` records quest spells and form-dependent ranks separately from the last training
+  level. Quest rewards grant their listed spells; form attacks need both the form and the
+  learned rank. Recorded spells and completed quests initialize this state for imported
+  characters. Without a profile, class unlocks whose quest minimum level is below the starting
+  level are assumed known, independently of quest selection; this does not mark quests completed.
+  Saved characters retain learned ranks. `overrides/forever/quests.toml` lists Cat Form's starter
+  attacks. Choosing which quests a route must complete is separate from this ability state.
+- **Required class quests** are class requirements, built by the database (`m_class_requirement`):
+  one per spell the class's quests teach (`m_quest.reward_spell`), a start zone's letter to the
+  class trainer, and those the overrides add (`[[class_requirement]]` in `overrides/database`:
+  Moonglade, Call of Air). Its quests are its versions, the last quest of each chain (a step
+  listing the same spell is not one): the route does one of those the character can take and the
+  others are closed (`chains::settle_class_quest_versions`; the search can change version,
+  `swap_version`). The app lists the requirements by name, the player can take some out; guides
+  saved with quest names still select the requirements having a quest of that name. A requirement
+  is a must-have quest: unless its window says otherwise it is done while the game shows the
+  quest yellow (orange when the progression is risky) or green, never before nor once it is gray,
+  and the route is refused otherwise (`default_completion_windows`; a guide replayed or edited is
+  not refused for it). A quest the route takes and gives up costs it `abandon_weight`.
+  Missing unlocks keep their earlier prerequisites; known rewards avoid repeating unlocks.
+  A spell proves a prerequisite only when one eligible quest grants it on completion. Shared
+  rewards need recorded quest history. Moonglade teaches its teleport on acceptance, so its
+  turn-in still gates the next quest. Group knowledge requires every eligible member; explicit
+  must-have quests still need completion.
+- **Class quests** giving a pet or a form (`overrides/class_quests.toml`, by requirement name) add
+  levels of power too (a 1.4 times faster fight is 3.2 levels), and count like an upgrade when
+  choosing quests; the quests of the requirement give it (Piercing the Veil, the undead's Imp, like
+  Vile Familiars).
 - The data (item stats, quest rewards, boss loot, trainer spells, base stats by level) comes from
-  VMaNGOS (Classic, Forever). Without it (TBC), power is the level and training follows
-  `train_every`.
+  VMaNGOS (Classic, Forever). TBC uses level-based combat power and `train_every` for
+  combat training; `overrides/tbc/movement.toml` supplies missing movement trainer levels
+  from CMaNGOS without changing the bundled database.
 
 Some content is set apart: a quest filed under a dungeon, or whose mobs, objects, giver or turn-in
 live only inside one, is done in a run of that dungeon (with dungeons on); in the guide, the run
@@ -177,6 +241,7 @@ stays the real one.
 | Loot left behind with full bags: `bag_weight` per item | 20 s | The bags hold few slots at first, more as bags get bigger (`bag_slots`: the backpack's 16 at level 1, four bags of 6 to 14 slots up to 72 at 60), less what is always carried (4 slots), the class's own (a hunter's quiver and a warlock's soul pouch take a bag, a shaman's totems and a rogue's poisons a few slots) and `gather_share` (10%) for each gathering profession; a kill's loot takes `loot_per_kill` (0.35) slots and each quest item one until its turn-in. Loot that no longer fits is money and time lost: routes by vendors, where it is sold once the bags are half full (`sell_radius`), keep room without any visit forced. |
 | Changing zone: `zone_change_weight` per change | 240 s | Finding one's way and the NPCs of another zone: a few quests far away are not worth a detour. |
 | Quest taken and given up: `abandon_weight` each | 600 s | Taking a quest, killing for one of its objectives and dropping it hours later is grinding in disguise. Finishing it or leaving it out wins unless keeping it saves more than ten minutes. |
+| Class unlock kept below the guide's levels: `unlock_delay_weight` per level gained before its turn-in | 300 s | A character that lacks a spell whose quests are gray (a late start, a recorded character) still gets it, and soon: such a quest gives little XP, so nothing else would bring it forward. |
 | Profession quest left out: `profession_quest_weight` each | 300 s | Only with professions leveled, for quests whose skill the curve reaches by the target level, once for a group of alternatives: Camping 101 at a trainer the route passes by is planned even when gray and worth no XP, without a long detour for it. |
 | Time outside the preferred zones: `preferred_zone_weight` × its time | 0.5 | Only with preferred zones: the guide stays in them unless leaving saves a lot. |
 | Missing goal: `mandatory_penalty` each | 7200 s | A required class quest left out or a forced dungeon not run: kept in the route unless impossible. |
@@ -307,3 +372,27 @@ The planner is one crate among a few, each with one job:
 - `fg-web` and `app/src-tauri` are the two `Host`s: the browser build (WebAssembly) and the
   desktop app. They add what only they can do (settings, the game folder, the contribution
   server for the desktop app; the files of the page for the browser).
+
+## 6. How the tests get their data
+
+A test never reads the game's databases. It names the small world it needs, in files
+(`crates/fg-route/tests/fixtures/*.toml`), and `fg_route::fixture::Fixture` builds a database of the
+game's own shape from them: quests, NPCs, objects, items and their drops, vendors, dungeons, and
+any row of any table (`[[row]]`). The format is at the top of `model/fixture.rs`.
+
+```rust
+let conn = Fixture::new(Edition::Classic).file("classic_druid").file("classic_services").open();
+```
+
+- The database starts from `base-<edition>.sqlite.zst`: the real schema, the game's constants
+  (classes, races, zones, factions, class spells, the maps and the flight network) and the races'
+  start NPCs. `scripts/test-base.sh` makes it from the databases; the files declare the rest.
+- A walk needs the ground: a `[[terrain]]` region copies the tiles of a map from
+  `terrain-<edition>.sqlite.zst` (`scripts/test-terrain.sh`, the regions are listed in
+  `terrain-regions.txt`). `tile_x` follows the world's y and `tile_y` its x.
+- A fixture is built once per process and copied for each call. `FG_TRACE=1` prints the statements
+  a test runs, `FG_SLOW=5` those taking 5 ms or more.
+- A test of what the planner does with a quest declares that quest. Three tests read the real
+  databases and are slow on purpose, because what they check is the data or a whole continent: the
+  example guide the apps ship, opened in every view (`fg-web`) and replayed in the editor
+  (`edit.rs`), and the walks between the south and the north of the Eastern Kingdoms (`routes.rs`).

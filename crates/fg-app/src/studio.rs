@@ -7,11 +7,39 @@ use fg_route::sync::LockExt;
 use fg_route::terrain::Walks;
 use fg_route::xp::Edition;
 use rusqlite::Connection;
-use serde::Serialize;
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
 type Result<T> = std::result::Result<T, CmdError>;
+
+/// A problem the player reports, as the report form gives it.
+#[derive(Deserialize)]
+pub struct IssueDraft {
+    /// `guide` or `other`.
+    pub kind: String,
+    pub message: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    /// The app's language.
+    pub language: String,
+    #[serde(default)]
+    pub guide: Option<IssueGuide>,
+    /// Join how the game and the addon are set up (the desktop app's `setup_report`).
+    #[serde(default)]
+    pub setup: bool,
+}
+
+/// The guide a report is about.
+#[derive(Deserialize)]
+pub struct IssueGuide {
+    pub guide: GuideId,
+    pub version: u32,
+    /// Indices of the steps pointed at.
+    #[serde(default)]
+    pub steps: Vec<usize>,
+    /// Language the steps were shown in.
+    pub locale: String,
+}
 
 /// The guide open in the editor.
 struct EditSession {
@@ -45,11 +73,17 @@ pub struct Studio {
     editor: Mutex<Option<EditSession>>,
     /// The last guide version replayed to be watched: opened again at once.
     timeline: Mutex<Option<(TimelineKey, job::Timeline)>>,
-    /// Names of the game in each language read so far, to write guides in it.
-    names: Mutex<HashMap<(Edition, String), Arc<Names>>>,
-    /// Walking memory of each edition (paths around the terrain already searched), kept between
-    /// generations: filled at the first one with the memories saved with the guides.
-    walks: Mutex<HashMap<Edition, Arc<Walks>>>,
+    /// Walking memory of each edition (`Edition::ALL`: paths around the terrain already
+    /// searched), kept between generations: filled at the first one with the memories saved with
+    /// the guides.
+    walks: [std::sync::OnceLock<Arc<Walks>>; Edition::ALL.len()],
+}
+
+/// The place of an edition in `Edition::ALL`.
+fn edition_index(edition: Edition) -> usize {
+    (Edition::ALL.iter())
+        .position(|&e| e == edition)
+        .expect("an edition of Edition::ALL")
 }
 
 /// Version of the quest data imported in a database.
@@ -89,7 +123,154 @@ pub fn request_edition<H: Host>(host: &H, request: &PlanRequest) -> Edition {
     request.params.as_ref().map_or_else(|| host.edition(), |p| p.edition)
 }
 
+/// `text` with the name of each player (with its realm or not) replaced by its alias.
+fn hide_players(players: &[(String, String)], text: &str) -> String {
+    let mut out = text.to_owned();
+    for (name, alias) in players {
+        out = out.replace(name.as_str(), alias);
+        let short = name.split('-').next().unwrap_or(name);
+        if short.is_empty() || short == name {
+            continue;
+        }
+        let word = |c: char| c.is_alphanumeric() || c == '_';
+        let mut rest = out.as_str();
+        let mut replaced = String::with_capacity(out.len());
+        while let Some(at) = rest.find(short) {
+            let (before, after) = (&rest[..at], &rest[at + short.len()..]);
+            let alone = !before.chars().next_back().is_some_and(word) && !after.chars().next().is_some_and(word);
+            replaced.push_str(before);
+            replaced.push_str(if alone { alias } else { short });
+            rest = after;
+        }
+        replaced.push_str(rest);
+        out = replaced;
+    }
+    out
+}
+
+/// Every string of `value` through [`hide_players`].
+fn hide_players_in(players: &[(String, String)], value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::String(text) => *text = hide_players(players, text),
+        serde_json::Value::Array(items) => items.iter_mut().for_each(|v| hide_players_in(players, v)),
+        serde_json::Value::Object(map) => map.values_mut().for_each(|v| hide_players_in(players, v)),
+        _ => {}
+    }
+}
+
 impl Studio {
+    // Reports -------------------------------------------------------------------------
+
+    /// What a report says of a guide: everything it was computed from, so that it is computed
+    /// again exactly (all its settings, seed included), without the character's name.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`] when the guide cannot be read or a step does not exist.
+    pub fn guide_report<H: Host>(&self, host: &H, g: &IssueGuide) -> Result<(Edition, fg_contrib::issue::GuideReport)> {
+        let v = library(host, host.edition()).version(&g.guide, g.version)?;
+        let mut request = v.request;
+        let edition = request.params.as_ref().map_or_else(|| host.edition(), |p| p.edition);
+        if request.params.is_none() {
+            request.params = Some(host.overrides(edition)?.params.clone());
+        }
+        request.name = None;
+        // The players of a group, in order: "Player 1", "Player 2"... instead of their names, in
+        // the request, the plan and the texts of the steps.
+        let players: Vec<(String, String)> = (request.start.iter().chain(&request.mates))
+            .enumerate()
+            .filter(|(_, m)| !m.name.is_empty())
+            .map(|(k, m)| (m.name.clone(), format!("Player {}", k + 1)))
+            .collect();
+        let has_start = request.start.is_some();
+        if let Some(start) = &mut request.start {
+            start.name.clear();
+        }
+        for (k, mate) in request.mates.iter_mut().enumerate() {
+            mate.name = format!("Player {}", k + 1 + usize::from(has_start));
+        }
+        let route = self.render(host, host.edition(), &v.outcome.route, Some(&g.locale))?;
+        let mut steps = Vec::new();
+        for &i in &g.steps {
+            let step = serde_json::to_value(route.steps.get(i).ok_or("no such step")?).map_err(|e| e.to_string())?;
+            let map = &step["map"];
+            steps.push(fg_contrib::issue::ReportedStep {
+                index: i as u32,
+                kind: step["kind"].as_str().unwrap_or_default().to_owned(),
+                quest: step["quest"].as_u64().map(|q| q as u32),
+                objective: step["objective"].as_u64().map(|o| o as u32),
+                text: hide_players(&players, step["text"].as_str().unwrap_or_default())
+                    .chars()
+                    .take(500)
+                    .collect(),
+                zone: step["zone"].as_str().map(str::to_owned),
+                level: step["level"].as_u64().unwrap_or_default() as u32,
+                map: map["ui_map"]
+                    .as_u64()
+                    .zip(map["x"].as_f64().zip(map["y"].as_f64()))
+                    .map(|(m, (x, y))| (m as u32, x, y)),
+            });
+        }
+        Ok((
+            edition,
+            fg_contrib::issue::GuideReport {
+                request: serde_json::to_value(&request).map_err(|e| e.to_string())?,
+                plan: {
+                    let mut plan = serde_json::to_value(&v.outcome.plan).map_err(|e| e.to_string())?;
+                    hide_players_in(&players, &mut plan);
+                    plan
+                },
+                data: v.meta.data,
+                version: g.version,
+                edited: v.meta.edited,
+                imported: v.meta.imported,
+                total_time: v.meta.total_time,
+                steps,
+            },
+        ))
+    }
+
+    /// The report document of a draft, checked as the server will: `contributor`, `os` and
+    /// `app_version` are the app's, `setup` the install state the player agreed to join.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`] when the guide cannot be read or the report is not valid.
+    pub fn issue<H: Host>(
+        &self,
+        host: &H,
+        draft: IssueDraft,
+        app: (&str, &str, String),
+        setup: Option<fg_contrib::issue::Setup>,
+    ) -> Result<fg_contrib::issue::Issue> {
+        let (app_version, os, contributor) = app;
+        let (edition, guide) = match &draft.guide {
+            Some(g) => {
+                let (e, report) = self.guide_report(host, g)?;
+                (e, Some(report))
+            }
+            None => (host.edition(), None),
+        };
+        let now = host.now()?;
+        let issue = fg_contrib::issue::Issue {
+            format: fg_contrib::issue::FORMAT.into(),
+            version: fg_contrib::issue::VERSION,
+            edition: edition.key().into(),
+            app_version: app_version.into(),
+            contributor,
+            day: (now / 86_400) as u32,
+            os: os.into(),
+            language: draft.language,
+            kind: draft.kind,
+            message: draft.message.trim().to_owned(),
+            name: draft.name.map(|n| n.trim().to_owned()).filter(|n| !n.is_empty()),
+            guide,
+            setup,
+        };
+        fg_contrib::issue::validate(&issue, now).map_err(|e| e.to_string())?;
+        Ok(issue)
+    }
+
     // Planning ------------------------------------------------------------------------
 
     /// Plans a guide, streaming progress through the host, and saves it as a new version of the
@@ -105,9 +286,25 @@ impl Studio {
         let conn = host.open_db(edition)?;
         let overrides = host.overrides(edition)?;
         let walks = self.walks(host, edition);
-        let progress = |line: &str| host.progress(line);
-        let outcome = job::plan_interruptible(&conn, &overrides, request, &progress, &self.interrupt, Some(&walks))?;
-        Ok(library(host, edition).add_version(request, &outcome, data_version(&conn), Origin::COMPUTED, now()?)?)
+        let progress = |event: &job::JobEvent<'_>| host.event(event);
+        let outcome = job::plan_interruptible(
+            &conn,
+            &overrides,
+            request,
+            &progress,
+            &self.interrupt,
+            Some(&walks),
+            host.diagnostics(),
+        )?;
+        Ok(
+            library(host, edition).add_version(
+                request,
+                &outcome,
+                data_version(&conn),
+                Origin::COMPUTED,
+                host.now()?,
+            )?,
+        )
     }
 
     /// The starts the character can choose from before the guide is computed. Fewer than two:
@@ -121,14 +318,15 @@ impl Studio {
         let edition = request_edition(host, request);
         let conn = host.open_db(edition)?;
         let walks = self.walks(host, edition);
-        let progress = |line: &str| host.progress(line);
+        let progress = |event: &job::JobEvent<'_>| host.event(event);
         Ok(job::preview_starts(
             &conn,
-            &host.overrides(edition)?,
+            &*host.overrides(edition)?,
             request,
             &progress,
             &self.interrupt,
             Some(&walks),
+            host.diagnostics(),
         )?)
     }
 
@@ -142,8 +340,8 @@ impl Studio {
         let edition = request_edition(host, request);
         let conn = host.open_db(edition)?;
         let walks = self.walks(host, edition);
-        let outcome = job::manual(&conn, &host.overrides(edition)?, request, Some(&walks))?;
-        Ok(library(host, edition).add_version(request, &outcome, data_version(&conn), Origin::EDITED, now()?)?)
+        let outcome = job::manual(&conn, &*host.overrides(edition)?, request, Some(&walks))?;
+        Ok(library(host, edition).add_version(request, &outcome, data_version(&conn), Origin::EDITED, host.now()?)?)
     }
 
     /// A guide made from the RestedXP guides of the player's RXPGuides addon (`texts`, its guide
@@ -157,13 +355,13 @@ impl Studio {
         let edition = host.edition();
         let conn = host.open_db(edition)?;
         let walks = self.walks(host, edition);
-        let imported = job::import_rxp(&conn, &host.overrides(edition)?, texts, what, Some(&walks))?;
+        let imported = job::import_rxp(&conn, &*host.overrides(edition)?, texts, what, Some(&walks))?;
         Ok(library(host, edition).add_version(
             &imported.request,
             &imported.outcome,
             data_version(&conn),
             IMPORTED_EDITED,
-            now()?,
+            host.now()?,
         )?)
     }
 
@@ -183,13 +381,13 @@ impl Studio {
         let edition = Edition::Forever;
         let conn = host.open_db(edition)?;
         let walks = self.walks(host, edition);
-        let imported = job::import_polestar(&conn, &host.overrides(edition)?, dir, what, Some(&walks))?;
+        let imported = job::import_polestar(&conn, &*host.overrides(edition)?, dir, what, Some(&walks))?;
         Ok(library(host, edition).add_version(
             &imported.request,
             &imported.outcome,
             data_version(&conn),
             IMPORTED_EDITED,
-            now()?,
+            host.now()?,
         )?)
     }
 
@@ -211,15 +409,16 @@ impl Studio {
         let walks = self.walks(host, edition);
         let mut outcome = job::plan_interruptible(
             &conn,
-            &host.overrides(edition)?,
+            &*host.overrides(edition)?,
             request,
             &|_| {},
             &job::Interrupt::default(),
             Some(&walks),
+            host.diagnostics(),
         )?;
         outcome.route.replan = Some(replan);
         let library = library(host, edition);
-        let meta = library.add_version(request, &outcome, data_version(&conn), Origin::COMPUTED, now()?)?;
+        let meta = library.add_version(request, &outcome, data_version(&conn), Origin::COMPUTED, host.now()?)?;
         let id = GuideId::from_name(&meta.name);
         if library.info(&id)?.installed.is_some() {
             library.set_installed(&id, None)?;
@@ -237,8 +436,8 @@ impl Studio {
         })
     }
 
-    /// The flight paths a character probably knows from the quests it did in their towns, besides
-    /// those its addon recorded.
+    /// The flight paths a character probably knows, besides those its addon recorded: its race's
+    /// from the start, and those of the towns it did quests in.
     ///
     /// # Errors
     ///
@@ -246,7 +445,35 @@ impl Studio {
     pub fn inferred_flights<H: Host>(&self, host: &H, start: &StartState) -> Result<Vec<i64>> {
         let conn = host.open_db(host.edition())?;
         let side = start.faction.ok_or("unknown faction")?;
-        Ok(job::inferred_flights(&conn, side, &start.completed)?)
+        let mut found = job::inferred_flights(&conn, side, &start.completed)?;
+        found.extend(host.overrides(host.edition())?.start_flights(start.race));
+        found.sort_unstable();
+        found.dedup();
+        Ok(found)
+    }
+
+    /// Quests to choose as must-have ones for a race and class, by ID or name (`job::quest_choices`).
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: the game data or the configuration could not be read.
+    pub fn quest_choices<H: Host>(
+        &self,
+        host: &H,
+        race: &str,
+        class: &str,
+        query: &str,
+        locale: Option<&str>,
+    ) -> Result<Vec<job::QuestChoice>> {
+        let conn = host.open_db(host.edition())?;
+        Ok(job::quest_choices(
+            &conn,
+            &*host.overrides(host.edition())?,
+            race,
+            class,
+            query,
+            locale,
+        )?)
     }
 
     /// Ends the optimization under way now: `plan_route` saves and returns the best guide so far.
@@ -264,14 +491,18 @@ impl Studio {
     /// The walking memory of an edition: the first time, the memories of all its guides (each
     /// version's outcome holds the paths it searched).
     pub fn walks<H: Host>(&self, host: &H, edition: Edition) -> Arc<Walks> {
-        if let Some(w) = self.walks.locked().get(&edition) {
-            return Arc::clone(w);
-        }
-        let walks = Arc::new(Walks::default());
-        for memory in library(host, edition).walk_memories() {
-            walks.add(memory);
-        }
-        Arc::clone(self.walks.locked().entry(edition).or_insert(walks))
+        Arc::clone(self.walks[edition_index(edition)].get_or_init(|| {
+            let walks = Arc::new(Walks::default());
+            for memory in library(host, edition).walk_memories() {
+                walks.add(memory);
+            }
+            walks
+        }))
+    }
+
+    /// The walking memory of an edition if a generation filled it already.
+    fn kept_walks(&self, edition: Edition) -> Option<&Arc<Walks>> {
+        self.walks[edition_index(edition)].get()
     }
 
     /// Names of an edition in a game language, read once.
@@ -280,13 +511,7 @@ impl Studio {
     ///
     /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn names<H: Host>(&self, host: &H, edition: Edition, locale: &str) -> Result<Arc<Names>> {
-        let key = (edition, locale.to_owned());
-        if let Some(n) = self.names.locked().get(&key) {
-            return Ok(n.clone());
-        }
-        let names = Arc::new(Names::load(&host.open_db(edition)?, locale)?);
-        self.names.locked().insert(key, names.clone());
-        Ok(names)
+        Ok(Names::kept(&host.open_db(edition)?, locale)?)
     }
 
     /// A guide written in `locale` (None: the language it was made in).
@@ -300,6 +525,51 @@ impl Studio {
     }
 
     // Guides --------------------------------------------------------------------------
+
+    /// What the player pastes in game with `/fg import`: version `n` of a guide of the edition
+    /// the app is set to (the addon adds it to the guides it has, or replaces the one of its name).
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`] when the guide, the game data or the corrections cannot be read.
+    pub fn guide_text<H: Host>(&self, host: &H, guide: &GuideId, n: u32) -> Result<String> {
+        use fg_route::export::fgstring;
+        // Read once: the library, the names and the database of the same game version.
+        let edition = host.edition();
+        let v = library(host, edition).version(guide, n)?;
+        let route = self.render(host, edition, &v.outcome.route, None)?;
+        let lua = job::guides_lua(
+            &host.open_db(edition)?,
+            &*host.overrides(edition)?,
+            edition,
+            vec![(route, v.meta.created, n)],
+        )?;
+        Ok(fgstring::encode(fgstring::GUIDE_PREFIX, lua.as_bytes()))
+    }
+
+    /// What the player pastes on Polestar's Import page (`/polestar import`): version `n` of a
+    /// guide, in the game's language. Polestar exists on WoW Forever only.
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`] off WoW Forever, or when the guide or the game data cannot be read.
+    pub fn polestar_string<H: Host>(
+        &self,
+        host: &H,
+        guide: &GuideId,
+        n: u32,
+    ) -> Result<fg_route::export::polestar::ImportString> {
+        if host.edition() != Edition::Forever {
+            return Err(CmdError::App("Polestar is for WoW Forever only".into()));
+        }
+        let version = library(host, Edition::Forever).version(guide, n)?;
+        let route = self.render(host, Edition::Forever, &version.outcome.route, None)?;
+        Ok(fg_route::export::polestar::import_string(
+            &job::slug(&route.name),
+            &route,
+            n,
+        ))
+    }
 
     /// Every guide of an edition in the version its page says to follow (the latest unless one is
     /// chosen), written in the language it was made in, with when that version was computed and
@@ -369,7 +639,7 @@ impl Studio {
         let shared = SharedGuide::parse(content)?;
         let edition = host.edition();
         // Its walking memory joins the app's (when made on the same terrain data).
-        if let (Some(memory), Some(walks)) = (&shared.outcome.walks, self.walks.locked().get(&edition)) {
+        if let (Some(memory), Some(walks)) = (&shared.outcome.walks, self.kept_walks(edition)) {
             walks.add(memory.clone());
         }
         Ok(library(host, edition).add_version(
@@ -377,7 +647,7 @@ impl Studio {
             &shared.outcome,
             shared.data(),
             Origin::IMPORTED,
-            now()?,
+            host.now()?,
         )?)
     }
 
@@ -404,7 +674,7 @@ impl Studio {
         }
         let conn = host.open_db(edition)?;
         let walks = self.walks(host, edition);
-        let editor = job::Editor::open(&conn, &host.overrides(edition)?, &v.request, Some(&walks))?;
+        let editor = job::Editor::open(&conn, &*host.overrides(edition)?, &v.request, Some(&walks))?;
         let timeline = editor.timeline(&v.outcome, &*self.names(host, edition, locale)?);
         *self.timeline.locked() = Some((key, timeline.clone()));
         Ok(timeline)
@@ -420,7 +690,7 @@ impl Studio {
         let edition = request_edition(host, &v.request);
         let conn = host.open_db(edition)?;
         let walks = self.walks(host, edition);
-        let editor = job::Editor::open(&conn, &host.overrides(edition)?, &v.request, Some(&walks))?;
+        let editor = job::Editor::open(&conn, &*host.overrides(edition)?, &v.request, Some(&walks))?;
         let names = self.names(host, edition, locale)?;
         let (steps, rebuilt) = editor.steps(&v.outcome);
         let request = self.edit_requests.next();
@@ -488,7 +758,8 @@ impl Studio {
         let open = session.as_ref().ok_or(CmdError::NoEditor)?;
         let outcome = open.editor.save(steps, open.notes.clone())?;
         let data = data_version(&host.open_db(open.edition)?);
-        let meta = library(host, open.edition).add_version(&open.request, &outcome, data, Origin::EDITED, now()?)?;
+        let meta =
+            library(host, open.edition).add_version(&open.request, &outcome, data, Origin::EDITED, host.now()?)?;
         *session = None;
         Ok(meta)
     }
@@ -496,5 +767,36 @@ impl Studio {
     /// Leaves the editor without saving.
     pub fn edit_close(&self) {
         *self.editor.locked() = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn players() -> Vec<(String, String)> {
+        vec![
+            ("Mage-TestRealm".into(), "Player 1".into()),
+            ("Bob-TestRealm".into(), "Player 2".into()),
+        ]
+    }
+
+    #[test]
+    fn a_report_names_the_players_by_their_order() {
+        let text = hide_players(
+            &players(),
+            "Bob-TestRealm hands it to Mage, and to Bobcat's friend Bob.",
+        );
+        assert_eq!(text, "Player 2 hands it to Player 1, and to Bobcat's friend Player 2.");
+    }
+
+    #[test]
+    fn the_names_are_hidden_everywhere_in_a_document() {
+        let mut plan = serde_json::json!({"players": [{"name": "Mage-TestRealm"}], "notes": ["for Bob"]});
+        hide_players_in(&players(), &mut plan);
+        assert_eq!(
+            plan.to_string(),
+            r#"{"notes":["for Player 2"],"players":[{"name":"Player 1"}]}"#
+        );
     }
 }

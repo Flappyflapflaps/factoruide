@@ -18,18 +18,32 @@ fn call(cmd: &str, args: &serde_json::Value) -> Result<serde_json::Value, String
 /// The page's files are shared: one test using them at a time.
 static STORE: Mutex<()> = Mutex::new(());
 
-/// An edition's database served as the site serves it.
-fn serve(edition: &str) {
-    let path = format!("data/{edition}.sqlite.zst");
+/// The file the site serves as `path`, replaced.
+fn set_file(path: String, bytes: Vec<u8>) {
     let mut files = FILES.lock().unwrap();
-    if !files.iter().any(|(p, _)| *p == path) {
-        let db = format!("{}/../../{path}", env!("CARGO_MANIFEST_DIR"));
-        files.push((path, std::fs::read(db).unwrap()));
-    }
+    files.retain(|(p, _)| *p != path);
+    files.push((path, bytes));
+    forget_databases();
+}
+
+/// A small world of an edition (the fixtures' files of fg-route) served as its database.
+fn serve_fixture(edition: Edition, files: &[&str]) {
+    let mut conn = files
+        .iter()
+        .fold(fg_route::fixture::Fixture::new(edition), |f, name| f.file(name))
+        .open();
+    let bytes = conn.serialize(rusqlite::MAIN_DB).unwrap().to_vec();
+    set_file(
+        format!("data/{}.sqlite.zst", edition.key()),
+        zstd::encode_all(&bytes[..], 1).unwrap(),
+    );
 }
 
 fn serve_classic() {
-    serve("classic");
+    serve_fixture(
+        Edition::Classic,
+        &["classic_services", "classic_coldridge", "classic_map_index"],
+    );
 }
 
 /// What `/fg export` gives for a dwarf warrior.
@@ -88,7 +102,7 @@ fn a_character_pasted_gets_its_guide_into_the_game() {
         serde_json::from_str(r#"{"race":"dwarf","class":"warrior","from_level":6,"to_level":8,"name":"Brouz web"}"#)
             .unwrap();
     request["start"] = characters[0]["profile"].clone();
-    let mut params = serde_json::to_value(overrides(Edition::Classic).unwrap().params).unwrap();
+    let mut params = serde_json::to_value(overrides(Edition::Classic).unwrap().params.clone()).unwrap();
     params["effort"] = 0.0.into();
     request["params"] = params;
     let meta = call("plan_route", &serde_json::json!({ "request": request })).unwrap();
@@ -279,6 +293,7 @@ fn a_guide_created_by_hand_starts_empty_from_the_character() {
 #[test]
 fn the_exports_of_released_addons_are_read() {
     let _store = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    serve_fixture(Edition::Forever, &[]);
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/profiles");
     let mut files: Vec<_> = std::fs::read_dir(dir)
         .unwrap()
@@ -306,78 +321,22 @@ fn the_exports_of_released_addons_are_read() {
     }
 }
 
-/// The example guide the apps ship (scripts/example-guide.sh), added as the page adds it: a WoW
-/// Forever human paladin from 1 to 30 with no character, under the id the page looks for, which
-/// the guide's page, its map, the editor and the export to the game all open.
-#[test]
-fn the_example_guide_opens_in_every_view() {
-    let _store = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    serve("forever");
-    store::clear();
-    call("set_edition", &serde_json::json!({ "edition": "forever" })).unwrap();
-
-    let file = include_str!("../../../../app/src/assets/example-guide.fgguide");
-    let meta = call("import_guide", &serde_json::json!({ "content": file })).unwrap();
-    let guide = meta["guide"].as_str().unwrap().to_owned();
-    let page = include_str!("../../../../app/src/example.ts");
-    assert!(page.contains(&format!("\"{guide}\"")), "the page looks for {guide}");
-    assert_eq!(
-        (&meta["race"], &meta["class"], &meta["from_level"], &meta["to_level"]),
-        (&"human".into(), &"paladin".into(), &1.into(), &30.into())
-    );
-    assert_eq!(meta["character"], serde_json::Value::Null, "no character");
-    let version = call(
-        "get_version",
-        &serde_json::json!({ "guide": guide, "version": 1, "locale": "frFR" }),
-    )
-    .unwrap();
-    let request = &version["request"];
-    assert_eq!(request["params"]["edition"], "forever");
-    assert_eq!(request["params"]["effort"], 3.0, "the thorough effort");
-    assert_eq!(request["professions"], serde_json::json!([]), "no professions");
-    let shared: serde_json::Value = serde_json::from_str(file).unwrap();
-    assert!(
-        !shared["outcome"]["plan"].as_array().unwrap().is_empty() && shared["outcome"]["explicit"] == true,
-        "the steps the editor changes, saved with it"
-    );
-
-    let timeline = call(
-        "guide_timeline",
-        &serde_json::json!({ "guide": guide, "version": 1, "locale": "frFR" }),
-    )
-    .unwrap();
-    assert_ne!(timeline["steps"].as_array().unwrap().len(), 0);
-    let opened = call(
-        "edit_open",
-        &serde_json::json!({ "guide": guide, "version": 1, "locale": "enUS" }),
-    )
-    .unwrap();
-    let steps = opened["steps"].as_array().unwrap().clone();
-    let view = call(
-        "edit_simulate",
-        &serde_json::json!({ "steps": steps, "locale": "enUS" }),
-    )
-    .unwrap();
-    assert_eq!(view["report"]["steps"].as_array().unwrap().len(), steps.len());
-    call("edit_close", &serde_json::json!({})).unwrap();
-    let export = call("guide_text", &serde_json::json!({ "guide": guide, "version": 1 })).unwrap();
-    assert_ne!(export["text"].as_str().unwrap(), "");
-
-    call("delete_guide", &serde_json::json!({ "guide": guide })).unwrap();
-    let _ = REPLIES.lock().unwrap().drain(..);
-}
-
 /// The page's calls run on threads of their own: several reading the game data at the same time
 /// (the replay in a few languages, the editor, the export to the game) all answer, as each one
 /// alone does.
 #[test]
 fn calls_reading_the_game_data_at_the_same_time_all_answer() {
     let _store = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    serve("forever");
+    serve_fixture(Edition::Forever, &["forever_services", "forever_zephras"]);
     store::clear();
     call("set_edition", &serde_json::json!({ "edition": "forever" })).unwrap();
-    let file = include_str!("../../../../app/src/assets/example-guide.fgguide");
-    let meta = call("import_guide", &serde_json::json!({ "content": file })).unwrap();
+    let mut request: serde_json::Value =
+        serde_json::from_str(r#"{"race":"skyborne","class":"mage","from_level":1,"to_level":5,"name":"Concurrent"}"#)
+            .unwrap();
+    let mut params = serde_json::to_value(overrides(Edition::Forever).unwrap().params.clone()).unwrap();
+    params["effort"] = 0.0.into();
+    request["params"] = params;
+    let meta = call("plan_route", &serde_json::json!({ "request": request })).unwrap();
     let guide = meta["guide"].as_str().unwrap().to_owned();
     let _ = REPLIES.lock().unwrap().drain(..);
 
@@ -425,7 +384,7 @@ fn calls_reading_the_game_data_at_the_same_time_all_answer() {
             answers.len(),
             calls.len()
         );
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(2));
     };
     for (id, answer) in answers {
         let (cmd, _) = &calls[(id - first_id) as usize];

@@ -42,6 +42,8 @@ fn editor() -> Editor {
         locale: None,
         mates: vec![],
         start: None,
+        required_quests: vec![],
+        mate_professions: vec![],
     };
     Editor::open(&database_of("forever"), &overrides, &request, None).unwrap()
 }

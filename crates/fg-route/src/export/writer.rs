@@ -5,7 +5,7 @@
 use super::phrase::{Arg, Phrase};
 use super::types::{MapPointOut, Step, StepKind, Target, TargetKind};
 use crate::model::{EntityKind, Loc, Objective, Spots};
-use crate::plan::{Event, Kind, Planner, Stop, Timed};
+use crate::plan::{Event, Kind, Planner, RANKS, Stop, Timed};
 use crate::world::{MapPoint, Pos};
 use std::collections::HashSet;
 
@@ -43,7 +43,15 @@ pub(super) fn objective_phrase(o: &Objective) -> Phrase {
     let text = Arg::Text(o.text.clone());
     // Creatures acted on (healed, a spell cast on them: uses, no kills) too: talking is not it.
     let acted_on = o.loc.kind == EntityKind::Npc && o.kills <= 0.0 && o.uses > 0.0;
-    if o.dungeon.is_some() || o.loc.kind == EntityKind::Area || acted_on {
+    if o.dungeon.is_none() && o.loc.inside.is_some() {
+        // Inside a dungeon: what to get or kill there, with the number ("Deviate Hide x20").
+        let text = if n > 1 {
+            format!("{} x{n}", o.text)
+        } else {
+            o.text.clone()
+        };
+        Phrase::new("objective.text").arg("text", Arg::Text(text))
+    } else if o.dungeon_of().is_some() || o.loc.kind == EntityKind::Area || acted_on {
         Phrase::new("objective.text").arg("text", text)
     } else {
         let (key, counted) = match o.loc.kind {
@@ -69,6 +77,12 @@ impl StepWriter<'_> {
             Event::Link { first, last } => self.link(&mut step, *first, *last),
             Event::Shortcut { pass } => self.shortcut(&mut step, *pass),
             Event::LearnFlight { node } => self.learn_flight(&mut step, *node),
+            Event::Enter { dungeon } => {
+                let entrance = &self.planner.model.dungeons[*dungeon].entrance;
+                step.target = Some(Self::target(entrance));
+                self.dungeon(&mut step, *dungeon);
+                self.place(&entrance.pos, Some(entrance.zone))
+            }
             Event::Grind {
                 to_level,
                 seconds,
@@ -90,12 +104,55 @@ impl StepWriter<'_> {
             Event::DeathSkip { pos, zone } => self.death_skip(&mut step, pos, *zone),
             Event::Hearth { inn, recall } => self.hearth(&mut step, *inn, *recall),
             Event::Teleport { to } => self.teleport(&mut step, *to),
-            Event::Train { trainer, since } => self.train(&mut step, *trainer, *since, t.level),
+            Event::Train {
+                trainer,
+                since,
+                abilities,
+                ..
+            } => self.train(&mut step, *trainer, *since, t.level, *abilities),
+            Event::ProfTrain {
+                profession,
+                trainer,
+                ranks,
+                ..
+            } => self.profession_train(&mut step, *profession, *trainer, *ranks),
             Event::Sell { vendor } => self.sell(&mut step, *vendor),
-            Event::Stop { stop, loc } if !stop.is_quest() => self.visit(&mut step, *stop, loc),
-            Event::Stop { stop, loc } => self.quest_stop(&mut step, *stop, loc),
+            Event::Stop { stop, loc, .. } if !stop.is_quest() => self.visit(&mut step, *stop, loc),
+            Event::Stop { stop, loc, reward_xp } => {
+                let place = self.quest_stop(&mut step, *stop, loc);
+                if stop.kind == Kind::TurnIn {
+                    // A conservative shared estimate for older addons; current group guides use each player's award.
+                    step.reward_xp = Some(reward_xp.iter().copied().filter(|&xp| xp > 0).min().unwrap_or(0));
+                    if !self.planner.model.initial.mates.is_empty() {
+                        step.party_reward_xp = reward_xp[..=self.planner.model.initial.mates.len()].to_vec();
+                    }
+                }
+                place
+            }
         };
         Self::set_place(&mut step, place, self.planner.world);
+        // In a dungeon (entering it, or a stop inside): a zone of its own, the dungeon.
+        let dungeon = match &t.event {
+            Event::Enter { dungeon } => Some(*dungeon),
+            Event::Stop { stop, loc, .. } => match stop.kind {
+                Kind::Dungeon => Some(stop.index as usize),
+                _ => loc.inside.map(usize::from),
+            },
+            _ => None,
+        };
+        if let Some(d) = dungeon {
+            step.zone = Some(self.planner.model.dungeons[d].name.clone());
+        }
+        // Done inside a dungeon, where on its floor when known.
+        if let Event::Stop { loc, .. } = &t.event {
+            step.inside |= loc.inside.is_some();
+            let round = |v: f32| (f64::from(v) * 100.0).round() / 100.0;
+            step.floor = loc.floor.map(|f| MapPointOut {
+                ui_map: i64::from(f.ui_map),
+                x: round(f.x),
+                y: round(f.y),
+            });
+        }
         step
     }
 
@@ -139,44 +196,21 @@ impl StepWriter<'_> {
         } else {
             Phrase::new("checkpoint").arg("level", num(level))
         };
+        // At the place of `at` (its zone, map point and height) and its state (time, power,
+        // gear, party), nothing else: no walk to it, nor the places of its mobs or NPC.
         Step {
-            kind: StepKind::Grind,
-            quest: None,
-            quest_name: None,
-            alt: Vec::new(),
-            pre: Vec::new(),
-            pre_any: Vec::new(),
-            min_level: None,
-            bg: false,
-            try_buy: false,
-            buy: false,
-            inside: false,
-            held: false,
-            objective: None,
-            slot: None,
-            child: None,
-            child_name: None,
-            text: String::new(),
             say: vec![say],
-            target: None,
-            skill: None,
-            line: None,
-            mobs: Vec::new(),
-            mob_ids: Vec::new(),
-            elite: false,
-            mob_level: None,
-            reward: None,
-            reward_xp: None,
-            route_xp: None,
-            spells: Vec::new(),
+            zone: at.zone.clone(),
+            zone_id: at.zone_id,
+            map: at.map.clone(),
+            world: at.world,
+            height: at.height,
             xp: (xp > 0).then_some(xp),
-            farm: None,
-            farm_xp: None,
-            level,
+            power: at.power,
+            gear: at.gear,
+            party: at.party.clone(),
             keep: true,
-            members: None,
-            event: None,
-            ..at.clone()
+            ..Step::bare(StepKind::Grind, level, at.time)
         }
     }
 
@@ -255,6 +289,7 @@ impl StepWriter<'_> {
             alt: Vec::new(),
             pre: Vec::new(),
             pre_any: Vec::new(),
+            pre_need: None,
             min_level: None,
             bg: false,
             try_buy: false,
@@ -271,6 +306,7 @@ impl StepWriter<'_> {
             zone: None,
             zone_id: None,
             map: None,
+            floor: None,
             spots: Vec::new(),
             patrol: false,
             world: None,
@@ -284,6 +320,7 @@ impl StepWriter<'_> {
             mob_level: None,
             reward: None,
             reward_xp: None,
+            party_reward_xp: Vec::new(),
             route_xp: None,
             spells: Vec::new(),
             xp: None,
@@ -386,8 +423,6 @@ impl StepWriter<'_> {
         step.kind = StepKind::Objective;
         step.objective = Some(k);
         step.slot = Some(o.slot.unwrap_or(0));
-        step.child = o.child;
-        step.child_name.clone_from(&o.child_name);
         step.elite = o.elite;
         step.mob_level = (o.kills > 0.0 && o.mob_level > 0).then_some(o.mob_level);
         for (id, name) in o.mobs.iter().take(4) {
@@ -632,8 +667,36 @@ impl StepWriter<'_> {
         self.place(&npc.pos, Some(npc.zone))
     }
 
+    /// Profession training: learn the profession, or its next rank (`ranks`: a bit each).
+    fn profession_train(&self, step: &mut Step, profession: usize, trainer: usize, ranks: u8) -> Place {
+        let model = self.planner.model;
+        let (plan, npc) = (&model.professions[profession], &model.profession_trainers[trainer].loc);
+        step.kind = StepKind::Profession;
+        step.line = Some(crate::profession::skill_line(&plan.key));
+        let top = (RANKS.iter().enumerate()).rev().find(|(r, _)| ranks & 1 << r != 0);
+        step.skill = top.map(|(_, rank)| rank.cap);
+        step.say.push(
+            Phrase::new(if ranks & 1 != 0 {
+                "profession.learn"
+            } else {
+                "profession.rank"
+            })
+            .arg("profession", Arg::Profession(plan.key.clone(), plan.name.clone()))
+            .arg("who", Arg::Npc(npc.id, npc.name.clone())),
+        );
+        step.target = Some(Target {
+            kind: TargetKind::Npc,
+            id: npc.id,
+            name: npc.name.clone(),
+        });
+        // The players of a group guide having the profession (a bit each).
+        let everyone = ((1u16 << (1 + self.planner.profile.mates.len())) - 1) as u8;
+        step.members = (plan.members != everyone).then_some(plan.members);
+        self.place(&npc.pos, Some(npc.zone))
+    }
+
     /// Class training: the spells learned since the last visit.
-    fn train(&self, step: &mut Step, trainer: usize, since: i64, level: i64) -> Place {
+    fn train(&self, step: &mut Step, trainer: usize, since: i64, level: i64, abilities: u64) -> Place {
         let npc = &self.planner.model.trainers[trainer];
         step.kind = StepKind::Train;
         let who = Arg::Npc(npc.id, npc.name.clone());
@@ -645,7 +708,7 @@ impl StepWriter<'_> {
             .map(|p| p.new_ranks(since, level))
             .unwrap_or_default();
         step.spells = ranks.iter().map(|r| r.id).collect();
-        let spells: Vec<Arg> = ranks
+        let mut spells: Vec<Arg> = ranks
             .iter()
             .map(|r| {
                 Arg::Text(if r.rank > 0 {
@@ -655,6 +718,18 @@ impl StepWriter<'_> {
                 })
             })
             .collect();
+        for (i, ability) in self.planner.model.abilities.entries.iter().enumerate() {
+            if abilities & (1 << i) != 0 {
+                step.spells.extend(&ability.spells);
+                spells.push(Arg::Text(if let Some(rank) = ability.rank.filter(|rank| *rank > 0) {
+                    format!("{} {rank}", ability.name)
+                } else {
+                    ability.name.clone()
+                }));
+            }
+        }
+        step.spells.sort_unstable();
+        step.spells.dedup();
         step.say.push(if spells.is_empty() {
             Phrase::new("train").arg("who", who)
         } else {
@@ -750,7 +825,13 @@ impl StepWriter<'_> {
                     let o = &q.objectives[k as usize];
                     let text = o.text.strip_prefix(&prefix).unwrap_or(&o.text);
                     let n = o.count.round() as i64;
-                    Arg::Text(if n > 1 { format!("{text} x{n}") } else { text.to_owned() })
+                    let text = if n > 1 { format!("{text} x{n}") } else { text.to_owned() };
+                    // Found beside the entrance (the quarry of the Deadmines), not inside.
+                    Arg::Text(if o.loc.kind == EntityKind::Dungeon {
+                        text
+                    } else {
+                        format!("{text} (outside {}, with the group)", model.dungeons[d].name)
+                    })
                 });
                 step.say = vec![
                     Phrase::new("dungeon.quest")
@@ -790,6 +871,7 @@ impl StepWriter<'_> {
                 step.kind = StepKind::Accept;
                 step.pre.clone_from(&q.pre_all);
                 step.pre_any.clone_from(&q.pre_any);
+                step.pre_need = (q.pre_need > 1).then_some(q.pre_need);
                 step.min_level = Some(q.min_level);
                 // An item dropped by a mob: named, targeted by the addon's macro, and its other
                 // places.
@@ -831,7 +913,7 @@ impl StepWriter<'_> {
                 // At the place the route went to (one of its alternatives).
                 let o = q.objectives[k as usize].nearest(&loc.pos);
                 Self::objective(step, o, k);
-                if o.dungeon.is_none() {
+                if o.dungeon_of().is_none() {
                     step.spots = self.spots(o.spots.as_ref(), &loc.pos, loc.zone);
                     self.patrol(
                         step,
@@ -846,7 +928,6 @@ impl StepWriter<'_> {
             }
             Kind::TurnIn => {
                 step.kind = StepKind::TurnIn;
-                step.reward_xp = Some(self.planner.growth().quest_reward(q, step.level));
                 let key = if q.held.is_some() { "turnin.held" } else { "turnin" };
                 step.say.push(Phrase::new(key).arg("quest", quest).arg("who", who));
                 self.patrol(step, loc);
@@ -895,6 +976,39 @@ mod tests {
     use crate::plan::{Kind, Planner, Stop};
     use crate::world::Pos;
 
+    /// A checkpoint after the step of a patrolling NPC: at its place, without its walk nor
+    /// the places along the NPC's path (the compass would follow them).
+    #[test]
+    fn a_checkpoint_takes_the_place_of_its_step_not_its_walk_nor_its_spots() {
+        use super::StepWriter;
+        use crate::export::{MapPointOut, Step};
+        let p = quests_at_start(1);
+        let planner = Planner::new(&p.model, &p.world, &p.params, &p.profile);
+        let writer = StepWriter {
+            planner: &planner,
+            route: &[],
+            background: std::collections::HashSet::new(),
+        };
+        let point = |x| MapPointOut { ui_map: 1, x, y: 50.0 };
+        let mut at = Step::bare(StepKind::TurnIn, 5, 300.0);
+        at.zone = Some("Durotar".to_owned());
+        at.map = Some(point(40.0));
+        at.world = Some([1.0, 10.0, 20.0]);
+        at.spots = vec![point(41.0), point(45.0)];
+        at.patrol = true;
+        at.path = vec![[0.0, 0.0], [10.0, 20.0]];
+        at.party = vec![(2, 5)];
+        let step = writer.checkpoint(&at, 6, 6, 0);
+        assert_eq!(step.kind, StepKind::Grind);
+        let x = step.map.as_ref().map(|m| m.x);
+        assert_eq!(
+            (step.zone.as_deref(), x, step.world),
+            (Some("Durotar"), Some(40.0), at.world)
+        );
+        assert_eq!((step.time, step.party.as_slice()), (300.0, &[(2, 5)][..]));
+        assert!(step.spots.is_empty() && !step.patrol && step.path.is_empty());
+    }
+
     /// Gordo's case (GitHub #20): a quest given and taken back by an NPC who walks ~700 yards
     /// along a road. Its steps say he patrols and give places along his path, away from the
     /// step's own; the steps of NPCs who stand still have none.
@@ -926,7 +1040,7 @@ mod tests {
         assert!(still(&p), "walking around its post");
         let path: Vec<Pos> = (0..=7)
             .map(|k| Pos {
-                x: here.pos.x + 100.0 * f64::from(k),
+                x: here.pos.x - 300.0 + 100.0 * f64::from(k),
                 ..here.pos
             })
             .collect();

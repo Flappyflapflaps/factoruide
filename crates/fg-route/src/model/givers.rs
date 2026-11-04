@@ -3,7 +3,7 @@
 
 use super::builder::{QuestBuilder, Skip};
 use super::entities::best_cluster;
-use super::sources::{ObjectiveKind, QuestRow, Role, SourceKind};
+use super::sources::{LinkKind, ObjectiveKind, QuestRow, Role, SourceKind};
 use super::types::{EntityKind, Loc, Spots};
 
 pub(super) struct Givers {
@@ -23,6 +23,7 @@ pub(super) struct Givers {
 }
 
 /// How the item starting a quest is got.
+#[expect(clippy::large_enum_variant, reason = "one a quest, read at once")]
 enum ItemStart {
     Looted {
         at: Loc,
@@ -30,6 +31,8 @@ enum ItemStart {
         /// The mob it drops from (ID, name) and its spawns; none from an object.
         mob: Option<(i64, String)>,
         spots: Option<Spots>,
+        /// Looted during this dungeon's run.
+        dungeon: Option<usize>,
     },
     /// The reward of another quest (a tome handed by the class trainer): got from whoever turns
     /// that quest in, after it (unless it can be asked again).
@@ -55,7 +58,7 @@ impl QuestBuilder<'_> {
         let mut rare_start = false;
         let relations = self.sources.relations.get(&r.id).map(Vec::as_slice).unwrap_or_default();
         if let Some(item) = self.held_item(r.id, relations)
-            && let ItemStart::Looted { at, work, .. } = self.item_start(r.id, item)
+            && let ItemStart::Looted { at, work, .. } = self.item_start(r, item)
         {
             givers.starts.push(at);
             givers.start_work = work;
@@ -78,11 +81,17 @@ impl QuestBuilder<'_> {
             if *role != Role::Start {
                 continue;
             }
-            match self.item_start(r.id, *id) {
-                ItemStart::Looted { at, work, mob, spots } => {
+            match self.item_start(r, *id) {
+                ItemStart::Looted {
+                    at,
+                    work,
+                    mob,
+                    spots,
+                    dungeon,
+                } => {
                     givers.starts.push(at);
                     givers.start_work = work;
-                    givers.start_dungeon = mob.as_ref().and_then(|(n, _)| self.dungeon_of(EntityKind::Npc, *n));
+                    givers.start_dungeon = dungeon;
                     givers.start_mob = mob;
                     givers.start_spots = spots;
                 }
@@ -139,7 +148,8 @@ impl QuestBuilder<'_> {
 
     /// Where the item starting quest `quest` is got: objects first, then the mob dropping it
     /// best (unknown rate: see `assumed_start_chance`; looting it costs 1 / chance kills).
-    fn item_start(&self, quest: i64, item: i64) -> ItemStart {
+    fn item_start(&self, r: &QuestRow, item: i64) -> ItemStart {
+        let quest = r.id;
         let (entities, world, params) = (&self.sources.entities, self.world, self.params);
         let start = &self.sources.start;
         let sources = self.sources.item_origins.get(&item).cloned().unwrap_or_default();
@@ -148,24 +158,35 @@ impl QuestBuilder<'_> {
             .filter(|(t, _)| *t == SourceKind::Object)
             .flat_map(|(_, o)| entities.points(world, EntityKind::Object, *o))
             .collect();
-        // A boss's drop: looted during the run, with the group (the quest needs it,
-        // `add_dungeon_givers`).
+        // A boss's drop, or an object's inside (Hall of Thanes' Treaty of Understanding): looted
+        // inside, with the group: taken there.
         let boss = sources.iter().find_map(|(t, n)| {
             (*t == SourceKind::Npc).then(|| self.dungeon_of(EntityKind::Npc, *n).map(|d| (*n, d)))?
         });
+        let found_inside = sources
+            .iter()
+            .find_map(|(t, o)| (*t == SourceKind::Object).then(|| self.dungeon_of(EntityKind::Object, *o))?);
+        let in_run = |d: usize, mob: Option<(i64, String)>| ItemStart::Looted {
+            at: Loc {
+                kind: EntityKind::Item,
+                id: item,
+                name: entities.name(EntityKind::Item, item),
+                // At the boss dropping it.
+                ..match &mob {
+                    Some((npc, _)) => self.inside_at(d, EntityKind::Npc, *npc),
+                    None => self.inside(d),
+                }
+            },
+            work: (0.0, 0, 0.0),
+            mob,
+            spots: None,
+            dungeon: Some(d),
+        };
         if let Some((npc, d)) = boss {
-            let entrance = &self.sources.dungeons[d].entrance;
-            return ItemStart::Looted {
-                at: Loc {
-                    kind: EntityKind::Item,
-                    id: item,
-                    name: entities.name(EntityKind::Item, item),
-                    ..entrance.clone()
-                },
-                work: (0.0, 0, 0.0),
-                mob: Some((npc, entities.name(EntityKind::Npc, npc))),
-                spots: None,
-            };
+            return in_run(d, Some((npc, entities.name(EntityKind::Npc, npc))));
+        }
+        if let Some(d) = found_inside.filter(|_| objects.is_empty()) {
+            return in_run(d, None);
         }
         let rank = |n: &i64| entities.npc.get(n).map_or(0, |e| e.3);
         let droppers: Vec<Dropper> = sources
@@ -201,6 +222,8 @@ impl QuestBuilder<'_> {
             kind: EntityKind::Item,
             id: item,
             name: entities.name(EntityKind::Item, item),
+            inside: None,
+            floor: None,
         };
         if let Some((pos, zone, _)) = best_cluster(&objects, Some(&start.pos)) {
             return ItemStart::Looted {
@@ -208,6 +231,7 @@ impl QuestBuilder<'_> {
                 work: (0.0, 0, 1.0),
                 mob: None,
                 spots: None,
+                dungeon: None,
             };
         }
         if let Some((npc, chance)) = mobs.iter().copied().max_by(|a, b| a.1.total_cmp(&b.1)) {
@@ -218,11 +242,22 @@ impl QuestBuilder<'_> {
                     work: (1.0 / chance, entities.npc_level(npc), 0.0),
                     mob: Some((npc, entities.name(EntityKind::Npc, npc))),
                     spots: Spots::new(&points, &pos),
+                    dungeon: None,
                 },
                 None => ItemStart::Nowhere,
             };
         }
-        self.item_rewarded(quest, item)
+        match self.item_rewarded(quest, item) {
+            // Got nowhere known, for a quest filed under a dungeon: in the run (Forever's Crest
+            // of Lordaeron, from an object of Ruins of Lordaeron no source places).
+            ItemStart::Rewarded(places) if places.is_empty() => {
+                match r.sort.and_then(|s| self.sources.dungeon_by_area.get(&s).copied()) {
+                    Some(d) => in_run(d, None),
+                    None => ItemStart::Rewarded(places),
+                }
+            }
+            start => start,
+        }
     }
 
     /// Where quest `quest` is turned in (its first ender found), None when nowhere known.
@@ -235,7 +270,14 @@ impl QuestBuilder<'_> {
             .find_map(|(_, kind, id)| self.locate(*kind, *id, Some(&self.sources.start.pos)))
     }
 
+    /// Quests handing out the item are prerequisites, except one exclusive with this quest: taking
+    /// it closes this one (Another Power Source? hands the Power Source of Tanaris Field Sampling
+    /// again, for those who lost it).
     fn item_rewarded(&self, quest: i64, item: i64) -> ItemStart {
+        let closes = |giver: i64| {
+            self.links(quest, LinkKind::Exclusive).contains(&giver)
+                || self.links(giver, LinkKind::Exclusive).contains(&quest)
+        };
         let mut places = Vec::new();
         for &giver in self
             .sources
@@ -243,14 +285,14 @@ impl QuestBuilder<'_> {
             .get(&item)
             .into_iter()
             .flatten()
-            .filter(|g| **g != quest)
+            .filter(|g| **g != quest && !closes(**g))
         {
             for (role, kind, eid) in self.sources.relations.get(&giver).into_iter().flatten() {
                 if *role == Role::End
                     && *kind != EntityKind::Item
                     && let Some(loc) = self.locate(*kind, *eid, Some(&self.sources.start.pos))
                 {
-                    let pre = (!self.sources.repeatable.contains(&giver)).then_some(giver);
+                    let pre = Some(giver);
                     places.push((loc, pre));
                 }
             }

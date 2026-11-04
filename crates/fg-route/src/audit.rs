@@ -75,14 +75,6 @@ pub const CHECKS: &[Check] = &[
         error: true,
     },
     Check {
-        name: "child-quests",
-        what: "quests handed in on the way to another's turn-in (its children: Distracting Jarven \
-               for Bitter Rivals) that the guide cannot place where they end: the parent is \
-               planned without them and its turn-in may be impossible. Give the place in the \
-               quest data",
-        error: true,
-    },
-    Check {
         name: "starter-drops",
         what: "quests started by an item dropped by creatures with no drop chance known: the \
                planner assumes 10% when one creature (or only unique ones) drops it, and a rare \
@@ -127,6 +119,23 @@ pub const CHECKS: &[Check] = &[
         error: true,
     },
     Check {
+        name: "hostile-in-cities",
+        what: "creatures hostile to both sides (no side known to like them) with several spawns in a \
+               capital city: event creatures (invasions, a festival's guests), guests of a quest \
+               or a side the data did not read. The planner counts them as guards around the \
+               quest givers there and keeps the quests from being picked up. Give the creature's \
+               side (`[[npc]] friendly_to` in the data overrides), or accept it",
+        error: false,
+    },
+    Check {
+        name: "guarded-givers",
+        what: "quests whose giver or turn-in has several hostile creatures around, ten levels or \
+               more above the quest (the planner needs the character that strong to go there). Most \
+               are camps in hostile land; one inside a town is a creature the data got wrong \
+               (see hostile-in-cities). Give the creature's side in the data overrides, or accept it",
+        error: false,
+    },
+    Check {
         name: "timed-quests",
         what: "quests of the guide whose objectives give a time (\"in ten minutes\") while the \
                data has no time limit: the planner may do other things between taking and \
@@ -151,6 +160,9 @@ pub struct Finding {
     pub detail: String,
     /// The races whose guides have it.
     pub races: Vec<String>,
+    /// Creatures the problem may come from, with the side that probably likes each (A, H or AH):
+    /// facts for the review (`fg audit --proposals`).
+    pub npcs: Vec<(i64, &'static str)>,
 }
 
 /// A finding known to be right, in `overrides/audit.toml`.
@@ -207,11 +219,6 @@ pub fn audit(
     } else {
         HashSet::new()
     };
-    let children = if on("child-quests") {
-        child_links(conn)?
-    } else {
-        Vec::new()
-    };
     let starter_drops = if on("starter-drops") {
         starter_drops(conn)?
     } else {
@@ -232,6 +239,12 @@ pub fn audit(
     } else {
         HashSet::new()
     };
+    if on("hostile-in-cities") {
+        for f in hostile_in_cities(conn)? {
+            found.insert((f.check, f.key.clone()), f);
+        }
+    }
+    let mut hostile: Option<Vec<Hostile>> = None;
     if on("exclusive-prerequisites") {
         for f in exclusive_prerequisites(conn, &overrides.quest_overrides)? {
             found.insert((f.check, f.key.clone()), f);
@@ -256,9 +269,11 @@ pub fn audit(
             name: None,
             params: None,
             required_class_quests: None,
+            required_quests: vec![],
             professions: Vec::new(),
             locale: None,
             mates: Vec::new(),
+            mate_professions: vec![],
             start: None,
         };
         let prepared = match job::prepare(conn, overrides, &request, &|_| {}) {
@@ -297,11 +312,6 @@ pub fn audit(
                 .into_iter()
                 .for_each(&mut add);
         }
-        if on("child-quests") {
-            children_left_out(&prepared.model, &children)
-                .into_iter()
-                .for_each(&mut add);
-        }
         if on("starter-drops") {
             unknown_starter_drops(&prepared.model, &starter_drops)
                 .into_iter()
@@ -314,6 +324,14 @@ pub fn audit(
         }
         if on("dungeon-entrances") {
             dungeon_entrances(&prepared.model, &doors, &known_dungeons)
+                .into_iter()
+                .for_each(&mut add);
+        }
+        if on("guarded-givers") {
+            if hostile.is_none() {
+                hostile = Some(hostile_spawns(conn, &prepared.world)?);
+            }
+            guarded_givers(&prepared.world, &prepared.model, hostile.as_deref().unwrap_or_default())
                 .into_iter()
                 .for_each(&mut add);
         }
@@ -346,7 +364,7 @@ pub fn audit(
                 };
                 if required {
                     let own = class_quest_ids(conn, p.profile.class_id)?;
-                    class_quests_left_out(&class, &p.profile.required_class_quests, &own, &p.model)
+                    class_quests_left_out(&class, &p.profile.class_requirements, &own, &p.model)
                         .into_iter()
                         .for_each(&mut add);
                 }
@@ -359,6 +377,166 @@ pub fn audit(
         }
     }
     Ok(found.into_values().collect())
+}
+
+/// The capital cities (AreaTable): Stormwind, Orgrimmar, Ironforge, Thunder Bluff, Darnassus,
+/// Undercity, Silvermoon, the Exodar, Shattrath.
+const CITIES: [i64; 9] = [1519, 1637, 1537, 1638, 1657, 1497, 3487, 3557, 3703];
+
+/// The side whose city it is: the creatures standing in it are probably friendly to it (both for
+/// Shattrath).
+fn city_side(zone: i64) -> &'static str {
+    match zone {
+        1519 | 1537 | 1657 | 3557 => "A",
+        1637 | 1638 | 1497 | 3487 => "H",
+        _ => "AH",
+    }
+}
+
+/// Spawns of a creature in a capital city to be a finding (a lone one is a stray).
+const CITY_SPAWNS: i64 = 3;
+
+/// Creatures hostile to both sides standing in the capital cities: not critters (no level), and
+/// not those with a side known.
+fn hostile_in_cities(conn: &Connection) -> Result<Vec<Finding>> {
+    let cities = CITIES.map(|c| c.to_string()).join(",");
+    let mut stmt = conn.prepare(&format!(
+        "SELECT s.zone_id, coalesce(a.AreaName_lang, '?'), s.entity_id, coalesce(n.name, '?'),
+                coalesce(n.min_level, 0), coalesce(n.max_level, n.min_level, 0), coalesce(n.rank, 0), count(*)
+         FROM m_spawn s JOIN m_npc n ON n.id = s.entity_id
+              LEFT JOIN client_areatable a ON a.ID = s.zone_id
+         WHERE s.entity_type = 'npc' AND s.zone_id IN ({cities}) AND coalesce(n.friendly_to, '') = ''
+               AND coalesce(n.min_level, 0) > 1
+         GROUP BY s.zone_id, s.entity_id HAVING count(*) >= {CITY_SPAWNS}
+         ORDER BY count(*) DESC"
+    ))?;
+    let rows = stmt.query_map([], |r| {
+        Ok((
+            r.get::<_, String>(1)?,
+            r.get::<_, i64>(2)?,
+            r.get::<_, String>(3)?,
+            r.get::<_, i64>(4)?,
+            r.get::<_, i64>(5)?,
+            r.get::<_, i64>(6)?,
+            r.get::<_, i64>(7)?,
+            r.get::<_, i64>(0)?,
+        ))
+    })?;
+    let mut findings = Vec::new();
+    for row in rows {
+        let (city, id, name, lo, hi, rank, n, zone) = row?;
+        let levels = if lo == hi { lo.to_string() } else { format!("{lo}-{hi}") };
+        let elite = if rank == 1 || rank == 2 { " elite" } else { "" };
+        findings.push(Finding {
+            check: "hostile-in-cities",
+            key: format!("{name} ({id}) in {city}"),
+            detail: format!("{n} spawns of a level {levels}{elite} creature hostile to both sides"),
+            races: Vec::new(),
+            npcs: vec![(id, city_side(zone))],
+        });
+    }
+    Ok(findings)
+}
+
+/// A spawn of a creature hostile to both sides.
+struct Hostile {
+    id: i64,
+    name: String,
+    level: u8,
+    elite: bool,
+    pos: Pos,
+}
+
+fn hostile_spawns(conn: &Connection, world: &World) -> Result<Vec<Hostile>> {
+    let mut stmt = conn.prepare(
+        "SELECT s.zone_id, s.x, s.y, s.entity_id, coalesce(n.name, '?'), coalesce(n.min_level, 1), coalesce(n.max_level, n.min_level, 1),
+                coalesce(n.rank, 0)
+         FROM m_spawn s JOIN m_npc n ON n.id = s.entity_id
+         WHERE s.entity_type = 'npc' AND s.x >= 0 AND coalesce(n.friendly_to, '') = ''",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok((
+            r.get::<_, i64>(0)?,
+            r.get::<_, f64>(1)?,
+            r.get::<_, f64>(2)?,
+            r.get::<_, i64>(3)?,
+            r.get::<_, String>(4)?,
+            r.get::<_, i64>(5)?,
+            r.get::<_, i64>(6)?,
+            r.get::<_, i64>(7)?,
+        ))
+    })?;
+    let mut spawns = Vec::new();
+    for row in rows {
+        let (zone, x, y, id, name, lo, hi, rank) = row?;
+        if let Some(pos) = world.to_world(zone, x, y) {
+            spawns.push(Hostile {
+                id,
+                name,
+                level: lo.max(hi).clamp(1, 255) as u8,
+                elite: rank == 1 || rank == 2,
+                pos,
+            });
+        }
+    }
+    Ok(spawns)
+}
+
+/// How many levels above a quest the creatures around its giver make it a finding.
+const GUARD_GAP: i64 = 10;
+
+/// Quests whose giver or turn-in has several hostile creatures around, `GUARD_GAP` levels above
+/// the quest. One finding per place, with the creatures that guard it.
+fn guarded_givers(world: &World, model: &Model, hostile: &[Hostile]) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    for q in &model.quests {
+        let places = [
+            ("gives", &q.start_guard, &q.starts),
+            ("takes back", &q.end_guard, &q.ends),
+        ];
+        for (role, guard, locs) in places {
+            if guard.level < q.level.max(q.min_level) + GUARD_GAP {
+                continue;
+            }
+            for loc in locs.iter().filter(|l| l.kind != EntityKind::Dungeon) {
+                let near: Vec<&Hostile> = hostile
+                    .iter()
+                    .filter(|h| {
+                        h.pos.continent == loc.pos.continent
+                            && h.pos.dist(&loc.pos) <= crate::model::Guards::RADIUS
+                            && i64::from(h.level) + 2 >= guard.level
+                    })
+                    .collect();
+                if near.len() < 2 {
+                    continue;
+                }
+                let mut names: BTreeMap<(i64, &str), usize> = BTreeMap::new();
+                for h in &near {
+                    *names.entry((h.id, h.name.as_str())).or_default() += 1;
+                }
+                let mut names: Vec<((i64, &str), usize)> = names.into_iter().collect();
+                names.sort_by_key(|((id, name), n)| (std::cmp::Reverse(*n), *name, *id));
+                names.truncate(3);
+                let around: Vec<String> = names.iter().map(|((_, name), n)| format!("{name} x{n}")).collect();
+                let zone = world.zone_at(&loc.pos).map_or("?", |z| world.zone_name(z));
+                let elite = if near.iter().any(|h| h.elite) { " elite" } else { "" };
+                findings.push(Finding {
+                    check: "guarded-givers",
+                    key: format!("{} ({zone})", loc.name),
+                    detail: format!(
+                        "{} (level {}) {role} here: level {}{elite} around, {}",
+                        q.name,
+                        q.level,
+                        guard.level,
+                        around.join(", ")
+                    ),
+                    races: Vec::new(),
+                    npcs: names.iter().map(|((id, _), _)| (*id, "AH")).collect(),
+                });
+            }
+        }
+    }
+    findings
 }
 
 /// The quests of a class: filed under it or given to it only (a quest of another kind may have a
@@ -374,25 +552,46 @@ fn class_quest_ids(conn: &Connection, class_id: i64) -> Result<HashSet<i64>> {
     Ok(ids)
 }
 
-/// Required class quests of a class (by name) the model leaves out: skipped while building it,
-/// or no longer required because a prerequisite cannot be planned.
-fn class_quests_left_out(class: &str, required: &[String], own: &HashSet<i64>, model: &Model) -> Vec<Finding> {
-    let skipped = (model.skipped.iter())
-        .filter(|(id, name, why)| required.contains(name) && own.contains(id) && why != "repeatable")
-        .map(|(id, name, why)| (*id, name, why.as_str()));
-    // Of a name teaching a spell, only those leading to it are required.
-    let designated = crate::model::required_by_name(&model.quests);
-    let released = (model.quests.iter())
-        .filter(|q| required.contains(&q.name) && own.contains(&q.id) && !q.mandatory)
-        .filter(|q| designated.contains(&q.id))
-        .map(|q| (q.id, &q.name, "a prerequisite cannot be planned"));
-    skipped
-        .chain(released)
-        .map(|(id, name, why)| Finding {
-            check: "class-quests",
-            key: format!("{class} quest {id}"),
-            detail: format!("{name} ({id}): {why}"),
-            races: Vec::new(),
+/// Required class quests of a class the model leaves out: skipped while building it (no version
+/// can be planned), or no longer required because a prerequisite cannot be planned.
+fn class_quests_left_out(
+    class: &str,
+    requirements: &[crate::model::ClassRequirement],
+    own: &HashSet<i64>,
+    model: &Model,
+) -> Vec<Finding> {
+    requirements
+        .iter()
+        .filter(|requirement| requirement.selected)
+        .filter_map(|requirement| {
+            let members: Vec<i64> = requirement
+                .quests
+                .iter()
+                .copied()
+                .filter(|id| own.contains(id))
+                .collect();
+            let first = *members.first()?;
+            let done = |id: &i64| {
+                model
+                    .quests
+                    .iter()
+                    .any(|q| q.id == *id && (q.mandatory || !q.exclusive.is_empty()))
+            };
+            if members.iter().any(done) {
+                return None;
+            }
+            let skipped = model.skipped.iter().find(|(id, _, _)| members.contains(id));
+            let (id, why) = match skipped {
+                Some((id, _, why)) => (*id, why.as_str()),
+                None => (first, "a prerequisite cannot be planned"),
+            };
+            Some(Finding {
+                check: "class-quests",
+                key: format!("{class} quest {id}"),
+                detail: format!("{} ({id}): {why}", requirement.name),
+                races: Vec::new(),
+                npcs: Vec::new(),
+            })
         })
         .collect()
 }
@@ -430,6 +629,7 @@ fn other_class_quests(class: &str, model: &Model, trainer_quests: &HashMap<i64, 
                     classes.join("/")
                 ),
                 races: Vec::new(),
+                npcs: Vec::new(),
             })
         })
         .collect()
@@ -480,7 +680,7 @@ fn out_of_reach(
             .chain(
                 q.objectives
                     .iter()
-                    .filter(|o| o.dungeon.is_none())
+                    .filter(|o| o.dungeon_of().is_none())
                     .map(|o| (o.text.clone(), &o.loc)),
             );
         for (what, loc) in places {
@@ -546,6 +746,7 @@ fn out_of_reach(
                     s.what
                 ),
                 races: Vec::new(),
+                npcs: Vec::new(),
             }
         })
         .collect()
@@ -573,7 +774,7 @@ fn ambiguous_floors(world: &World, model: &Model) -> Vec<Finding> {
             .chain(q.ends.iter().map(|l| ("ends at", l)))
             .chain(
                 (q.objectives.iter())
-                    .filter(|o| o.dungeon.is_none())
+                    .filter(|o| o.dungeon_of().is_none())
                     .flat_map(|o| std::iter::once(&o.loc).chain(o.alts.iter().map(|a| &a.loc)))
                     .map(|l| ("objective at", l)),
             );
@@ -609,6 +810,7 @@ fn ambiguous_floors(world: &World, model: &Model) -> Vec<Finding> {
                     on.map_or("none".to_owned(), |h| h.to_string())
                 ),
                 races: Vec::new(),
+                npcs: Vec::new(),
             });
         }
     }
@@ -760,7 +962,7 @@ fn uncovered_source_items(model: &Model, source_items: &HashMap<i64, SourceItems
         let Some(needs) = source_items.get(&q.id) else {
             continue;
         };
-        if needs.assembled || q.objectives.iter().any(|o| o.dungeon.is_some()) {
+        if needs.assembled || q.objectives.iter().any(|o| o.dungeon_of().is_some()) {
             continue;
         }
         for (item, name, found) in &needs.items {
@@ -777,6 +979,7 @@ fn uncovered_source_items(model: &Model, source_items: &HashMap<i64, SourceItems
                 key: format!("quest {} item {item}", q.id),
                 detail: format!("{} ({}) needs {name} ({item}): no step gets it", q.name, q.id),
                 races: Vec::new(),
+                npcs: Vec::new(),
             });
         }
     }
@@ -882,6 +1085,7 @@ fn unknown_starter_drops(model: &Model, starters: &[StarterDrop]) -> Vec<Finding
                 names.join(", ")
             ),
             races: Vec::new(),
+            npcs: Vec::new(),
         });
     }
     out
@@ -928,6 +1132,7 @@ fn dungeon_entrances(model: &Model, doors: &[Door], known: &HashSet<i64>) -> Vec
                 key: format!("area {area}"),
                 detail: format!("a door is given for area {area}, which is no dungeon of the data"),
                 races: Vec::new(),
+                npcs: Vec::new(),
             });
             continue;
         }
@@ -943,6 +1148,7 @@ fn dungeon_entrances(model: &Model, doors: &[Door], known: &HashSet<i64>) -> Vec
                          which may be the {faction}'s"
                     ),
                     races: Vec::new(),
+                    npcs: Vec::new(),
                 });
             }
         }
@@ -1007,6 +1213,7 @@ fn chain_order(model: &Model, old_quests: &HashSet<i64>) -> Vec<Finding> {
                     taken_back.join(", ")
                 ),
                 races: Vec::new(),
+                npcs: Vec::new(),
             });
         }
     }
@@ -1060,43 +1267,10 @@ fn timed_quests(model: &Model, untimed: &HashMap<i64, String>) -> Vec<Finding> {
                     q.name, q.id
                 ),
                 races: Vec::new(),
+                npcs: Vec::new(),
             })
         })
         .collect()
-}
-
-/// (parent, parent's name, child, child's name) of the children the guides hand in on the way
-/// (the repeatable ones, see the model's `LinkKind::Child`).
-fn child_links(conn: &Connection) -> Result<Vec<(i64, String, i64, String)>> {
-    let mut stmt = conn.prepare(
-        "SELECT p.id, p.name, c.id, c.name FROM m_quest_link l
-         JOIN m_quest p ON p.id = l.quest_id JOIN m_quest c ON c.id = l.other_id
-         WHERE l.kind = 'child' AND coalesce(c.special_flags, 0) & 1 != 0 ORDER BY p.id, c.id",
-    )?;
-    let rows = stmt
-        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
-        .collect::<rusqlite::Result<_>>()?;
-    Ok(rows)
-}
-
-/// Planned quests one of whose children has no objective handing it in.
-fn children_left_out(model: &Model, children: &[(i64, String, i64, String)]) -> Vec<Finding> {
-    let mut out = Vec::new();
-    for (parent, parent_name, child, child_name) in children {
-        let Some(&i) = model.index.get(parent) else { continue };
-        if model.quests[i].objectives.iter().any(|o| o.child == Some(*child)) {
-            continue;
-        }
-        out.push(Finding {
-            check: "child-quests",
-            key: format!("quest {parent} child {child}"),
-            detail: format!(
-                "{parent_name} ({parent}) is planned without {child_name} ({child}): where it is handed in is unknown"
-            ),
-            races: Vec::new(),
-        });
-    }
-    out
 }
 
 /// Quests left out for something the data does not know (`unknown_in_data`) that quests of the
@@ -1130,6 +1304,7 @@ fn broken_chains(model: &Model) -> Vec<Finding> {
                 key: format!("quest {id}"),
                 detail: format!("{name} ({id}) left out: {why}; needed first by {}", by.join(", ")),
                 races: Vec::new(),
+                npcs: Vec::new(),
             }
         })
         .collect()
@@ -1171,6 +1346,7 @@ fn contradictory_prerequisites(model: &Model) -> Vec<Finding> {
             key: format!("quest {}", q.id),
             detail: format!("{} ({}) needs first {}", q.name, q.id, what.join(", ")),
             races: Vec::new(),
+            npcs: Vec::new(),
         });
     }
     out
@@ -1235,6 +1411,7 @@ fn exclusive_prerequisites(conn: &Connection, corrected: &[crate::model::QuestOv
                 key: format!("quest {quest}"),
                 detail: format!("{} ({quest}) needs first all of: {}", names[&quest], wrong.join("; ")),
                 races: Vec::new(),
+                npcs: Vec::new(),
             });
         }
     }
@@ -1254,6 +1431,46 @@ mod tests {
             let found = accepted(&dir, edition).unwrap();
             assert!(!found.is_empty(), "{edition:?}");
         }
+    }
+
+    /// Light's Justice's case: a giver with creatures ten levels above the quest around it is
+    /// found with their names; weaker ones, or too few, are not.
+    #[test]
+    fn a_giver_guarded_far_above_its_quest_is_found_with_its_guards() {
+        use crate::model::Guard;
+        let mut p = quests_at_start(1);
+        let at = p.model.quests[0].starts[0].pos;
+        let level = p.model.quests[0].level.max(p.model.quests[0].min_level);
+        let guard = |level| Guard {
+            level,
+            count: 2,
+            elite: true,
+        };
+        let mobs = |n: usize, level: u8| -> Vec<Hostile> {
+            (0..n)
+                .map(|_| Hostile {
+                    id: 16383,
+                    name: "Flameshocker".into(),
+                    level,
+                    elite: true,
+                    pos: at,
+                })
+                .collect()
+        };
+        let found = |p: &job::Prepared, mobs: &[Hostile]| guarded_givers(&p.world, &p.model, mobs).len();
+        p.model.quests[0].start_guard = guard(level + GUARD_GAP);
+        assert_eq!(found(&p, &mobs(2, (level + GUARD_GAP) as u8)), 1);
+        assert_eq!(
+            found(&p, &mobs(1, (level + GUARD_GAP) as u8)),
+            0,
+            "one creature is walked around"
+        );
+        p.model.quests[0].start_guard = guard(level + GUARD_GAP - 1);
+        assert_eq!(
+            found(&p, &mobs(2, (level + GUARD_GAP - 1) as u8)),
+            0,
+            "not far enough above"
+        );
     }
 
     /// Secure the Mountain's case: a quest left out because an objective has no place, needed
@@ -1352,6 +1569,7 @@ mod tests {
                 kills: 100.0,
                 mob_level: 30,
                 content: 0,
+                needed: false,
             });
         };
         dungeon(16544, "City of Dalaran");

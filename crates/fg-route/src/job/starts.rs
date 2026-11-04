@@ -2,7 +2,9 @@
 //! hearthstone, flight paths, a zone rich in quests next door), a few routes built and lightly
 //! improved, each beginning in another zone, to show before the guide is computed.
 
-use super::{Interrupt, JobError, Overrides, PlanRequest, optimize_interruptible, prepare};
+use super::{Interrupt, JobError, Overrides, PlanRequest, Prepared, optimize_interruptible, prepare};
+use super::{JobEvent, Watch};
+use crate::diagnostics::Diagnostics;
 use crate::export::{self, StepKind};
 use crate::plan::Planner;
 use crate::terrain::Walks;
@@ -41,7 +43,7 @@ pub struct StartOption {
 
 /// A zone a start can be forced to, known before any route is computed.
 #[derive(Debug, Clone, Serialize)]
-pub(crate) struct StartCandidate {
+pub struct StartCandidate {
     /// What to set as `Params::start_zone` (0: the planner's own choice).
     pub start_zone: i64,
     pub ui_map: i64,
@@ -68,11 +70,23 @@ pub fn preview_starts(
     conn: &Connection,
     overrides: &Overrides,
     req: &PlanRequest,
-    progress: &(dyn Fn(&str) + Sync),
+    progress: Watch<'_>,
+    interrupt: &Interrupt,
+    walks: Option<&Arc<Walks>>,
+    diagnostics: &Diagnostics,
+) -> Result<StartPreview, JobError> {
+    let mut prepared = prepare(conn, overrides, req, &|_| {})?;
+    prepared.diagnostics = diagnostics.clone();
+    preview_starts_of(prepared, progress, interrupt, walks)
+}
+
+/// The same for what `prepare` loaded.
+pub(crate) fn preview_starts_of(
+    mut prepared: Prepared,
+    progress: Watch<'_>,
     interrupt: &Interrupt,
     walks: Option<&Arc<Walks>>,
 ) -> Result<StartPreview, JobError> {
-    let mut prepared = prepare(conn, overrides, req, &|_| {})?;
     if let Some(walks) = walks {
         prepared.world.terrain.share(Arc::clone(walks));
     }
@@ -92,7 +106,9 @@ pub fn preview_starts(
         });
     }
     let give_up = || interrupt.cancelled();
-    let base = Planner::new(&prepared.model, &prepared.world, params, &prepared.profile).abortable(&give_up);
+    let base = Planner::new(&prepared.model, &prepared.world, params, &prepared.profile)
+        .diagnosed(&prepared.diagnostics)
+        .abortable(&give_up);
     let zones = base.start_zones();
     let mut starts = vec![0];
     starts.extend(zones.iter().map(|&(zone, _)| zone).take(MAX_STARTS - 1));
@@ -105,7 +121,7 @@ pub fn preview_starts(
                 quests: zones.iter().find(|z| z.0 == start_zone).map_or(0, |z| z.1),
             })
             .collect();
-        progress(&format!("@starts {}", serde_json::to_string(&candidates)?));
+        progress(&JobEvent::Starts(&candidates));
     }
     if starts.len() < 2 {
         return Ok(StartPreview {
@@ -125,7 +141,9 @@ pub fn preview_starts(
         p.start_zone = start_zone;
         p.effort = PREVIEW_EFFORT;
         p.construction_random = false;
-        let planner = Planner::new(&prepared.model, &prepared.world, &p, &prepared.profile).abortable(&give_up);
+        let planner = Planner::new(&prepared.model, &prepared.world, &p, &prepared.profile)
+            .diagnosed(&prepared.diagnostics)
+            .abortable(&give_up);
         let best = optimize_interruptible(&planner, &|_| {}, interrupt);
         if interrupt.cancelled() {
             return Err(JobError::Cancelled);
@@ -159,7 +177,7 @@ pub fn preview_starts(
                 .collect::<Vec<_>>()
                 .join(" / ")
         );
-        progress(&line);
+        progress(&JobEvent::Status(&line));
         details.push(line);
         let option = StartOption {
             zone,
@@ -175,7 +193,7 @@ pub fn preview_starts(
                 .map(|s| s.text.clone())
                 .collect(),
         };
-        progress(&format!("@start {}", serde_json::to_string(&option)?));
+        progress(&JobEvent::Start(&option));
         found.push(option);
     }
     // One per zone (two starts that begin in the same zone are the same start), the best first,

@@ -1,7 +1,8 @@
 -- XP buffs (WoW Forever): after a fight, a reminder of each XP bonus missing, at most every few
 -- minutes each. Well Fed (any cooked food: +5% XP from kills), the Cozy Sleeping Bag when in the
 -- bags and ready (up to +3%), and for leatherworkers the Camp Tent (rested XP worth 5% of a level,
--- once an hour, while there is none). Not in a rested area nor at the level cap.
+-- once an hour, while there is none). Not in a rested area nor at the level cap. A buff the
+-- followed guide counts on (`route.buffs`) is left to Buffs.lua, which warns about it already.
 
 local FG = Factoruide
 local T = FG.T
@@ -9,8 +10,9 @@ local T = FG.T
 local XpBuffs = {}
 FG.XpBuffs = XpBuffs
 
--- Well Fed: a spell of the buff (its name in the game's language) and the icon all of them show.
-local WELL_FED, FOOD_ICON = 19705, 136000
+-- Well Fed: a spell of the buff (its name in the game's language) and the icon all of them show;
+-- WoW Forever's own Well Fed XP boost (1243969).
+local WELL_FED, FOOD_XP, FOOD_ICON = 19705, 1243969, 136000
 local FOOD_ICON_PATH = "interface\\icons\\spell_misc_food"
 -- The Cozy Sleeping Bag and its buff (1% XP from kills a stack, 3 at most).
 local SLEEPING_BAG, BAG_BUFF, BAG_STACKS = 211527, 429959, 3
@@ -50,8 +52,19 @@ function XpBuffs:Auras()
 end
 
 local function WellFed(aura, name)
-    if aura.spell == WELL_FED or (name and aura.name == name) or aura.icon == FOOD_ICON then return true end
+    if aura.spell == WELL_FED or aura.spell == FOOD_XP or (name and aura.name == name) or aura.icon == FOOD_ICON then
+        return true
+    end
     return type(aura.icon) == "string" and aura.icon:lower() == FOOD_ICON_PATH
+end
+
+--- Whether the followed guide counts on buff `key` (`food`, `bag`): Buffs.lua warns about it.
+local function GuideWarns(key)
+    local route = FG.Guide and FG.Guide.Route and FG.Guide:Route()
+    for _, k in ipairs(route and route.buffs or {}) do
+        if k == key then return true end
+    end
+    return false
 end
 
 local function ItemReady(id)
@@ -75,8 +88,10 @@ function XpBuffs:Missing()
         if aura.spell == BOOSTED_REST then boosted = true end
     end
     local out = {}
-    if not fed then table.insert(out, { "food", T("No Well Fed buff: eat cooked food for +5% XP from kills.") }) end
-    if stacks < BAG_STACKS and FG.ItemCount(SLEEPING_BAG) > 0 and ItemReady(SLEEPING_BAG) then
+    if not fed and not GuideWarns("food") then
+        table.insert(out, { "food", T("No Well Fed buff: eat cooked food for +5% XP from kills.") })
+    end
+    if stacks < BAG_STACKS and not GuideWarns("bag") and FG.ItemCount(SLEEPING_BAG) > 0 and ItemReady(SLEEPING_BAG) then
         table.insert(out, { "bag", T("Cozy Sleeping Bag ready: rest on it for up to +3% XP from kills.") })
     end
     if not boosted and (GetXPExhaustion() or 0) <= 0 and FG.ProfessionSkill(LEATHERWORKING) then

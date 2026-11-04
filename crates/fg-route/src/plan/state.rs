@@ -69,6 +69,8 @@ pub enum Leg {
 pub(crate) struct Via {
     /// A class teleport first (index in `Model::teleports`).
     pub(crate) teleport: Option<usize>,
+    /// Or dying first, to respawn at this spirit healer (index in `Model::graveyards`).
+    pub(crate) death: Option<usize>,
     pub(crate) leg: Leg,
 }
 
@@ -96,6 +98,10 @@ pub enum Event {
     LearnFlight {
         node: usize,
     },
+    /// Dungeon `dungeon` entered (`Model::dungeons`): its run's fixed time, mobs and loot.
+    Enter {
+        dungeon: usize,
+    },
     /// An off-road shortcut taken on a walk (index in `World::passes`).
     Shortcut {
         pass: usize,
@@ -103,7 +109,18 @@ pub enum Event {
     /// Class training: `since` is the level of the previous training.
     Train {
         trainer: usize,
+        /// Outbound part of a nearby trainer detour; the return can use a newly learned spell.
+        outbound: f64,
         since: i64,
+        abilities: u64,
+    },
+    /// Profession training: `ranks` (a bit each, apprentice first) of `Model::professions[profession]`
+    /// learned at `Model::profession_trainers[trainer]`. `outbound` as for `Train`.
+    ProfTrain {
+        profession: usize,
+        trainer: usize,
+        outbound: f64,
+        ranks: u8,
     },
     /// The bags' loot sold at a vendor (`Model::vendors`).
     Sell {
@@ -144,6 +161,8 @@ pub enum Event {
     Stop {
         stop: Stop,
         loc: Loc,
+        /// Quest XP actually awarded before a turn-in changed the character's level.
+        reward_xp: [i64; crate::job::GROUP_MAX],
     },
     /// Quest given up: it can no longer be finished (its dungeon is done or outleveled).
     Abandon {
@@ -268,7 +287,17 @@ pub(crate) struct State {
     pub(crate) hearth_ready: f64,
     pub(crate) recall_ready: f64,
     pub(crate) trained: i64,
+    /// The class teleports learned (bit per `Model::teleports`): each at the trainer of its city.
+    pub(crate) taught: u16,
+    pub(crate) abilities: u64,
+    /// The ranks learned of each profession of `Model::professions` (a bit each, apprentice
+    /// first; see `Planner::train_professions`).
+    pub(crate) ranks: [u8; crate::profession::PROFESSIONS.len()],
+    /// The dungeons entered (a bit each): one left is not entered again.
     pub(crate) dungeons: u128,
+    /// The dungeon the character is in (`Model::dungeons`), entered by the first stop inside it
+    /// and left by the first stop outside.
+    pub(crate) inside: Option<u8>,
     pub(crate) accepted: Flags,
     /// Quests out of play: turned in, or given up (those are also in `dropped`).
     pub(crate) turned: Flags,
@@ -276,6 +305,8 @@ pub(crate) struct State {
     pub(crate) dropped: Vec<u32>,
     /// Objectives done of each quest, a bit each.
     pub(crate) objectives: Vec<u8>,
+    /// An attempted turn-in outside its requested window: quest, member, level before reward.
+    pub(crate) completion_error: Option<(u32, u8, i64)>,
     /// Timed quests of the log: (quest, time by which the route must turn it in).
     pub(crate) timers: Vec<(u32, f64)>,
     /// Objectives started before the route (a character met in game), with the share already
@@ -312,8 +343,9 @@ pub(crate) struct State {
     pub(crate) gear_bonus: f64,
     /// Quality of the gear for what the character takes on (`Power::gear_quality`).
     pub(crate) gear_quality: f64,
-    /// Level and dungeons done at the last check for quests to give up.
-    pub(crate) abandon_check: (i64, u128),
+    /// Level, dungeons entered and the one the character is in at the last check for quests to
+    /// give up.
+    pub(crate) abandon_check: (i64, u128, Option<u8>),
     /// Explorable areas already discovered.
     pub(crate) explored: Flags,
     pub(crate) log: usize,
@@ -327,10 +359,19 @@ pub(crate) struct State {
     /// Quests of the forced zones not done yet (nor closed by an exclusive one): the guide
     /// goes on past the target level until they are.
     pub(crate) forced_left: u32,
+    pub(crate) required_left: u32,
     pub(crate) spent: Breakdown,
 }
 
 impl State {
+    pub(crate) fn member_levels(&self, mates: usize) -> impl Iterator<Item = (u8, i64)> + '_ {
+        std::iter::once((self.order[0], self.level)).chain(
+            self.mates[..mates]
+                .iter()
+                .enumerate()
+                .map(|(k, m)| (self.order[k + 1], m.level)),
+        )
+    }
     /// The group's players in `Profile` order: level and XP into it (empty alone).
     pub(crate) fn party(&self) -> Vec<(i64, i64)> {
         let n = self.mates.iter().take_while(|m| m.level > 0).count();
@@ -358,10 +399,14 @@ impl State {
         self.turned[i] && !self.dropped.contains(&(i as u32))
     }
 
-    /// The class teleport is learned: trained, or one of the quests teaching it taken.
-    pub(crate) fn knows(&self, tp: &crate::model::Teleport) -> bool {
-        tp.level <= self.trained
-            && (tp.quests.is_empty() || tp.quests.iter().any(|&q| self.accepted[q] || self.turned[q]))
+    /// The class teleport `i` is learned: at its city's trainer (a mage learns Teleport: Ironforge
+    /// in Ironforge), or on taking one of the quests teaching it.
+    pub(crate) fn knows(&self, i: usize, tp: &crate::model::Teleport) -> bool {
+        if tp.ability != 0 {
+            self.abilities & tp.ability != 0
+        } else {
+            tp.level <= self.trained && self.taught & (1 << i) != 0
+        }
     }
 }
 
@@ -415,6 +460,10 @@ pub struct Breakdown {
     /// (`Params::bag_weight`), in seconds.
     #[serde(skip)]
     pub bag_overflow: f64,
+    /// Levels gained before each late class unlock was turned in, summed
+    /// (`Params::unlock_delay_weight`).
+    #[serde(skip)]
+    pub unlock_delay: f64,
     /// Forced dungeons the route does not run.
     #[serde(default)]
     pub missing_dungeons: u32,

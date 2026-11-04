@@ -23,7 +23,7 @@ pub use types::{
     TargetKind,
 };
 
-use crate::model::{Names, Profile};
+use crate::model::{Names, ProfessionPlan, Profile};
 use crate::plan::{Breakdown, Event, Kind, Planner, Stop, Timed, fmt_time};
 use std::collections::HashSet;
 use writer::StepWriter;
@@ -115,6 +115,7 @@ pub fn build_traced(
                 }
                 let run = match &t.event {
                     Event::Stop { stop, .. } if stop.kind == Kind::Dungeon => Some(stop.index as usize),
+                    Event::Enter { dungeon } => Some(*dungeon),
                     _ => None,
                 };
                 let inside = run.map(|d| writer.dungeon_quests(d, &step)).unwrap_or_default();
@@ -131,24 +132,8 @@ pub fn build_traced(
                     .map_or((0.0, t.level, t.xp), |(s, x)| (s.time, s.level, *x));
                 let entered = (t.time - planner.model.dungeons[d].minutes * 60.0).max(start);
                 (step.time, step.level) = (entered, level);
-                // A quest started by a boss's drop is accepted in the run, not before it.
-                let from_boss = |s: &Step| {
-                    s.kind == StepKind::Accept
-                        && (planner.model.quests.iter()).any(|q| Some(q.id) == s.quest && q.start_dungeon == Some(d))
-                };
-                let mut looted = Vec::new();
-                while steps.last().is_some_and(from_boss) {
-                    let mut accept = steps.pop().expect("the loop checked the last step");
-                    xps.pop();
-                    (accept.time, accept.level, accept.inside) = (entered, level, true);
-                    looted.insert(0, accept);
-                }
                 steps.push(step);
                 xps.push(xp);
-                for accept in looted {
-                    steps.push(accept);
-                    xps.push(xp);
-                }
                 let count = inside.len() as f64;
                 for (k, mut quest) in inside.into_iter().enumerate() {
                     quest.time = entered + (t.time - entered) * (k as f64 + 1.0) / count;
@@ -158,6 +143,7 @@ pub fn build_traced(
             }
         }
     }
+    merge_inside(&mut steps, &mut xps);
     // Items in limited supply offered at the other vendors passed by on the way.
     vendors::add_tries(&writer, &mut steps, &mut xps);
     let mut checkpoints = checkpoints::checkpoints(planner, profile, &mut steps);
@@ -265,34 +251,42 @@ fn route_of(
         spells: model
             .power
             .as_ref()
-            .map(|p| p.ranks().map(|r| r.id).collect())
-            .unwrap_or_default(),
-        professions: model
-            .professions
-            .iter()
-            .map(|p| RouteProfession {
-                key: p.key.clone(),
-                name: p.name.clone(),
-                skill_line: crate::profession::skill_line(&p.key),
-                target: p.target,
-                start: p.start,
-                curve: p.curve.clone(),
+            .filter(|p| p.has_spells())
+            .map(|p| {
+                let mut spells: Vec<_> = p.ranks().map(|r| r.id).collect();
+                spells.extend(model.abilities.spells());
+                spells.sort_unstable();
+                spells.dedup();
+                spells
             })
+            .unwrap_or_default(),
+        // The character's own (the group's others are its players').
+        professions: (model.professions.iter())
+            .filter(|p| p.members & 1 != 0)
+            .map(route_profession)
             .collect(),
         checkpoints,
         reputation: reputation_reached(planner, route),
         players: if profile.mates.is_empty() {
             Vec::new()
         } else {
+            let own = |goals: &[crate::profession::ProfessionGoal]| {
+                (goals.iter())
+                    .filter_map(ProfessionPlan::new)
+                    .map(|p| route_profession(&p))
+                    .collect()
+            };
             std::iter::once(Player {
                 name: profile.player.clone(),
                 race_id: profile.race_id,
                 class_id: profile.class_id,
+                professions: own(&profile.professions),
             })
             .chain(profile.mates.iter().map(|m| Player {
                 name: m.name.clone(),
                 race_id: m.race_id,
                 class_id: m.class_id,
+                professions: own(&m.professions),
             }))
             .collect()
         },
@@ -307,6 +301,7 @@ fn route_of(
             out
         },
         replan: None,
+        buffs: planner.params.xp_buffs(),
         steps,
     }
 }
@@ -332,4 +327,69 @@ fn reputation_reached(planner: &Planner<'_>, route: &[Stop]) -> Vec<ReputationRe
             }
         })
         .collect()
+}
+
+fn route_profession(p: &ProfessionPlan) -> RouteProfession {
+    RouteProfession {
+        key: p.key.clone(),
+        name: p.name.clone(),
+        skill_line: crate::profession::skill_line(&p.key),
+        target: p.target,
+        start: p.start,
+        curve: p.curve.clone(),
+    }
+}
+
+/// The objectives of a quest done one after the other inside a dungeon, as one step ("Deviate
+/// Eradication: Deviate Ravager x7, Deviate Viper x7"), done once the quest is complete.
+fn merge_inside(steps: &mut Vec<Step>, xps: &mut Vec<i64>) {
+    let alike = |a: &Step, b: &Step| {
+        a.kind == StepKind::Objective && b.kind == StepKind::Objective && a.inside && b.inside && a.quest == b.quest
+    };
+    let mut k = 0;
+    while k + 1 < steps.len() {
+        if !alike(&steps[k], &steps[k + 1]) {
+            k += 1;
+            continue;
+        }
+        let next = steps.remove(k + 1);
+        xps.remove(k);
+        let step = &mut steps[k];
+        let mut texts: Vec<Arg> = Vec::new();
+        for say in step.say.iter().chain(&next.say) {
+            match (say.key.as_str(), say.args.get("text"), say.args.get("objectives")) {
+                ("objective.text", Some(text), _) => texts.push(text.clone()),
+                ("dungeon.quest", _, Some(Arg::List(list))) => texts.extend(list.iter().cloned()),
+                _ => {}
+            }
+        }
+        let quest = Arg::Quest(step.quest.unwrap_or(0), step.quest_name.clone().unwrap_or_default());
+        step.say = vec![
+            Phrase::new("dungeon.quest")
+                .arg("quest", quest)
+                .arg("objectives", Arg::List(texts)),
+        ];
+        (step.objective, step.slot) = (None, None);
+        for (id, name) in next.mob_ids.iter().zip(&next.mobs) {
+            if !step.mob_ids.contains(id) {
+                step.mob_ids.push(*id);
+                step.mobs.push(name.clone());
+            }
+        }
+        (step.time, step.level, step.xp) = (next.time, next.level, next.xp.or(step.xp));
+    }
+    // One objective: said with its quest too ("Deviate Hides: Deviate Hide x20").
+    for step in steps.iter_mut().filter(|s| s.kind == StepKind::Objective && s.inside) {
+        if let [say] = step.say.as_slice()
+            && say.key == "objective.text"
+            && let Some(text) = say.args.get("text").cloned()
+        {
+            let quest = Arg::Quest(step.quest.unwrap_or(0), step.quest_name.clone().unwrap_or_default());
+            step.say = vec![
+                Phrase::new("dungeon.quest")
+                    .arg("quest", quest)
+                    .arg("objectives", Arg::List(vec![text])),
+            ];
+        }
+    }
 }

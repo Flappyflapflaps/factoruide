@@ -8,9 +8,11 @@ license.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+fg-contrib = { path = "../fg-contrib", default-features = false }
 fg-library = { path = "../fg-library" }
 fg-route = { path = "../fg-route" }
-rusqlite = { version = "0.40", features = ["bundled"] }
+quick_cache = "0.6"
+rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
