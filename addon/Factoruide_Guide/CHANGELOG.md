@@ -6,6 +6,7 @@ under Unreleased; `scripts/release.sh` gives them the release's version.
 
 ## Unreleased
 
+- With the Factoruide_Ready addon loaded before this one (the game does not always load it after), the addon no longer stops half way at the start: the guide list in the options and the ready-made guide work again ("Options.lua: attempt to call a nil value" at login).
 - Dungeon prep: when a dungeon of the guide comes near, the chat lists the quests to have in your log going in (in it already, to pick up first and from whom, or starting inside), with its level and time. `/fg dungeon` shows it at any time, and `/fg lfg` writes a group message ("LF4M The Deadmines, level 18, quests: ...") in the chat's input line, for you to send with Enter. On by default (Advice).
 - `/fg check`: a self-check of what the addon sees in this game client, a line each, ok or to look at: the client's version, the guide followed and where it comes from, your position on the map, the XP buff spells and items it knows by number, your auras now with their numbers, the quest log, the add-ons it works with and the errors counted. The report is kept in the SavedVariables to send along with a problem.
 - The addons also load on the next WoW Forever client version (interface 16002), so that launch day does not need "Load out of date AddOns".

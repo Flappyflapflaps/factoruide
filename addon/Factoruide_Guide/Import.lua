@@ -351,8 +351,9 @@ function Import:ApplySaved()
     self:Apply()
 end
 
+-- Saved variables already there (the profile part's, loaded first): applied at the end of this
+-- file, once every function of it is defined.
 local tried = FactoruideDB ~= nil
-if tried then Import:ApplySaved() end
 -- The ready-made guide waits for the character to be known.
 FG:On("PLAYER_LOGIN", function()
     if Import.readyPack or type(FactoruideReady) == "table" then Import:Apply() end
@@ -627,3 +628,7 @@ FG:On("PLAYER_LOGIN", function()
     end
     FactoruideDB.guideImportFresh = nil
 end)
+
+-- Last, so that all of the above is defined: the ready-made pack (Factoruide_Ready) may have loaded
+-- before this addon, and its guide is decoded right away.
+if tried then Import:ApplySaved() end

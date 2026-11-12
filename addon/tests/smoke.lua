@@ -4670,6 +4670,23 @@ local function ExportImport()
     FactoruideDB.guides, FG.Import.file, FG.Import.data, FG.Import.ready = kept.guides, kept.file, kept.data, nil
     FG.Import:ApplySaved()
     assert(not FG.Routes["ready-mage"], "gone with the addon")
+    -- Factoruide_Ready loaded before this addon (the game does not always load it after): the pack
+    -- is there when Import.lua runs and its guide is decoded at the load, every function of the file
+    -- defined by then (else the file stops half way, and the options fail at the login).
+    do
+        local real = Factoruide
+        local early = setmetatable({ On = function() end }, { __index = real })
+        local dialogs = { StaticPopupDialogs.FACTORUIDE_OLDER_GUIDE, StaticPopupDialogs.FACTORUIDE_CLEAR_GUIDES }
+        Factoruide = early
+        FactoruideReady =
+            { [FG.Edition] = { time = 8000, guides = { ["7:8"] = Encode(GuideLua("ready-mage", 8000)) } } }
+        local ok, err = pcall(assert(loadfile("addon/Factoruide_Guide/Import.lua")), "Factoruide_Guide", {})
+        Factoruide, FactoruideReady = real, nil
+        StaticPopupDialogs.FACTORUIDE_OLDER_GUIDE, StaticPopupDialogs.FACTORUIDE_CLEAR_GUIDES = dialogs[1], dialogs[2]
+        assert(ok, "loads with the ready-made pack there first: " .. tostring(err))
+        assert(type(early.Import.List) == "function", "the whole file run")
+        assert(early.Routes["ready-mage"], "its guide offered")
+    end
 
     -- An older app's text: the whole text kept before (guideImport) moves to one guide each, its
     -- assignments are the first choice of the characters they name when several guides fit.
