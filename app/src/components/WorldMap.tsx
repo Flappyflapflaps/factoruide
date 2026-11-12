@@ -54,8 +54,67 @@ export const loadMinimapImage = (map: number, level: number, x: number, y: numbe
   return p;
 };
 
+/** A picture decoded once, drawn at once from the memory. */
+export type Decoded = ImageBitmap | HTMLImageElement;
+
+/** Minimap tiles decoded, kept in memory: the pinned ones for good (the stitched world map's
+ * coarse floor), the others while among the last used. */
+const decoded = new Map<string, Decoded>();
+const pinned = new Set<string>();
+const DECODED_KEPT = 96;
+
+/** A minimap tile decoded already (marked as just used), if it is. */
+export function decodedTile(key: string) {
+  const img = decoded.get(key);
+  if (img) {
+    decoded.delete(key);
+    decoded.set(key, img);
+  }
+  return img;
+}
+
+/** A minimap tile loaded and decoded (kept, `pin`: for good). */
+export async function decodeTile(map: number, level: number, x: number, y: number, pin = false): Promise<Decoded> {
+  const key = `${map}/${level}/${x}/${y}`;
+  const have = decodedTile(key);
+  if (have) return have;
+  const url = await api.minimapImage(map, level, x, y);
+  let img: Decoded;
+  try {
+    img = await createImageBitmap(await (await fetch(url)).blob());
+  } catch {
+    // No image bitmaps from a blob here: an image, waited for until decoded.
+    const el = new Image();
+    el.src = url;
+    await new Promise((ok, ko) => {
+      el.onload = ok;
+      el.onerror = ko;
+    });
+    img = el;
+  }
+  if (img instanceof ImageBitmap) URL.revokeObjectURL(url);
+  decoded.set(key, img);
+  if (pin) pinned.add(key);
+  for (const [k, old] of decoded) {
+    if (decoded.size - pinned.size <= DECODED_KEPT) break;
+    if (pinned.has(k)) continue;
+    decoded.delete(k);
+    forget(old);
+  }
+  return img;
+}
+
+function forget(img: Decoded) {
+  if (img instanceof ImageBitmap) img.close();
+  // Later for an image: a tile may still be drawing it.
+  else setTimeout(() => URL.revokeObjectURL(img.src), 30_000);
+}
+
 /** Forget the maps (another game version shows other maps). */
 export function clearMapCache() {
+  for (const img of decoded.values()) forget(img);
+  decoded.clear();
+  pinned.clear();
   indexPromise = null;
   for (const p of images.values()) p.then(URL.revokeObjectURL, () => {});
   images.clear();

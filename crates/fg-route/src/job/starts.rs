@@ -97,6 +97,7 @@ pub(crate) fn preview_starts_of(
     if !params.preferred_zones.is_empty()
         || !params.forced_zones.is_empty()
         || params.start_zone != 0
+        || prepared.profile.objective_guide()
         || prepared.profile.from_level < MIN_CHOICE_LEVEL
     {
         return Ok(StartPreview {

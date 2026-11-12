@@ -46,6 +46,30 @@ pub struct Profile {
     pub mates: Vec<Mate>,
     /// The character's "Name-Realm" in a group guide (empty alone).
     pub player: String,
+    /// An objective guide's objectives (empty: a leveling guide): the guide does every quest of
+    /// them the character can take, and what they need first, nothing else, whatever their
+    /// levels (`PlanRequest::objectives`).
+    pub objectives: Vec<GuideObjective>,
+}
+
+impl Profile {
+    /// Whether the guide is an objective guide (`objectives`).
+    pub fn objective_guide(&self) -> bool {
+        !self.objectives.is_empty()
+    }
+}
+
+/// What an objective guide completes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum GuideObjective {
+    /// Every quest of a dungeon (instance area): of it (`Quest::in_dungeon`) or started there.
+    Dungeon(i64),
+    /// Every quest of a zone (area), as a forced zone's: filed under it or a subzone, else given
+    /// there; not those of a dungeon, nor class or profession quests.
+    Zone(i64),
+    /// One quest.
+    Quest(i64),
 }
 
 /// A class quest the route must do (`m_class_requirement`): the quests teaching a spell, or the
@@ -254,6 +278,9 @@ pub struct Objective {
     /// come in each pull there (1: they stand alone).
     pub spawns: u32,
     pub pack: f64,
+    /// Its normal mobs' respawns at its spot, for the wait shared with the objectives done
+    /// there just before (`Pool`): default (none) for the others.
+    pub pool: Pool,
     /// Hostile mobs around where it is done.
     pub guard: Guard,
     /// An object used right beside the quest's giver or turn-in, no elite around (the campfire
@@ -286,6 +313,32 @@ pub struct Objective {
     /// Seconds the item it gets lasts (a Fresh Zhevra Carcass rots in 30 minutes): the
     /// objectives using it are done before.
     pub lasts: Option<f64>,
+}
+
+/// The mobs of a kill objective at its spot, as the respawn wait sees them: the spawns the
+/// character has for itself (shared with the crowd), how many of them come back each second,
+/// the kill time the wait was measured with, and the wait when the objective is done alone
+/// (part of `Objective::extra`). Kill objectives done one after the other at one place wait for
+/// the respawns of all their mobs together (`plan::Together`): while some come back, the
+/// others are killed.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct Pool {
+    pub mine: f64,
+    pub rate: f64,
+    pub each: f64,
+    pub wait: f64,
+}
+
+impl Pool {
+    /// Seconds waited for respawns killing `work` mobs of `each` seconds among `mine` spawns
+    /// coming back `rate` a second: once those are killed, the time between two respawns beyond
+    /// the kill itself, for each mob left. Nothing at an unknown spot.
+    pub fn wait_for(work: f64, mine: f64, rate: f64, each: f64) -> f64 {
+        if mine <= 0.0 || rate <= 0.0 || work <= mine {
+            return 0.0;
+        }
+        (1.0 / rate - each).max(0.0) * (work - mine)
+    }
 }
 
 /// A vendor selling an objective's item: where it stands, and its supply when limited (how many
@@ -476,6 +529,9 @@ pub struct Quest {
     pub xp_observed: bool,
     /// Timed quest: seconds from taking it to turn it in, else it fails.
     pub time_limit: Option<f64>,
+    /// Mean seconds waited at the giver before it offers the quest: a giver offering it only
+    /// after an event that comes back now and then (Private Thorsen saved from his ambush).
+    pub start_wait: f64,
     pub starts: Vec<Loc>,
     pub ends: Vec<Loc>,
     pub objectives: Vec<Objective>,
@@ -539,6 +595,13 @@ pub struct Quest {
 }
 
 impl Quest {
+    /// Whether it is a quest of dungeon `d`: an objective inside, or handed in inside (Deathstalkers
+    /// in Shadowfang, ended to Deathstalker Vincent in the keep).
+    pub fn in_dungeon(&self, d: usize) -> bool {
+        self.objectives.iter().any(|o| o.dungeon_of() == Some(d))
+            || self.ends.iter().any(|l| l.inside.is_some_and(|i| usize::from(i) == d))
+    }
+
     /// The dungeon one of its objectives belongs to (`Objective::dungeon_of`), else the one it is
     /// handed in inside.
     pub fn dungeon(&self) -> Option<usize> {
@@ -622,6 +685,13 @@ pub struct Model {
     /// The paths NPCs who patrol walk (NPC ID -> its points in order): the guide shows places
     /// along them, the planner goes to their usual place.
     pub patrols: HashMap<i64, Vec<Pos>>,
+    /// An objective guide's quests gated above the character's level at the start (quest ID,
+    /// the level it asks), highest first: the guide warns, the planner then makes no level wait
+    /// (`levels_ignored`).
+    pub above_level: Vec<(i64, i64)>,
+    /// No stop waits for a level (minimum levels, guards, mobs, dungeons): an objective guide's
+    /// player knows what they are doing (`job::settle_objective_guide`).
+    pub levels_ignored: bool,
 }
 
 /// A class spell taking the character to a city (a mage's "Teleport: Stormwind"): learned at the

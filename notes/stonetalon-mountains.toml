@@ -1,0 +1,130 @@
+# Quest notes of the Stonetalon Mountains. See notes/README.md for the format.
+
+# Jin'Zil's Forest Magic: the sap drops from Sap Beasts only; the look-alike Corrosive Sap Beasts drop none.
+[[note]]
+quest = 1058
+phase = "objective"
+objective = 1
+level = "info"
+en = "Only {npc:4020} drops the sap: {npc:4021} look the same and roam among them but drop none."
+fr = "Seul {npc:4020} lâche la sève : {npc:4021} lui ressemble, rôde parmi eux mais n'en lâche jamais."
+de = "Nur {npc:4020} lässt den Saft fallen: {npc:4021} sieht gleich aus und streift zwischen ihnen umher, lässt aber keinen fallen."
+es = "Solo {npc:4020} suelta la savia: {npc:4021} tiene el mismo aspecto y deambula entre ellos, pero no la suelta nunca."
+pt = "Só {npc:4020} deixa cair a seiva: {npc:4021} tem a mesma aparência e anda entre eles, mas nunca a deixa cair."
+ru = "Сок выпадает только из {npc:4020}: {npc:4021} выглядит так же и бродит среди них, но сока не роняет."
+ko = "수액은 {npc:4020}에게서만 나옵니다. {npc:4021}은(는) 생김새가 같고 그들 사이를 돌아다니지만 수액을 떨어뜨리지 않습니다."
+zh_cn = "只有{npc:4020}会掉落树液：{npc:4021}外观相同、混在其中游荡，但从不掉落。"
+zh_tw = "只有{npc:4020}會掉落樹液：{npc:4021}外觀相同、混在其中遊蕩，但從不掉落。"
+
+# Harpies Threaten: every harpy kind of the vale draws from the same spawn points, so the unwanted
+# kinds take the place of the wanted ones; the slayers are the fewest, near the roguefeathers.
+[[note]]
+quest = 6282
+phase = "objective"
+level = "info"
+en = "All the harpy kinds of the vale share spawn points: kill the {npc:4026} and {npc:4027} near you too, or the ones you need will not come back. {npc:4024} are the scarcest, around the camps of {npc:4023}."
+fr = "Toutes les harpies du val partagent les mêmes points d'apparition : tuez aussi {npc:4026} et {npc:4027} autour de vous, sinon celles qu'il vous faut ne reviendront pas. {npc:4024} est la plus rare, autour des camps de {npc:4023}."
+de = "Alle Harpyienarten des Tals teilen sich die Spawnpunkte: töte auch {npc:4026} und {npc:4027} in deiner Nähe, sonst kommen die benötigten nicht zurück. {npc:4024} ist am seltensten, rund um die Lager von {npc:4023}."
+es = "Todas las arpías del valle comparten puntos de aparición: mata también a {npc:4026} y {npc:4027} cerca de ti, o las que necesitas no volverán. {npc:4024} es la más escasa, alrededor de los campamentos de {npc:4023}."
+pt = "Todos os tipos de harpia do vale compartilham pontos de surgimento: mate também {npc:4026} e {npc:4027} perto de você, ou as que você precisa não voltarão. {npc:4024} é a mais rara, em volta dos acampamentos de {npc:4023}."
+ru = "Все виды гарпий в долине появляются в одних и тех же точках: убивайте и {npc:4026} и {npc:4027} рядом, иначе нужные не появятся снова. {npc:4024} встречается реже всех, возле лагерей {npc:4023}."
+ko = "골짜기의 모든 하피는 생성 지점을 공유합니다. 주변의 {npc:4026}와(과) {npc:4027}도 처치하지 않으면 필요한 하피가 다시 나타나지 않습니다. {npc:4024}이(가) 가장 드물며, {npc:4023} 야영지 주변에 있습니다."
+zh_cn = "山谷中所有鹰身人共用刷新点：附近的{npc:4026}和{npc:4027}也要杀掉，否则你需要的那些不会再刷新。{npc:4024}最少，在{npc:4023}的营地周围。"
+zh_tw = "山谷中所有鷹身人共用重生點：附近的{npc:4026}和{npc:4027}也要殺掉，否則你需要的那些不會再重生。{npc:4024}最少，在{npc:4023}的營地周圍。"
+
+# Gerenzo Wrenchwhistle: the waterwheel is reached by a trail from the east end of the lake that
+# climbs and turns back west along the cliffs; the lake below breaks the fall.
+[[note]]
+quest = 1096
+phase = "objective"
+objective = 1
+level = "info"
+en = "The way up to the waterwheel is a trail at the east end of the lake (about 70, 41) that climbs and turns back west along the cliffs. Once he is dead, jumping into the lake is the fastest way down."
+fr = "Le chemin vers la roue à aubes est un sentier à l'extrémité est du lac (vers 70, 41) qui monte puis repart vers l'ouest le long des falaises. Une fois la cible tuée, sauter dans le lac est le moyen le plus rapide de redescendre."
+de = "Der Weg hinauf zum Wasserrad ist ein Pfad am Ostende des Sees (etwa 70, 41), der ansteigt und an den Klippen entlang nach Westen zurückführt. Ist er tot, springst du am schnellsten in den See hinunter."
+es = "El camino a la noria es un sendero en el extremo este del lago (hacia 70, 41) que sube y vuelve al oeste por los acantilados. Una vez muerto, saltar al lago es la forma más rápida de bajar."
+pt = "O caminho até a roda d'água é uma trilha na ponta leste do lago (cerca de 70, 41) que sobe e volta para oeste pelos penhascos. Depois de matá-lo, pular no lago é o jeito mais rápido de descer."
+ru = "Путь к водяному колесу — тропа у восточного края озера (около 70, 41), которая поднимается и уходит обратно на запад вдоль скал. После убийства быстрее всего спуститься, прыгнув в озеро."
+ko = "물레방아로 올라가는 길은 호수 동쪽 끝(약 70, 41)의 오솔길로, 위로 오른 뒤 절벽을 따라 다시 서쪽으로 이어집니다. 처치한 뒤에는 호수로 뛰어내리는 것이 가장 빨리 내려가는 방법입니다."
+zh_cn = "通往水车的路是湖东端（约70, 41）的一条小径，向上爬后沿悬崖折回西边。击杀后跳进湖里是最快的下山方式。"
+zh_tw = "通往水車的路是湖東端（約70, 41）的一條小徑，向上爬後沿懸崖折回西邊。擊殺後跳進湖裡是最快的下山方式。"
+
+# Gerenzo's Orders: the defence lasts about five minutes with three or four waves while the
+# crowded mine respawns; widely found too hard alone at the quest's level.
+[[note]]
+quest = 1090
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:4276} mines for about 5 minutes while three or four waves of kobolds attack, and the mine respawns around you meanwhile. Clear the room first and bring help: it is hard alone at the quest's level."
+fr = "{npc:4276} creuse pendant environ 5 minutes pendant que trois ou quatre vagues de kobolds attaquent, et la mine réapparaît autour de vous entre-temps. Nettoyez d'abord la salle et venez accompagné : c'est difficile seul au niveau de la quête."
+de = "{npc:4276} schürft etwa 5 Minuten, während drei oder vier Wellen Kobolde angreifen, und die Mine respawnt derweil um dich herum. Räume zuerst den Raum und bring Hilfe mit: allein ist es auf Questlevel schwer."
+es = "{npc:4276} mina durante unos 5 minutos mientras atacan tres o cuatro oleadas de kobolds, y la mina reaparece a tu alrededor mientras tanto. Limpia primero la sala y ve acompañado: es difícil en solitario al nivel de la misión."
+pt = "{npc:4276} minera por cerca de 5 minutos enquanto três ou quatro ondas de kobolds atacam, e a mina ressurge ao seu redor nesse meio-tempo. Limpe a sala antes e leve ajuda: é difícil sozinho no nível da missão."
+ru = "{npc:4276} добывает руду около 5 минут, пока нападают три-четыре волны кобольдов, а шахта вокруг тем временем возрождается. Сначала зачистите зал и возьмите помощь: в одиночку на уровне задания это тяжело."
+ko = "{npc:4276}이(가) 약 5분 동안 채굴하는 사이 코볼트가 서너 차례 몰려오고, 그동안 광산의 몹도 주변에서 다시 생성됩니다. 먼저 방을 정리하고 도움을 받으세요. 퀘스트 레벨에서 혼자서는 어렵습니다."
+zh_cn = "{npc:4276}会采矿约5分钟，期间有三到四波狗头人来袭，矿洞里的怪也会在你周围重生。先清空房间并找人帮忙：在任务等级单人完成很困难。"
+zh_tw = "{npc:4276}會採礦約5分鐘，期間有三到四波狗頭人來襲，礦坑裡的怪也會在你周圍重生。先清空房間並找人幫忙：在任務等級單人完成很困難。"
+
+# Protect Kaya: she leaves at once, three Grimtotems ambush her at the end, and the escort fails if you stray too far.
+[[note]]
+quest = 6523
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:11856} sets off as soon as you accept and does not wait: clear her path first. At the end three tauren ambush her; take them off her quickly, and stay close or the escort fails."
+fr = "{npc:11856} part dès que vous acceptez et n'attend pas : dégagez son chemin avant. À la fin, trois taurens lui tendent une embuscade ; détournez-les vite d'elle et restez près d'elle, sinon l'escorte échoue."
+de = "{npc:11856} läuft los, sobald du annimmst, und wartet nicht: Räum ihren Weg vorher frei. Am Ende überfallen sie drei Tauren; zieh sie schnell von ihr weg und bleib in der Nähe, sonst scheitert die Eskorte."
+es = "{npc:11856} se pone en marcha en cuanto aceptas y no espera: despeja su camino antes. Al final, tres tauren le tienden una emboscada; quítaselos de encima rápido y quédate cerca o la escolta fracasa."
+pt = "{npc:11856} parte assim que você aceita e não espera: limpe o caminho dela antes. No fim, três taurens a emboscam; tire-os de cima dela rápido e fique perto, ou a escolta falha."
+ru = "{npc:11856} отправляется в путь сразу после принятия задания и не ждет: заранее расчистите ей дорогу. В конце на нее нападают трое тауренов; быстро отвлеките их на себя и держитесь рядом, иначе сопровождение провалится."
+ko = "{npc:11856}은(는) 퀘스트를 수락하자마자 출발하고 기다려 주지 않으니 미리 길을 정리하세요. 마지막에 타우렌 셋이 그녀를 기습합니다. 재빨리 떼어 내고, 가까이 있지 않으면 호위가 실패합니다."
+zh_cn = "{npc:11856}在你接受任务后立刻出发，不会等你：先清理她的路线。最后会有三名牛头人伏击她；迅速把它们从她身上引开，并留在她附近，否则护送失败。"
+zh_tw = "{npc:11856}在你接受任務後立刻出發，不會等你：先清理她的路線。最後會有三名牛頭人伏擊她；迅速把他們從她身上引開，並留在她附近，否則護送失敗。"
+
+# Ordanus: his Cenarion Vindicator guards summon waves of treants only once they take damage; the usual way out is a jump from the ramp.
+[[note]]
+quest = 1088
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Put all your damage on {npc:4273}: his two {npc:3833} summon treants only once they are hurt, so use no area attacks or Thorns. After looting the head, run a little way down the ramp and jump over the railing."
+fr = "Concentrez tous vos dégâts sur {npc:4273} : ses deux {npc:3833} n'invoquent des tréants qu'une fois blessés, donc pas d'attaques de zone ni d'Épines. Après avoir ramassé la tête, descendez un peu la rampe et sautez par-dessus la rambarde."
+de = "Richte deinen ganzen Schaden auf {npc:4273}: Seine beiden {npc:3833} beschwören Treants erst, wenn sie verletzt werden, also keine Flächenangriffe und keine Dornen. Lauf nach dem Plündern des Kopfes ein Stück die Rampe hinunter und spring über das Geländer."
+es = "Pon todo tu daño en {npc:4273}: sus dos {npc:3833} invocan antárboles solo cuando reciben daño, así que nada de ataques de área ni Espinas. Tras despojar la cabeza, baja un poco por la rampa y salta por encima de la barandilla."
+pt = "Concentre todo o dano em {npc:4273}: os dois {npc:3833} dele só invocam treants quando sofrem dano, então nada de ataques em área nem Espinhos. Depois de saquear a cabeça, desça um pouco a rampa e pule por cima do parapeito."
+ru = "Бейте только {npc:4273}: двое {npc:3833} призывают древней лишь после того, как получат урон, поэтому никаких атак по области и Шипов. Забрав голову, спуститесь немного по пандусу и прыгайте через перила."
+ko = "모든 공격을 {npc:4273}에게 집중하세요. 그의 {npc:3833} 둘은 피해를 입어야만 나무정령을 소환하므로 광역 공격이나 가시를 쓰지 마세요. 머리를 챙긴 뒤 경사로를 조금 내려가서 난간 너머로 뛰어내리세요."
+zh_cn = "把所有伤害都打在{npc:4273}身上：他的两个{npc:3833}只有受到伤害后才会召唤树人，所以别用范围攻击或荆棘术。拾取头颅后，沿坡道往下走一段再翻过栏杆跳下。"
+zh_tw = "把所有傷害都打在{npc:4273}身上：他的兩個{npc:3833}只有受到傷害後才會召喚樹人，所以別用範圍攻擊或荊棘術。拾取頭顱後，沿坡道往下走一段再翻過欄杆跳下。"
+
+# The Den: the gatekeeper's key hangs in a lamp outside; elites guard each cache and the hoard.
+[[note]]
+quest = 1089
+phase = "objective"
+level = "warning"
+en = "Take {item:5687} from {object:19595}, the lamp left of the den's entrance. Each cache and {object:19599} is guarded by two or three elites, one cache by an elite faerie dragon. Hand in at the hoard, deep inside."
+fr = "Prenez {item:5687} dans {object:19595}, la lanterne à gauche de l'entrée de l'antre. Chaque cache et {object:19599} sont gardés par deux ou trois élites, une cache par un dragon féerique élite. Rendez la quête au trésor, tout au fond."
+de = "Nimm {item:5687} aus {object:19595}, der Laterne links vom Eingang des Baus. Jedes Versteck und {object:19599} bewachen zwei oder drei Elite, ein Versteck ein Elite-Feendrache. Gib die Quest am Hort ganz hinten ab."
+es = "Coge {item:5687} de {object:19595}, el farol a la izquierda de la entrada de la guarida. Cada alijo y {object:19599} los guardan dos o tres élites, uno de ellos un dragón feérico élite. Entrega la misión en el tesoro, al fondo."
+pt = "Pegue {item:5687} em {object:19595}, a lanterna à esquerda da entrada do covil. Cada esconderijo e {object:19599} são guardados por dois ou três elites, um deles por um dragão feérico elite. Entregue a missão no tesouro, lá no fundo."
+ru = "Возьмите {item:5687} из объекта {object:19595} — фонаря слева от входа в логово. Каждый тайник и {object:19599} охраняют двое-трое элитных, один тайник — элитный фейский дракон. Сдайте задание у клада в глубине."
+ko = "굴 입구 왼쪽 등불인 {object:19595}에서 {item:5687}을(를) 꺼내세요. 각 은닉처와 {object:19599}은(는) 정예 두세 마리가 지키고, 한 곳은 정예 요정용이 지킵니다. 깊숙한 보물 더미에서 퀘스트를 완료하세요."
+zh_cn = "从{object:19595}（巢穴入口左边的灯）取出{item:5687}。每个藏匿处和{object:19599}都有两三个精英把守，其中一处是精英精灵龙。在深处的宝藏处交任务。"
+zh_tw = "從{object:19595}（巢穴入口左邊的燈）取出{item:5687}。每個藏匿處和{object:19599}都有兩三個菁英把守，其中一處是菁英精靈龍。在深處的寶藏處交任務。"
+
+# Rekindle: the firepit takes the quest only once its fire has burnt out; while it burns, nothing can be clicked.
+[[note]]
+quest = 80001
+phase = "turnin"
+level = "warning"
+editions = ["forever"]
+en = "The firepit can only be lit again once its fire has gone out: if it is burning, wait for it to die down, then click it."
+fr = "Le foyer ne peut être rallumé qu'une fois son feu éteint : s'il brûle, attendez qu'il s'éteigne, puis cliquez dessus."
+de = "Die Feuerstelle lässt sich erst wieder anzünden, wenn ihr Feuer erloschen ist: brennt es, warte, bis es ausgeht, und klick sie dann an."
+es = "La hoguera solo se puede volver a encender cuando su fuego se ha apagado: si arde, espera a que se apague y luego haz clic en ella."
+pt = "A fogueira só pode ser reacesa quando o fogo dela se apagar: se estiver queimando, espere apagar e então clique nela."
+ru = "Костёр можно разжечь снова, только когда его огонь погаснет: если он горит, подождите, пока он потухнет, затем нажмите на него."
+ko = "모닥불은 불이 꺼진 뒤에만 다시 피울 수 있습니다. 타고 있다면 꺼질 때까지 기다린 뒤 클릭하세요."
+zh_cn = "火堆要等火熄灭后才能重新点燃：如果还在燃烧，等它熄灭后再点击。"
+zh_tw = "火堆要等火熄滅後才能重新點燃：如果還在燃燒，等它熄滅後再點擊。"

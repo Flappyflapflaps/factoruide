@@ -821,6 +821,8 @@ mod tests {
             child_name: None,
             text: format!("{} {id}", kind.as_str()),
             say: Vec::new(),
+            icon: None,
+            notes: Vec::new(),
             target,
             zone: Some(format!("zone {zone}")),
             zone_id: Some(zone),
@@ -899,6 +901,8 @@ mod tests {
             class_spells: Vec::new(),
             replan: None,
             buffs: Vec::new(),
+            recommended: None,
+            levels_ignored: false,
             steps,
         }
     }

@@ -11,6 +11,7 @@ mod flights;
 mod group;
 mod imported;
 mod notes;
+mod objectives;
 mod options;
 mod overrides;
 mod paths;
@@ -35,6 +36,7 @@ pub use error::{JobError, RequestError};
 pub use event::{JobEvent, Watch};
 pub use flights::inferred_flights;
 pub use imported::{ImportStep, POLESTAR_CREDIT, PolestarImport, PolestarImported, ReplayReport, import_polestar};
+pub use objectives::{ExcludedQuest, ObjectiveCounts, ObjectivePreview, objective_counts, objective_preview};
 pub use options::{
     FactionOption, FlightOption, NamedId, Options, RaceOption, ZoneOption, class_quests, options, race_classes,
 };
@@ -183,7 +185,10 @@ pub(crate) fn plan_prepared(
     if interrupt.cancelled() {
         return Err(JobError::Cancelled);
     }
-    // Objectives at the same place one after the other, done at once.
+    // The returns to a place merged into an earlier visit, what can be done in a place before
+    // leaving it, then objectives at the same place one after the other, done at once.
+    let best = planner.merge_visits(&best).map_or(best, |(merged, _)| merged);
+    let best = planner.tidy(&best).map_or(best, |(tidied, _)| tidied);
     let best = planner.route_together(best);
     planner.validate_required(&best)?;
     let route = export::build(&planner, &prepared.profile, &best);
@@ -256,6 +261,7 @@ pub fn prepare(conn: &Connection, overrides: &Overrides, req: &PlanRequest, prog
     profile.required_quests = required::resolve(conn, req, &profile, &params)?;
     if params.edition == crate::xp::Edition::Forever
         && params.sleeping_bag
+        && !profile.objective_guide()
         && !profile
             .required_quests
             .iter()
@@ -287,22 +293,29 @@ pub fn prepare(conn: &Connection, overrides: &Overrides, req: &PlanRequest, prog
     check_exclusive_choices(&model, &members)?;
     // A group is planned for the member with the least XP.
     let start = members.first().copied().or(req.start.as_ref());
-    if let Some(start) = start {
-        // Its race's flight paths and those of the towns it did quests in count as learned,
-        // unless the list was settled by hand.
-        let with_deduced = |s: &StartState| {
-            let found = if s.flights_final {
-                None
-            } else {
-                s.faction
-                    .and_then(|side| inferred_flights(conn, side, &s.completed).ok())
-            };
-            s.with_deduced_flights(overrides.start_flights(s.race), found)
+    // Its race's flight paths and those of the towns it did quests in count as learned, unless
+    // the list was settled by hand.
+    let with_deduced = |s: &StartState| {
+        let found = if s.flights_final {
+            None
+        } else {
+            s.faction
+                .and_then(|side| inferred_flights(conn, side, &s.completed).ok())
         };
-        let deduced = with_deduced(start);
-        let start = &deduced;
-        let mates: Vec<StartState> = members.iter().skip(1).map(|m| with_deduced(m)).collect();
-        start_from(&mut model, &world, &mut params, start, &mates, &mut start_notes);
+        s.with_deduced_flights(overrides.start_flights(s.race), found)
+    };
+    let starting: Option<(StartState, Vec<StartState>)> = start.map(|s| {
+        (
+            with_deduced(s),
+            members.iter().skip(1).map(|m| with_deduced(m)).collect(),
+        )
+    });
+    match &starting {
+        Some((start, mates)) => start_from(&mut model, &world, &mut params, start, mates, &mut start_notes),
+        None => model.initial.known = start::flight_bits(&world, overrides.start_flights(profile.race_id)),
+    }
+    settle_objective_guide(&mut model, &world, &params, &profile)?;
+    if let Some((start, _)) = &starting {
         // Quests of the log the model does not have: named from the database, for their abandon.
         for (id, name) in model.initial.log.iter_mut().filter(|(_, name)| name.is_empty()) {
             *name = conn
@@ -320,8 +333,6 @@ pub fn prepare(conn: &Connection, overrides: &Overrides, req: &PlanRequest, prog
             model.initial.turned.len(),
             model.initial.log.len()
         )));
-    } else {
-        model.initial.known = start::flight_bits(&world, overrides.start_flights(profile.race_id));
     }
     required::check_start(&model, &profile, &members)?;
     model.initial.abilities = model.abilities.initial(start, profile.from_level);
@@ -336,6 +347,42 @@ pub fn prepare(conn: &Connection, overrides: &Overrides, req: &PlanRequest, prog
         notes,
         diagnostics: Diagnostics::default(),
     })
+}
+
+/// An objective guide is planned at the character's level, its quests in the best order whatever
+/// the levels they ask: those gated above it are kept for the warning (`Model::above_level`, the
+/// guide recommending the highest), then no stop waits for a level (`Model::levels_ignored`).
+/// The guide ends with its quests (no level to reach). Refused when the character has none of
+/// them left.
+pub(crate) fn settle_objective_guide(
+    model: &mut Model,
+    world: &World,
+    params: &Params,
+    profile: &Profile,
+) -> Result<()> {
+    if !profile.objective_guide() {
+        return Ok(());
+    }
+    let levels = Planner::new(model, world, params, profile).forced_quest_levels();
+    if levels.is_empty() {
+        anyhow::bail!("no quest of these objectives left for this character");
+    }
+    let mut above: Vec<(i64, i64)> = (levels.iter())
+        .filter(|&&(_, level)| level > profile.from_level)
+        .map(|&(i, level)| (model.quests[i as usize].id, level))
+        .collect();
+    above.sort_by_key(|&(id, level)| (std::cmp::Reverse(level), id));
+    model.above_level = above;
+    model.levels_ignored = true;
+    for q in &mut model.quests {
+        q.min_level = q.min_level.min(profile.from_level);
+        q.completion_window = model::CompletionWindow::default();
+    }
+    for d in &mut model.dungeons {
+        d.min_level = d.min_level.min(profile.from_level);
+        d.max_level = params.edition.rules().max_level;
+    }
+    Ok(())
 }
 
 /// Every dungeon the character could run has levels to run it at, and a dungeon the player
@@ -402,18 +449,18 @@ pub(crate) fn start_from(
     }
 }
 
-/// A dungeon only needed by must-have quests the character has already turned in, or finished
-/// in its log, is not needed any more: its objectives are done.
+/// A dungeon only needed by must-have quests (or a dungeon guide's) the character has already
+/// turned in, or finished in its log, is not needed any more: its objectives are done.
 fn release_done_dungeons(model: &mut Model, start: &StartState) {
     let finished =
         |i: usize, id: i64| model.initial.turned.contains(&i) || start.log.iter().any(|l| l.id.0 == id && l.complete);
     let mut needed = vec![false; model.dungeons.len()];
     for (i, q) in model.quests.iter().enumerate() {
-        if !q.required || finished(i, q.id) {
+        if !(q.required || q.zone_forced) || finished(i, q.id) {
             continue;
         }
-        for d in q.objectives.iter().filter_map(model::Objective::dungeon_of) {
-            needed[d] = true;
+        for (d, need) in needed.iter_mut().enumerate() {
+            *need |= q.in_dungeon(d);
         }
     }
     for (d, dungeon) in model.dungeons.iter_mut().enumerate() {

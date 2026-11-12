@@ -45,6 +45,8 @@ pub fn run(conn: &Connection, opts: &ImportOptions) -> Result<()> {
         mates: vec![],
         required_quests: vec![],
         mate_professions: vec![],
+        objectives: vec![],
+        dungeon: None,
     };
     eprintln!("loading the world and the quests");
     let editor = Editor::open(conn, &overrides, &request, None)?;

@@ -1,0 +1,94 @@
+# Quest notes of the Badlands. See notes/README.md for the format.
+
+# Pearl Diving: the clams lie underwater among elite murlocs, in Stranglethorn Vale.
+[[note]]
+quest = 705
+phase = "objective"
+objective = 1
+level = "info"
+en = "The clams lie underwater in the Vile Reef among elite murlocs: keep your distance from them, and bring a water breathing potion if you have one."
+fr = "Les palourdes sont sous l'eau au Récif infâme, parmi des murlocs élites : gardez vos distances avec eux et emportez une potion de respiration aquatique si vous en avez une."
+de = "Die Muscheln liegen unter Wasser im Üblen Riff zwischen Elite-Murlocs: halte Abstand zu ihnen und nimm einen Wasseratmungstrank mit, wenn du einen hast."
+es = "Las almejas están bajo el agua en el Arrecife Vil, entre múrlocs élite: mantén la distancia con ellos y lleva una poción de respiración acuática si tienes una."
+pt = "Os mariscos ficam debaixo d'água no Recife Vil, entre murlocs de elite: mantenha distância deles e leve uma poção de respiração aquática se tiver uma."
+ru = "Моллюски лежат под водой у Гнусного рифа среди элитных мурлоков: держитесь от них подальше и возьмите зелье подводного дыхания, если оно есть."
+ko = "조개는 정예 멀록이 있는 썩은 암초 물속에 있습니다. 멀록과 거리를 두고, 수중 호흡 물약이 있으면 챙기세요."
+zh_cn = "蛤蚌在邪恶暗礁的水下，周围有精英鱼人：与它们保持距离，有水下呼吸药水的话就带上。"
+zh_tw = "蛤蚌在邪惡暗礁的水下，周圍有精英魚人：與牠們保持距離，有水下呼吸藥水的話就帶上。"
+
+# Dreadmaul Rock: Thal'trak Proudtusk walks with the Kargath patrol at times and cannot be talked to while moving.
+[[note]]
+quest = 3821
+phase = "accept"
+level = "warning"
+en = "{npc:9082} sometimes leaves Kargath with his patrol and cannot be talked to while walking: wait until he is back by his fire."
+fr = "{npc:9082} quitte parfois Kargath avec sa patrouille et on ne peut pas lui parler pendant qu'il marche : attendez qu'il soit revenu près de son feu."
+de = "{npc:9082} verlässt Kargath manchmal mit seiner Patrouille und lässt sich unterwegs nicht ansprechen: warte, bis er wieder an seinem Feuer steht."
+es = "{npc:9082} a veces sale de Kargath con su patrulla y no se puede hablar con él mientras camina: espera a que vuelva junto a su hoguera."
+pt = "{npc:9082} às vezes sai de Kargath com a patrulha e não é possível falar com ele enquanto anda: espere até ele voltar para a fogueira."
+ru = "{npc:9082} иногда уходит из Каргата с патрулем, и пока он идет, с ним нельзя поговорить: дождитесь, когда он вернется к своему костру."
+ko = "{npc:9082}은(는) 가끔 순찰대와 함께 카르가스를 떠나며, 걷는 동안에는 대화할 수 없습니다. 모닥불 옆으로 돌아올 때까지 기다리세요."
+zh_cn = "{npc:9082}有时会随巡逻队离开卡加斯，行走时无法对话：等他回到火堆旁再说。"
+zh_tw = "{npc:9082}有時會隨巡邏隊離開卡加斯，行走時無法對話：等他回到火堆旁再說。"
+
+# Dreadmaul Rock: Sha'ni's remains lie on the altar atop the rock in the Burning Steppes, reached by the rope bridge; her ghost appears behind the player.
+[[note]]
+quest = 3821
+phase = "turnin"
+level = "info"
+en = "{npc:9136} is on a summit in eastern {zone:46} (about 80, 45): go up by the rope bridge on the northwest side (about 75, 37), click {object:160445} on the altar, then turn around: her ghost stands behind you."
+fr = "{npc:9136} se trouve au sommet d'un pic à l'est de {zone:46} (vers 80, 45) : montez par le pont de corde au nord-ouest (vers 75, 37), cliquez sur {object:160445} sur l'autel, puis retournez-vous : son fantôme est derrière vous."
+de = "{npc:9136} befindet sich auf einem Gipfel im Osten von {zone:46} (um 80, 45): steig über die Seilbrücke im Nordwesten hinauf (um 75, 37), klicke {object:160445} auf dem Altar an und dreh dich um: ihr Geist steht hinter dir."
+es = "{npc:9136} está en una cumbre al este de {zone:46} (hacia 80, 45): sube por el puente de cuerda del noroeste (hacia 75, 37), haz clic en {object:160445} sobre el altar y date la vuelta: su espíritu está detrás de ti."
+pt = "{npc:9136} fica num pico a leste de {zone:46} (por volta de 80, 45): suba pela ponte de corda a noroeste (por volta de 75, 37), clique em {object:160445} no altar e vire-se: o espírito dela está atrás de você."
+ru = "{npc:9136} находится на вершине на востоке зоны {zone:46} (около 80, 45): поднимитесь по веревочному мосту с северо-запада (около 75, 37), щелкните {object:160445} на алтаре и обернитесь: ее дух стоит позади вас."
+ko = "{npc:9136}은(는) {zone:46} 동쪽 봉우리 꼭대기(약 80, 45)에 있습니다. 북서쪽 밧줄 다리(약 75, 37)로 올라가 제단 위의 {object:160445}을(를) 클릭한 뒤 뒤를 돌아보세요. 그녀의 영혼이 뒤에 서 있습니다."
+zh_cn = "{npc:9136}在{zone:46}东部的一座山顶上（约80, 45）：从西北侧的绳桥（约75, 37）上山，点击祭坛上的{object:160445}，然后转身：她的灵魂就站在你身后。"
+zh_tw = "{npc:9136}在{zone:46}東部的一座山頂上（約80, 45）：從西北側的繩橋（約75, 37）上山，點擊祭壇上的{object:160445}，然後轉身：她的靈魂就站在你身後。"
+
+# Broken Alliances: the seal summons both elite drakes at once; backing off resets them so they can be pulled one at a time. They are no longer elite in TBC.
+[[note]]
+quest = 793
+phase = "objective"
+level = "warning"
+editions = ["classic", "forever"]
+en = "Using the seal calls {npc:2757} and {npc:2759}, two elites, at the same time. Step well back at once so they reset, then pull them one at a time; they stay up for about 10 minutes."
+fr = "Utiliser le sceau fait venir {npc:2757} et {npc:2759}, deux élites, en même temps. Reculez tout de suite assez loin pour qu'ils se réinitialisent, puis attirez-les un par un ; ils restent environ 10 minutes."
+de = "Das Siegel ruft {npc:2757} und {npc:2759}, zwei Elitegegner, gleichzeitig herbei. Geh sofort weit zurück, damit sie zurücksetzen, und zieh sie dann einzeln; sie bleiben etwa 10 Minuten."
+es = "Usar el sello hace aparecer a {npc:2757} y {npc:2759}, dos élites, a la vez. Retrocede enseguida para que se reinicien y atráelos de uno en uno; permanecen unos 10 minutos."
+pt = "Usar o selo invoca {npc:2757} e {npc:2759}, duas elites, ao mesmo tempo. Recue logo para que eles reiniciem e puxe um de cada vez; eles ficam por uns 10 minutos."
+ru = "Печать вызывает сразу двух элитных противников: {npc:2757} и {npc:2759}. Сразу отойдите подальше, чтобы они сбросились, затем выманивайте их по одному; они остаются примерно 10 минут."
+ko = "인장을 사용하면 정예 둘, {npc:2757}, {npc:2759}이(가) 동시에 나타납니다. 즉시 멀리 물러나 초기화시킨 뒤 하나씩 끌어오세요. 약 10분 동안 머무릅니다."
+zh_cn = "使用封印会同时召唤两个精英：{npc:2757}和{npc:2759}。立刻远远后退让它们重置，再一个一个拉；它们大约停留10分钟。"
+zh_tw = "使用封印會同時召喚兩個精英：{npc:2757}和{npc:2759}。立刻遠遠後退讓牠們重置，再一個一個拉；牠們大約停留10分鐘。"
+
+# The Star, the Hand and the Heart: Dagun only appears when the Enchanted Sea Kelp is used at the Seaworn Altar on the island; the kelp is a rare drop of the Mirefin Oracles and is traded at the auction house.
+[[note]]
+quest = 735
+phase = "objective"
+objective = 2
+level = "must_read"
+en = "{npc:2937} does not wait on the island: use {item:4639} at {object:2871} to call him up. The kelp drops rarely from {npc:4363} around the island, and it can also be bought at the auction house."
+fr = "{npc:2937} n'attend pas sur l'île : utilisez {item:4639} à {object:2871} pour le faire surgir. Le varech tombe rarement sur les {npc:4363} autour de l'île, et on peut aussi l'acheter à l'hôtel des ventes."
+de = "{npc:2937} wartet nicht auf der Insel: Benutze {item:4639} an {object:2871}, um ihn herbeizurufen. Der Seetang fällt selten bei {npc:4363} rund um die Insel und ist auch im Auktionshaus zu kaufen."
+es = "{npc:2937} no espera en la isla: usa {item:4639} en {object:2871} para invocarlo. El alga cae rara vez de los {npc:4363} de alrededor de la isla, y también se puede comprar en la casa de subastas."
+pt = "{npc:2937} não fica esperando na ilha: use {item:4639} em {object:2871} para invocá-lo. A alga cai raramente dos {npc:4363} em volta da ilha e também pode ser comprada na casa de leilões."
+ru = "{npc:2937} не ждет на острове: используйте {item:4639} у {object:2871}, чтобы призвать его. Водоросли редко выпадают из {npc:4363} вокруг острова, их также можно купить на аукционе."
+ko = "{npc:2937}은(는) 섬에 미리 있지 않습니다. {object:2871}에서 {item:4639}을(를) 사용해 불러내세요. 해초는 섬 주변의 {npc:4363}에게서 드물게 떨어지며, 경매장에서 살 수도 있습니다."
+zh_cn = "{npc:2937}不会在岛上等你：在{object:2871}使用{item:4639}把他召唤出来。海藻由岛周围的{npc:4363}低几率掉落，也可以在拍卖行买到。"
+zh_tw = "{npc:2937}不會在島上等你：在{object:2871}使用{item:4639}把他召喚出來。海藻由島周圍的{npc:4363}低機率掉落，也可以在拍賣行買到。"
+
+# Tremors of the Earth: the seal summons both dragons on the player; running off makes them return to the seal, after which they can be pulled singly.
+[[note]]
+quest = 717
+phase = "objective"
+level = "warning"
+en = "Clear the dragonkin around the {object:2933} first: using it calls {npc:2759} and {npc:2757} right on top of you. Run off at once; they go back to the seal and can then be pulled one at a time."
+fr = "Nettoyez d'abord les draconiens autour de {object:2933} : l'utiliser fait apparaître {npc:2759} et {npc:2757} juste sur vous. Fuyez aussitôt ; ils retournent au sceau et peuvent ensuite être attirés un par un."
+de = "Räume zuerst die Drachkin um {object:2933} weg: Benutzt du es, erscheinen {npc:2759} und {npc:2757} direkt auf dir. Lauf sofort weg; sie kehren zum Siegel zurück und lassen sich dann einzeln pullen."
+es = "Limpia primero los dragonantes alrededor de {object:2933}: usarlo hace aparecer a {npc:2759} y {npc:2757} justo encima de ti. Huye enseguida; vuelven al sello y luego puedes atraerlos de uno en uno."
+pt = "Limpe primeiro os dracônicos em volta de {object:2933}: usá-lo faz {npc:2759} e {npc:2757} surgirem bem em cima de você. Fuja na hora; eles voltam ao selo e depois podem ser puxados um de cada vez."
+ru = "Сначала зачистите драконидов вокруг {object:2933}: при использовании {npc:2759} и {npc:2757} появляются прямо на вас. Сразу отбегайте; они вернутся к печати, и потом их можно выманивать по одному."
+ko = "먼저 {object:2933} 주변의 용족을 처치하세요. 사용하면 {npc:2759}와(과) {npc:2757}이(가) 바로 당신 위에 나타납니다. 즉시 달아나세요. 그들이 인장으로 돌아가면 하나씩 끌어낼 수 있습니다."
+zh_cn = "先清掉{object:2933}周围的龙人：使用它会让{npc:2759}和{npc:2757}直接出现在你身上。立刻跑开；它们会回到封印旁，之后可以逐个拉。"
+zh_tw = "先清掉{object:2933}周圍的龍人：使用它會讓{npc:2759}和{npc:2757}直接出現在你身上。立刻跑開；牠們會回到封印旁，之後可以逐一拉怪。"

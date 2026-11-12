@@ -1,0 +1,181 @@
+# Quest notes of the Hillsbrad Foothills. See notes/README.md for the format.
+
+# Elixir of Pain: the dog turns into a hostile beast right after drinking the elixir, and the kill
+# gives notable experience.
+[[note]]
+quest = 502
+phase = "turnin"
+level = "warning"
+en = "Once he drinks the elixir, {npc:2274} turns into {npc:2275}, a hostile level 24 beast that attacks you: be at full health. Killing it gives good experience."
+fr = "Une fois l'élixir bu, {npc:2274} se transforme en {npc:2275}, une bête hostile de niveau 24 qui vous attaque : soyez en pleine santé. La tuer rapporte beaucoup d'expérience."
+de = "Sobald er das Elixier trinkt, verwandelt sich {npc:2274} in {npc:2275}, eine feindselige Bestie der Stufe 24, die dich angreift: geh mit voller Gesundheit hin. Der Kill bringt gute Erfahrung."
+es = "En cuanto bebe el elixir, {npc:2274} se convierte en {npc:2275}, una bestia hostil de nivel 24 que te ataca: ve con la salud al máximo. Matarla da buena experiencia."
+pt = "Assim que bebe o elixir, {npc:2274} se transforma em {npc:2275}, uma fera hostil de nível 24 que ataca você: esteja com a vida cheia. Matá-la dá bastante experiência."
+ru = "Выпив эликсир, {npc:2274} превращается в {npc:2275} — враждебного зверя 24-го уровня, который нападает на вас: подходите с полным здоровьем. За убийство дают много опыта."
+ko = "{npc:2274}은(는) 비약을 마시면 레벨 24의 적대적인 야수 {npc:2275}(으)로 변해 공격해 옵니다. 생명력을 가득 채우고 가세요. 처치하면 경험치를 많이 얻습니다."
+zh_cn = "{npc:2274}喝下药剂后会变成{npc:2275}，一只24级的敌对野兽并攻击你：请满血前往。击杀它能获得不少经验。"
+zh_tw = "{npc:2274}喝下藥劑後會變成{npc:2275}，一隻24級的敵對野獸並攻擊你：請滿血前往。擊殺牠能獲得不少經驗。"
+
+# Stone Tokens: the Dalaran Shield Guards' red shield turns melee hits back on the attacker; they stand still while it is up.
+[[note]]
+quest = 556
+phase = "objective"
+objective = 1
+level = "warning"
+en = "When a {npc:2271} raises its red shield, stop hitting it: each hit while the shield is up hurts you, and it stands still meanwhile. Step back or use ranged attacks until the shield fades."
+fr = "Quand un {npc:2271} lève son bouclier rouge, arrêtez de le frapper : chaque coup porté pendant ce temps vous blesse, et il reste immobile. Reculez ou attaquez à distance jusqu'à ce que le bouclier disparaisse."
+de = "Wenn ein {npc:2271} seinen roten Schild hochzieht, hör auf zuzuschlagen: Jeder Treffer schadet dann dir, und er bleibt so lange stehen. Geh zurück oder greif aus der Ferne an, bis der Schild verschwindet."
+es = "Cuando un {npc:2271} alce su escudo rojo, deja de golpearlo: cada golpe mientras dura te hace daño a ti, y él se queda quieto. Retrocede o ataca a distancia hasta que el escudo desaparezca."
+pt = "Quando um {npc:2271} erguer o escudo vermelho, pare de atacá-lo: cada golpe enquanto ele dura fere você, e ele fica parado. Recue ou ataque à distância até o escudo sumir."
+ru = "Когда {npc:2271} поднимает красный щит, перестаньте его бить: каждый удар в это время ранит вас, а он стоит на месте. Отойдите или атакуйте издалека, пока щит не исчезнет."
+ko = "{npc:2271}이(가) 붉은 보호막을 올리면 공격을 멈추세요. 보호막이 있는 동안 때리면 피해를 입고, 그동안 그는 움직이지 않습니다. 보호막이 사라질 때까지 물러나거나 원거리로 공격하세요."
+zh_cn = "当{npc:2271}升起红色护盾时，停止攻击它：护盾存在时每次攻击都会伤到你自己，而它会站着不动。后退或使用远程攻击，直到护盾消失。"
+zh_tw = "當{npc:2271}升起紅色護盾時，停止攻擊它：護盾存在時每次攻擊都會傷到你自己，而牠會站著不動。後退或使用遠程攻擊，直到護盾消失。"
+
+# Prison Break In: Kegan Darkmar is on the top floor of the house outside the fence, with Warden Belamoore (level 36, polymorph).
+[[note]]
+quest = 544
+phase = "objective"
+objective = 4
+level = "warning"
+en = "{npc:2414} is on the top floor of the separate house beside the camp, next to {npc:2415}, a level 36 caster who polymorphs. Clear the floors below first and pull them one at a time."
+fr = "{npc:2414} se trouve au dernier étage de la maison isolée à côté du camp, près de {npc:2415}, un lanceur de sorts de niveau 36 qui métamorphose. Nettoyez d'abord les étages inférieurs et attirez-les un par un."
+de = "{npc:2414} ist im obersten Stock des einzelnen Hauses neben dem Lager, neben {npc:2415}, einem Zauberwirker der Stufe 36, der verwandelt. Räum zuerst die unteren Stockwerke und zieh sie einzeln."
+es = "{npc:2414} está en el piso superior de la casa aparte junto al campamento, al lado de {npc:2415}, un lanzador de hechizos de nivel 36 que polimorfa. Limpia antes los pisos de abajo y atráelos de uno en uno."
+pt = "{npc:2414} fica no último andar da casa separada ao lado do acampamento, junto de {npc:2415}, um conjurador de nível 36 que usa polimorfia. Limpe antes os andares de baixo e puxe-os um por vez."
+ru = "{npc:2414} находится на верхнем этаже отдельного дома рядом с лагерем, вместе с {npc:2415} — заклинателем 36-го уровня, который превращает в овцу. Сначала зачистите нижние этажи и выманивайте их по одному."
+ko = "{npc:2414}은(는) 수용소 옆 별채의 꼭대기 층에 있으며, 변이를 거는 레벨 36 주문시전자 {npc:2415}이(가) 곁에 있습니다. 아래층을 먼저 정리하고 하나씩 끌어내세요."
+zh_cn = "{npc:2414}在营地旁那座独立房子的顶层，身边是会变形术的36级施法者{npc:2415}。先清理下面的楼层，再一个一个地引怪。"
+zh_tw = "{npc:2414}在營地旁那座獨立房子的頂樓，身邊是會變形術的36級施法者{npc:2415}。先清理下面的樓層，再一個一個地引怪。"
+
+# Infiltration: Henchman Valik trades the missive for a Southshore Stout (sold by the Tarren Mill innkeeper, dropped by the Drunken Footpad nearby).
+[[note]]
+quest = 533
+phase = "objective"
+objective = 1
+level = "info"
+en = "Skip the random drop: give a {item:3703} to {npc:2333} in the camp and he hands over the {item:3601}. Buy the stout from {npc:2388} before leaving, or take it from the nearby {npc:2440}."
+fr = "Inutile d'attendre le butin : donnez une {item:3703} à {npc:2333} dans le camp et il vous remet la {item:3601}. Achetez la bière à {npc:2388} avant de partir, ou prenez-la sur le {npc:2440} tout proche."
+de = "Spar dir die zufällige Beute: Gib {npc:2333} im Lager ein {item:3703}, dann überlässt er dir die {item:3601}. Kauf das Bier vorher bei {npc:2388} oder nimm es dem nahen {npc:2440} ab."
+es = "Olvídate del botín aleatorio: dale una {item:3703} a {npc:2333} en el campamento y te entregará la {item:3601}. Compra la cerveza a {npc:2388} antes de salir, o quítasela al {npc:2440} cercano."
+pt = "Esqueça o saque aleatório: entregue uma {item:3703} a {npc:2333} no acampamento e ele lhe dá a {item:3601}. Compre a cerveja com {npc:2388} antes de sair, ou pegue-a do {npc:2440} ali perto."
+ru = "Не ждите случайной добычи: в лагере отдайте {item:3703}, и {npc:2333} передаст вам {item:3601}. Пиво продаёт {npc:2388} — купите его заранее, или добудьте с противника {npc:2440} поблизости."
+ko = "무작위 전리품을 기다리지 마세요. 야영지의 {npc:2333}에게 {item:3703}을(를) 주면 {item:3601}을(를) 넘겨줍니다. 출발 전에 {npc:2388}에게서 사거나 근처의 {npc:2440}에게서 얻으세요."
+zh_cn = "不必靠随机掉落：把一瓶{item:3703}交给营地里的{npc:2333}，他就会交出{item:3601}。出发前向{npc:2388}购买，或从附近的{npc:2440}身上获得。"
+zh_tw = "不必靠隨機掉落：把一瓶{item:3703}交給營地裡的{npc:2333}，他就會交出{item:3601}。出發前向{npc:2388}購買，或從附近的{npc:2440}身上取得。"
+
+# Helcular's Revenge: the grave is inside Southshore, next to the river, among guards; it is not the decorated headstone.
+[[note]]
+quest = 553
+phase = "turnin"
+level = "warning"
+en = "{object:1767} lies inside Southshore, guarded by Alliance guards who attack on sight. It is the lone grave closest to the river, not the decorated headstone: if you die on the way, resurrect beside it and turn in at once."
+fr = "{object:1767} se trouve dans Austrivage, gardée par des gardes de l'Alliance qui attaquent à vue. C'est la tombe isolée la plus proche de la rivière, pas la stèle décorée : si vous mourez en chemin, ressuscitez à côté et rendez la quête aussitôt."
+de = "{object:1767} liegt in Süderstade, bewacht von Wachen der Allianz, die sofort angreifen. Es ist das einzelne Grab am nächsten am Fluss, nicht der verzierte Grabstein: Stirbst du unterwegs, steh daneben wieder auf und gib die Quest sofort ab."
+es = "{object:1767} está dentro de Costasur, vigilada por guardias de la Alianza que atacan nada más verte. Es la tumba aislada más cercana al río, no la lápida decorada: si mueres por el camino, resucita a su lado y entrega la misión de inmediato."
+pt = "{object:1767} fica dentro de Costa Sul, vigiada por guardas da Aliança que atacam assim que veem você. É a cova isolada mais perto do rio, não a lápide decorada: se morrer no caminho, ressuscite ao lado dela e entregue a missão na hora."
+ru = "{object:1767} находится в Южнобережье под охраной стражников Альянса, которые нападают сразу. Это одинокая могила ближе всего к реке, а не украшенное надгробие: если погибнете по дороге, воскресните рядом с ней и сразу сдайте задание."
+ko = "{object:1767}은(는) 사우스쇼어 안에 있으며, 보는 즉시 공격하는 얼라이언스 경비병이 지킵니다. 장식된 비석이 아니라 강에 가장 가까운 외딴 무덤입니다. 가는 길에 죽으면 그 옆에서 부활해 바로 퀘스트를 완료하세요."
+zh_cn = "{object:1767}位于南海镇内，有见人就打的联盟卫兵把守。它是最靠近河边的那座孤坟，不是装饰过的墓碑：如果途中死亡，就在它旁边复活并立即交任务。"
+zh_tw = "{object:1767}位於南海鎮內，有見人就打的聯盟衛兵把守。它是最靠近河邊的那座孤墳，不是裝飾過的墓碑：如果途中死亡，就在它旁邊復活並立即交任務。"
+
+# Gol'dir: the "find where he is held" objective is not credited when entering his room in stealth.
+[[note]]
+quest = 503
+phase = "objective"
+objective = 3
+level = "info"
+en = "Walk into {npc:2316}'s room out of stealth: finding him does not count if you sneak in, and he will not talk to you until it does."
+fr = "Entrez dans la pièce de {npc:2316} sans être camouflé : le trouver ne compte pas si vous entrez furtivement, et il ne vous parlera pas tant que ce n'est pas validé."
+de = "Betritt den Raum von {npc:2316} ohne Verstohlenheit: Wenn du dich hineinschleichst, zählt das Finden nicht, und er spricht erst mit dir, wenn es zählt."
+es = "Entra en la sala de {npc:2316} sin sigilo: encontrarlo no cuenta si entras a escondidas, y no hablará contigo hasta que cuente."
+pt = "Entre na sala de {npc:2316} fora da furtividade: encontrá-lo não conta se você entrar furtivamente, e ele não fala com você até contar."
+ru = "Входите в комнату, где находится {npc:2316}, не скрываясь: если прокрасться незаметно, находка не засчитается, и он не заговорит с вами, пока она не засчитана."
+ko = "은신을 풀고 {npc:2316}의 방에 들어가세요. 은신한 채 들어가면 찾은 것으로 인정되지 않으며, 인정될 때까지 그는 대화하지 않습니다."
+zh_cn = "不要潜行进入{npc:2316}的房间：潜行进入不算找到他，在此之前他也不会和你交谈。"
+zh_tw = "不要潛行進入{npc:2316}的房間：潛行進入不算找到他，在此之前他也不會和你交談。"
+
+# Lord Aliden Perenolde: the manor's guards respawn fast, and the lord heals himself to full and casts sleep.
+[[note]]
+quest = 507
+phase = "objective"
+objective = 1
+level = "warning"
+en = "The guards in and around the manor respawn quickly: clear your way up and don't linger. {npc:2423} heals himself back to full and casts sleep; interrupt his heals or drain his mana."
+fr = "Les gardes dans le manoir et autour réapparaissent vite : frayez-vous un chemin sans traîner. {npc:2423} se soigne entièrement et lance un sommeil ; interrompez ses soins ou drainez son mana."
+de = "Die Wachen im und um das Herrenhaus respawnen schnell: kämpf dich nach oben und trödle nicht. {npc:2423} heilt sich wieder voll und wirkt Schlaf; unterbrich seine Heilung oder entzieh ihm Mana."
+es = "Los guardias dentro y alrededor de la mansión reaparecen rápido: ábrete paso sin entretenerte. {npc:2423} se cura por completo y lanza sueño; interrumpe sus curaciones o drena su maná."
+pt = "Os guardas dentro e ao redor da mansão reaparecem rápido: abra caminho sem demorar. {npc:2423} se cura por completo e lança sono; interrompa as curas dele ou drene seu mana."
+ru = "Стража в усадьбе и вокруг неё быстро возрождается: пробивайтесь наверх и не задерживайтесь. {npc:2423} полностью исцеляется и усыпляет; прерывайте его лечение или выжигайте ему ману."
+ko = "저택 안팎의 경비병은 빨리 다시 나타납니다. 길을 뚫고 지체하지 마세요. {npc:2423}는 생명력을 가득 회복하고 수면을 겁니다. 치유를 끊거나 마나를 빼앗으세요."
+zh_cn = "庄园内外的守卫刷新很快：一路清上去，别逗留。{npc:2423}会把自己治疗满血并施放催眠；打断他的治疗或吸干他的法力。"
+zh_tw = "莊園內外的守衛重生很快：一路清上去，別逗留。{npc:2423}會把自己治療滿血並施放催眠；打斷他的治療或吸乾他的法力。"
+
+# A King's Tribute: the granite chunks are set into the walls inside the yeti cave, a little lighter than the rock; no Mining skill needed.
+[[note]]
+quest = 689
+phase = "objective"
+objective = 1
+level = "info"
+en = "{object:2714} is in chunks set into the walls inside the yeti cave, a little lighter than the rock around them: hover the walls. No Mining needed."
+fr = "{object:2714} se présente en blocs incrustés dans les parois de la grotte des yétis, un peu plus clairs que la roche autour : passez la souris sur les parois. Aucun Minage requis."
+de = "{object:2714} steckt in Brocken in den Wänden der Yetihöhle, etwas heller als der Fels drumherum: Fahr mit der Maus über die Wände. Kein Bergbau nötig."
+es = "{object:2714} está en bloques incrustados en las paredes de la cueva de los yetis, algo más claros que la roca de alrededor: pasa el cursor por las paredes. No hace falta Minería."
+pt = "{object:2714} fica em blocos encravados nas paredes da caverna dos yetis, um pouco mais claros que a rocha ao redor: passe o cursor nas paredes. Não precisa de Mineração."
+ru = "{object:2714} — глыбы, вделанные в стены пещеры йети, чуть светлее окружающей породы: водите курсором по стенам. Горное дело не нужно."
+ko = "{object:2714}은(는) 설인 동굴 안쪽 벽에 박힌 덩어리로, 주변 바위보다 조금 밝습니다. 벽에 마우스를 대 보세요. 채광 기술은 필요 없습니다."
+zh_cn = "{object:2714}是嵌在雪人洞穴内壁上的石块，颜色比周围的岩石稍浅：用鼠标在墙上扫一扫。不需要采矿技能。"
+zh_tw = "{object:2714}是嵌在雪人洞穴內壁上的石塊，顏色比周圍的岩石稍淺：用滑鼠在牆上掃一掃。不需要採礦技能。"
+
+[[icon]]
+quest = 689
+phase = "objective"
+objective = 1
+icon = "pickup"
+
+# Hints of a New Plague?: the courier and her four guards spawn at the apothecary's house on Go'Shek Farm and walk to Tarren Mill; the Stromgarde riders on the road attack them.
+[[note]]
+quest = 658
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:2714} and four bodyguards leave {npc:2733}'s house at the farm and walk the road west to Tarren Mill; she reappears at the farm a few minutes after dying. Riders ({npc:2738}) patrolling the same road attack her group: strike when they meet."
+fr = "{npc:2714} et quatre gardes du corps partent de la maison de {npc:2733}, à la ferme, et suivent la route à l'ouest jusqu'à Moulin-de-Tarren ; elle réapparaît à la ferme quelques minutes après sa mort. Des cavaliers ({npc:2738}) sur la même route attaquent son groupe : frappez quand ils se croisent."
+de = "{npc:2714} und vier Leibwächter brechen vom Haus von {npc:2733} auf dem Hof auf und folgen der Straße nach Westen bis Tarrens Mühle; nach ihrem Tod ist sie wenige Minuten später wieder am Hof. Reiter ({npc:2738}) auf derselben Straße greifen ihre Gruppe an: Schlag zu, wenn sie sich treffen."
+es = "{npc:2714} y cuatro guardaespaldas salen de la casa de {npc:2733}, en la granja, y siguen el camino hacia el oeste hasta Molino Tarren; reaparece en la granja unos minutos después de morir. Unos jinetes ({npc:2738}) que patrullan el mismo camino atacan a su grupo: ataca cuando se encuentren."
+pt = "{npc:2714} e quatro guarda-costas saem da casa de {npc:2733}, na fazenda, e seguem a estrada para oeste até Moinho Tarren; ela reaparece na fazenda alguns minutos após morrer. Cavaleiros ({npc:2738}) que patrulham a mesma estrada atacam o grupo dela: ataque quando eles se encontrarem."
+ru = "{npc:2714} с четырьмя телохранителями выходит из дома персонажа {npc:2733} на ферме и идёт по дороге на запад до Мельницы Таррен; после смерти она появляется на ферме через несколько минут. Всадники ({npc:2738}) на той же дороге нападают на её отряд: бейте, когда они встретятся."
+ko = "{npc:2714}은(는) 경호원 넷과 함께 농장의 {npc:2733} 집에서 출발해 길을 따라 서쪽 타렌 밀농장까지 걸어갑니다. 죽으면 몇 분 뒤 농장에 다시 나타납니다. 같은 길을 순찰하는 기병({npc:2738})이 그 무리를 공격하니 둘이 마주칠 때 공격하세요."
+zh_cn = "{npc:2714}带着四名保镖从农场里{npc:2733}的房子出发，沿道路向西走到塔伦米尔；她死后几分钟会在农场重新出现。同一条路上巡逻的骑兵（{npc:2738}）会攻击她的队伍：趁双方相遇时动手。"
+zh_tw = "{npc:2714}帶著四名保鏢從農場裡{npc:2733}的房子出發，沿道路向西走到塔倫米爾；她死後幾分鐘會在農場重新出現。同一條路上巡邏的騎兵（{npc:2738}）會攻擊她的隊伍：趁雙方相遇時動手。"
+
+# Hints of a New Plague?: Kinelory keeps walking during fights and fails if left behind; orcs wait below the hill; she respawns beside Quae.
+[[note]]
+quest = 660
+level = "warning"
+en = "Stay close to {npc:2713}: she keeps walking while you fight, and the escort fails if she gets too far or dies. Clear the orcs below the hill first. If she is not beside {npc:2712}, wait a few minutes for her to come back."
+fr = "Restez près de {npc:2713} : elle continue d'avancer pendant que vous combattez, et l'escorte échoue si elle s'éloigne trop ou meurt. Nettoyez d'abord les orcs au pied de la colline. Si elle n'est pas à côté de {npc:2712}, attendez quelques minutes qu'elle revienne."
+de = "Bleib nah bei {npc:2713}: Sie läuft weiter, während du kämpfst, und die Eskorte scheitert, wenn sie sich zu weit entfernt oder stirbt. Räum vorher die Orcs unterhalb des Hügels ab. Ist sie nicht bei {npc:2712}, warte ein paar Minuten, bis sie zurückkommt."
+es = "Quédate cerca de {npc:2713}: sigue caminando mientras luchas, y la escolta falla si se aleja demasiado o muere. Limpia antes los orcos al pie de la colina. Si no está junto a {npc:2712}, espera unos minutos a que vuelva."
+pt = "Fique perto de {npc:2713}: ela continua andando enquanto você luta, e a escolta falha se ela se afastar demais ou morrer. Limpe antes os orcs ao pé da colina. Se ela não estiver ao lado de {npc:2712}, espere alguns minutos até ela voltar."
+ru = "Держитесь рядом с персонажем {npc:2713}: она идёт дальше, пока вы сражаетесь, и сопровождение провалится, если она уйдёт далеко или погибнет. Сначала перебейте орков у подножия холма. Если её нет рядом с персонажем {npc:2712}, подождите несколько минут."
+ko = "{npc:2713} 곁에 붙어 있으세요. 전투 중에도 계속 걸어가며, 너무 멀어지거나 죽으면 호위가 실패합니다. 먼저 언덕 아래의 오크를 처치하세요. {npc:2712} 옆에 없다면 몇 분 기다리면 돌아옵니다."
+zh_cn = "紧跟{npc:2713}：你战斗时她会继续前进，如果她走得太远或死亡，护送就会失败。先清掉山坡下的兽人。如果她不在{npc:2712}身边，等几分钟她就会回来。"
+zh_tw = "緊跟{npc:2713}：你戰鬥時她會繼續前進，如果她走得太遠或死亡，護送就會失敗。先清掉山坡下的獸人。如果她不在{npc:2712}身邊，等幾分鐘她就會回來。"
+
+# Hillsbrad's Hoard: the item goes on the lectern where the magistrate stands, not on the tables of the town hall; the magistrate need not be alive.
+[[note]]
+quest = 98059
+phase = "objective"
+objective = 1
+level = "warning"
+editions = ["forever"]
+en = "Use the quest item from your bags on the lectern in front of where {npc:2335} stands, not on the tables. He does not need to be there."
+fr = "Utilisez l'objet de quête depuis vos sacs sur le lutrin devant l'endroit où se tient {npc:2335}, pas sur les tables. Il n'a pas besoin d'être là."
+de = "Benutze den Questgegenstand aus deinen Taschen am Lesepult vor der Stelle, an der {npc:2335} steht, nicht an den Tischen. Er muss nicht da sein."
+es = "Usa el objeto de misión desde tus bolsas en el atril frente al lugar donde está {npc:2335}, no en las mesas. No hace falta que él esté allí."
+pt = "Use o item de missão das suas bolsas no atril em frente ao lugar onde {npc:2335} fica, não nas mesas. Ele não precisa estar lá."
+ru = "Используйте предмет задания из сумки на кафедре перед местом, где стоит {npc:2335}, а не на столах. Ему не обязательно быть там."
+ko = "가방에서 퀘스트 아이템을 {npc:2335}이(가) 서 있는 자리 앞의 독서대에 사용하세요. 탁자가 아닙니다. 그가 그 자리에 있을 필요는 없습니다."
+zh_cn = "从背包里对{npc:2335}所站位置前的讲台使用任务物品，不是桌子。他不在也没关系。"
+zh_tw = "從背包裡對{npc:2335}所站位置前的講台使用任務物品，不是桌子。他不在也沒關係。"

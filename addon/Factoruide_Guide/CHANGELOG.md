@@ -22,6 +22,26 @@ under Unreleased; `scripts/release.sh` gives them the release's version.
 - WoW Forever: after a fight, a reminder of each XP bonus you are missing (Well Fed from cooked food, your Cozy Sleeping Bag when ready, a leatherworker's Camp Tent), at most every 10 minutes each (Advice, "Reminder of missing XP buffs").
 - WoW Forever: a guide that counts on Well Fed or the Sleeping Bag warns about them itself, so the "Reminder of missing XP buffs" no longer repeats those two for it (it still covers the Camp Tent, and the buffs of guides that don't count on them). Forever's own Well Fed XP aura is recognised.
 - WoW Forever: at your first Legacy point (level 25), the Legacy perks that save the most leveling time, best first, in the chat; again any time with a button in the options (Advice, "Legacy perk advice").
+
+## 0.19.0 (2026-11-12)
+
+- Steps show how their quest is taken or their objective done, and a yellow, orange or red mark when a note tells more about the quest; the step's tooltip lists the notes.
+- A quest handed in far ahead of the guide no longer marks the merchants, trainers and flight masters before it as visited.
+
+## 0.18.0 (2026-11-10)
+
+- No more blocked-action errors from the quest panel during a fight; its layout catches up afterwards.
+- Guides pasted on Windows no longer fail to import on large numbers.
+
+## 0.17.0 (2026-11-09)
+
+- An objective guide done below the level its quests ask says so on the current step until you reach it.
+- World map pins and the walk's dots keep their size on a map enlarged by another addon.
+
+## 0.16.0 (2026-11-07)
+
+- WoW Forever: no more "ADDON_ACTION_BLOCKED: SetPassThroughButtons" message when the world map is open during a fight.
+- A dungeon's quests show together until each is done, even after leaving it; "Skip the dungeon" leaves the ones not finished aside.
 - WoW Forever: the Sleeping Bag XP reminder starts after its reward quest is completed.
 
 ## 0.15.0 (2026-11-01)

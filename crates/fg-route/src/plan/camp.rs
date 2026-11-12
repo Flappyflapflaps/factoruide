@@ -2,7 +2,7 @@
 //! the nearest it gets to fastest, going there first; each level at its own camp. Grinding stays
 //! where the character stands only when no camp of its level is on its continent.
 
-use super::Planner;
+use super::Simulator;
 use super::state::{Event, State};
 use crate::world::Pos;
 use rustc_hash::FxHashMap;
@@ -11,12 +11,13 @@ use std::rc::Rc;
 /// Camps looked at, nearest as the crow flies first: the one the trip to is the fastest.
 const CAMP_CHOICES: usize = 3;
 /// Places whose nearest camps are remembered, beyond which the memo starts over.
-const CAMP_MEMO: usize = 1 << 16;
+/// What a table of 2^16 buckets holds (7/8 of them): it never doubles for the last ones.
+const CAMP_MEMO: usize = (1 << 16) / 8 * 7;
 
 /// The nearest camps of a place for a level: (continent, bits of the coordinates, level).
 pub(crate) type NearCamps = std::cell::RefCell<FxHashMap<(i64, [u64; 2], i64), Rc<[Pos]>>>;
 
-impl Planner<'_> {
+impl Simulator<'_> {
     /// Grind until `level` (the game's cap at most), at the camp of each level, recording the
     /// trips there and the grinding at each camp (`Event::Grind`, at the camp). The character
     /// ends at the last camp.
@@ -68,7 +69,7 @@ impl Planner<'_> {
     /// can be got to).
     pub(crate) fn camp(&self, s: &State) -> Option<Pos> {
         let key = (s.pos.continent, [s.pos.x.to_bits(), s.pos.y.to_bits()], s.level);
-        let known = self.near_camps.borrow().get(&key).cloned();
+        let known = self.memo.near_camps.borrow().get(&key).cloned();
         let near = known.unwrap_or_else(|| {
             let mut camps: Vec<(f64, usize)> = (self.model.farm.camps(s.pos.continent, s.level).iter())
                 .enumerate()
@@ -77,7 +78,7 @@ impl Planner<'_> {
             camps.sort_unstable_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
             let all = self.model.farm.camps(s.pos.continent, s.level);
             let near: Rc<[Pos]> = camps.iter().take(CAMP_CHOICES).map(|&(_, i)| all[i]).collect();
-            let mut memo = self.near_camps.borrow_mut();
+            let mut memo = self.memo.near_camps.borrow_mut();
             if memo.len() >= CAMP_MEMO {
                 memo.clear();
             }

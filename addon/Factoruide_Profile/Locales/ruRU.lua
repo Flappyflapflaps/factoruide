@@ -164,6 +164,7 @@ FG.Locales.ruRU = {
     ["windows locked"] = "окна закреплены",
     ["windows unlocked: drag them to move them"] = "окна откреплены: перетащите их, чтобы переместить",
     ["for %s"] = "для %s",
+    ["Level %d recommended, you are %d"] = "Рекомендуется уровень %d, у вас %d",
     ["marked done, waiting for %s"] = "отмечено выполненным, ждём %s",
     ["%s: step %d"] = "%s: шаг %d",
     ["%s ahead: step %d"] = "%s впереди: шаг %d",
@@ -252,4 +253,8 @@ FG.Locales.ruRU = {
     ["  starts inside: %s"] = "  начинается внутри: %s",
     ["no dungeon ahead in the guide"] = "впереди в гайде нет подземелий",
     ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg пишет сообщение для группы в чат (Enter отправляет)",
+    ["dungeon left aside: %s (%d steps; to undo: the “Undo the last mark” key)"] = "подземелье пропущено: %s (%d шагов; отменить: клавиша «Отменить последнюю отметку»)",
+    ["%s: %d steps left"] = "%s: осталось шагов: %d",
+    ["Skip the dungeon"] = "Пропустить подземелье",
+    ["Mark the dungeon's steps not done as done: its quests not finished are left aside."] = "Отмечает невыполненные шаги подземелья как выполненные: его незаконченные задания откладываются.",
 }

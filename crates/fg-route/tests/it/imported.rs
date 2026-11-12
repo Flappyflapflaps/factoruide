@@ -44,6 +44,8 @@ fn editor() -> Editor {
         start: None,
         required_quests: vec![],
         mate_professions: vec![],
+        objectives: vec![],
+        dungeon: None,
     };
     Editor::open(&database_of("forever"), &overrides, &request, None).unwrap()
 }

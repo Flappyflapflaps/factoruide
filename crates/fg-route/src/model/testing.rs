@@ -171,6 +171,7 @@ impl Q {
             xp: 500,
             xp_observed: false,
             time_limit: None,
+            start_wait: 0.0,
             starts: Vec::new(),
             ends: Vec::new(),
             objectives: Vec::new(),
@@ -228,6 +229,16 @@ impl Q {
 
     pub fn min_level(mut self, level: i64) -> Self {
         self.quest.min_level = level;
+        self
+    }
+
+    /// Its giver stands among `count` hostile mobs of level `level`.
+    pub fn guarded(mut self, level: i64, count: u32) -> Self {
+        self.quest.start_guard = Guard {
+            level,
+            count,
+            elite: false,
+        };
         self
     }
 
@@ -302,6 +313,12 @@ impl Q {
         self
     }
 
+    /// A breadcrumb to quest `id`: closed once that one is taken.
+    pub fn breadcrumb_for(mut self, id: i64) -> Self {
+        self.quest.breadcrumb_for = Some(id);
+        self
+    }
+
     /// Timed: seconds from taking it to turning it in.
     /// Reputation with a faction (Faction ID) the turn-in gives.
     pub fn reputation(mut self, faction: i64, amount: f64) -> Self {
@@ -311,6 +328,12 @@ impl Q {
 
     pub fn timed(mut self, seconds: f64) -> Self {
         self.quest.time_limit = Some(seconds);
+        self
+    }
+
+    /// Offered after a wait at the giver (seconds, on average).
+    pub fn start_wait(mut self, seconds: f64) -> Self {
+        self.quest.start_wait = seconds;
         self
     }
 
@@ -596,6 +619,15 @@ impl Scenario {
         self
     }
 
+    /// An objective guide of these objectives (`PlanRequest::objectives`), at the character's
+    /// level (`levels`).
+    pub fn objectives(mut self, objectives: &[crate::model::GuideObjective]) -> Self {
+        self.profile.objectives = objectives.to_vec();
+        self.profile.to_level = self.profile.from_level;
+        self.params.for_objective_guide(objectives);
+        self
+    }
+
     pub fn levels(mut self, from: i64, to: i64) -> Self {
         self.profile.from_level = from;
         self.profile.to_level = to;
@@ -804,9 +836,11 @@ impl Scenario {
                 }
             }
         }
-        // Quests outside the levels of the character are not built, but for the must-haves.
+        // Quests outside the levels of the character are not built, but for the must-haves (and in
+        // an objective guide, `QuestBuilder::any_level`).
         quests.retain(|q| {
             self.required.contains(&q.id)
+                || self.profile.objective_guide()
                 || self
                     .profile
                     .within_levels(q.level, q.min_level, self.params.max_quest_above)
@@ -897,10 +931,11 @@ impl Scenario {
         crate::job::check_dungeon_levels(&model, &self.params, &self.profile)?;
         let mut notes = Vec::new();
         crate::job::check_exclusive_choices(&model, &members)?;
+        let mates: Vec<StartState> = members.iter().skip(1).copied().cloned().collect();
         if let Some(start) = first {
-            let mates: Vec<StartState> = members.iter().skip(1).copied().cloned().collect();
             crate::job::start_from(&mut model, &world, &mut self.params, start, &mates, &mut notes);
         }
+        crate::job::settle_objective_guide(&mut model, &world, &self.params, &self.profile)?;
         model.initial.abilities = model.abilities.initial(first, self.profile.from_level);
         Ok(Prepared {
             profile: self.profile,
@@ -997,6 +1032,7 @@ pub fn profile(faction: Faction, from: i64, to: i64) -> Profile {
         locale: None,
         mates: Vec::new(),
         player: String::new(),
+        objectives: Vec::new(),
     }
 }
 
@@ -1043,5 +1079,7 @@ pub fn bare(quests: Vec<Quest>, dungeons: Vec<Dungeon>, start: Loc, params: &Par
         bundles,
         dungeon_loot: vec![Vec::new(); d],
         patrols: HashMap::new(),
+        above_level: Vec::new(),
+        levels_ignored: false,
     }
 }

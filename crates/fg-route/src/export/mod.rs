@@ -7,6 +7,7 @@ pub mod format;
 mod grind_spots;
 pub mod groups;
 mod lua;
+pub mod notes;
 mod phrase;
 pub mod polestar;
 mod templates;
@@ -33,13 +34,20 @@ use writer::StepWriter;
 pub fn render(route: &Route, names: &Names) -> Route {
     let mut out = route.clone();
     let lang = Lang::of(&names.locale);
-    for step in out.steps.iter_mut().filter(|s| !s.say.is_empty()) {
-        render_step(step, names);
+    for step in &mut out.steps {
+        if step.say.is_empty() {
+            annotate(step, names);
+        } else {
+            render_step(step, names);
+        }
     }
     for p in &mut out.professions {
         if let Some(name) = templates::profession_name(&p.key, lang) {
             p.name = name.to_owned();
         }
+    }
+    for q in out.recommended.iter_mut().flat_map(|r| &mut r.quests) {
+        q.name = names.get("quest", q.id, &q.name).to_owned();
     }
     out.locale = Some(names.locale.clone());
     out
@@ -53,6 +61,24 @@ pub fn build(planner: &Planner<'_>, profile: &Profile, route: &[Stop]) -> Route 
     // Show the real play time; the optimizer score also counts penalties.
     let total = if total.is_finite() { breakdown.total } else { total };
     build_traced(planner, profile, route, &trace, total, breakdown)
+}
+
+/// An objective guide's quests above the character's level (`Model::above_level`), named in the
+/// guide's language.
+fn recommended(planner: &Planner<'_>) -> Option<types::Recommended> {
+    let model = planner.model;
+    let level = model.above_level.first()?.1;
+    let quests = (model.above_level.iter())
+        .map(|&(id, level)| {
+            let english = model.index.get(&id).map_or("", |&i| model.quests[i].name.as_str());
+            types::QuestAbove {
+                id,
+                name: model.names.get("quest", id, english).to_owned(),
+                level,
+            }
+        })
+        .collect();
+    Some(types::Recommended { level, quests })
 }
 
 /// Route from an already simulated trace (`total`: real play time): a step per event, but the
@@ -77,6 +103,7 @@ pub fn build_traced(
     // The quests of the character's log the guide leaves are abandoned first.
     let model = planner.model;
     let left: HashSet<i64> = planner
+        .sim()
         .left_at_start(&planner.planned(route))
         .map(|i| model.quests[i].id)
         .collect();
@@ -91,7 +118,8 @@ pub fn build_traced(
             }
         })
     };
-    if let Some(first) = trace.first() {
+    // An objective guide leaves the rest of the log alone: the character goes on with it after.
+    if let Some(first) = trace.first().filter(|_| !planner.profile.objective_guide()) {
         for (id, name) in model.initial.log.iter().filter(|(id, _)| !kept(id)) {
             steps.push(writer.abandon_unused(first, *id, name));
             xps.push(planner.model.initial.xp);
@@ -197,9 +225,20 @@ pub(crate) fn event_steps(planner: &Planner<'_>, route: &[Stop], trace: &[Timed]
         .collect()
 }
 
-/// A step written in the language of `names`: its sentence, and the names of its quest,
-/// target, mobs and zone.
+/// A step's icon and quest notes (those of `names`, in its language): what the files say now,
+/// whatever the guide was saved with.
+fn annotate(step: &mut Step, names: &Names) {
+    let book = names.notes.as_deref();
+    step.icon = (book.and_then(|b| b.icon_of(step)))
+        .or_else(|| notes::auto_icon(step))
+        .map(str::to_owned);
+    step.notes = book.map(|b| b.notes_of(step)).unwrap_or_default();
+}
+
+/// A step written in the language of `names`: its sentence, the names of its quest, target,
+/// mobs and zone, its icon and notes.
 fn render_step(step: &mut Step, names: &Names) {
+    annotate(step, names);
     step.text = phrase::render_all(&step.say, names);
     if let (Some(id), Some(name)) = (step.quest, &step.quest_name) {
         step.quest_name = Some(names.get("quest", id, name).to_owned());
@@ -267,6 +306,8 @@ fn route_of(
             .collect(),
         checkpoints,
         reputation: reputation_reached(planner, route),
+        recommended: recommended(planner),
+        levels_ignored: model.levels_ignored,
         players: if profile.mates.is_empty() {
             Vec::new()
         } else {

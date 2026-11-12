@@ -476,6 +476,29 @@ impl Studio {
         )?)
     }
 
+    /// The quests a character has left in each zone and dungeon, for an objective guide
+    /// (`job::objective_counts`).
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: the game data could not be read.
+    pub fn objective_counts<H: Host>(&self, host: &H, start: &StartState) -> Result<job::ObjectiveCounts> {
+        let conn = host.open_db(host.edition())?;
+        Ok(job::objective_counts(&conn, start)?)
+    }
+
+    /// The quests a request's objectives plan for its character, and those they cannot
+    /// (`job::objective_preview`).
+    ///
+    /// # Errors
+    ///
+    /// [`CmdError`]: the request is refused, or the game data could not be read.
+    pub fn objective_preview<H: Host>(&self, host: &H, request: &PlanRequest) -> Result<job::ObjectivePreview> {
+        let edition = request_edition(host, request);
+        let conn = host.open_db(edition)?;
+        Ok(job::objective_preview(&conn, &*host.overrides(edition)?, request)?)
+    }
+
     /// Ends the optimization under way now: `plan_route` saves and returns the best guide so far.
     pub fn stop_plan(&self) {
         self.interrupt.stop();
@@ -511,7 +534,7 @@ impl Studio {
     ///
     /// [`CmdError`]: `Cancelled` and `Superseded` when the page gave up, otherwise the planner, the game data or the guide files failed.
     pub fn names<H: Host>(&self, host: &H, edition: Edition, locale: &str) -> Result<Arc<Names>> {
-        Ok(Names::kept(&host.open_db(edition)?, locale)?)
+        Ok(Names::kept_for(&host.open_db(edition)?, edition, locale)?)
     }
 
     /// A guide written in `locale` (None: the language it was made in).

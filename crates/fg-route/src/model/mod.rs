@@ -36,9 +36,9 @@ pub use guard::Guards;
 pub use loot::CommonLoot;
 pub use names::Names;
 pub use types::{
-    ClassRequirement, CompletionWindow, Dungeon, DungeonDef, EntityKind, ExploreArea, FloorPoint, Guard, Initial, Loc,
-    Mate, MateStart, Model, Objective, ObjectiveOrder, ProfessionPlan, ProfessionTrainer, Profile, Quest,
-    QuestOverride, QuestRequirement, Spots, Teleport, TeleportDef, Vendor, race_bit,
+    ClassRequirement, CompletionWindow, Dungeon, DungeonDef, EntityKind, ExploreArea, FloorPoint, Guard,
+    GuideObjective, Initial, Loc, Mate, MateStart, Model, Objective, ObjectiveOrder, Pool, ProfessionPlan,
+    ProfessionTrainer, Profile, Quest, QuestOverride, QuestRequirement, Spots, Teleport, TeleportDef, Vendor, race_bit,
 };
 
 use crate::params::Params;
@@ -235,7 +235,7 @@ pub fn load(
         skipped,
         initial: Initial::default(),
         known_class_prerequisites: known_prerequisites,
-        names: Names::load(conn, profile.locale.as_deref().unwrap_or("enUS"))?,
+        names: Names::load_for(conn, params.edition, profile.locale.as_deref().unwrap_or("enUS"))?,
         faction_names: faction_names(conn, params),
         explore,
         explore_by_zone,
@@ -247,46 +247,99 @@ pub fn load(
         bundles,
         dungeon_loot,
         patrols,
+        above_level: Vec::new(),
+        levels_ignored: false,
     })
 }
 
 /// What follows from the quests built, without the data: the class quests that teach a spell, the
 /// quests of the dungeons run with all their quests, what a quest needs first, the class quests
-/// that cannot be done, and the must-haves as mandatory.
+/// that cannot be done, and the must-haves as mandatory. Returns the forced quests released
+/// (`chains::release_impossible_class_quests`).
 pub(crate) fn settle_quests(
     quests: &mut [Quest],
     dungeons: &[Dungeon],
     params: &Params,
     known: &HashSet<i64>,
     profile: &Profile,
-) {
+) -> Vec<(i64, String)> {
     let (completed, requirements) = (&profile.completed_quests, &profile.class_requirements);
     let versions = chains::class_quest_versions(quests, requirements, params.all_class_quests);
     for q in quests.iter_mut() {
         let forced = |d: usize| params.forced_dungeon_quests.contains(&dungeons[d].area);
-        q.mandatory |= q.objectives.iter().any(|o| o.dungeon_of().is_some_and(forced));
+        q.mandatory |= (0..dungeons.len()).any(|d| forced(d) && q.in_dungeon(d));
+    }
+    for objective in &profile.objectives {
+        match *objective {
+            GuideObjective::Dungeon(area) => force_dungeon_quests(quests, dungeons, area),
+            GuideObjective::Quest(id) => {
+                for q in quests.iter_mut().filter(|q| q.id == id) {
+                    q.mandatory = true;
+                    q.zone_forced = true;
+                }
+            }
+            // Marked when built (`QuestBuilder::zone_forced`): by what the quest is filed under.
+            GuideObjective::Zone(_) => {}
+        }
     }
     chains::require_alternatives(quests, requirements);
     chains::require_prerequisites(quests);
-    chains::release_impossible_class_quests(quests, known, completed);
+    let released = chains::release_impossible_class_quests(quests, known, completed);
     chains::settle_class_quest_versions(quests, &versions);
     for q in quests.iter_mut() {
         q.mandatory |= q.required;
     }
     chains::default_completion_windows(quests, profile, params);
+    released
+}
+
+/// The quests of an objective guide's dungeon (area `area`): those of it (`Quest::in_dungeon`)
+/// or started there, whatever their level (the guide tells the level they need,
+/// `Planner::objective_guide_level`). Every one of them is done, as the quests of a forced zone
+/// (`zone_forced`, prerequisites included by `chains::require_prerequisites`).
+fn force_dungeon_quests(quests: &mut [Quest], dungeons: &[Dungeon], area: i64) {
+    let Some(d) = dungeons.iter().position(|d| d.area == area) else {
+        return;
+    };
+    for q in quests.iter_mut() {
+        if q.in_dungeon(d) || q.start_dungeon == Some(d) {
+            q.mandatory = true;
+            q.zone_forced = true;
+        }
+    }
+}
+
+/// Whether a quest is one of an objective guide's zones or quests, by its row (a dungeon's are
+/// found once its objectives are placed, `force_dungeon_quests`): a zone's are filed under it or
+/// a subzone, class and profession quests left out.
+fn objective_row(sources: &Sources, profile: &Profile, r: &sources::QuestRow) -> bool {
+    profile.objectives.iter().any(|o| match *o {
+        GuideObjective::Quest(id) => id == r.id,
+        GuideObjective::Zone(area) => {
+            r.sort.is_some_and(|s| s > 0 && sources.in_zones(s, &[area]))
+                && r.skill.unwrap_or(0) == 0
+                && !sources.class_quest_ids.contains(&r.id)
+        }
+        GuideObjective::Dungeon(area) => r.sort == Some(area),
+    })
 }
 
 /// A dungeon holding an objective of a must-have quest is run like a forced one, and past its
 /// levels too: the quest asks for it. A dungeon the player forced stays within its levels, the
-/// route being refused when it cannot be run there.
-pub(crate) fn settle_dungeons(dungeons: &mut [Dungeon], quests: &[Quest], profile: &Profile) {
+/// route being refused when it cannot be run there. An objective guide's dungeon is run at any level
+/// (up to `max_level`, the game's): the player chose it.
+pub(crate) fn settle_dungeons(dungeons: &mut [Dungeon], quests: &[Quest], profile: &Profile, max_level: i64) {
     for q in quests.iter().filter(|q| q.required) {
-        for d in q.objectives.iter().filter_map(Objective::dungeon_of) {
-            dungeons[d].needed = true;
+        for (d, dungeon) in dungeons.iter_mut().enumerate() {
+            dungeon.needed |= q.in_dungeon(d);
         }
     }
     for d in dungeons.iter_mut().filter(|d| d.needed) {
         d.max_level = d.max_level.max(profile.to_level);
+    }
+    for d in (dungeons.iter_mut()).filter(|d| profile.objectives.contains(&GuideObjective::Dungeon(d.area))) {
+        d.needed = true;
+        d.max_level = max_level;
     }
 }
 
@@ -337,21 +390,25 @@ fn build_quests(
     profile: &Profile,
     params: &Params,
 ) -> (Vec<Quest>, Vec<(i64, String, String)>) {
-    let builder = QuestBuilder::new(sources, world, profile, params);
-    // The quests the player asked for are done even when their mobs are elites.
-    let with_elites = Params {
+    let mut builder = QuestBuilder::new(sources, world, profile, params);
+    // The quests the player asked for (see `asked_quests`) are done even when their mobs are
+    // elites, or an item they ask for is only sold at the auction house.
+    let for_asked = Params {
         allow_elite: true,
+        auction_house: true,
         ..params.clone()
     };
-    let asked = QuestBuilder::new(sources, world, profile, &with_elites);
+    let mut asked = QuestBuilder::new(sources, world, profile, &for_asked);
+    // An objective guide's quests and their chains are its whatever their level (the last of a
+    // chain is often above the dungeon's); the others are left out once its quests are known
+    // (`derive::settle`).
+    builder.any_level = profile.objective_guide();
+    asked.any_level = builder.any_level;
+    let asked_ids = asked_quests(sources, profile, params);
     let mut quests = Vec::new();
     let mut skipped = Vec::new();
     for row in &sources.rows {
-        let builder = if profile.required_quests.iter().any(|q| q.id == row.id) {
-            &asked
-        } else {
-            &builder
-        };
+        let builder = if asked_ids.contains(&row.id) { &asked } else { &builder };
         match builder.build(row) {
             // The objectives done are a mask of 8 bits (`State::objectives`).
             Ok(Some(quest)) if quest.objectives.len() > 8 => {
@@ -369,6 +426,34 @@ fn build_quests(
         }
     }
     (quests, skipped)
+}
+
+/// The quests the player asked for: the must-haves, those of a dungeon forced with its quests or
+/// of an objective guide's objectives, and every quest they need first.
+fn asked_quests(sources: &Sources, profile: &Profile, params: &Params) -> HashSet<i64> {
+    let mut todo: Vec<i64> = profile.required_quests.iter().map(|q| q.id).collect();
+    todo.extend(
+        (sources.rows.iter())
+            .filter(|r| {
+                r.sort.is_some_and(|zone| params.forced_dungeon_quests.contains(&zone))
+                    || objective_row(sources, profile, r)
+            })
+            .map(|r| r.id),
+    );
+    let mut asked = HashSet::new();
+    while let Some(id) = todo.pop() {
+        if asked.insert(id) {
+            let needs = sources.links.get(&id).into_iter().flatten();
+            todo.extend(
+                needs
+                    .filter(|(kind, other)| {
+                        matches!(kind, sources::LinkKind::PreAll | sources::LinkKind::PreAny) && *other > 0
+                    })
+                    .map(|(_, other)| *other),
+            );
+        }
+    }
+    asked
 }
 
 /// Class quests the planner cannot do are worth knowing about.

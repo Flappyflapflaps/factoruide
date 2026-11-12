@@ -30,7 +30,8 @@ const NONE: u32 = u32::MAX;
 const SMALL_AREA: u32 = 4;
 /// Ends of walks in a tile whose costs to its gates are remembered, beyond which the tile's memo
 /// starts over.
-const ENDS_MAX: usize = 1 << 12;
+/// What a table of 2^12 buckets holds (7/8 of them): it never doubles for the last ones.
+const ENDS_MAX: usize = (1 << 12) / 8 * 7;
 
 /// The walks from a floor of a tile to its gates (or back), by floor and way, shared by the
 /// threads.
@@ -42,6 +43,11 @@ thread_local! {
     /// The open floors of `Grid::local`, kept from a search to the next.
     static LOCAL_OPEN: std::cell::RefCell<Vec<Vec<u16>>> =
         std::cell::RefCell::new((0..super::BUCKETS).map(|_| Vec::new()).collect());
+}
+
+/// Gives back the memory of this thread's open floors (`threads::Release`).
+pub(super) fn release_thread_caches() {
+    let _ = LOCAL_OPEN.try_with(|o| o.borrow_mut().iter_mut().for_each(|v| *v = Vec::new()));
 }
 
 /// Cheapest cost found to each gate (tile, index) of a walk (`NONE`: none yet), and the gate it
@@ -169,6 +175,7 @@ impl Grid {
             let parts: Vec<_> = (0..workers)
                 .map(|w| {
                     scope.spawn(move || {
+                        let _release = crate::threads::Release;
                         (w..n)
                             .step_by(workers)
                             .filter(|&t| self.tiles[t].is_some())

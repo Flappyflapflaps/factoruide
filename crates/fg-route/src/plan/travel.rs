@@ -27,8 +27,8 @@ type PosKey = [u64; 4];
 pub(crate) type Legs = RefCell<FxHashMap<(PosKey, PosKey, u128, u64, u64), (f64, Hop)>>;
 pub(crate) type Grounds = RefCell<FxHashMap<(PosKey, PosKey, u8), bool>>;
 
-/// What a table of 2^18 buckets holds (7/8 of them): it never grows past them.
-const LEGS_MAX: usize = (1 << 18) / 8 * 7;
+/// What a table of 2^16 buckets holds (7/8 of them): it never grows past them.
+const LEGS_MAX: usize = (1 << 16) / 8 * 7;
 
 /// The best flight between two sets of flight paths: its time, weighted time, from and to.
 type Flight = Option<(f64, f64, usize, usize)>;

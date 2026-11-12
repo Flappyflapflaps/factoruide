@@ -1,0 +1,124 @@
+# Quest notes of Azshara. See notes/README.md for the format.
+
+# A Land Filled with Hatred: the three Haldarr kinds share spawn points, so the scarce one comes back in place of the others.
+[[note]]
+quest = 5536
+phase = "objective"
+level = "warning"
+en = "{npc:6125}, {npc:6126} and {npc:6127} share spawn points: when one kind runs short, kill everything in the ruins and it respawns in the others' place."
+fr = "{npc:6125}, {npc:6126} et {npc:6127} partagent leurs points d'apparition : quand une sorte manque, tuez tout dans les ruines et elle réapparaîtra à la place des autres."
+de = "{npc:6125}, {npc:6126} und {npc:6127} teilen sich ihre Spawnpunkte: Fehlt eine Art, töte alles in den Ruinen, dann spawnt sie an der Stelle der anderen."
+es = "{npc:6125}, {npc:6126} y {npc:6127} comparten puntos de aparición: si falta un tipo, mata todo en las ruinas y reaparecerá en lugar de los demás."
+pt = "{npc:6125}, {npc:6126} e {npc:6127} compartilham pontos de surgimento: se faltar um tipo, mate tudo nas ruínas e ele reaparece no lugar dos outros."
+ru = "{npc:6125}, {npc:6126} и {npc:6127} появляются в одних и тех же точках: если какого-то вида не хватает, перебейте всех в руинах, и он появится вместо остальных."
+ko = "{npc:6125}, {npc:6126}, {npc:6127}은(는) 생성 지점을 공유합니다. 한 종류가 부족하면 폐허의 몹을 모두 처치하세요. 그 자리에 부족한 종류가 다시 나타납니다."
+zh_cn = "{npc:6125}、{npc:6126}和{npc:6127}共用刷新点：哪种不够，就把废墟里的怪全部清掉，它会在其他怪的位置刷新出来。"
+zh_tw = "{npc:6125}、{npc:6126}和{npc:6127}共用重生點：哪種不夠，就把廢墟裡的怪全部清掉，它會在其他怪的位置重生出來。"
+
+# Betrayed: the quest ends at the summoning tome on the altar; a second book (a journal by the tent) does nothing.
+[[note]]
+quest = 3505
+phase = "turnin"
+level = "info"
+en = "Hand the quest in at {object:151286} on the altar inside the ring of pillars, not at the journal by the tent nearby."
+fr = "Rendez la quête à {object:151286} sur l'autel au milieu du cercle de piliers, pas au journal près de la tente voisine."
+de = "Gib die Quest bei {object:151286} auf dem Altar im Säulenkreis ab, nicht beim Tagebuch am Zelt daneben."
+es = "Entrega la misión en {object:151286}, sobre el altar dentro del círculo de pilares, no en el diario junto a la tienda cercana."
+pt = "Entregue a missão em {object:151286}, no altar dentro do círculo de pilares, e não no diário perto da tenda ao lado."
+ru = "Сдайте задание у предмета {object:151286} на алтаре в кругу колонн, а не у дневника возле палатки рядом."
+ko = "퀘스트는 기둥으로 둘러싸인 제단 위의 {object:151286}에서 완료하세요. 근처 천막 옆의 일지가 아닙니다."
+zh_cn = "在石柱环中祭坛上的{object:151286}处交任务，不是旁边帐篷边的那本日志。"
+zh_tw = "在石柱環中祭壇上的{object:151286}處交任務，不是旁邊帳篷邊的那本日誌。"
+
+# Delivery to Archmage Xylem: the tower is only reached through Sanath Lim-yo's teleport at the foot of the cliff.
+[[note]]
+quest = 3561
+phase = "turnin"
+level = "info"
+en = "{npc:8379} is in a tower up the cliff: talk to {npc:8395} by the campfire at the foot of the mountain to be teleported up, then follow the path. An elf on the ledge up there takes you back down."
+fr = "{npc:8379} est dans une tour en haut de la falaise : parlez à {npc:8395}, près du feu de camp au pied de la montagne, pour être téléporté en haut, puis suivez le chemin. Un elfe sur la corniche vous redescend."
+de = "{npc:8379} ist in einem Turm oben auf der Klippe: Sprich mit {npc:8395} am Lagerfeuer am Fuß des Berges, um hinaufteleportiert zu werden, und folge dann dem Pfad. Ein Elf auf dem Felsvorsprung bringt dich wieder hinunter."
+es = "{npc:8379} está en una torre en lo alto del acantilado: habla con {npc:8395}, junto a la hoguera al pie de la montaña, para que te teletransporte arriba, y sigue el camino. Un elfo en la cornisa te baja de nuevo."
+pt = "{npc:8379} fica numa torre no alto do penhasco: fale com {npc:8395}, junto à fogueira no pé da montanha, para ser teletransportado para cima e siga o caminho. Um elfo na borda lá em cima leva você de volta."
+ru = "{npc:8379} находится в башне на вершине утёса: поговорите с персонажем {npc:8395} у костра у подножия горы, он телепортирует вас наверх, затем идите по тропе. Эльф на уступе наверху вернёт вас вниз."
+ko = "{npc:8379}은(는) 절벽 위 탑에 있습니다. 산기슭 모닥불 옆의 {npc:8395}에게 말을 걸어 위로 순간이동한 뒤 길을 따라가세요. 위쪽 바위 턱에 있는 엘프가 다시 아래로 보내 줍니다."
+zh_cn = "{npc:8379}在悬崖上的塔里：和山脚篝火旁的{npc:8395}对话，传送上去后沿小路走。上面岩架上的精灵可以把你送回山下。"
+zh_tw = "{npc:8379}在懸崖上的塔裡：和山腳營火旁的{npc:8395}對話，傳送上去後沿小路走。上面岩架上的精靈可以把你送回山下。"
+
+# Kim'jael Indeed!: the four items come at random from any equipment box; a relog is the known fix when the last one never drops.
+[[note]]
+quest = 3601
+phase = "objective"
+level = "warning"
+en = "Any {object:153123} box can hold any of the four items, often only food. Boxes respawn within minutes, not always at the same spot. If the last item never shows up, log out and back in, then open the next box."
+fr = "Chaque caisse {object:153123} peut contenir l'un des quatre objets, souvent juste de la nourriture. Elles réapparaissent en quelques minutes, pas toujours au même endroit. Si le dernier objet ne sort jamais, déconnectez-vous puis reconnectez-vous avant d'ouvrir la suivante."
+de = "Jede Kiste {object:153123} kann jeden der vier Gegenstände enthalten, oft nur Essen. Die Kisten erscheinen nach wenigen Minuten neu, nicht immer an derselben Stelle. Kommt der letzte Gegenstand nie, logg dich aus und wieder ein und öffne dann die nächste Kiste."
+es = "Cualquier caja {object:153123} puede tener cualquiera de los cuatro objetos, a menudo solo comida. Reaparecen en pocos minutos, no siempre en el mismo sitio. Si el último objeto nunca sale, desconéctate, vuelve a entrar y abre la siguiente caja."
+pt = "Qualquer caixa {object:153123} pode ter qualquer um dos quatro itens, muitas vezes só comida. Elas reaparecem em poucos minutos, nem sempre no mesmo lugar. Se o último item nunca aparecer, saia do jogo, entre de novo e abra a próxima caixa."
+ru = "В любом ящике {object:153123} может оказаться любой из четырёх предметов, часто только еда. Ящики появляются снова через несколько минут, не всегда на том же месте. Если последний предмет никак не выпадает, перезайдите в игру и откройте следующий ящик."
+ko = "{object:153123} 상자에는 네 가지 물품 중 무엇이든 들어 있을 수 있지만, 음식만 나올 때가 많습니다. 상자는 몇 분 안에 다시 생기지만 늘 같은 자리는 아닙니다. 마지막 물품이 끝내 안 나오면 접속을 끊었다가 다시 접속한 뒤 다음 상자를 여세요."
+zh_cn = "任何一个{object:153123}箱子都可能开出四件物品中的任意一件，但常常只有食物。箱子几分钟内就会刷新，位置不一定相同。如果最后一件一直不出，下线再上线，然后打开下一个箱子。"
+zh_tw = "任何一個{object:153123}箱子都可能開出四件物品中的任意一件，但常常只有食物。箱子幾分鐘內就會重生，位置不一定相同。如果最後一件一直不出，下線再上線，然後打開下一個箱子。"
+
+# The Name of the Beast: Hetaera swims around her domed ruin and only comes ashore from time to time on the islet north of it.
+[[note]]
+quest = 3510
+phase = "objective"
+level = "warning"
+en = "{npc:6140} is not inside the stone dome: she swims around it and comes ashore now and then on the small island with ruins just north of it. Wait for her there; she hits hard."
+fr = "{npc:6140} n'est pas dans le dôme de pierre : elle nage autour et accoste de temps en temps sur la petite île en ruine juste au nord. Attendez-la là-bas ; elle frappe fort."
+de = "{npc:6140} ist nicht in der Steinkuppel: Sie schwimmt darum herum und kommt ab und zu auf der kleinen Insel mit Ruinen direkt nördlich davon an Land. Warte dort auf sie; sie schlägt hart zu."
+es = "{npc:6140} no está dentro de la cúpula de piedra: nada a su alrededor y de vez en cuando sale a la pequeña isla con ruinas justo al norte. Espérala allí; golpea fuerte."
+pt = "{npc:6140} não está dentro da cúpula de pedra: ela nada ao redor e de vez em quando sobe na pequena ilha com ruínas logo ao norte. Espere por ela lá; ela bate forte."
+ru = "{npc:6140} не внутри каменного купола: она плавает вокруг и время от времени выходит на берег маленького острова с руинами чуть севернее. Ждите её там; она сильно бьёт."
+ko = "{npc:6140}은(는) 돌 돔 안에 없습니다. 주변을 헤엄치다가 바로 북쪽의 폐허가 있는 작은 섬에 가끔 올라옵니다. 그곳에서 기다리세요. 공격이 강합니다."
+zh_cn = "{npc:6140}不在石穹顶里：她在周围游动，不时登上正北方那座有废墟的小岛。在那里等她；她攻击很猛。"
+zh_tw = "{npc:6140}不在石穹頂裡：她在周圍游動，不時登上正北方那座有廢墟的小島。在那裡等她；她攻擊很猛。"
+
+# The Siren's Coral: only the sirens drop the coral; they share spawn points with the other Spitelash naga and look like the screamers.
+[[note]]
+quest = 8252
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Only {npc:6195} drops the coral; {npc:6193} looks the same. It shares spawn points with the other naga, so kill everything nearby to make it spawn more often."
+fr = "Le corail ne tombe que sur {npc:6195} ; {npc:6193} lui ressemble trait pour trait. Elle partage ses points d'apparition avec les autres nagas : tuez tout autour pour qu'elle apparaisse plus souvent."
+de = "Nur {npc:6195} lässt die Koralle fallen; {npc:6193} sieht genauso aus. Sie teilt sich die Spawnpunkte mit den anderen Naga: Töte alles in der Nähe, damit sie öfter spawnt."
+es = "Solo {npc:6195} suelta el coral; {npc:6193} parece idéntica. Comparte puntos de aparición con las demás nagas: mata todo lo que haya cerca para que aparezca más a menudo."
+pt = "Só {npc:6195} deixa cair o coral; {npc:6193} parece igual. Ela compartilha pontos de surgimento com as outras nagas: mate tudo por perto para que surja mais vezes."
+ru = "Коралл падает только с существ {npc:6195}; {npc:6193} выглядят точно так же. Они появляются в тех же точках, что и другие наги: перебейте всех вокруг, чтобы они появлялись чаще."
+ko = "산호는 {npc:6195}에게서만 나옵니다. {npc:6193}은(는) 똑같이 생겼습니다. 다른 나가와 생성 지점을 공유하므로 주변의 몹을 모두 처치해 더 자주 나타나게 하세요."
+zh_cn = "只有{npc:6195}掉落珊瑚；{npc:6193}长得一模一样。它与其他纳迦共用刷新点：把附近的怪全部杀掉，它就会更常刷新。"
+zh_tw = "只有{npc:6195}掉落珊瑚；{npc:6193}長得一模一樣。牠與其他納迦共用重生點：把附近的怪全部殺掉，牠就會更常重生。"
+
+# Poisoned Water: the bracers come from the elementals once the Aspect turned them into Discordant Surges; quest items do not drop in a raid group.
+[[note]]
+quest = 6804
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Use {item:17310} on a poisoned elemental before killing it: it turns into {npc:13279}, which drops a bracer every time. Untouched elementals drop none, and nothing drops while you are in a raid group."
+fr = "Utilisez {item:17310} sur un élémentaire empoisonné avant de le tuer : il devient {npc:13279}, qui lâche un brassard à chaque fois. Les élémentaires non transformés n'en lâchent pas, et rien ne tombe si vous êtes en groupe de raid."
+de = "Benutze {item:17310} an einem vergifteten Elementar, bevor du ihn tötest: Er wird zu {npc:13279}, der jedes Mal eine Armschiene fallen lässt. Unverwandelte Elementare lassen keine fallen, und in einer Schlachtzugsgruppe fällt gar nichts."
+es = "Usa {item:17310} en un elemental envenenado antes de matarlo: se convierte en {npc:13279}, que suelta un brazal cada vez. Los elementales sin transformar no sueltan ninguno, y no cae nada si estás en una banda."
+pt = "Use {item:17310} num elemental envenenado antes de matá-lo: ele vira {npc:13279}, que sempre deixa cair uma braçadeira. Elementais não transformados não deixam nenhuma, e nada cai enquanto você estiver num grupo de raide."
+ru = "Перед убийством используйте {item:17310} на отравленном элементале: он превратится в существо {npc:13279}, с которого наручи падают всегда. С непревращённых элементалей они не падают, а в рейдовой группе не падает ничего."
+ko = "독에 오염된 정령을 처치하기 전에 {item:17310}을(를) 사용하세요. 정령이 {npc:13279}(으)로 변해 매번 손목보호구를 떨어뜨립니다. 변하지 않은 정령은 떨어뜨리지 않으며, 공격대에 속해 있으면 아무것도 나오지 않습니다."
+zh_cn = "杀死中毒的元素生物前先对它使用{item:17310}：它会变成{npc:13279}，每次都会掉落护腕。未变身的元素不会掉落，处于团队中时也什么都不会掉。"
+zh_tw = "殺死中毒的元素生物前先對它使用{item:17310}：它會變成{npc:13279}，每次都會掉落護腕。未變身的元素不會掉落，處於團隊中時也什麼都不會掉。"
+
+# Betrayed: one crystal, at random, brings a guard then the Magus; the others summon an infernal.
+[[note]]
+quest = 3506
+phase = "objective"
+objective = 1
+level = "info"
+en = "Only one of the three crystals, at random, brings a guard and then {npc:8578}; the others summon an infernal. Pull the guard out of the circle before she arrives."
+fr = "Un seul des trois cristaux, au hasard, fait venir un garde puis {npc:8578} ; les autres invoquent un infernal. Éloignez le garde du cercle avant qu'elle arrive."
+de = "Nur einer der drei Kristalle, zufällig, ruft eine Wache und dann {npc:8578}; die anderen beschwören eine Höllenbestie. Zieh die Wache aus dem Kreis, bevor sie erscheint."
+es = "Solo uno de los tres cristales, al azar, trae a un guardia y luego a {npc:8578}; los demás invocan un infernal. Saca al guardia del círculo antes de que llegue ella."
+pt = "Só um dos três cristais, ao acaso, traz um guarda e depois {npc:8578}; os outros invocam um infernal. Afaste o guarda do círculo antes que ela chegue."
+ru = "Лишь один из трёх кристаллов, случайный, вызывает стража, а затем {npc:8578}; остальные призывают инфернала. Уведите стража из круга, пока она не появилась."
+ko = "수정 셋 중 무작위로 하나만 경비병과 그 뒤에 {npc:8578}을(를) 부르고, 나머지는 지옥불정령을 소환합니다. 그녀가 나타나기 전에 경비병을 원 밖으로 끌어내세요."
+zh_cn = "三块水晶中只有随机一块会引来一名卫兵，随后是{npc:8578}；其他的会召唤地狱火。在她出现前把卫兵引出圆圈。"
+zh_tw = "三塊水晶中只有隨機一塊會引來一名衛兵，隨後是{npc:8578}；其他的會召喚地獄火。在她出現前把衛兵引出圓圈。"

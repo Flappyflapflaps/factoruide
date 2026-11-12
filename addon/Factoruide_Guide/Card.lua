@@ -216,7 +216,7 @@ local function DrawTask(row, v, view)
     row.name:ClearAllPoints()
     row.name:SetPoint("TOPLEFT", TEXT_LEFT, -5)
     row.name:SetPoint("RIGHT", row.count, "LEFT", -6, 0)
-    row.name:SetText(v.name)
+    row.name:SetText((v.name or "") .. (v.mark or ""))
     TextColor(row.count, v.done and "green" or "text2")
     row.count:ClearAllPoints()
     row.count:SetPoint("TOPRIGHT", -PAD, -6)
@@ -416,6 +416,21 @@ local function Sections()
     ahead:SetScript("OnLeave", function() GameTooltip:Hide() end)
     frame.ahead = ahead
 
+    -- In a dungeon: its steps left, and leaving it aside.
+    local dungeon = FG:DragHandle(CreateFrame("Button", nil, frame, "BackdropTemplate"))
+    dungeon:SetHeight(24)
+    dungeon:SetBackdrop({ bgFile = Skin.WHITE, edgeFile = Skin.WHITE, edgeSize = 1 })
+    dungeon:SetBackdropColor(1, 0.25, 0.25, 0.08)
+    dungeon:SetBackdropBorderColor(1, 0.25, 0.25, 0.3)
+    dungeon.text = Skin:Text(dungeon, 10, "text")
+    dungeon.text:SetPoint("LEFT", 8, 0)
+    dungeon.go = Skin:Text(dungeon, 10, "gold")
+    dungeon.go:SetPoint("RIGHT", -8, 0)
+    dungeon:SetScript("OnClick", function() FG.Guide:SkipDungeon() end)
+    dungeon:SetScript("OnEnter", function(self) Tooltip(self, FG.Guide.L.dungeonTip) end)
+    dungeon:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    frame.dungeon = dungeon
+
     -- The talent to learn, in one click.
     local talent = CreateFrame("Frame", nil, frame, "BackdropTemplate")
     talent:SetHeight(32)
@@ -535,7 +550,15 @@ function Card:Render(view)
         for _, list in ipairs({ frame.rows, frame.nextRows }) do
             HideAll(list, 1)
         end
-        for _, f in ipairs({ frame.ahead, frame.talent, frame.tabs.next, frame.tabs.pickup, frame.empty, frame.quests }) do
+        for _, f in ipairs({
+            frame.ahead,
+            frame.dungeon,
+            frame.talent,
+            frame.tabs.next,
+            frame.tabs.pickup,
+            frame.empty,
+            frame.quests,
+        }) do
             f:Hide()
         end
         if resize then frame:SetHeight(56 + (tonumber(frame.message:GetStringHeight()) or 24)) end
@@ -574,6 +597,16 @@ function Card:Render(view)
             frame.ahead.text:SetText(view.replan.text)
             frame.ahead.go:SetText(view.replan.go)
         end
+        y = y - 30
+    end
+
+    frame.dungeon:SetShown(view.dungeon ~= nil)
+    if view.dungeon then
+        frame.dungeon:ClearAllPoints()
+        frame.dungeon:SetPoint("TOPLEFT", PAD - 2, y)
+        frame.dungeon:SetPoint("TOPRIGHT", -PAD + 2, y)
+        frame.dungeon.text:SetText(string.format(FG.Guide.L.dungeonLeft, view.dungeon.name, view.dungeon.steps))
+        frame.dungeon.go:SetText(FG.Guide.L.skipDungeon)
         y = y - 30
     end
 

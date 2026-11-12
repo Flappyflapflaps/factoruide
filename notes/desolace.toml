@@ -1,0 +1,207 @@
+# Quest notes of Desolace. See notes/README.md for the format.
+
+# Kodo Roundup: a tamed kodo counts only once inspected (right-clicked) after Smeed asks for it.
+[[note]]
+quest = 5561
+phase = "objective"
+objective = 1
+level = "must_read"
+en = "Use the {item:13892} on an {npc:4700} or a {npc:4701}, then walk back to {npc:11596}. When he asks you to inspect the beast, right-click the kodo next to you: it only counts then."
+fr = "Utilisez le {item:13892} sur un {npc:4700} ou un {npc:4701}, puis revenez voir {npc:11596}. Quand il vous demande d'inspecter la bête, faites un clic droit sur le kodo à côté de vous : il ne compte qu'à ce moment-là."
+de = "Benutz den {item:13892} auf einen {npc:4700} oder einen {npc:4701} und geh dann zurück zu {npc:11596}. Wenn er dich bittet, das Tier zu untersuchen, klick mit rechts auf den Kodo neben dir: Erst dann zählt er."
+es = "Usa el {item:13892} sobre un {npc:4700} o un {npc:4701} y vuelve con {npc:11596}. Cuando te pida que inspecciones a la bestia, haz clic derecho en el kodo que tienes al lado: solo entonces cuenta."
+pt = "Use o {item:13892} em um {npc:4700} ou um {npc:4701} e volte até {npc:11596}. Quando ele pedir que você inspecione a fera, clique com o botão direito no kodo ao seu lado: só então ele conta."
+ru = "Используйте «{item:13892}» на кодо ({npc:4700} или {npc:4701}), затем возвращайтесь к персонажу {npc:11596}. Когда он попросит осмотреть зверя, щёлкните правой кнопкой по кодо рядом с вами: только тогда он засчитается."
+ko = "{npc:4700}이나 {npc:4701}에게 {item:13892}을(를) 사용한 뒤 {npc:11596}에게 돌아가세요. 그가 짐승을 살펴보라고 하면 옆에 있는 코도를 오른쪽 클릭하세요. 그때서야 인정됩니다."
+zh_cn = "对{npc:4700}或{npc:4701}使用{item:13892}，然后走回{npc:11596}身边。当他让你检查这头野兽时，右键点击你身旁的科多兽：只有这样才算数。"
+zh_tw = "對{npc:4700}或{npc:4701}使用{item:13892}，然後走回{npc:11596}身邊。當他要你檢查這頭野獸時，右鍵點擊你身旁的科多獸：只有這樣才算數。"
+
+# Ghost-o-plasm Round Up: ghosts walk to the placed crate and turn hostile there; they come in one after another.
+[[note]]
+quest = 6134
+phase = "objective"
+objective = 1
+level = "warning"
+en = "After placing a {item:15848}, step back: ghosts walk to it and turn hostile. Pull them one by one as they come in rather than fighting at the crate, and place another when no more come."
+fr = "Après avoir posé une {item:15848}, reculez : les fantômes marchent vers elle et deviennent hostiles. Attirez-les un par un à leur arrivée plutôt que de combattre près de la caisse, et posez-en une autre quand il n'en vient plus."
+de = "Nachdem du eine {item:15848} aufgestellt hast, geh zurück: Geister laufen darauf zu und werden feindlich. Zieh sie einzeln, während sie ankommen, statt an der Kiste zu kämpfen, und stell eine neue auf, wenn keine mehr kommen."
+es = "Tras colocar una {item:15848}, retrocede: los fantasmas caminan hacia ella y se vuelven hostiles. Atráelos de uno en uno según llegan en vez de luchar junto a la caja, y coloca otra cuando no vengan más."
+pt = "Depois de colocar uma {item:15848}, recue: os fantasmas andam até ela e ficam hostis. Puxe-os um por um conforme chegam em vez de lutar junto à caixa, e coloque outra quando não vierem mais."
+ru = "Поставив «{item:15848}», отойдите: призраки идут к ящику и становятся враждебными. Выманивайте их по одному по мере подхода, а не сражайтесь у ящика, и поставьте новый, когда они перестанут приходить."
+ko = "{item:15848}을(를) 놓은 뒤 물러나세요. 유령들이 그쪽으로 걸어오며 적대적으로 변합니다. 상자 옆에서 싸우지 말고 다가오는 대로 하나씩 끌어내고, 더 오지 않으면 새로 놓으세요."
+zh_cn = "放下{item:15848}后请后退：幽灵会走向它并变为敌对。趁它们陆续走来时一个一个地引过来，不要在箱子旁战斗；不再有幽灵出现时再放一个。"
+zh_tw = "放下{item:15848}後請後退：幽靈會走向它並變為敵對。趁牠們陸續走來時一個一個地引過來，不要在箱子旁戰鬥；不再有幽靈出現時再放一個。"
+
+# Bodyguard for Hire: Cork offers it only when the caravan halts on its southbound leg; the caravan loops in about an hour.
+[[note]]
+quest = 5821
+phase = "accept"
+level = "warning"
+en = "{npc:11625} offers this only on the caravan's southbound trip: after a stop of about 10-18 minutes at its northern end, it halts briefly on the road heading east and he calls for guards. A full loop takes about an hour, so a failed escort means a long wait."
+fr = "{npc:11625} ne propose cette quête que lors du trajet vers le sud de la caravane : après 10 à 18 minutes d'arrêt à son extrémité nord, elle fait halte sur la route vers l'est et il appelle des gardes. Une boucle dure environ une heure : une escorte ratée impose une longue attente."
+de = "{npc:11625} bietet dies nur auf der Fahrt der Karawane nach Süden an: Nach etwa 10-18 Minuten Halt an ihrem Nordende stoppt sie kurz auf der Straße nach Osten und er ruft nach Wachen. Eine volle Runde dauert etwa eine Stunde, eine gescheiterte Eskorte heißt also lange warten."
+es = "{npc:11625} solo ofrece esta misión en el viaje de la caravana hacia el sur: tras una parada de unos 10-18 minutos en su extremo norte, se detiene un momento en el camino hacia el este y pide escoltas. Una vuelta completa dura cerca de una hora: si fallas la escolta, toca esperar mucho."
+pt = "{npc:11625} só oferece esta missão na viagem da caravana para o sul: após uma parada de uns 10-18 minutos no extremo norte, ela para um instante na estrada para o leste e ele pede guardas. Uma volta completa leva cerca de uma hora, então falhar a escolta significa uma longa espera."
+ru = "{npc:11625} предлагает задание, только когда караван идёт на юг: постояв 10–18 минут в северной точке, караван ненадолго останавливается на дороге к востоку, и он зовёт охрану. Полный круг занимает около часа, так что провал сопровождения означает долгое ожидание."
+ko = "{npc:11625}은(는) 대상단이 남쪽으로 갈 때만 이 퀘스트를 줍니다. 북쪽 끝에서 10~18분쯤 머문 뒤 동쪽 길에서 잠시 멈추고 호위병을 부릅니다. 한 바퀴에 약 1시간이 걸리므로 호위에 실패하면 오래 기다려야 합니다."
+zh_cn = "{npc:11625}只在商队南行时提供此任务：商队在北端停留约10-18分钟后，会在向东的路上短暂停下，他会召唤护卫。一整圈约需一小时，护送失败就得久等。"
+zh_tw = "{npc:11625}只在商隊南行時提供此任務：商隊在北端停留約10-18分鐘後，會在往東的路上短暫停下，他會召喚護衛。一整圈約需一小時，護送失敗就得久等。"
+
+# Gizelton Caravan: Rigger offers it only on the northbound leg, shortly after the southern stop; same hour-long loop.
+[[note]]
+quest = 5943
+phase = "accept"
+level = "warning"
+en = "{npc:11626} offers this only on the caravan's northbound trip: about 10 minutes after reaching its southern stop, it sets off and halts just before the demon camp. A full loop takes about an hour, so a failed escort means a long wait."
+fr = "{npc:11626} ne propose cette quête que lors du trajet vers le nord de la caravane : environ 10 minutes après son arrivée à l'arrêt sud, elle repart et s'arrête juste avant le camp des démons. Une boucle complète dure environ une heure : une escorte ratée impose une longue attente."
+de = "{npc:11626} bietet dies nur auf der Fahrt der Karawane nach Norden an: Etwa 10 Minuten nach Ankunft an ihrem Südhalt fährt sie los und hält kurz vor dem Dämonenlager. Eine volle Runde dauert etwa eine Stunde, eine gescheiterte Eskorte heißt also lange warten."
+es = "{npc:11626} solo ofrece esta misión en el viaje de la caravana hacia el norte: unos 10 minutos después de llegar a su parada sur, sale y se detiene justo antes del campamento de demonios. Una vuelta completa dura cerca de una hora: si fallas la escolta, toca esperar mucho."
+pt = "{npc:11626} só oferece esta missão na viagem da caravana para o norte: uns 10 minutos após chegar à parada sul, ela parte e para logo antes do acampamento dos demônios. Uma volta completa leva cerca de uma hora, então falhar a escolta significa uma longa espera."
+ru = "{npc:11626} предлагает задание, только когда караван идёт на север: примерно через 10 минут после прибытия в южную точку караван трогается и останавливается перед лагерем демонов. Полный круг занимает около часа, так что провал сопровождения означает долгое ожидание."
+ko = "{npc:11626}은(는) 대상단이 북쪽으로 갈 때만 이 퀘스트를 줍니다. 남쪽 정류지에 도착하고 약 10분 뒤 출발해 악마 진영 바로 앞에서 멈춥니다. 한 바퀴에 약 1시간이 걸리므로 호위에 실패하면 오래 기다려야 합니다."
+zh_cn = "{npc:11626}只在商队北行时提供此任务：商队到达南端停靠点约10分钟后出发，并在恶魔营地前停下。一整圈约需一小时，护送失败就得久等。"
+zh_tw = "{npc:11626}只在商隊北行時提供此任務：商隊抵達南端停靠點約10分鐘後出發，並在惡魔營地前停下。一整圈約需一小時，護送失敗就得久等。"
+
+# Gizelton Caravan: three ambushes of a sorceress, an infernal and a demon; the caravan's guards fight too.
+[[note]]
+quest = 5943
+phase = "objective"
+objective = 1
+level = "info"
+en = "Three ambushes of three demons. Keep a little back, kill the {npc:4684} first and let the caravan's guards hold the others."
+fr = "Trois embuscades de trois démons. Restez un peu en retrait, tuez d'abord l'{npc:4684} et laissez les gardes de la caravane retenir les autres."
+de = "Drei Hinterhalte mit je drei Dämonen. Halte dich etwas zurück, töte zuerst die {npc:4684} und lass die Wachen der Karawane die anderen binden."
+es = "Tres emboscadas de tres demonios. Quédate un poco atrás, mata primero a la {npc:4684} y deja que los guardias de la caravana entretengan a los demás."
+pt = "Três emboscadas de três demônios. Fique um pouco atrás, mate primeiro a {npc:4684} e deixe os guardas da caravana segurarem os outros."
+ru = "Три засады по три демона. Держитесь чуть позади, сначала убейте врага «{npc:4684}», а остальных оставьте охране каравана."
+ko = "악마 셋씩 매복이 세 번 있습니다. 조금 뒤에 머물며 {npc:4684}부터 처치하고 나머지는 대상단 경비병에게 맡기세요."
+zh_cn = "共有三次伏击，每次三个恶魔。稍微靠后站，先杀{npc:4684}，其余的交给商队守卫。"
+zh_tw = "共有三次伏擊，每次三個惡魔。稍微靠後站，先殺{npc:4684}，其餘的交給商隊守衛。"
+
+# Clam Bait: reef crawlers seek out and eat the clams; killing one that ate a clam gives the meat back.
+[[note]]
+quest = 6142
+phase = "objective"
+objective = 1
+level = "info"
+en = "A {npc:12347} that reaches a {object:177784} eats it. Kill crawlers heading for clams; one that already ate a clam drops the {item:15924}."
+fr = "Un {npc:12347} qui atteint une {object:177784} la mange. Tuez les clampants qui se dirigent vers les praires ; celui qui en a déjà mangé une laisse tomber la {item:15924}."
+de = "Ein {npc:12347}, der eine {object:177784} erreicht, frisst sie. Töte Kriecher auf dem Weg zu Muscheln; einer, der schon eine gefressen hat, lässt das {item:15924} fallen."
+es = "Un {npc:12347} que llega a una {object:177784} se la come. Mata a los que se dirijan a las almejas; uno que ya se comió una suelta la {item:15924}."
+pt = "Um {npc:12347} que alcança um {object:177784} o come. Mate os que estiverem indo até os mariscos; um que já comeu um deixa cair a {item:15924}."
+ru = "{npc:12347}, добравшись до объекта «{object:177784}», съедает его. Убивайте ползунов, идущих к моллюскам; тот, кто уже съел моллюска, оставляет «{item:15924}»."
+ko = "{npc:12347}이(가) {object:177784}에 닿으면 먹어 버립니다. 조개로 향하는 게를 처치하세요. 이미 조개를 먹은 게는 {item:15924}을(를) 떨어뜨립니다."
+zh_cn = "{npc:12347}走到{object:177784}旁会把它吃掉。击杀正走向蛤蜊的爬行者；已经吃掉蛤蜊的会掉落{item:15924}。"
+zh_tw = "{npc:12347}走到{object:177784}旁會把它吃掉。擊殺正走向蛤蜊的爬行者；已經吃掉蛤蜊的會掉落{item:15924}。"
+
+# Hand of Iruxos: the crystal summons the level 37 demon that carries the box, inside a room full of casters.
+[[note]]
+quest = 5381
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Striking the {object:176581} in the round hall of the main building summons a {npc:11876} (level 37) that drops the box. Clear the casters in the room first."
+fr = "Frapper le {object:176581} dans la salle ronde du bâtiment principal invoque un {npc:11876} (niveau 37) qui laisse tomber la boîte. Nettoyez d'abord les lanceurs de sorts de la salle."
+de = "Wenn du den {object:176581} in der runden Halle des Hauptgebäudes anschlägst, erscheint ein {npc:11876} (Stufe 37), der den Kasten fallen lässt. Räum vorher die Zauberwirker im Raum weg."
+es = "Golpear el {object:176581} en la sala redonda del edificio principal invoca un {npc:11876} (nivel 37) que suelta la caja. Limpia antes a los lanzadores de hechizos de la sala."
+pt = "Golpear o {object:176581} no salão redondo do prédio principal invoca um {npc:11876} (nível 37) que deixa cair a caixa. Limpe antes os conjuradores da sala."
+ru = "Удар по объекту «{object:176581}» в круглом зале главного здания призывает врага «{npc:11876}» (37-й уровень), с которого падает ящик. Сначала зачистите заклинателей в зале."
+ko = "본관 원형 홀의 {object:176581}을(를) 내려치면 {npc:11876}(37레벨)이 소환되며, 상자를 떨어뜨립니다. 먼저 방 안의 주문시전자들을 정리하세요."
+zh_cn = "敲击主楼圆形大厅中的{object:176581}会召唤出{npc:11876}（37级），它会掉落箱子。先清理房间里的施法者。"
+zh_tw = "敲擊主樓圓形大廳中的{object:176581}會召喚出{npc:11876}（37級），牠會掉落箱子。先清理房間裡的施法者。"
+
+# Book of the Ancients: the statue summons Lord Kragaru among nagas, then despawns for a few minutes after use.
+[[note]]
+quest = 6027
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Using the {object:177673} on the north side of the island summons {npc:12369} (level 38). Clear the nagas around it first. If the statue is missing, someone just used it: it comes back within a few minutes."
+fr = "Utiliser la {object:177673} au nord de l'île invoque {npc:12369} (niveau 38). Éliminez d'abord les nagas autour. Si la statue a disparu, quelqu'un vient de l'utiliser : elle revient en quelques minutes."
+de = "Die {object:177673} im Norden der Insel ruft {npc:12369} (Stufe 38) herbei. Töte vorher die Naga drumherum. Fehlt die Statue, hat sie gerade jemand benutzt: Sie kommt in wenigen Minuten zurück."
+es = "Usar la {object:177673} del norte de la isla invoca a {npc:12369} (nivel 38). Limpia antes a los nagas de alrededor. Si la estatua no está, alguien acaba de usarla: vuelve en pocos minutos."
+pt = "Usar a {object:177673} no norte da ilha invoca {npc:12369} (nível 38). Limpe antes as nagas ao redor. Se a estátua sumiu, alguém acabou de usá-la: ela volta em poucos minutos."
+ru = "Объект «{object:177673}» на севере острова призывает врага «{npc:12369}» (38-й уровень). Сначала перебейте наг вокруг. Если статуи нет, её только что использовали: она вернётся через несколько минут."
+ko = "섬 북쪽의 {object:177673}을(를) 사용하면 {npc:12369}(38레벨)이 소환됩니다. 먼저 주변 나가를 처치하세요. 석상이 없다면 누군가 방금 사용한 것이니 몇 분 안에 다시 나타납니다."
+zh_cn = "使用岛北侧的{object:177673}会召唤{npc:12369}（38级）。先清掉周围的纳迦。如果雕像不见了，说明有人刚用过，几分钟内会重新出现。"
+zh_tw = "使用島北側的{object:177673}會召喚{npc:12369}（38級）。先清掉周圍的納迦。如果雕像不見了，表示有人剛用過，幾分鐘內會重新出現。"
+
+# Portals of the Legion: each portal releases a hard-hitting guardian; patrols pass near the portals, which respawn in minutes.
+[[note]]
+quest = 5581
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Opening a portal brings out a {npc:11937} (level 38) that hits hard. Wait for patrolling demons and summoners to move off, pull the guardian away, and loop between three portals: they reopen within a few minutes."
+fr = "Ouvrir un portail fait sortir un {npc:11937} (niveau 38) qui frappe fort. Attendez que les démons et invocateurs en patrouille s'éloignent, attirez le gardien à l'écart et tournez entre trois portails : ils se rouvrent en quelques minutes."
+de = "Beim Öffnen eines Portals kommt ein {npc:11937} (Stufe 38) heraus, der hart zuschlägt. Warte, bis patrouillierende Dämonen und Beschwörer weg sind, zieh den Wächter beiseite und wechsle zwischen drei Portalen: Sie öffnen sich nach wenigen Minuten wieder."
+es = "Abrir un portal hace salir un {npc:11937} (nivel 38) que pega fuerte. Espera a que se alejen los demonios e invocadores que patrullan, aparta al guardián y alterna entre tres portales: reaparecen en pocos minutos."
+pt = "Abrir um portal faz surgir um {npc:11937} (nível 38) que bate forte. Espere os demônios e evocadores em patrulha se afastarem, puxe o guardião para longe e alterne entre três portais: eles reabrem em poucos minutos."
+ru = "Из открытого портала выходит враг «{npc:11937}» (38-й уровень), бьющий очень сильно. Дождитесь, пока патрульные демоны и призыватели отойдут, отведите стража в сторону и ходите по кругу между тремя порталами: они открываются вновь через несколько минут."
+ko = "차원문을 열면 강하게 때리는 {npc:11937}(38레벨)이 나옵니다. 순찰 중인 악마와 소환사가 멀어지길 기다렸다가 수호병을 떼어 내 싸우고, 차원문 세 개를 돌아가며 이용하세요. 몇 분이면 다시 열립니다."
+zh_cn = "打开传送门会冒出一个攻击很高的{npc:11937}（38级）。等巡逻的恶魔和召唤师走开，把守卫拉到一边，在三个传送门之间轮流打：它们几分钟内就会重新开启。"
+zh_tw = "打開傳送門會冒出一個攻擊很高的{npc:11937}（38級）。等巡邏的惡魔和召喚師走開，把守衛拉到一邊，在三個傳送門之間輪流打：它們幾分鐘內就會重新開啟。"
+
+# Bone Collector: picking up a bone often spawns a hostile kodo apparition that does not chase far.
+[[note]]
+quest = 5501
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Picking up a {item:13703} often spawns a {npc:11521} that attacks you. Be ready to fight it, or run off in a straight line: it does not chase you far."
+fr = "Ramasser un {item:13703} fait souvent apparaître une {npc:11521} qui vous attaque. Soyez prêt à la combattre, ou fuyez en ligne droite : elle ne vous poursuit pas loin."
+de = "Beim Aufheben eines {item:13703} erscheint oft eine {npc:11521}, die dich angreift. Sei bereit zu kämpfen oder lauf geradeaus davon: Sie verfolgt dich nicht weit."
+es = "Al recoger un {item:13703} suele aparecer una {npc:11521} que te ataca. Prepárate para luchar o huye en línea recta: no te persigue lejos."
+pt = "Pegar um {item:13703} muitas vezes faz surgir uma {npc:11521} que ataca você. Esteja pronto para lutar ou fuja em linha reta: ela não persegue por muito tempo."
+ru = "Когда вы подбираете {item:13703}, часто появляется {npc:11521} и нападает на вас. Будьте готовы к бою или убегайте по прямой: далеко он не преследует."
+ko = "{item:13703}을(를) 주우면 종종 {npc:11521}이(가) 나타나 공격합니다. 싸울 준비를 하거나 일직선으로 달아나세요. 멀리 쫓아오지 않습니다."
+zh_cn = "拾取{item:13703}时经常会出现一只{npc:11521}攻击你。做好战斗准备，或者直线逃跑：它不会追太远。"
+zh_tw = "拾取{item:13703}時經常會出現一隻{npc:11521}攻擊你。做好戰鬥準備，或者直線逃跑：牠不會追太遠。"
+
+# Get Me Out of Here!: two ambushes (four maulers at the first fork, three wranglers with hyenas later); she respawns in about 8 minutes.
+[[note]]
+quest = 6132
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Clear the road before freeing her. Four {npc:4656} ambush her at the first fork, then three {npc:4655} with their hyenas further on. She respawns about 8 minutes after a failure."
+fr = "Dégagez la route avant de la libérer. Quatre {npc:4656} lui tendent une embuscade au premier embranchement, puis trois {npc:4655} avec leurs hyènes plus loin. Elle réapparaît environ 8 minutes après un échec."
+de = "Räum den Weg, bevor du sie befreist. Vier {npc:4656} überfallen sie an der ersten Gabelung, weiter vorn dann drei {npc:4655} mit ihren Hyänen. Nach einem Fehlschlag ist sie nach etwa 8 Minuten wieder da."
+es = "Despeja el camino antes de liberarla. Cuatro {npc:4656} le tienden una emboscada en la primera bifurcación y, más adelante, tres {npc:4655} con sus hienas. Reaparece unos 8 minutos después de un fracaso."
+pt = "Limpe o caminho antes de libertá-la. Quatro {npc:4656} a emboscam na primeira bifurcação e, mais adiante, três {npc:4655} com suas hienas. Ela volta cerca de 8 minutos após uma falha."
+ru = "Расчистите дорогу, прежде чем освобождать её. На первой развилке нападают четыре {npc:4656}, дальше — три {npc:4655} со своими гиенами. После провала она возрождается примерно через 8 минут."
+ko = "풀어 주기 전에 길을 정리하세요. 첫 갈림길에서 {npc:4656} 넷이, 더 가서는 하이에나를 데린 {npc:4655} 셋이 매복합니다. 실패하면 약 8분 뒤에 다시 나타납니다."
+zh_cn = "放她出来之前先清理道路。第一个岔口有四个{npc:4656}伏击，再往前是三个带着土狼的{npc:4655}。失败后她大约8分钟重新出现。"
+zh_tw = "放她出來之前先清理道路。第一個岔口有四個{npc:4656}伏擊，再往前是三個帶著土狼的{npc:4655}。失敗後她大約8分鐘重新出現。"
+
+# Reagents for Reclaimers Inc. (aged kodos): the aged kodos spawn in small groups away from the kodo graveyard and walk into it, turning into dying kodos past its arch; a few also wander inside.
+[[note]]
+quest = 1459
+phase = "objective"
+objective = 2
+level = "warning"
+en = "{npc:4700} spawn in small groups away from the kodo graveyard and walk to it: catch them before they pass its arch, where they turn into dying kodos. A few also wander inside the graveyard."
+fr = "Les {npc:4700} apparaissent en petits groupes loin du cimetière des kodos et marchent vers lui : interceptez-les avant qu'ils passent son arche, où ils deviennent des kodos mourants. Quelques-uns errent aussi dans le cimetière."
+de = "{npc:4700} erscheinen in kleinen Gruppen abseits des Kodofriedhofs und laufen zu ihm: Fang sie ab, bevor sie seinen Torbogen passieren, wo sie zu sterbenden Kodos werden. Einige streifen auch im Friedhof umher."
+es = "Los {npc:4700} aparecen en pequeños grupos lejos del cementerio de kodos y caminan hacia él: atrápalos antes de que crucen su arco, donde se convierten en kodos moribundos. Algunos también deambulan dentro del cementerio."
+pt = "Os {npc:4700} surgem em pequenos grupos longe do cemitério dos kodos e caminham até ele: pegue-os antes que passem pelo arco, onde viram kodos moribundos. Alguns também vagueiam dentro do cemitério."
+ru = "{npc:4700} появляются небольшими группами вдали от кладбища кодо и идут к нему: перехватите их, пока они не прошли под аркой, где превращаются в умирающих кодо. Несколько бродят и внутри кладбища."
+ko = "{npc:4700}은(는) 코도 무덤에서 떨어진 곳에 작은 무리로 나타나 무덤으로 걸어갑니다. 아치를 지나면 죽어가는 코도로 바뀌니 그 전에 잡으세요. 몇 마리는 무덤 안을 돌아다니기도 합니다."
+zh_cn = "{npc:4700}会在远离科多兽坟场的地方成小群出现，然后走向坟场：在它们穿过拱门前截住它们，过了拱门就会变成垂死的科多兽。也有几只在坟场里游荡。"
+zh_tw = "{npc:4700}會在遠離科多獸墳場的地方成小群出現，然後走向墳場：在牠們穿過拱門前截住牠們，過了拱門就會變成垂死的科多獸。也有幾隻在墳場裡遊蕩。"
+
+# Return to Vahlarriel: Dalinda walks out without waiting, the camp respawns quickly, and after a failure she gives the quest again once she respawns.
+[[note]]
+quest = 1440
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Clear the room and the way out before you start: {npc:5644} walks on without waiting and the mobs outside respawn fast. If she dies, abandon the quest and take it again from her once she is back."
+fr = "Nettoyez la salle et le chemin de sortie avant de commencer : {npc:5644} avance sans attendre et les monstres dehors réapparaissent vite. Si elle meurt, abandonnez la quête et reprenez-la auprès d'elle à son retour."
+de = "Räum den Raum und den Weg nach draußen, bevor du startest: {npc:5644} läuft los, ohne zu warten, und draußen respawnen die Gegner schnell. Stirbt sie, brich die Quest ab und hol sie dir erneut bei ihr, sobald sie wieder da ist."
+es = "Limpia la sala y el camino de salida antes de empezar: {npc:5644} avanza sin esperar y los enemigos de fuera reaparecen rápido. Si muere, abandona la misión y vuelve a cogerla de ella cuando reaparezca."
+pt = "Limpe a sala e o caminho de saída antes de começar: {npc:5644} segue sem esperar e os inimigos lá fora reaparecem rápido. Se ela morrer, abandone a missão e pegue-a de novo com ela quando voltar."
+ru = "Перед началом зачистите комнату и путь наружу: {npc:5644} идёт, не дожидаясь вас, а снаружи враги быстро возрождаются. Если она погибнет, откажитесь от задания и снова возьмите его у неё, когда она появится."
+ko = "시작하기 전에 방과 나가는 길을 정리하세요. {npc:5644}은(는) 기다리지 않고 걸어가고, 바깥의 적은 빨리 다시 나타납니다. 그녀가 죽으면 퀘스트를 포기하고, 다시 나타난 그녀에게서 새로 받으세요."
+zh_cn = "开始前先清理房间和出去的路：{npc:5644}不会等你，外面的怪物重生很快。如果她死了，放弃任务，等她重新出现后再从她那里接。"
+zh_tw = "開始前先清理房間和出去的路：{npc:5644}不會等你，外面的怪物重生很快。如果她死了，放棄任務，等她重新出現後再從她那裡接。"

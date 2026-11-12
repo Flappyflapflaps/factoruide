@@ -164,6 +164,7 @@ FG.Locales.deDE = {
     ["windows locked"] = "Fenster gesperrt",
     ["windows unlocked: drag them to move them"] = "Fenster entsperrt: zum Verschieben ziehen",
     ["for %s"] = "für %s",
+    ["Level %d recommended, you are %d"] = "Stufe %d empfohlen, du bist %d",
     ["marked done, waiting for %s"] = "als erledigt markiert, wartet auf %s",
     ["%s: step %d"] = "%s: Schritt %d",
     ["%s ahead: step %d"] = "%s voraus: Schritt %d",
@@ -252,4 +253,8 @@ FG.Locales.deDE = {
     ["  starts inside: %s"] = "  beginnt drinnen: %s",
     ["no dungeon ahead in the guide"] = "kein Dungeon mehr im Guide",
     ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg schreibt die Gruppennachricht in den Chat (Enter sendet sie)",
+    ["dungeon left aside: %s (%d steps; to undo: the “Undo the last mark” key)"] = "Dungeon beiseitegelassen: %s (%d Schritte; rückgängig: Taste „Letzte Markierung rückgängig“)",
+    ["%s: %d steps left"] = "%s: noch %d Schritte",
+    ["Skip the dungeon"] = "Dungeon überspringen",
+    ["Mark the dungeon's steps not done as done: its quests not finished are left aside."] = "Markiert die nicht erledigten Schritte des Dungeons als erledigt: seine unfertigen Quests werden beiseitegelassen.",
 }

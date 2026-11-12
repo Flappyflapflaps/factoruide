@@ -1,0 +1,94 @@
+# Quest notes of Winterspring. See notes/README.md for the format.
+
+# Guardians of the Altar: the escort fails when a torch is not lit soon after Ranshalla starts chanting; she only fights mobs that attack her.
+[[note]]
+quest = 4901
+phase = "objective"
+objective = 1
+level = "must_read"
+en = "At each cave, click the torch soon after {npc:10300} starts chanting, or the quest fails; rest during her chant, not after. Let her pull: she only fights mobs that attack her. At the end, click the altar."
+fr = "À chaque grotte, cliquez sur la torche peu après que {npc:10300} commence à psalmodier, sinon la quête échoue ; reposez-vous pendant son incantation, pas après. Laissez-la attirer les monstres : elle ne combat que ceux qui l'attaquent. À la fin, cliquez sur l'autel."
+de = "Klicke in jeder Höhle auf die Fackel, kurz nachdem {npc:10300} zu singen beginnt, sonst scheitert die Quest; erhol dich während ihres Gesangs, nicht danach. Lass sie die Gegner anlocken: Sie kämpft nur gegen die, die sie angreifen. Klicke am Ende auf den Altar."
+es = "En cada cueva, haz clic en la antorcha poco después de que {npc:10300} empiece a salmodiar, o la misión fallará; descansa durante su cántico, no después. Deja que ella atraiga a los enemigos: solo lucha contra los que la atacan. Al final, haz clic en el altar."
+pt = "Em cada caverna, clique na tocha logo depois que {npc:10300} começar a entoar, ou a missão falha; descanse durante o cântico, não depois. Deixe que ela atraia os monstros: ela só luta contra os que a atacam. No final, clique no altar."
+ru = "В каждой пещере щёлкните по факелу вскоре после того, как {npc:10300} начнёт заклинание, иначе задание провалится; отдыхайте во время заклинания, а не после. Пусть врагов притягивает она: она бьётся только с теми, кто нападает на неё. В конце щёлкните по алтарю."
+ko = "각 동굴에서 {npc:10300}이(가) 주문을 읊기 시작하면 곧바로 횃불을 클릭하세요. 늦으면 퀘스트가 실패합니다. 휴식은 주문을 읊는 동안 하세요. 몹은 그녀가 먼저 끌게 하세요. 자신을 공격하는 몹하고만 싸웁니다. 마지막에는 제단을 클릭하세요."
+zh_cn = "在每个洞穴里，{npc:10300}开始吟唱后要尽快点击火把，否则任务失败；在她吟唱时休息，不要等之后。让她先引怪：她只会和攻击她的怪战斗。最后点击祭坛。"
+zh_tw = "在每個洞穴裡，{npc:10300}開始吟唱後要盡快點擊火把，否則任務失敗；在她吟唱時休息，不要等之後。讓她先引怪：她只會和攻擊她的怪戰鬥。最後點擊祭壇。"
+
+# Toxic Horrors: the horrors share spawn points with the Irontree Stompers, which otherwise take every spot.
+[[note]]
+quest = 5086
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:7132} and {npc:7139} share spawn points: kill both kinds, or the second takes every spot and the first stops spawning."
+fr = "{npc:7132} et {npc:7139} partagent leurs points d'apparition : tuez les deux sortes, sinon la seconde occupe toutes les places et la première n'apparaît plus."
+de = "{npc:7132} und {npc:7139} teilen sich die Spawnpunkte: Töte beide Arten, sonst besetzt die zweite alle Plätze und die erste spawnt nicht mehr."
+es = "{npc:7132} y {npc:7139} comparten puntos de aparición: mata a ambos tipos, o el segundo ocupará todos los sitios y el primero dejará de aparecer."
+pt = "{npc:7132} e {npc:7139} compartilham pontos de surgimento: mate os dois tipos, senão o segundo ocupa todos os lugares e o primeiro para de surgir."
+ru = "{npc:7132} и {npc:7139} появляются в одних и тех же точках: убивайте оба вида, иначе второй займёт все места и первый перестанет появляться."
+ko = "{npc:7132}과(와) {npc:7139}은(는) 생성 지점을 공유합니다. 두 종류를 모두 처치하세요. 그렇지 않으면 두 번째 종류가 자리를 모두 차지해 첫 번째 종류가 더 이상 나타나지 않습니다."
+zh_cn = "{npc:7132}和{npc:7139}共用刷新点：两种都要杀，否则后者会占满所有位置，前者就不再刷新。"
+zh_tw = "{npc:7132}和{npc:7139}共用重生點：兩種都要殺，否則後者會佔滿所有位置，前者就不再重生。"
+
+# Winterfall Runners: three ambushers spawn at the turn-in; a mounted turn-in lets you ride off, and the giver still offers the next quest afterwards.
+[[note]]
+quest = 5087
+phase = "turnin"
+level = "warning"
+en = "Handing in spawns three {npc:14372}. Hand in while mounted and ride away: they gather by the lake and leave you alone, and {npc:9298} still offers the next quest when you come back."
+fr = "Rendre la quête fait apparaître trois {npc:14372}. Rendez-la à dos de monture et éloignez-vous : ils se regroupent près du lac et vous laissent tranquille, et {npc:9298} propose toujours la suite à votre retour."
+de = "Beim Abgeben erscheinen drei {npc:14372}. Gib die Quest beritten ab und reite weg: Sie sammeln sich am See und lassen dich in Ruhe, und {npc:9298} bietet dir die nächste Quest an, wenn du zurückkommst."
+es = "Al entregarla aparecen tres {npc:14372}. Entrégala montado y aléjate: se reúnen junto al lago y te dejan en paz, y {npc:9298} te ofrece la siguiente misión cuando vuelves."
+pt = "Ao entregar, surgem três {npc:14372}. Entregue montado e afaste-se: eles se juntam perto do lago e deixam você em paz, e {npc:9298} ainda oferece a próxima missão quando você voltar."
+ru = "При сдаче появляются три существа {npc:14372}. Сдавайте задание верхом и уезжайте: они соберутся у озера и не тронут вас, а {npc:9298} всё равно предложит следующее задание, когда вы вернётесь."
+ko = "퀘스트를 완료하면 {npc:14372} 셋이 나타납니다. 탈것에 탄 채 완료하고 멀리 달아나세요. 그들은 호숫가에 모여 더 쫓아오지 않으며, 돌아오면 {npc:9298}이(가) 다음 퀘스트를 그대로 줍니다."
+zh_cn = "交任务时会刷出三个{npc:14372}。骑着坐骑交任务然后跑开：它们会聚到湖边不再追你，回来后{npc:9298}照样会给你下一个任务。"
+zh_tw = "交任務時會刷出三個{npc:14372}。騎著坐騎交任務然後跑開：牠們會聚到湖邊不再追你，回來後{npc:9298}照樣會給你下一個任務。"
+
+# Troubled Spirits of Kel'Theril: each dig releases two Highborne spirits; a mount outruns them.
+[[note]]
+quest = 5245
+phase = "objective"
+level = "warning"
+en = "Each dig spot releases two hostile Highborne spirits once you dig, looted or not. Take the fragment and ride away at once: on a mount you usually leave them behind."
+fr = "Chaque fouille libère deux esprits bien-nés hostiles, que vous ramassiez le fragment ou non. Prenez-le et partez aussitôt sur votre monture : vous les distancez en général."
+de = "Jede Grabstelle setzt beim Graben zwei feindliche Geister der Hochgeborenen frei, ob du plünderst oder nicht. Nimm das Bruchstück und reite sofort weg: Beritten hängst du sie meist ab."
+es = "Cada punto de excavación libera dos espíritus Altonato hostiles al cavar, recojas o no el fragmento. Tómalo y vete al instante en montura: sueles dejarlos atrás."
+pt = "Cada ponto de escavação libera dois espíritos Altaneiros hostis ao cavar, pegando o fragmento ou não. Pegue-o e saia montado na hora: normalmente você os deixa para trás."
+ru = "Каждый раскоп выпускает двух враждебных духов высокорождённых, даже если не забрать осколок. Хватайте его и сразу уезжайте верхом: обычно они отстают."
+ko = "땅을 팔 때마다 파편을 챙기든 말든 적대적인 명가 혼령 둘이 나타납니다. 파편을 집고 바로 탈것을 타고 떠나세요. 대개 따돌릴 수 있습니다."
+zh_cn = "每次挖掘都会放出两个敌对的上层精灵亡魂，无论是否拾取碎片。拿到碎片立刻骑马离开：通常能甩掉它们。"
+zh_tw = "每次挖掘都會放出兩個敵對的上層精靈亡魂，無論是否拾取碎片。拿到碎片立刻騎馬離開：通常能甩掉它們。"
+
+# Wrath of the Blue Flight: accepting it gets you blasted far backwards by Haleh.
+[[note]]
+quest = 5162
+phase = "accept"
+level = "warning"
+en = "{npc:10929} throws you far backwards as you accept this quest: stand with the slope right behind you, or the fall can kill you."
+fr = "{npc:10929} vous projette loin en arrière quand vous acceptez cette quête : placez-vous dos à la pente, sinon la chute peut vous tuer."
+de = "{npc:10929} schleudert dich beim Annehmen dieser Quest weit nach hinten: Stell dich mit dem Hang direkt im Rücken hin, sonst kann der Sturz dich töten."
+es = "{npc:10929} te lanza muy lejos hacia atrás al aceptar esta misión: ponte de espaldas a la pendiente o la caída puede matarte."
+pt = "{npc:10929} arremessa você para trás ao aceitar esta missão: fique de costas para a encosta, ou a queda pode matá-lo."
+ru = "Когда вы берёте это задание, {npc:10929} отбрасывает вас далеко назад: встаньте спиной к склону, иначе падение может убить."
+ko = "이 퀘스트를 수락하면 {npc:10929}이(가) 당신을 멀리 뒤로 날려 보냅니다. 비탈을 등지고 서세요. 그렇지 않으면 낙하로 죽을 수 있습니다."
+zh_cn = "接受此任务时，{npc:10929}会把你远远击飞到身后：背靠斜坡站好，否则可能摔死。"
+zh_tw = "接受此任務時，{npc:10929}會把你遠遠擊飛到身後：背靠斜坡站好，否則可能摔死。"
+
+# Wild Guardians: moontouched owlbeasts share spawn points with the other owlbeasts.
+[[note]]
+quest = 4741
+phase = "objective"
+objective = 1
+level = "info"
+en = "{npc:7453} share spawn points with {npc:7452} and {npc:7454}: when none are left, kill the other owlbeasts around to make room for more."
+fr = "{npc:7453} partage ses points d'apparition avec {npc:7452} et {npc:7454} : s'il n'en reste aucun, tuez les autres chouettards alentour pour en faire apparaître."
+de = "{npc:7453} teilt Spawnpunkte mit {npc:7452} und {npc:7454}: Ist keiner mehr da, töte die anderen Eulenbestien in der Nähe, damit neue erscheinen."
+es = "{npc:7453} comparte puntos de aparición con {npc:7452} y {npc:7454}: si no queda ninguno, mata a los demás lechúcicos cercanos para que aparezcan más."
+pt = "{npc:7453} divide os pontos de surgimento com {npc:7452} e {npc:7454}: se não restar nenhum, mate os outros corujões por perto para surgirem mais."
+ru = "{npc:7453} появляются там же, где {npc:7452} и {npc:7454}: если их не осталось, убивайте других совухов поблизости, чтобы освободить место."
+ko = "{npc:7453}은(는) {npc:7452}, {npc:7454}와(과) 생성 지점을 공유합니다. 남은 것이 없으면 주변의 다른 올빼미곰을 처치해 자리를 비우세요."
+zh_cn = "{npc:7453}与{npc:7452}和{npc:7454}共用刷新点：没有时，击杀周围其他枭兽，让它们刷出来。"
+zh_tw = "{npc:7453}與{npc:7452}和{npc:7454}共用重生點：沒有時，擊殺周圍其他梟獸，讓牠們重生出來。"

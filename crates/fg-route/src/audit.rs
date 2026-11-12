@@ -136,12 +136,35 @@ pub const CHECKS: &[Check] = &[
         error: false,
     },
     Check {
+        name: "notes",
+        what: "quest notes and icons (notes/) on a quest, an objective or a thing named by a tag \
+               ({npc:..}) this game version does not have: limit the note to the game versions \
+               it is for (`editions`), or fix its IDs",
+        error: true,
+    },
+    Check {
         name: "timed-quests",
         what: "quests of the guide whose objectives give a time (\"in ten minutes\") while the \
                data has no time limit: the planner may do other things between taking and \
                turning in, and the game fails the quest. Give the limit (`time_limit`) in the \
                quest data, or accept a time that is no limit (a spell that lasts 2 minutes)",
         error: false,
+    },
+    Check {
+        name: "rare-rewards",
+        what: "quests of the guide giving a rare (blue) item or better with no prerequisite known, \
+               outside dungeons and elites: such rewards usually end a long chain, so a chain the \
+               data lacks lets the guide take the quest before the game offers it. Check its \
+               series on Wowhead or in game: give the missing prerequisite in the quest data, or \
+               accept a quest offered from the start",
+        error: false,
+    },
+    Check {
+        name: "foreign-text",
+        what: "quests whose name or objectives are not in English (a game cache read from a \
+               client in another language): the guide shows them as they are, and checks reading \
+               the text (timed-quests) miss them. Rebuild the data with the English text first",
+        error: true,
     },
 ];
 
@@ -229,6 +252,11 @@ pub fn audit(
     } else {
         HashMap::new()
     };
+    let rare = if on("rare-rewards") {
+        RareRewards::read(conn)?
+    } else {
+        RareRewards::default()
+    };
     let doors = if on("dungeon-entrances") {
         dungeon_doors(conn)?
     } else {
@@ -239,8 +267,27 @@ pub fn audit(
     } else {
         HashSet::new()
     };
+    if on("notes") {
+        for (key, detail) in crate::export::notes::check_data(conn, overrides.params.edition)? {
+            found.insert(
+                ("notes", key.clone()),
+                Finding {
+                    check: "notes",
+                    key,
+                    detail,
+                    races: Vec::new(),
+                    npcs: Vec::new(),
+                },
+            );
+        }
+    }
     if on("hostile-in-cities") {
         for f in hostile_in_cities(conn)? {
+            found.insert((f.check, f.key.clone()), f);
+        }
+    }
+    if on("foreign-text") {
+        for f in foreign_text(conn)? {
             found.insert((f.check, f.key.clone()), f);
         }
     }
@@ -274,6 +321,8 @@ pub fn audit(
             locale: None,
             mates: Vec::new(),
             mate_professions: vec![],
+            objectives: Vec::new(),
+            dungeon: None,
             start: None,
         };
         let prepared = match job::prepare(conn, overrides, &request, &|_| {}) {
@@ -339,6 +388,9 @@ pub fn audit(
             timed_quests(&prepared.model, &timed_text)
                 .into_iter()
                 .for_each(&mut add);
+        }
+        if on("rare-rewards") {
+            rare.found(&prepared.model).into_iter().for_each(&mut add);
         }
         if on("source-items") {
             uncovered_source_items(&prepared.model, &source_items)
@@ -887,7 +939,7 @@ fn passage_areas(world: &World) -> Vec<Vec<Area>> {
         .map(|i| {
             let mut areas = passages[i].clone();
             if ends(i) {
-                for j in (0..passages.len()).filter(|&j| ends(j) && world.pass_dist[i][j].is_finite()) {
+                for j in (0..passages.len()).filter(|&j| ends(j) && world.pass_dist(i, j).is_finite()) {
                     areas.extend(passages[j].iter().filter(|a| !passages[i].contains(a)));
                 }
             }
@@ -1252,6 +1304,48 @@ fn says_a_time(text: &str) -> bool {
         .any(|w| text.contains(w))
 }
 
+/// Quests whose name or objectives read as French, German or Spanish: a Classic Era game cache
+/// read from a French client gave hundreds of quests French objectives ("Tuer 10 Vermines
+/// kobold, puis revenir voir le maréchal McBride.").
+fn foreign_text(conn: &Connection) -> Result<Vec<Finding>> {
+    let mut stmt = conn.prepare("SELECT id, coalesce(name, ''), coalesce(objectives_text, '') FROM m_quest")?;
+    let rows = stmt.query_map([], |r| {
+        Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
+    })?;
+    let mut out = Vec::new();
+    for row in rows {
+        let (id, name, text) = row?;
+        let Some(foreign) = [&name, &text].into_iter().find(|t| reads_foreign(t)) else {
+            continue;
+        };
+        let excerpt: String = foreign.chars().take(100).collect();
+        out.push(Finding {
+            check: "foreign-text",
+            key: format!("quest {id}"),
+            detail: format!("{name} ({id}): \"{excerpt}\""),
+            races: Vec::new(),
+            npcs: Vec::new(),
+        });
+    }
+    Ok(out)
+}
+
+/// The text holds two words or more that English never uses but French, German or Spanish
+/// often do (none in the English quest texts of the three game versions).
+fn reads_foreign(text: &str) -> bool {
+    const WORDS: &[&str] = &[
+        "le", "les", "des", "du", "et", "à", "au", "aux", "pour", "avec", "dans", "puis", "der", "das", "und", "mit",
+        "zu", "für", "von", "los", "las", "con", "para", "del", "una", "que",
+    ];
+    let lower = text.to_lowercase();
+    let mut hits: Vec<&str> = (lower.split(|c: char| !c.is_alphabetic()))
+        .filter(|w| WORDS.contains(w))
+        .collect();
+    hits.sort_unstable();
+    hits.dedup();
+    hits.len() >= 2
+}
+
 fn timed_quests(model: &Model, untimed: &HashMap<i64, String>) -> Vec<Finding> {
     model
         .quests
@@ -1271,6 +1365,90 @@ fn timed_quests(model: &Model, untimed: &HashMap<i64, String>) -> Vec<Finding> {
             })
         })
         .collect()
+}
+
+/// What the rare-rewards check reads: the items of quality rare (3, blue) or better with their
+/// name (databases built before the items had a quality have none), the dungeons' areas and the
+/// quests filed under one.
+#[derive(Default)]
+struct RareRewards {
+    items: HashMap<i64, (i64, String)>,
+    dungeons: HashSet<i64>,
+    dungeon_quests: HashSet<i64>,
+}
+
+impl RareRewards {
+    fn read(conn: &Connection) -> Result<Self> {
+        let has_quality: bool = conn.query_row(
+            "SELECT count(*) > 0 FROM pragma_table_info('m_item') WHERE name = 'quality'",
+            [],
+            |r| r.get(0),
+        )?;
+        let items = if has_quality {
+            let mut stmt = conn.prepare("SELECT id, quality, coalesce(name, '') FROM m_item WHERE quality >= 3")?;
+            stmt.query_map([], |r| Ok((r.get(0)?, (r.get(1)?, r.get(2)?))))?
+                .collect::<rusqlite::Result<_>>()?
+        } else {
+            HashMap::new()
+        };
+        // The dungeons' areas, and the other areas used inside them (Gnomeregan's 133).
+        let mut stmt = conn.prepare(
+            "SELECT area FROM dungeon UNION SELECT j.value FROM dungeon, json_each(coalesce(alt_areas, '[]')) j \
+             WHERE j.value IS NOT NULL",
+        )?;
+        let dungeons: HashSet<i64> = stmt.query_map([], |r| r.get(0))?.collect::<rusqlite::Result<_>>()?;
+        let mut stmt = conn.prepare("SELECT id, zone_or_sort FROM m_quest")?;
+        let dungeon_quests = (stmt.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<i64>>(1)?)))?)
+            .filter_map(|r| match r {
+                Ok((id, Some(zone))) if dungeons.contains(&zone) => Some(Ok(id)),
+                Ok(_) => None,
+                Err(e) => Some(Err(e)),
+            })
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(Self {
+            items,
+            dungeons,
+            dungeon_quests,
+        })
+    }
+
+    /// Quests of the guide with nothing to do first that reward a rare item, outside dungeons
+    /// and elites: The Web of Magic gave a blue item at Loremaster Dibbs from level 30 while the
+    /// game offers it only at the end of a chain through the Drowned City, which no source knew.
+    fn found(&self, model: &Model) -> Vec<Finding> {
+        let mut out = Vec::new();
+        for q in &model.quests {
+            if !q.pre_all.is_empty() || !q.pre_any.is_empty() || !q.pre_held.is_empty() {
+                continue;
+            }
+            let in_dungeon = self.dungeon_quests.contains(&q.id)
+                || q.start_dungeon.is_some()
+                || (q.objectives.iter()).any(|o| o.dungeon.is_some() || self.dungeons.contains(&o.loc.zone));
+            if in_dungeon || q.objectives.iter().any(|o| o.elite) {
+                continue;
+            }
+            let items: Vec<String> = (q.reward_items.iter())
+                .filter_map(|i| (self.items.get(i)).map(|(quality, name)| format!("{name} ({i}, quality {quality})")))
+                .collect();
+            if items.is_empty() {
+                continue;
+            }
+            out.push(Finding {
+                check: "rare-rewards",
+                key: format!("quest {}", q.id),
+                detail: format!(
+                    "{} ({}), level {}: rewards {} with no prerequisite known",
+                    q.name,
+                    q.id,
+                    q.level,
+                    items.join(", ")
+                ),
+                races: Vec::new(),
+                npcs: Vec::new(),
+            });
+        }
+        out
+    }
 }
 
 /// Quests left out for something the data does not know (`unknown_in_data`) that quests of the
@@ -1433,6 +1611,36 @@ mod tests {
         }
     }
 
+    /// The Web of Magic's case: a quest with a blue reward and nothing to do first is found;
+    /// with a prerequisite, a green reward, or taken in a dungeon, it is not.
+    #[test]
+    fn a_rare_reward_with_no_prerequisite_is_found() {
+        let mut p = quests_at_start(2);
+        let q = &mut p.model.quests[0];
+        (q.pre_all, q.pre_any, q.pre_held) = (Vec::new(), Vec::new(), Vec::new());
+        q.reward_items = vec![279_878, 279_888];
+        let id = q.id;
+        let mut rare = RareRewards {
+            items: HashMap::from([(279_878, (3, "Apprentice Sorcerer's Slacks".to_owned()))]),
+            ..RareRewards::default()
+        };
+        let found = rare.found(&p.model);
+        assert_eq!(
+            found.iter().map(|f| f.key.clone()).collect::<Vec<_>>(),
+            [format!("quest {id}")]
+        );
+        assert!(found[0].detail.contains("Apprentice Sorcerer's Slacks"));
+
+        p.model.quests[0].pre_all = vec![p.model.quests[1].id];
+        assert!(rare.found(&p.model).is_empty());
+        p.model.quests[0].pre_all.clear();
+        p.model.quests[0].reward_items = vec![279_888];
+        assert!(rare.found(&p.model).is_empty());
+        p.model.quests[0].reward_items = vec![279_878];
+        rare.dungeon_quests.insert(id);
+        assert!(rare.found(&p.model).is_empty());
+    }
+
     /// Light's Justice's case: a giver with creatures ten levels above the quest around it is
     /// found with their names; weaker ones, or too few, are not.
     #[test]
@@ -1552,6 +1760,25 @@ mod tests {
         assert_eq!(keys, [format!("quest {id}")]);
         assert!(timed_quests(&p.model, &HashMap::new()).is_empty());
     }
+    /// French, German and Spanish objectives read as foreign; English ones, names with a
+    /// borrowed word ("Le Fishe") included, do not.
+    #[test]
+    fn objectives_in_another_language_read_as_foreign() {
+        assert!(reads_foreign(
+            "Tuer 10 Vermines kobold, puis revenir voir le maréchal McBride."
+        ));
+        assert!(reads_foreign(
+            "Bringt 10 Koboldkerzen zu Marshal McBride und sprecht mit ihm."
+        ));
+        assert!(reads_foreign(
+            "Lleva 10 velas de kobold al alguacil McBride para que las vea."
+        ));
+        assert!(!reads_foreign("Kill 10 Kobold Vermin, then return to Marshal McBride."));
+        assert!(!reads_foreign(
+            "Bring Le Fishe's head to Stormwind and talk to the guard."
+        ));
+    }
+
     /// A door given for one faction only is found (the other would take the shared one), and a
     /// door of an area that is no dungeon; both sides given, or a dungeon not planned, are not.
     #[test]

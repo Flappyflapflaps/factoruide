@@ -39,6 +39,8 @@ pub struct RouteOptions {
     pub params: Vec<String>,
     pub professions: Vec<fg_route::profession::ProfessionGoal>,
     pub required_quests: Vec<String>,
+    /// An objective guide's objectives (none: a leveling guide).
+    pub objectives: Vec<fg_route::model::GuideObjective>,
     /// Language of the guide texts.
     pub locale: Option<String>,
     /// Profiles (JSON) of the character and of the other players of a group guide, and where to
@@ -86,6 +88,8 @@ pub fn run(conn: &Connection, opts: &RouteOptions) -> Result<()> {
         start: opts.start.as_deref().map(read_profile).transpose()?,
         mates: opts.mates.iter().map(|p| read_profile(p)).collect::<Result<_>>()?,
         mate_professions: vec![],
+        objectives: opts.objectives.clone(),
+        dungeon: None,
     };
     // FG_PREVIEW_STARTS: the starts the app offers to choose from, as JSON (not a guide).
     if std::env::var_os("FG_PREVIEW_STARTS").is_some() {
@@ -209,7 +213,7 @@ pub fn write_addon_routes(conn: &Connection, overrides_dir: &Path, routes_dir: &
 /// guide stamped computed at 0, version 1.
 pub fn write_guides_lua(conn: &Connection, overrides_dir: &Path, routes_dir: &Path, out: &Path) -> Result<()> {
     let overrides = Overrides::load_edition(overrides_dir, crate::edition())?;
-    let routes = job::render_routes(conn, &job::load_routes(routes_dir)?, None)?;
+    let routes = job::render_routes(conn, crate::edition(), &job::load_routes(routes_dir)?, None)?;
     let n = routes.len();
     let lua = job::guides_lua(
         conn,
@@ -312,6 +316,8 @@ pub fn share(conn: &Connection, overrides_dir: &Path, opts: &ShareOptions, out: 
         locale: Some(opts.locale.clone()),
         mates: vec![],
         mate_professions: vec![],
+        objectives: Vec::new(),
+        dungeon: None,
         start: None,
     };
     let walks = std::sync::Arc::new(fg_route::terrain::Walks::default());

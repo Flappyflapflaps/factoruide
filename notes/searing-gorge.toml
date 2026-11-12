@@ -1,0 +1,192 @@
+# Quest notes of the Searing Gorge. See notes/README.md for the format.
+
+# STOLEN (Tuyere): only a few Steamsmiths spawn and the drop rate is low, but the item can be looted by every party member.
+[[note]]
+quest = 7728
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{item:18959} drops rarely and only from {npc:5840}, of which only a handful spawn, around 39, 50. Every party member can loot it, so group up with others on the quest."
+fr = "{item:18959} tombe rarement et seulement sur {npc:5840}, dont il n'existe qu'une poignée, vers 39, 50. Chaque membre du groupe peut la ramasser : groupez-vous avec ceux qui ont la quête."
+de = "{item:18959} droppt selten und nur bei {npc:5840}, von denen es nur eine Handvoll gibt, um 39, 50. Jedes Gruppenmitglied kann ihn plündern, also schließ dich anderen mit der Quest an."
+es = "{item:18959} cae rara vez y solo de {npc:5840}, de los que apenas aparecen unos pocos, hacia 39, 50. Todo el grupo puede despojarla, así que agrúpate con otros que tengan la misión."
+pt = "{item:18959} cai raramente e só de {npc:5840}, dos quais surgem poucos, por volta de 39, 50. Todos do grupo podem saqueá-la, então agrupe-se com outros que tenham a missão."
+ru = "{item:18959} выпадает редко и только у противников {npc:5840}, которых всего несколько, около 39, 50. Добычу получает каждый участник группы, так что объединяйтесь с теми, у кого есть задание."
+ko = "{item:18959}은(는) {npc:5840}에게서만 드물게 떨어지며, 39, 50 근처에 몇 마리밖에 없습니다. 파티원 모두가 획득할 수 있으니 같은 퀘스트를 하는 사람들과 파티를 맺으세요."
+zh_cn = "{item:18959}只从{npc:5840}身上掉落，而且掉率很低，他们在39, 50附近只有寥寥几个。队伍里每个人都能拾取，所以和有这个任务的人组队。"
+zh_tw = "{item:18959}只從{npc:5840}身上掉落，而且掉率很低，他們在39, 50附近只有寥寥幾個。隊伍裡每個人都能拾取，所以和有這個任務的人組隊。"
+
+# Incendosaurs: their cave in the Slag Pit has no ground path; players drop from the north rim onto the walkway between the two eastern caves.
+[[note]]
+quest = 7727
+phase = "objective"
+objective = 1
+level = "info"
+en = "The {npc:9318} cave has no path from the ground: from the north rim near the crane at about 49, 44, drop onto the metal walkway below, then enter the cave at 47, 47 and go right."
+fr = "On n'atteint pas à pied la grotte de {npc:9318} : depuis le bord nord, près de la grue vers 49, 44, sautez sur la passerelle métallique en contrebas, puis entrez dans la grotte en 47, 47 et prenez à droite."
+de = "Zur Höhle von {npc:9318} führt kein Weg vom Boden aus: Spring vom Nordrand nahe dem Kran bei etwa 49, 44 auf den Metallsteg darunter, betritt dann die Höhle bei 47, 47 und halte dich rechts."
+es = "A la cueva de {npc:9318} no se llega a pie: desde el borde norte, junto a la grúa hacia 49, 44, salta a la pasarela metálica de abajo, entra en la cueva en 47, 47 y gira a la derecha."
+pt = "Não há caminho a pé até a caverna de {npc:9318}: da borda norte, perto do guindaste por volta de 49, 44, pule na passarela de metal abaixo, entre na caverna em 47, 47 e vá para a direita."
+ru = "К пещере, где обитает {npc:9318}, пешком не пройти: с северного края у крана около 49, 44 спрыгните на металлический мостик внизу, затем войдите в пещеру в 47, 47 и держитесь правее."
+ko = "{npc:9318} 동굴은 땅에서 가는 길이 없습니다. 49, 44 근처 북쪽 가장자리 기중기 옆에서 아래 금속 통로로 뛰어내린 뒤, 47, 47의 동굴로 들어가 오른쪽으로 가세요."
+zh_cn = "{npc:9318}所在的洞穴无法从地面走过去：从北侧边缘约49, 44的吊车旁跳到下方的金属走道上，再从47, 47进洞后向右走。"
+zh_tw = "{npc:9318}所在的洞穴無法從地面走過去：從北側邊緣約49, 44的吊車旁跳到下方的金屬走道上，再從47, 47進洞後向右走。"
+
+# What the Flux?: the plans sit behind Overseer Maltorius and two elite guards; they can be grabbed without killing them, then a jump off the balcony.
+[[note]]
+quest = 7722
+phase = "objective"
+objective = 1
+level = "warning"
+en = "The plans lie on a balcony behind {npc:14621} and his two elite guards. You can grab them and jump off the ledge instead of fighting all three."
+fr = "Les plans se trouvent sur un balcon derrière {npc:14621} et ses deux gardes élites. Vous pouvez les saisir puis sauter du rebord au lieu d'affronter les trois."
+de = "Die Pläne liegen auf einem Balkon hinter {npc:14621} und seinen zwei Elite-Wachen. Du kannst sie schnappen und über die Kante springen, statt gegen alle drei zu kämpfen."
+es = "Los planos están en un balcón detrás de {npc:14621} y sus dos guardias élite. Puedes cogerlos y saltar por el borde en lugar de luchar contra los tres."
+pt = "Os planos ficam numa sacada atrás de {npc:14621} e seus dois guardas elite. Você pode pegá-los e pular da borda em vez de enfrentar os três."
+ru = "Чертежи лежат на балконе, где стоят {npc:14621} и два его элитных стража. Можно схватить их и спрыгнуть с уступа, не сражаясь со всеми тремя."
+ko = "설계도는 {npc:14621}와(과) 정예 경비병 둘이 지키는 발코니 뒤쪽에 있습니다. 셋과 싸우지 말고 설계도만 집어 난간 밖으로 뛰어내려도 됩니다."
+zh_cn = "图纸放在阳台上，就在{npc:14621}和他的两名精英卫兵身后。可以抓起图纸直接从边缘跳下去，不必和三个都打。"
+zh_tw = "圖紙放在陽台上，就在{npc:14621}和他的兩名精英衛兵身後。可以抓起圖紙直接從邊緣跳下去，不必和三個都打。"
+
+# Caught!: the dwarves of the dig site rarely drop silk, mostly mageweave.
+[[note]]
+quest = 4449
+phase = "objective"
+objective = 2
+level = "info"
+en = "The dwarves here rarely drop {item:4306} (mostly mageweave): bring 15 with you or buy them at an auction house before coming."
+fr = "Les nains d'ici lâchent rarement de l'{item:4306} (surtout du tisse-mage) : apportez-en 15 ou achetez-les à un hôtel des ventes avant de venir."
+de = "Die Zwerge hier lassen selten {item:4306} fallen (meist Magiestoff): Bring 15 mit oder kauf sie vorher in einem Auktionshaus."
+es = "Los enanos de aquí sueltan poco {item:4306} (sobre todo tejido mágico): trae 15 contigo o cómpralos en una casa de subastas antes de venir."
+pt = "Os anões daqui raramente deixam cair {item:4306} (mais tecido mágico): traga 15 ou compre numa casa de leilões antes de vir."
+ru = "Дворфы здесь редко роняют {item:4306} (в основном магическую ткань): возьмите 15 с собой или купите их на аукционе заранее."
+ko = "이곳 드워프는 {item:4306}을(를) 거의 떨어뜨리지 않습니다(주로 마법 옷감). 오기 전에 15개를 챙기거나 경매장에서 사 두세요."
+zh_cn = "这里的矮人很少掉落{item:4306}（多半是魔纹布）：来之前自带15块，或在拍卖行买好。"
+zh_tw = "這裡的矮人很少掉落{item:4306}（多半是魔紋布）：來之前自帶15塊，或在拍賣場買好。"
+
+# Ledger from Tanaris: the ledger lands on the ground by the outhouse instead of in the bags.
+[[note]]
+quest = 4450
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{item:11727} does not go to your bags: it drops on the ground in front of the outhouse when you accept. Pick it up; if it is gone, use the outhouse again and ask for the ledger."
+fr = "{item:11727} ne va pas dans vos sacs : il tombe au sol devant les latrines quand vous acceptez. Ramassez-le ; s'il a disparu, utilisez à nouveau les latrines et redemandez le livre."
+de = "{item:11727} landet nicht in deinen Taschen: Es fällt beim Annehmen vor dem Abort auf den Boden. Heb es auf; ist es weg, benutze den Abort erneut und frag nach dem Buch."
+es = "{item:11727} no va a tus bolsas: cae al suelo delante de la letrina al aceptar. Recógelo; si ha desaparecido, vuelve a usar la letrina y pide el libro."
+pt = "{item:11727} não vai para as bolsas: cai no chão diante da casinha quando você aceita. Pegue-o; se tiver sumido, use a casinha de novo e peça o livro."
+ru = "{item:11727} не попадает в сумки: при принятии она падает на землю перед уборной. Подберите её; если её нет, снова воспользуйтесь уборной и попросите книгу."
+ko = "{item:11727}은(는) 가방에 들어오지 않습니다. 수락하면 변소 앞 바닥에 떨어집니다. 주우세요. 없어졌다면 변소를 다시 사용해 장부를 달라고 하세요."
+zh_cn = "{item:11727}不会进入背包：接受任务时它会掉在厕所前的地上。把它捡起来；如果不见了，再次使用厕所索要账本。"
+zh_tw = "{item:11727}不會進入背包：接受任務時它會掉在廁所前的地上。把它撿起來；如果不見了，再次使用廁所索取帳本。"
+
+[[icon]]
+quest = 4450
+phase = "objective"
+objective = 1
+icon = "pickup"
+
+# Suntara Stones: the letter appears beside Dorius's body; standing on its spot or being shapeshifted can stop it appearing.
+[[note]]
+quest = 3367
+phase = "turnin"
+level = "warning"
+en = "When {npc:8284} is shot at the end, {object:175704} appears on the ground beside his body. Keep a few steps away from where he falls and leave any shapeshift form, or it may not appear; if it does not, abandon and wait for him to respawn."
+fr = "Quand {npc:8284} est abattu à la fin, {object:175704} apparaît au sol près de son corps. Restez à quelques pas de l'endroit où il tombe et quittez toute forme de métamorphose, sinon elle peut ne pas apparaître ; dans ce cas, abandonnez et attendez sa réapparition."
+de = "Wird {npc:8284} am Ende erschossen, erscheint {object:175704} neben seiner Leiche. Halte ein paar Schritte Abstand zu der Stelle, wo er fällt, und verlasse jede Gestaltwandlung, sonst erscheint er womöglich nicht; dann brich ab und warte auf seinen Respawn."
+es = "Cuando disparan a {npc:8284} al final, {object:175704} aparece en el suelo junto a su cuerpo. Mantente a unos pasos de donde cae y sal de cualquier forma cambiada, o puede no aparecer; si no aparece, abandona y espera a que reaparezca."
+pt = "Quando {npc:8284} é baleado no fim, {object:175704} aparece no chão ao lado do corpo. Fique a alguns passos de onde ele cai e saia de qualquer forma metamorfoseada, ou ela pode não aparecer; se não aparecer, abandone e espere ele ressurgir."
+ru = "Когда в конце {npc:8284} застрелят, рядом с телом появится {object:175704}. Держитесь в нескольких шагах от места, где он падает, и выйдите из облика, иначе письмо может не появиться; тогда откажитесь и ждите его возрождения."
+ko = "마지막에 {npc:8284}이(가) 총에 맞으면 시체 옆 바닥에 {object:175704}이(가) 나타납니다. 쓰러지는 자리에서 몇 걸음 떨어지고 변신 상태를 풀어 두세요. 그렇지 않으면 나타나지 않을 수 있으며, 그때는 포기하고 재생성을 기다리세요."
+zh_cn = "最后{npc:8284}被射杀时，{object:175704}会出现在他尸体旁的地上。离他倒下的位置几步远，并解除任何变形形态，否则信可能不出现；如果没出现，放弃任务并等他重生。"
+zh_tw = "最後{npc:8284}被射殺時，{object:175704}會出現在他屍體旁的地上。離他倒下的位置幾步遠，並解除任何變形形態，否則信可能不出現；如果沒出現，放棄任務並等他重生。"
+
+# Release Them: the artifact sits in the middle of the lava pool among elite Twilight cultists who pull singly; standing on it avoids the lava.
+[[note]]
+quest = 3372
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{object:148506} sits in the middle of a lava pool guarded by elite Twilight cultists, which can be pulled one at a time. Jump straight onto the artifact to loot it: the lava kills you if you wade in."
+fr = "{object:148506} se trouve au milieu d'un bassin de lave gardé par des cultistes élites du Crépuscule, qu'on peut attirer un par un. Sautez directement sur l'artefact pour le fouiller : la lave vous tue si vous y entrez."
+de = "{object:148506} steht mitten in einem Lavabecken, bewacht von Elite-Kultisten des Schattenhammers, die sich einzeln ziehen lassen. Spring direkt auf das Artefakt, um es zu plündern: Die Lava tötet dich, wenn du hineinwatest."
+es = "{object:148506} está en medio de un charco de lava vigilado por cultistas élite del Martillo Crepuscular, que se pueden atraer de uno en uno. Salta directamente sobre el artefacto para saquearlo: la lava te mata si entras en ella."
+pt = "{object:148506} fica no meio de uma poça de lava guardada por cultistas de elite do Martelo do Crepúsculo, que podem ser puxados um a um. Pule direto em cima do artefato para saqueá-lo: a lava mata se você entrar nela."
+ru = "{object:148506} находится посреди лавового озерца, которое охраняют элитные культисты Сумеречного Молота; их можно выманивать по одному. Прыгните прямо на артефакт, чтобы обыскать его: в лаве вы погибнете."
+ko = "{object:148506}은(는) 정예 황혼의 망치단 신도들이 지키는 용암 웅덩이 한가운데에 있으며, 신도들은 하나씩 끌어낼 수 있습니다. 유물 위로 바로 뛰어올라 획득하세요. 용암에 들어가면 죽습니다."
+zh_cn = "{object:148506}位于一个熔岩池中央，由精英暮光之锤信徒看守，他们可以一个个拉。直接跳到神器上面拾取：走进熔岩会被烧死。"
+zh_tw = "{object:148506}位於一個熔岩池中央，由精英暮光之錘信徒看守，他們可以一個個拉。直接跳到神器上面拾取：走進熔岩會被燒死。"
+
+# Release Them: the altar disappears for several minutes after someone starts the next quest there, and starting it calls two elites at once.
+[[note]]
+quest = 3372
+phase = "turnin"
+level = "warning"
+en = "If {object:148498} cannot be clicked, someone has just started the next quest there: it comes back within 5 to 10 minutes. Taking that next quest calls two elites at once, so be ready before you accept it."
+fr = "Si {object:148498} ne peut pas être cliqué, quelqu'un vient d'y lancer la quête suivante : il revient au bout de 5 à 10 minutes. Prendre cette quête suivante fait aussitôt venir deux élites : soyez prêt avant de l'accepter."
+de = "Lässt sich {object:148498} nicht anklicken, hat gerade jemand dort die nächste Quest gestartet: Er kommt nach 5 bis 10 Minuten zurück. Die nächste Quest anzunehmen ruft sofort zwei Elitegegner herbei, sei also vorher bereit."
+es = "Si no puedes hacer clic en {object:148498}, alguien acaba de empezar allí la siguiente misión: vuelve en 5 a 10 minutos. Aceptar esa siguiente misión hace aparecer enseguida dos élites, así que prepárate antes."
+pt = "Se não der para clicar em {object:148498}, alguém acabou de iniciar a próxima missão ali: ele volta em 5 a 10 minutos. Aceitar essa próxima missão faz surgir na hora duas elites, então prepare-se antes."
+ru = "Если объект «{object:148498}» не нажимается, значит, кто-то только что начал там следующее задание: он вернется через 5–10 минут. Взятие следующего задания сразу вызывает двух элитных противников, так что приготовьтесь заранее."
+ko = "{object:148498}을(를) 클릭할 수 없다면 누군가 방금 그곳에서 다음 퀘스트를 시작한 것입니다. 5~10분 안에 다시 나타납니다. 다음 퀘스트를 받으면 정예 몹 둘이 바로 나타나니 받기 전에 준비하세요."
+zh_cn = "如果{object:148498}无法点击，说明有人刚在那里开始了下一个任务：它会在5到10分钟内重新出现。接下一个任务会立刻引出两个精英，所以接之前先做好准备。"
+zh_tw = "如果{object:148498}無法點擊，說明有人剛在那裡開始了下一個任務：它會在5到10分鐘內重新出現。接下一個任務會立刻引出兩個精英，所以接之前先做好準備。"
+
+# The Horn of the Beast: the horn's owner is a wandering level 48 elite, immune to nature damage (not elite in TBC).
+[[note]]
+quest = 3181
+phase = "accept"
+level = "warning"
+editions = ["classic", "forever"]
+en = "{npc:5833}, a level 48 elite, wanders a path in the southeastern hills up to its cave. It is immune to nature damage: bring help or another kind of damage."
+fr = "{npc:5833}, un élite de niveau 48, arpente un chemin dans les collines du sud-est jusqu'à sa grotte. Il est insensible aux dégâts de nature : venez accompagné ou avec un autre type de dégâts."
+de = "{npc:5833}, ein Elite der Stufe 48, streift auf einem Pfad in den südöstlichen Hügeln bis zu seiner Höhle umher. Er ist immun gegen Naturschaden: nimm Hilfe mit oder setze eine andere Schadensart ein."
+es = "{npc:5833}, un élite de nivel 48, recorre un sendero de las colinas del sureste hasta su cueva. Es inmune al daño de naturaleza: ve acompañado o usa otro tipo de daño."
+pt = "{npc:5833}, um elite de nível 48, percorre uma trilha nas colinas do sudeste até a caverna. É imune a dano de natureza: leve ajuda ou outro tipo de dano."
+ru = "{npc:5833}, элитный противник 48-го уровня, бродит по тропе в юго-восточных холмах до своей пещеры. Невосприимчив к урону от сил природы: возьмите помощь или другой тип урона."
+ko = "48레벨 정예 {npc:5833}은(는) 남동쪽 언덕의 오솔길을 따라 자신의 동굴까지 돌아다닙니다. 자연 피해에 면역이니 도움을 받거나 다른 종류의 피해를 준비하세요."
+zh_cn = "{npc:5833}是48级精英，在东南山丘的小路上游荡，一直走到它的洞穴。它免疫自然伤害：找人帮忙或使用其他类型的伤害。"
+zh_tw = "{npc:5833}是48級精英，在東南山丘的小路上遊蕩，一直走到牠的洞穴。牠免疫自然傷害：找人幫忙或使用其他類型的傷害。"
+
+# Rise, Obsidion!: after a wipe the altar summons both foes again; the quest need not be abandoned.
+[[note]]
+quest = 3566
+level = "info"
+en = "If your group dies, click the {object:148498} again to call {npc:8391} and {npc:8400} back: no need to abandon the quest."
+fr = "Si votre groupe meurt, cliquez à nouveau sur {object:148498} pour rappeler {npc:8391} et {npc:8400} : inutile d'abandonner la quête."
+de = "Stirbt deine Gruppe, klicke erneut auf {object:148498}, um {npc:8391} und {npc:8400} zurückzurufen: du musst die Quest nicht abbrechen."
+es = "Si tu grupo muere, vuelve a hacer clic en {object:148498} para invocar de nuevo a {npc:8391} y {npc:8400}: no hace falta abandonar la misión."
+pt = "Se o seu grupo morrer, clique de novo em {object:148498} para chamar {npc:8391} e {npc:8400} de volta: não é preciso abandonar a missão."
+ru = "Если группа погибла, снова нажмите на {object:148498}, чтобы вызвать {npc:8391} и {npc:8400}: отменять задание не нужно."
+ko = "파티가 전멸하면 {object:148498}을(를) 다시 클릭해 {npc:8391}와(과) {npc:8400}을(를) 다시 불러내세요. 퀘스트를 포기할 필요는 없습니다."
+zh_cn = "如果队伍阵亡，再次点击{object:148498}即可重新召唤{npc:8391}和{npc:8400}：不需要放弃任务。"
+zh_tw = "如果隊伍陣亡，再次點擊{object:148498}即可重新召喚{npc:8391}和{npc:8400}：不需要放棄任務。"
+
+# The Torch of Retribution (2): Kalaran takes about a minute to make the torch, which floats next to him and ends the quest; his despawning fails it.
+[[note]]
+quest = 3454
+level = "warning"
+en = "Stay by {npc:8479} after you accept it: he takes about a minute to make the torch, which then floats beside him; click it to hand the quest in. If he vanishes meanwhile, the quest fails."
+fr = "Restez près de {npc:8479} après l'avoir acceptée : il met environ une minute à fabriquer la torche, qui flotte ensuite à côté de lui ; cliquez dessus pour rendre la quête. S'il disparaît entre-temps, la quête échoue."
+de = "Bleib nach der Annahme bei {npc:8479}: er braucht etwa eine Minute für die Fackel, die dann neben ihm schwebt; klicke sie an, um die Quest abzugeben. Verschwindet er währenddessen, scheitert die Quest."
+es = "Quédate junto a {npc:8479} tras aceptarla: tarda cerca de un minuto en crear la antorcha, que luego flota a su lado; haz clic en ella para entregar la misión. Si él desaparece mientras tanto, la misión falla."
+pt = "Fique perto de {npc:8479} depois de aceitar: ele leva cerca de um minuto para fazer a tocha, que depois flutua ao lado dele; clique nela para entregar a missão. Se ele sumir nesse meio-tempo, a missão falha."
+ru = "Взяв задание, оставайтесь рядом с {npc:8479}: он делает факел около минуты, потом факел парит рядом с ним; нажмите на него, чтобы сдать задание. Если он исчезнет за это время, задание провалится."
+ko = "퀘스트를 받은 뒤 {npc:8479} 곁에 머무르세요. 횃불을 만드는 데 1분쯤 걸리며, 완성된 횃불은 그의 옆에 떠 있습니다. 횃불을 클릭해 퀘스트를 완료하세요. 그사이 그가 사라지면 퀘스트가 실패합니다."
+zh_cn = "接任务后留在{npc:8479}身边：他大约需要一分钟制作火炬，做好后火炬会飘在他旁边；点击火炬交任务。如果他在此期间消失，任务就会失败。"
+zh_tw = "接任務後留在{npc:8479}身邊：他大約需要一分鐘製作火炬，做好後火炬會飄在他旁邊；點擊火炬交任務。如果他在此期間消失，任務就會失敗。"
+
+# Set Them Ablaze!: the torch must be equipped; each brazier is a tiny object on a tower's top floor, next to an elite guard, and the click counts at once.
+[[note]]
+quest = 3463
+phase = "objective"
+level = "warning"
+en = "Equip the {item:10515}, then click the small {object:149025} on the top floor of each tower: it is easy to miss on the floor. An elite guard waits up there, but the click counts at once, so you can leave without killing it."
+fr = "Équipez {item:10515}, puis cliquez sur le petit {object:149025} au dernier étage de chaque tour : il passe facilement inaperçu au sol. Un garde élite s'y trouve, mais le clic compte aussitôt : vous pouvez repartir sans le tuer."
+de = "Rüste {item:10515} aus und klicke im obersten Stock jedes Turms auf {object:149025}: es ist am Boden leicht zu übersehen. Oben wartet eine Elite-Wache, doch der Klick zählt sofort, du kannst also gehen, ohne sie zu töten."
+es = "Equípate {item:10515} y haz clic en el pequeño {object:149025} del piso superior de cada torre: es fácil no verlo en el suelo. Arriba espera un guardia élite, pero el clic cuenta al instante, así que puedes irte sin matarlo."
+pt = "Equipe {item:10515} e clique no pequeno {object:149025} no último andar de cada torre: é fácil não vê-lo no chão. Um guarda elite fica lá em cima, mas o clique conta na hora, então você pode sair sem matá-lo."
+ru = "Возьмите в руки {item:10515} и нажмите на маленький {object:149025} на верхнем этаже каждой башни: его легко не заметить на полу. Наверху ждёт элитный страж, но нажатие засчитывается сразу, так что можно уйти, не убивая его."
+ko = "{item:10515}을(를) 장착하고 각 탑 꼭대기 층의 작은 {object:149025}을(를) 클릭하세요. 바닥에 있어 놓치기 쉽습니다. 위에 정예 경비병이 있지만 클릭하는 즉시 인정되니 처치하지 않고 떠나도 됩니다."
+zh_cn = "装备{item:10515}，然后点击每座塔顶层的小型{object:149025}：它在地上，很容易漏看。上面有一名精英卫兵，但点击后立即完成，可以不杀它直接离开。"
+zh_tw = "裝備{item:10515}，然後點擊每座塔頂層的小型{object:149025}：它在地上，很容易漏看。上面有一名精英衛兵，但點擊後立即完成，可以不殺它直接離開。"
