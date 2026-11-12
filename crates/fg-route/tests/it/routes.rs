@@ -5,7 +5,7 @@ use fg_route::fixture::Fixture;
 use fg_route::job::{
     self, Bind, LogObjective, LogQuest, MapPos, Overrides, PlanRequest, Prepared, RequiredQuest, StartState,
 };
-use fg_route::model::{CommonLoot, EntityKind, Guard, Initial, Objective, Spots};
+use fg_route::model::{CommonLoot, EntityKind, Guard, GuideObjective, Initial, Objective, Pool, Spots};
 use fg_route::params::ReputationGoal;
 use fg_route::plan::{Edit, Event, Kind, Outcome, Planner, Stop};
 use fg_route::testing::{At, Obj, Q, Scenario};
@@ -68,6 +68,8 @@ fn request(race: &str, class: &str, to_level: i64, params: &[&str]) -> PlanReque
         locale: None,
         mates: vec![],
         mate_professions: vec![],
+        objectives: Vec::new(),
+        dungeon: None,
         start: None,
     }
 }
@@ -99,6 +101,67 @@ fn fixture(files: &[&str]) -> Connection {
         .iter()
         .fold(Fixture::new(Edition::Classic), |f, name| f.file(name))
         .open()
+}
+
+/// Loot stops must work for everyone whose bags the shared route empties. Demon shops use
+/// a warlock-only gossip option even though their NPCs carry the ordinary vendor flag.
+#[test]
+fn loot_vendors_require_access_for_every_group_member() {
+    for edition in [Edition::Classic, Edition::Forever] {
+        for (class, mates, expected) in [
+            ("rogue", vec![], vec![990001, 990002]),
+            ("warlock", vec![], vec![5749, 12807, 14437, 990001, 990002]),
+            ("warlock", vec!["rogue"], vec![990001, 990002]),
+            ("rogue", vec!["warlock"], vec![990001, 990002]),
+            ("warlock", vec!["warlock"], vec![5749, 12807, 14437, 990001, 990002]),
+        ] {
+            let got = loot_vendors_for(edition, class, &mates);
+            assert_eq!(got, expected, "{edition:?}: {class} with {mates:?}");
+        }
+    }
+}
+
+/// TBC's NPC flags and gossip menus differ. Its snapshot does not carry the Classic class
+/// gate, so do not invent that restriction for its vendors.
+#[test]
+fn tbc_loot_vendors_keep_their_own_service_rules() {
+    assert_eq!(
+        loot_vendors_for(Edition::Tbc, "rogue", &[]),
+        [5749, 12807, 14437, 990001, 990002]
+    );
+}
+
+fn loot_vendors_for(edition: Edition, class: &str, mates: &[&str]) -> Vec<i64> {
+    let conn = Fixture::new(edition).file("vendor_access").open();
+    if edition == Edition::Tbc {
+        conn.execute_batch(
+            "UPDATE m_npc SET npc_flags = CASE id WHEN 990002 THEN 145 ELSE 129 END
+             WHERE id IN (5749, 12807, 14437, 990001, 990002, 990003)",
+        )
+        .unwrap();
+    }
+    let o = Overrides::load_edition(&repo().join("overrides"), edition).unwrap();
+    let req = PlanRequest {
+        params: Some(o.params.clone()),
+        required_class_quests: Some(vec![]),
+        start: Some(player("Lead-Realm", 5, class, 1)),
+        mates: mates
+            .iter()
+            .enumerate()
+            .map(|(i, class)| player(&format!("Mate{i}-Realm"), 5, class, 1))
+            .collect(),
+        ..request("undead", class, 10, &[])
+    };
+    let p = job::prepare(&conn, &o, &req, &|_| {}).unwrap();
+    let mut vendors: Vec<i64> = p
+        .model
+        .vendors
+        .iter()
+        .map(|v| v.id)
+        .filter(|id| [5749, 12807, 14437, 990001, 990002, 990003].contains(id))
+        .collect();
+    vendors.sort_unstable();
+    vendors
 }
 
 /// `prepare_from` on a database of fixtures.
@@ -497,6 +560,60 @@ fn forced_zone_quests_are_required() {
     assert!(none.model.quests.iter().all(|q| !q.zone_forced));
 }
 
+/// An objective guide of a zone and a quest plans their quests and nothing else: the zone's filed
+/// under it or a subzone (Shadowglen's in Teldrassil), whatever their level (Webwood Venom from
+/// level 3 for a level 1), not a class quest given there (the night elf warrior's Simple Sigil), and the quest asked for
+/// in another zone (Darkshore's 983). Those above the character's level are recommended, no stop
+/// waiting for a level.
+#[test]
+fn an_objective_guide_plans_its_zone_and_quest_whatever_their_level() {
+    let p = prepare_request(&PlanRequest {
+        objectives: vec![GuideObjective::Zone(141), GuideObjective::Quest(983)],
+        ..request("nightelf", "warrior", 8, &[])
+    });
+    let forced = |id| quest(&p, id).is_some_and(|i| p.model.quests[i as usize].zone_forced);
+    assert!(forced(456) && forced(916) && forced(2459), "Teldrassil's");
+    assert!(forced(983), "the quest asked for");
+    assert!(quest(&p, 3116).is_none(), "a class quest is no zone's");
+    assert!(p.model.quests.iter().all(|q| q.zone_forced), "nothing else");
+    assert!(p.model.above_level.contains(&(916, 3)), "{:?}", p.model.above_level);
+    assert!(p.model.levels_ignored);
+}
+
+/// Before an objective guide is computed, the app shows the quests left in each zone and those a
+/// zone's objective cannot plan, with why (Planting the Heart: started after a rare drop).
+#[test]
+fn an_objective_preview_counts_the_zone_and_tells_what_is_left_out() {
+    let start = StartState {
+        race: 4,
+        class: "WARRIOR".into(),
+        level: 1,
+        ..StartState::default()
+    };
+    let conn = database();
+    let counts = job::objective_counts(&conn, &start).unwrap();
+    assert!(
+        counts.zones.get(&141).is_some_and(|&n| n >= 5),
+        "{:?}",
+        counts.zones.get(&141)
+    );
+    let preview = job::objective_preview(
+        &conn,
+        &overrides(),
+        &PlanRequest {
+            objectives: vec![GuideObjective::Zone(141)],
+            start: Some(start),
+            ..request("nightelf", "warrior", 8, &[])
+        },
+    )
+    .unwrap();
+    assert!(preview.quests >= 4, "{}", preview.quests);
+    let excluded = |id| preview.excluded.iter().find(|q| q.id == id).map(|q| q.reason.as_str());
+    assert_eq!(excluded(941), Some("a quest it needs first cannot be planned"));
+    assert!(excluded(456).is_none());
+    assert!(preview.recommended.is_some());
+}
+
 /// The guide goes on past the target level until the quests of the forced zones are done: a
 /// quest after the level is reached counts, where a class quest there does not.
 #[test]
@@ -606,6 +723,25 @@ fn an_item_lying_in_a_camp_of_the_other_side_is_guarded() {
     let p = prepare("orc", "hunter", 12, &["progression=cautious"]);
     let guard = p.model.quests[quest(&p, 830).unwrap() as usize].start_guard;
     assert!(guard.level >= 6 && guard.count >= 3, "{guard:?}");
+}
+
+/// A creature with neither a faction nor a side known, in a capital (WoW Forever's own NPCs the
+/// sources know little of, GitHub #125), is no hostile guard of the givers around it; one of a
+/// hostile faction still is.
+#[test]
+fn a_creature_of_no_known_faction_in_a_capital_guards_nothing() {
+    let guard = |faction: i64| {
+        let conn = Fixture::new(Edition::Classic)
+            .file("classic_dungeons")
+            .toml(&format!(
+                "[[npc]]\nid = 90100\nname = \"Townsfolk\"\nlevel = 61\nfaction = {faction}\nat = [{{ zone = 1519, x = 65.44, y = 22.0 }}, {{ zone = 1519, x = 66.2, y = 21.17 }}, {{ zone = 1519, x = 64.7, y = 21.17 }}]\n"
+            ))
+            .open();
+        let p = prepare_in(&conn, "human", "warrior", 25, &[], None);
+        p.model.quests[quest(&p, 167).unwrap() as usize].start_guard.level
+    };
+    assert!(guard(0) < 61, "no faction known");
+    assert_eq!(guard(14), 61, "a monster's faction");
 }
 
 /// The Deadmines' Collecting Memories and Oh Brother... are filed under the dungeon but their
@@ -1010,6 +1146,7 @@ fn gathering_next_to_kills_overlaps_them() {
             pull: 1.0,
             spawns: 0,
             pack: 1.0,
+            pool: Pool::default(),
             spots: Some(Spots {
                 continent: loc.pos.continent,
                 min: point,
@@ -1693,6 +1830,35 @@ fn mobs_on_the_way_carry_their_xp() {
         .find(|l| l.contains(&format!("t = {:?}", step.text)) && l.contains(", fk = "))
         .unwrap();
     assert!(line.contains(&format!(", fx = {}", step.farm_xp.unwrap())), "{line}");
+}
+
+/// A written guide's steps say how their quest is taken and their objective done, and the addon
+/// gets that icon and the quest notes of each step.
+#[test]
+fn addon_gets_the_icons_and_notes_of_each_step() {
+    use fg_route::export::StepKind;
+    use fg_route::export::notes::{Level, StepNote};
+    let p = generic();
+    let planner = planner(p);
+    let route = planner.construct(|_| {});
+    let built = fg_route::export::build(&planner, &p.profile, &route);
+    let mut guide = fg_route::export::render(&built, &fg_route::model::Names::default());
+    let accept = guide.steps.iter().position(|s| s.kind == StepKind::Accept).unwrap();
+    assert_eq!(guide.steps[accept].icon.as_deref(), Some("npc"));
+    let kill = (guide.steps.iter())
+        .find(|s| s.kind == StepKind::Objective && s.say.first().is_some_and(|p| p.key == "objective.kill"))
+        .expect("an objective to kill");
+    assert_eq!(kill.icon.as_deref(), Some(if kill.elite { "elite" } else { "kill" }));
+    guide.steps[accept].notes = vec![StepNote {
+        level: Level::MustRead,
+        text: "Wait for the event".into(),
+    }];
+    let lua = fg_route::export::to_lua(std::slice::from_ref(&guide));
+    let line = lua.lines().find(|l| l.contains("nt = ")).unwrap();
+    assert!(
+        line.contains(r#"ic = "npc", nt = { { l = 3, t = "Wait for the event" } }"#),
+        "{line}"
+    );
 }
 
 /// The addon gets the IDs of the mobs a step is done on, to leave their kills out of the mobs on
@@ -2466,6 +2632,7 @@ fn kills_east_of_start(p: &Prepared, dx: f64, kills: f64, mob_level: i64) -> Obj
         pull: 1.0,
         spawns: 0,
         pack: 1.0,
+        pool: Pool::default(),
         spots: None,
         guard: Guard::default(),
         beside_giver: false,
@@ -2878,6 +3045,114 @@ fn dungeons_with_quests_filed_under_them() {
     .unwrap();
     let options = job::options(&conn, &overrides()).unwrap();
     assert!(options.dungeons.iter().any(|d| d.name == "The Deadmines"));
+}
+
+/// A quest filed under a dungeon with no objective known is done by running it ("Look for
+/// Daewyn in Whelgar's Excavation Site"), unless it is a delivery given and handed in outside
+/// ("Speak with Nara Wildmane", "Travel to the Wetlands and meet the Deathstalker Agent", GitHub
+/// #125): nothing to do inside, it is turned in like any
+/// other, before the run when a quest of the dungeon follows it.
+#[test]
+fn a_delivery_filed_under_a_dungeon_has_nothing_inside() {
+    let quest = |id: i64, text: &str| {
+        format!(
+            "[[quest]]\nid = {id}\nname = \"Quest {id}\"\nlevel = 18\nmin_level = 14\nraces_mask = 77\nzone = 1581\nxp = 300\n\
+             objectives_text = \"{text}\"\nstarts = [{{ npc = 234 }}]\nends = [{{ npc = 656 }}]\n"
+        )
+    };
+    let conn = Fixture::new(Edition::Classic)
+        .file("classic_dungeons")
+        .toml(&quest(90001, "Speak with Wilder Thistlenettle in Stormwind."))
+        .toml(&quest(90002, "Look for the foreman in the mine."))
+        .toml(&quest(90003, "Travel to Stormwind and meet Wilder Thistlenettle by the canals."))
+        .toml(&quest(90004, "Find Edwin VanCleef.").replace("ends = [{ npc = 656 }]", "ends = [{ npc = 639 }]"))
+        // Its objective a talk to an NPC living outside (Earthen Echo, Muln Earthfury in Mulgore).
+        .toml(&format!(
+            "{}objectives = [{{ talk = 656, amount = 1, text = \"Bring the relic to Wilder\" }}]\n",
+            quest(90005, "Bring the relic to Wilder Thistlenettle.")
+        ))
+        .open();
+    let p = prepare_in(&conn, "human", "warrior", 25, &["forced_dungeon_quests=[1581]"], None);
+    let objectives = |id: i64| {
+        let q = p.model.quests.iter().find(|q| q.id == id).expect("planned");
+        q.objectives.iter().filter(|o| o.dungeon_of().is_some()).count()
+    };
+    assert_eq!(objectives(90001), 0, "a delivery has nothing inside");
+    assert_eq!(objectives(90003), 0, "travelling to the one it is handed in to neither");
+    assert_eq!(objectives(90002), 1, "a search is done inside");
+    let talk = &p
+        .model
+        .quests
+        .iter()
+        .find(|q| q.id == 90005)
+        .expect("planned")
+        .objectives;
+    assert!(talk.len() == 1 && talk[0].dungeon_of().is_none(), "{talk:?}");
+    // Handed in inside: no objective of its own, but a quest of the dungeon (forced with it).
+    let found = p.model.quests.iter().find(|q| q.id == 90004).expect("planned");
+    assert_eq!(objectives(90004), 0);
+    let deadmines = p
+        .model
+        .dungeons
+        .iter()
+        .position(|d| d.area == 1581)
+        .expect("the Deadmines");
+    assert!(found.mandatory && found.in_dungeon(deadmines), "{found:?}");
+}
+
+/// A place to reach can take a fixed time there (`seconds`): a rogue's infiltration of a dungeon
+/// alone (The Horn of Xelthos, GitHub #125), at its entrance, not a run of the dungeon.
+#[test]
+fn a_place_to_reach_takes_its_fixed_time() {
+    let conn = Fixture::new(Edition::Classic)
+        .file("classic_dungeons")
+        .toml(
+            "[[quest]]\nid = 90010\nname = \"Infiltration\"\nlevel = 18\nmin_level = 14\nraces_mask = 77\nzone = 40\nxp = 300\n\
+             starts = [{ npc = 234 }]\nends = [{ npc = 234 }]\n\
+             objectives = [{ trigger = \"Infiltrate the mine alone\", at = { zone = 40, x = 42.5, y = 71.7 }, minutes = 25 }]\n",
+        )
+        .open();
+    let p = prepare_in(&conn, "human", "warrior", 25, &[], None);
+    let o = &p.model.quests[quest(&p, 90010).unwrap() as usize].objectives;
+    assert!(o.len() == 1 && o[0].dungeon_of().is_none(), "{o:?}");
+    assert_eq!(o[0].extra, 1500.0);
+}
+
+/// A giver offering its quest only after an event (`start_wait` of the overrides, Jungle
+/// Secrets): the model keeps how long it waits.
+#[test]
+fn a_giver_after_an_event_keeps_its_wait() {
+    let conn = Fixture::new(Edition::Classic)
+        .file("classic_dungeons")
+        .toml(
+            "[[quest]]\nid = 90011\nname = \"Secrets\"\nlevel = 18\nmin_level = 14\nraces_mask = 77\nzone = 40\nxp = 300\n\
+             extra = '{\"start_wait\": 1000}'\n\
+             starts = [{ npc = 234 }]\nends = [{ npc = 234 }]\n",
+        )
+        .open();
+    let p = prepare_in(&conn, "human", "warrior", 25, &[], None);
+    assert_eq!(p.model.quests[quest(&p, 90011).unwrap() as usize].start_wait, 1000.0);
+}
+
+/// A quest started by an item dropped inside a dungeon is taken during the group's run: the
+/// creatures standing outside, around its entrance, guard nothing of it (Elder Knowledge's elite
+/// Dragonmaw, Grime-Encrusted Ring's level 40 creatures, GitHub #125).
+#[test]
+fn a_quest_started_inside_a_dungeon_is_not_guarded_from_outside() {
+    let conn = Fixture::new(Edition::Classic)
+        .file("classic_dungeons")
+        .toml(
+            "[[npc]]\nid = 90200\nname = \"Ogre\"\nlevel = 40\nfaction = 14\n\
+             at = [{ zone = 40, x = 42.5, y = 72.5 }, { zone = 40, x = 43.3, y = 71.7 }, { zone = 40, x = 41.7, y = 71.7 }]\n\
+             [[item]]\nid = 90201\nname = \"Strange Letter\"\nlevel = 1\nclass = 12\nstart_quest = 90202\ndrops = [{ npc = 639, chance = 1.0 }]\n\
+             [[quest]]\nid = 90202\nname = \"Strange Letter\"\nlevel = 20\nmin_level = 15\nraces_mask = 77\nzone = 1581\nxp = 300\n\
+             objectives_text = \"Bring the letter to Gryan Stoutmantle.\"\nstarts = [{ item = 90201 }]\nends = [{ npc = 234 }]\n",
+        )
+        .open();
+    let p = prepare_in(&conn, "human", "warrior", 25, &[], None);
+    let q = &p.model.quests[quest(&p, 90202).unwrap() as usize];
+    assert!(q.start_dungeon.is_some(), "{q:?}");
+    assert!(q.start_guard.level < 40, "{:?}", q.start_guard);
 }
 
 /// Dungeons whose zone the game files under the continent (Blackrock Depths, Blackrock Spire,
@@ -3841,6 +4116,7 @@ fn a_group_guide_levels_each_players_professions() {
         professions: vec![skinning()],
         mates: vec![player("B-Realm", 2, "warrior", 10)],
         mate_professions: vec![vec![]],
+        dungeon: None,
         ..request("orc", "warrior", 13, &["effort=0"])
     };
     let p = prepare_request(&request);
@@ -3875,6 +4151,7 @@ fn new_characters_level_together_from_the_start() {
         start: Some(orc),
         mates: vec![troll],
         mate_professions: vec![vec![]],
+        dungeon: None,
         ..request("orc", "warrior", 4, &["effort=0"])
     };
     let route = job::plan(&fixture(&["classic_valley"]), &overrides(), &request, &|_| {})
@@ -3933,6 +4210,240 @@ fn a_dungeon_forced_with_its_quests_takes_them_all() {
         );
     }
 }
+/// A breadcrumb the guide must do (a mandatory quest needs it: Trouble in the Deeps before
+/// Allegiance to the Old Gods, GitHub #125) is taken before the quest it leads to, which closes it
+/// once taken, even when that one is on the way first.
+#[test]
+fn a_breadcrumb_the_guide_needs_comes_before_the_quest_it_leads_to() {
+    let (_, guide) = Scenario::new()
+        .levels(10, 12)
+        .quest(
+            Q::new(401, "Target")
+                .level(10)
+                .giver(1, 41.0, 41.0)
+                .kill("Boar", 10, 4, 1, 42.0, 42.0),
+        )
+        .quest(
+            Q::new(400, "Breadcrumb")
+                .level(10)
+                .breadcrumb_for(401)
+                .giver(1, 70.0, 70.0)
+                .turn_in_at(1, 41.0, 41.0),
+        )
+        .quest(
+            Q::new(402, "Needs the breadcrumb")
+                .level(10)
+                .mandatory()
+                .after_any(&[400])
+                .giver(1, 41.0, 41.0)
+                .kill("Wolf", 10, 4, 1, 43.0, 43.0),
+        )
+        .guide();
+    let at = |step: job::RouteStep| guide.plan.iter().position(|s| *s == step);
+    assert!(at(job::RouteStep::TurnIn { quest: 402 }).is_some(), "{:?}", guide.plan);
+    let breadcrumb = at(job::RouteStep::Accept { quest: 400 }).expect("breadcrumb taken");
+    assert!(
+        at(job::RouteStep::Accept { quest: 401 }).is_none_or(|t| breadcrumb < t),
+        "{:?}",
+        guide.plan
+    );
+}
+
+/// An objective guide of one dungeon from a level-18 character met in game does every quest of the
+/// dungeon, whatever its level, with the chain leading to one, enters once and turns them in:
+/// nothing else (no quest of another zone, no grinding), the rest of the log left alone. It is
+/// planned at the character's level, recommending the one its quests need, 28 here.
+#[test]
+fn a_dungeon_guide_does_the_dungeon_quests_and_nothing_else() {
+    let inside = || {
+        Obj::kill(
+            "Defias",
+            18,
+            6,
+            At {
+                zone: 1,
+                x: 70.0,
+                y: 70.0,
+            },
+        )
+        .inside(0)
+    };
+    let scenario = with_deadmines(leveling(25))
+        .start(StartState {
+            level: 18,
+            log: vec![LogQuest {
+                id: job::QuestId(330),
+                complete: false,
+                objectives: vec![],
+            }],
+            ..StartState::default()
+        })
+        .levels(18, 18)
+        .objectives(&[GuideObjective::Dungeon(900)])
+        .quest(
+            Q::new(310, "Lead")
+                .level(17)
+                .giver(2, 20.0, 60.0)
+                .kill("Wolf", 17, 6, 2, 30.0, 60.0),
+        )
+        .quest(
+            Q::new(311, "Into the mine")
+                .level(18)
+                .after(&[310])
+                .giver(2, 40.0, 60.0)
+                .objective(inside()),
+        )
+        .quest(
+            Q::new(330, "Elsewhere")
+                .level(18)
+                .giver(2, 25.0, 60.0)
+                .kill("Bear", 18, 6, 2, 35.0, 60.0),
+        )
+        .quest(
+            Q::new(340, "Later")
+                .level(30)
+                .min_level(28)
+                .giver(1, 45.0, 40.0)
+                .objective(inside()),
+        )
+        // Its giver among mobs above the game's levels (a wrong spawn in a town): it does not hold
+        // the guide's level up with it.
+        .quest(
+            Q::new(350, "Never")
+                .level(20)
+                .giver(1, 47.0, 40.0)
+                .guarded(63, 3)
+                .objective(inside()),
+        );
+    let (_, guide) = scenario.guide();
+    let dungeon = [300, 301, 302, 310, 311, 340];
+    for id in dungeon {
+        assert!(
+            (guide.plan.iter()).any(|s| matches!(s, job::RouteStep::TurnIn { quest } if *quest == id)),
+            "{id} turned in"
+        );
+    }
+    let others = (guide.plan.iter())
+        .filter_map(|s| match s {
+            job::RouteStep::Accept { quest } | job::RouteStep::TurnIn { quest } => Some(*quest),
+            _ => None,
+        })
+        .filter(|q| !dungeon.contains(q) && *q != 350)
+        .collect::<Vec<_>>();
+    assert!(others.is_empty(), "only the dungeon's quests: {others:?}");
+    assert_eq!((guide.route.from_level, guide.route.to_level), (18, 18));
+    let recommended = guide.route.recommended.as_ref().expect("a level recommended");
+    assert_eq!(recommended.level, 28);
+    assert_eq!(recommended.quests.iter().map(|q| q.id).collect::<Vec<_>>(), [340]);
+    // The addon must not leave its steps behind once the character is higher than it was.
+    assert!(guide.route.levels_ignored);
+    assert!(fg_route::export::to_lua(std::slice::from_ref(&guide.route)).contains("levelsIgnored = true"));
+    assert_eq!(guide.route.breakdown.grinding, 0.0);
+    assert!(
+        !(guide.route.steps.iter()).any(|s| s.quest == Some(330)),
+        "the quest of the log not in the guide is left alone"
+    );
+}
+
+/// Several objectives make one guide: a dungeon's quests and a quest of another zone with the one
+/// it follows, nothing else, and no grinding though the quest asks level 24 of a level 18.
+#[test]
+fn an_objective_guide_of_several_objectives_does_all_of_them() {
+    let scenario = with_deadmines(leveling(25))
+        .start(StartState {
+            level: 18,
+            ..StartState::default()
+        })
+        .levels(18, 18)
+        .objectives(&[GuideObjective::Dungeon(900), GuideObjective::Quest(331)])
+        .quest(
+            Q::new(330, "First")
+                .level(18)
+                .giver(2, 25.0, 60.0)
+                .kill("Bear", 18, 6, 2, 35.0, 60.0),
+        )
+        .quest(
+            Q::new(331, "Second")
+                .level(25)
+                .min_level(24)
+                .after(&[330])
+                .giver(2, 25.0, 60.0)
+                .kill("Bear", 24, 6, 2, 35.0, 60.0),
+        )
+        .quest(
+            Q::new(332, "Unrelated")
+                .level(18)
+                .giver(2, 26.0, 60.0)
+                .kill("Bear", 18, 6, 2, 35.0, 60.0),
+        );
+    let (_, guide) = scenario.guide();
+    let turned: Vec<i64> = (guide.plan.iter())
+        .filter_map(|s| match s {
+            job::RouteStep::TurnIn { quest } => Some(*quest),
+            _ => None,
+        })
+        .collect();
+    for id in [300, 301, 302, 330, 331] {
+        assert!(turned.contains(&id), "{id} turned in: {turned:?}");
+    }
+    assert!(!turned.contains(&332), "nothing else");
+    assert_eq!(guide.route.breakdown.grinding, 0.0);
+    assert_eq!(guide.route.recommended.as_ref().map(|r| r.level), Some(24));
+}
+
+/// A dungeon forced with its quests waits for the one whose chain ends later (taken at 19, after
+/// the others at 15): the dungeon is entered once, with all of them in the log.
+#[test]
+fn a_dungeon_forced_with_its_quests_waits_for_the_last_one() {
+    let mut scenario = with_deadmines(leveling(25)).params(|p| p.forced_dungeon_quests = vec![900]);
+    scenario = scenario
+        .quest(
+            Q::new(320, "Lead")
+                .level(19)
+                .min_level(19)
+                .giver(2, 20.0, 60.0)
+                .kill("Wolf", 19, 6, 2, 30.0, 60.0),
+        )
+        .quest(
+            Q::new(321, "Follow-up")
+                .level(19)
+                .min_level(19)
+                .after(&[320])
+                .giver(2, 40.0, 60.0)
+                .kill("Bear", 19, 6, 2, 50.0, 60.0),
+        )
+        .quest(
+            Q::new(322, "Into the mine")
+                .level(19)
+                .min_level(19)
+                .after(&[321])
+                .giver(2, 60.0, 60.0)
+                .objective(
+                    Obj::kill(
+                        "Defias",
+                        19,
+                        6,
+                        At {
+                            zone: 1,
+                            x: 70.0,
+                            y: 70.0,
+                        },
+                    )
+                    .inside(0),
+                ),
+        );
+    let (_, guide) = scenario.guide();
+    for id in [300, 301, 302, 322] {
+        assert!(
+            guide
+                .plan
+                .iter()
+                .any(|s| matches!(s, job::RouteStep::TurnIn { quest } if *quest == id)),
+            "{id} turned in"
+        );
+    }
+}
+
 /// A forced dungeon stays within the levels of its window: the route that cannot run it there is
 /// refused (GitHub #84, a forced Ragefire Chasm run at level 47). A dungeon a must-have quest
 /// needs is run past them.

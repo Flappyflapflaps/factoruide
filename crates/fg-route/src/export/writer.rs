@@ -302,6 +302,8 @@ impl StepWriter<'_> {
             child_name: None,
             text: String::new(),
             say: Vec::new(),
+            icon: None,
+            notes: Vec::new(),
             target: None,
             zone: None,
             zone_id: None,

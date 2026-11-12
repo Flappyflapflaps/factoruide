@@ -1,43 +1,9 @@
 //! Which quests and stops the character can do now: prerequisites, exclusive quests, gray quests, dungeons, chains.
 
-use super::Planner;
 use super::state::{Kind, State, Stop};
 use crate::model::{Model, Profile, Quest};
 use crate::params::Params;
 use crate::xp;
-
-/// Quests needing each quest first (it is in their `pre_all` or `pre_any`, or hands an item
-/// one of their objectives asks for).
-pub(crate) fn followers(model: &Model) -> Vec<Vec<u32>> {
-    let mut out = vec![Vec::new(); model.quests.len()];
-    for (f, q) in model.quests.iter().enumerate() {
-        let handing = q.objectives.iter().flat_map(|o| &o.handed_by);
-        for id in q.pre_all.iter().chain(&q.pre_any).chain(&q.pre_held).chain(handing) {
-            if let Some(&i) = model.index.get(id)
-                && i != f
-                && !out[i].contains(&(f as u32))
-            {
-                out[i].push(f as u32);
-            }
-        }
-    }
-    out
-}
-
-/// Quests each quest blocks once taken: the quests exclusive with it, the breadcrumbs to it.
-pub(crate) fn blocks(model: &Model) -> Vec<Vec<u32>> {
-    let mut blocks = vec![Vec::new(); model.quests.len()];
-    for (y, q) in model.quests.iter().enumerate() {
-        for id in q.exclusive.iter().chain(q.breadcrumb_for.iter()) {
-            if let Some(&x) = model.index.get(id)
-                && x != y
-            {
-                blocks[x].push(y as u32);
-            }
-        }
-    }
-    blocks
-}
 
 /// What the character can do now: quests whose prerequisites are done and that nothing
 /// excludes, stops in the right state, dungeons allowed.
@@ -51,6 +17,8 @@ pub(crate) struct Availability<'v> {
     /// Doing only what an imposed route says (the guide editor).
     pub(crate) explicit: bool,
     pub(crate) followers: &'v [Vec<u32>],
+    /// The mandatory breadcrumbs to each quest (`Indexes::breadcrumbs`).
+    pub(crate) breadcrumbs: &'v [Vec<u32>],
 }
 
 impl Availability<'_> {
@@ -145,9 +113,19 @@ impl Availability<'_> {
             && s.log < self.params.quest_log_size
             && self.prereqs_met(s, i)
             && !self.blocked(s, q)
+            && !self.breadcrumb_first(s, i)
             && q.skill
                 .is_none_or(|(p, value)| self.model.professions[p].skill_at(s.level) >= value)
             && !self.gray_dead_end(s, q, i)
+    }
+
+    /// A breadcrumb to quest `i` the route must do is not taken yet: taking `i` would close it
+    /// (Trouble in the Deeps, needed by Allegiance to the Old Gods, before The Essence of
+    /// Aku'Mai). An imposed route being replayed takes what it says.
+    fn breadcrumb_first(&self, s: &State, i: u32) -> bool {
+        !self.replaying
+            && (self.breadcrumbs[i as usize].iter())
+                .any(|&b| !s.accepted[b as usize] && !s.rewarded(b as usize) && !self.blocked(s, self.quest_at(b)))
     }
 
     /// Whether quest `q` gives reputation a goal still misses.
@@ -200,7 +178,7 @@ impl Availability<'_> {
         let i = stop.index as usize;
         // Inside a dungeon: there, or entering it.
         if stop.kind != Kind::Dungeon
-            && !Planner::already_done(s, stop)
+            && !super::Simulator::already_done(s, stop)
             && super::places::stop_inside(self.model, s, stop).is_some_and(|d| !self.can_be_in(s, d))
         {
             return false;
@@ -277,10 +255,9 @@ impl Availability<'_> {
         Some(chain)
     }
 
-    /// Quests with objectives inside dungeon `d`.
+    /// The quests of dungeon `d` (`Quest::in_dungeon`).
     pub(crate) fn dungeon_quests(&self, d: usize) -> impl Iterator<Item = u32> + '_ {
-        (0..self.model.quests.len() as u32)
-            .filter(move |&i| self.quest_at(i).objectives.iter().any(|o| o.dungeon_of() == Some(d)))
+        (0..self.model.quests.len() as u32).filter(move |&i| self.quest_at(i).in_dungeon(d))
     }
 
     /// Dungeon `d` may be entered now: allowed, not entered before, within its levels.

@@ -164,6 +164,7 @@ FG.Locales.koKR = {
     ["windows locked"] = "창 고정됨",
     ["windows unlocked: drag them to move them"] = "창 고정 해제: 드래그해서 옮기세요",
     ["for %s"] = "%s 전용",
+    ["Level %d recommended, you are %d"] = "%d레벨 권장, 현재 %d레벨",
     ["marked done, waiting for %s"] = "완료 표시됨, %s 대기 중",
     ["%s: step %d"] = "%s: %d단계",
     ["%s ahead: step %d"] = "%s 앞서 있음: %d단계",
@@ -252,4 +253,8 @@ FG.Locales.koKR = {
     ["  starts inside: %s"] = "  안에서 시작: %s",
     ["no dungeon ahead in the guide"] = "가이드에 남은 던전이 없습니다",
     ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg는 채팅에 파티 모집 메시지를 씁니다 (Enter로 전송)",
+    ["dungeon left aside: %s (%d steps; to undo: the “Undo the last mark” key)"] = "던전 건너뜀: %s (%d단계, 되돌리기: “마지막 표시 취소” 키)",
+    ["%s: %d steps left"] = "%s: %d단계 남음",
+    ["Skip the dungeon"] = "던전 건너뛰기",
+    ["Mark the dungeon's steps not done as done: its quests not finished are left aside."] = "던전에서 끝나지 않은 단계를 완료로 표시합니다. 끝내지 못한 퀘스트는 제외됩니다.",
 }

@@ -4,7 +4,27 @@ local FG = Factoruide
 
 FGStepPinMixin = CreateFromMixins and CreateFromMixins(MapCanvasPinMixin or {}) or {}
 
-function FGStepPinMixin:OnLoad() self:UseFrameLevelType("PIN_FRAME_LEVEL_AREA_POI") end
+--- For our pins' CheckMouseButtonPassthrough. The map calls it on each pin it acquires (WoW
+--- Forever; Classic Era and TBC have none) to let right clicks through (zoom out), with
+--- SetPassThroughButtons, a protected function: from our code during a fight (the map drawn
+--- again), the game blocks it (ADDON_ACTION_BLOCKED). Skipped then: the pin keeps what it had.
+function FG.PinPassthrough(pin, ...)
+    if InCombatLockdown() or not (MapCanvasPinMixin and MapCanvasPinMixin.CheckMouseButtonPassthrough) then return end
+    MapCanvasPinMixin.CheckMouseButtonPassthrough(pin, ...)
+end
+
+FGStepPinMixin.CheckMouseButtonPassthrough = FG.PinPassthrough
+
+--- Pins keep the same size on screen whatever the map's scale, as the game's own: without limits,
+--- a pin is sized in the map canvas and grows with it (huge on a map enlarged by another addon).
+function FG.PinScale(pin)
+    if pin.SetScalingLimits then pin:SetScalingLimits(1, 1.0, 1.2) end
+end
+
+function FGStepPinMixin:OnLoad()
+    self:UseFrameLevelType("PIN_FRAME_LEVEL_AREA_POI")
+    FG.PinScale(self)
+end
 
 --- `kind`: "current" (the step to do), "spot" (another place of its mobs, `shown` the one the
 --- compass points at), else a next step.

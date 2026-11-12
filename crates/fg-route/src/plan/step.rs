@@ -1,70 +1,26 @@
 //! Doing one stop of a route: accept, objectives (and the mobs met on the way), turn-in, visits, what is done while there.
 
+use super::Mode;
+use super::Simulator;
 use super::state::{Event, Kind, Landed, State, Stop, Timed, Together};
-use super::{Mode, Planner};
-use crate::model::{EntityKind, Loc, Model, Objective};
-use crate::world::Pos;
+use crate::model::{Loc, Objective};
 use crate::xp;
-use rustc_hash::FxHashMap;
-
-/// Quest NPCs by cell (continent, x, y): (quest, index in its starts or ends, giver?, and the
-/// NPC's x, y, to tell the ones at hand without reading the quest).
-pub(crate) type CampIndex = FxHashMap<(i64, i64, i64), Vec<(u32, u8, bool, f64, f64)>>;
-/// Vendors (index in `Model::vendors`) by cell of `Params::sell_radius`: (continent, x, y).
-pub(crate) type VendorIndex = FxHashMap<(i64, i64, i64), Vec<u32>>;
-
-pub(crate) fn vendor_index(model: &Model, radius: f64) -> VendorIndex {
-    let mut index = VendorIndex::default();
-    if radius > 0.0 {
-        for (i, v) in model.vendors.iter().enumerate() {
-            let cell = (
-                v.pos.continent,
-                (v.pos.x / radius).floor() as i64,
-                (v.pos.y / radius).floor() as i64,
-            );
-            index.entry(cell).or_default().push(i as u32);
-        }
-    }
-    index
-}
-
-/// Quest givers (NPCs and objects, not items) and turn-in NPCs by cell of `radius`.
-pub(crate) fn camp_index(model: &Model, radius: f64) -> CampIndex {
-    let mut index = CampIndex::default();
-    if radius <= 0.0 {
-        return index;
-    }
-    let cell = |p: &Pos| {
-        (
-            p.continent,
-            (p.x / radius).floor() as i64,
-            (p.y / radius).floor() as i64,
-        )
-    };
-    for (i, q) in model.quests.iter().enumerate() {
-        for (at, loc) in q.starts.iter().enumerate().filter(|(_, l)| l.kind != EntityKind::Item) {
-            index
-                .entry(cell(&loc.pos))
-                .or_default()
-                .push((i as u32, at as u8, true, loc.pos.x, loc.pos.y));
-        }
-        for (at, loc) in q.ends.iter().enumerate() {
-            index
-                .entry(cell(&loc.pos))
-                .or_default()
-                .push((i as u32, at as u8, false, loc.pos.x, loc.pos.y));
-        }
-    }
-    index
-}
 
 /// Share of a timed quest's limit the route may use from taking it to turning it in: the rest
 /// is a margin for the time estimates.
 const TIMED_SHARE: f64 = 0.75;
 
-impl Planner<'_> {
-    /// Training after a step: the class, then the professions.
+/// A stop this close (yards) to where the character stands is at hand: a training trip waits
+/// for it.
+const AT_HAND: f64 = 100.0;
+
+impl Simulator<'_> {
+    /// Training after a step: the class, then the professions. Not inside a dungeon (its steps
+    /// of unknown places stand at its entrance, maybe by a trainer): once out of it.
     pub(crate) fn train(&self, s: &mut State, record: &mut impl FnMut(&State, Event)) {
+        if s.inside.is_some() {
+            return;
+        }
         self.train_class(s, record);
         self.train_professions(s, record);
     }
@@ -115,9 +71,12 @@ impl Planner<'_> {
             .enumerate()
             .min_by(|a, b| s.pos.dist(&a.1.pos).total_cmp(&s.pos.dist(&b.1.pos)))
             .expect("the model has trainers");
+        // A trip waits while the route's next stop is at hand: the character leaves for the
+        // trainer with the route, not there and back before the stops of the place it is at.
+        let at_hand = s.next.is_some_and(|next| s.pos.dist(&next) <= AT_HAND);
         let i = if s.pos.dist(&trainer.pos) <= self.params.train_radius {
             near
-        } else if late {
+        } else if late && !at_hand {
             // Nearest trainer by travel time (it may be worth a flight or the hearthstone).
             self.model
                 .trainers
@@ -137,7 +96,8 @@ impl Planner<'_> {
     /// (`Params::bag_weight`): routes by vendors keep room for the loot.
     pub(crate) fn sell(&self, s: &mut State, record: &mut impl FnMut(&State, Event)) {
         let radius = self.params.sell_radius;
-        if self.explicit || self.params.bag_weight <= 0.0 || radius <= 0.0 || s.bags <= 0.0 {
+        // Not inside a dungeon (see `train`).
+        if self.explicit || self.params.bag_weight <= 0.0 || radius <= 0.0 || s.bags <= 0.0 || s.inside.is_some() {
             return;
         }
         let room = self.growth().bag_room(s.level) - f64::from(s.held);
@@ -149,6 +109,7 @@ impl Planner<'_> {
         for dx in -1..=1 {
             for dy in -1..=1 {
                 for &i in self
+                    .ix
                     .vendors
                     .get(&(s.pos.continent, cx + dx, cy + dy))
                     .into_iter()
@@ -335,6 +296,9 @@ impl Planner<'_> {
             s.spent.mob_xp += self.growth().gain_kills(s, mob_xp);
             self.growth().gather(s, q.starts[0].zone, q.start_kills);
         }
+        // A giver offering it only after an event: the mean wait for it.
+        s.time += q.start_wait;
+        s.spent.overhead += q.start_wait;
         s.accepted.set(i as usize, true);
         s.abilities |= self.model.abilities.accepted(q.id);
         s.log += 1;
@@ -679,6 +643,9 @@ impl Planner<'_> {
     /// The same with the objective's place already chosen (`spot`): a stop entering a dungeon
     /// waits for the dungeon's level too.
     fn gate_level_at(&self, s: &State, stop: Stop, spot: Option<&Objective>) -> i64 {
+        if self.model.levels_ignored {
+            return 0;
+        }
         let own = self.stop_gate(s, stop, spot);
         let inside = match spot {
             Some(o) => o.loc.inside.map(usize::from),
@@ -723,7 +690,7 @@ impl Planner<'_> {
             ),
             // A must-have quest the player asked at a level has its dungeon run from it (not the
             // default window: it only keeps the hand-in at a fair level).
-            Kind::Dungeon => self.in_dungeon[i]
+            Kind::Dungeon => self.ix.in_dungeon[i]
                 .iter()
                 .map(|&(q, _)| q as usize)
                 .filter(|&q| self.model.quests[q].mandatory && !self.model.quests[q].implicit_window && !s.turned[q])
@@ -880,28 +847,41 @@ impl Planner<'_> {
 
     /// Kill or use what objective `k` of `quest` still needs at place `here`. Objects gathered
     /// among the mobs of an objective done just before (or mobs killed among the objects), close
-    /// by, take part of the time (`Together`).
+    /// by, take part of the time, and kills there wait for respawns with theirs (`Together`).
     fn complete_objective(&self, s: &mut State, quest: u32, k: u8, here: &Objective) {
         if s.objectives[quest as usize] & (1 << k) != 0 {
             return;
         }
-        let (kills, gathers) = self.objective_work(s, quest, k, here);
-        self.together(s, here, kills, gathers);
-    }
-
-    /// Add an objective done at `here` (`kills`, `gathers`: the time of each) to the objectives
-    /// done just before close by, and take off the time that saves (the same for the whole as when
-    /// done in one stop: gathering during `gather_overlap` of the kills).
-    fn together(&self, s: &mut State, here: &Objective, kills: f64, gathers: f64) {
-        let near = s.together.at.is_some_and(|at| {
-            at.continent == here.loc.pos.continent && at.dist(&here.loc.pos) <= self.params.gather_radius
-        });
-        if !near || here.dungeon_of().is_some() {
+        if !self.joins(&s.together, here) {
             s.together = Together {
                 at: (here.dungeon_of().is_none()).then_some(here.loc.pos),
                 ..Together::default()
             };
         }
+        let (kills, gathers) = self.objective_work(s, quest, k, here);
+        self.together(s, kills, gathers);
+    }
+
+    /// Whether an objective done at `here` is done with those of `t` (done just before, within
+    /// `gather_radius`; never in a dungeon).
+    pub(crate) fn joins(&self, t: &Together, here: &Objective) -> bool {
+        here.dungeon_of().is_none()
+            && t.at.is_some_and(|at| {
+                at.continent == here.loc.pos.continent && at.dist(&here.loc.pos) <= self.params.gather_radius
+            })
+    }
+
+    /// Respawns waited for by `mobs` kills of objective `o` done after those of `t`: what they
+    /// add to the wait of the whole (their own wait alone when not done with them).
+    pub(crate) fn shared_wait(&self, t: &Together, o: &Objective, mobs: f64) -> f64 {
+        let t = if self.joins(t, o) { *t } else { Together::default() };
+        t.with(kind_of(o), &o.pool, mobs).wait() - t.wait()
+    }
+
+    /// Add an objective done at the place of `s.together` (`kills`, `gathers`: the time of each)
+    /// to the objectives done just before, and take off the time that saves (the same for the
+    /// whole as when done in one stop: gathering during `gather_overlap` of the kills).
+    fn together(&self, s: &mut State, kills: f64, gathers: f64) {
         let t = &mut s.together;
         t.kills += kills;
         t.gathers += gathers;
@@ -930,19 +910,25 @@ impl Planner<'_> {
         };
         // The fixed time too, by share of the targets left; common loot only for what the bags
         // lack.
-        let extra = match o.stock {
+        let share = match o.stock {
             Some(c) => {
                 let need = (o.count * left) as f32;
                 let have = s.stock[usize::from(c)].min(need).max(0.0);
                 s.stock[usize::from(c)] -= have;
                 if need > 0.0 {
-                    o.extra * left * f64::from((need - have) / need)
+                    left * f64::from((need - have) / need)
                 } else {
                     0.0
                 }
             }
-            None => o.extra * left,
+            None => left,
         };
+        // The respawns: waited for with the kills done there just before. Their mobs may spare
+        // the wait counted for those (less than nothing): the stops' waits add up to the whole's.
+        let mobs = o.kills * share;
+        let wait = self.shared_wait(&s.together, o, mobs);
+        s.together = s.together.with(kind_of(o), &o.pool, mobs);
+        let extra = (o.extra - o.pool.wait) * share + wait;
         let kill_work = kills * self.combat().kill_time(s.level, s.bonus, o);
         let other = uses * self.params.object_time + extra;
         self.growth().gather(s, o.loc.zone, kills);
@@ -980,7 +966,7 @@ impl Planner<'_> {
             }
         }
         // What its group does outside: done with the entry (the rest is a stop inside).
-        for &(qi, k) in &self.in_dungeon[i] {
+        for &(qi, k) in &self.ix.in_dungeon[i] {
             let qi = qi as usize;
             if s.accepted[qi] && !s.turned[qi] && self.model.quests[qi].objectives[k as usize].dungeon.is_some() {
                 self.hold(s, qi, k);
@@ -1113,4 +1099,10 @@ pub(crate) fn recorder<'t>(trace: &'t mut Option<&mut Vec<Timed>>) -> impl FnMut
             });
         }
     }
+}
+
+/// The kind of an objective's mobs, for the spawns counted once at a place (`Together`): its
+/// first NPC, 0 for none.
+fn kind_of(o: &Objective) -> i64 {
+    o.mobs.first().map_or(0, |(id, _)| *id)
 }

@@ -1,0 +1,226 @@
+# Quest notes of the Wetlands. See notes/README.md for the format.
+
+# The Cursed Crew: First Mate Snellig spawns just inside a breach in the hull of the ship nearest the shore, on its land side.
+[[note]]
+quest = 289
+phase = "objective"
+objective = 3
+level = "info"
+en = "{npc:1159} waits on the lowest deck of the ship nearest the shore: enter through the hole in its hull on the shore side to reach him without swimming through the whole ship."
+fr = "{npc:1159} se tient au pont inférieur du navire le plus proche du rivage : entrez par la brèche de la coque côté terre pour l'atteindre sans traverser tout le navire à la nage."
+de = "{npc:1159} steht auf dem untersten Deck des Schiffs, das dem Ufer am nächsten liegt: steig durch das Loch im Rumpf auf der Landseite ein, um ihn zu erreichen, ohne durch das ganze Schiff zu schwimmen."
+es = "{npc:1159} está en la cubierta inferior del barco más cercano a la orilla: entra por el agujero del casco del lado de tierra para llegar a él sin cruzar todo el barco a nado."
+pt = "{npc:1159} fica no convés inferior do navio mais próximo da margem: entre pelo buraco no casco do lado da terra para chegar até ele sem atravessar o navio inteiro a nado."
+ru = "{npc:1159} находится на нижней палубе корабля, ближайшего к берегу: войдите через пробоину в корпусе со стороны суши, чтобы добраться до него, не проплывая весь корабль."
+ko = "{npc:1159}은(는) 해안에서 가장 가까운 배의 맨 아래 갑판에 있습니다. 육지 쪽 선체의 구멍으로 들어가면 배 전체를 헤엄쳐 지나지 않고 그에게 갈 수 있습니다."
+zh_cn = "{npc:1159}在离岸最近那艘船的最底层甲板：从靠陆地一侧船壳上的破洞进去，就不必游过整艘船。"
+zh_tw = "{npc:1159}在離岸最近那艘船的最底層甲板：從靠陸地一側船殼上的破洞進去，就不必游過整艘船。"
+
+# Lifting the Curse: the strongbox is on the captain's ship but below its decks, at the bottom of the bow, reached through a breach in the hull at the sea floor on the side away from the shore.
+[[note]]
+quest = 290
+phase = "turnin"
+level = "warning"
+en = "{object:112948} is on the captain's ship but not in its decks: it lies at the very bottom of the bow, reached through a breach in the hull at the sea floor, on the side away from the shore. Clear the one or two guards there before opening it."
+fr = "{object:112948} est sur le navire du capitaine, mais pas dans ses ponts : il se trouve tout au fond de la proue, accessible par une brèche dans la coque au fond de la mer, du côté opposé au rivage. Éliminez le ou les deux gardes avant de l'ouvrir."
+de = "{object:112948} ist auf dem Schiff des Kapitäns, aber nicht auf seinen Decks: Sie liegt ganz unten im Bug, erreichbar durch ein Leck im Rumpf am Meeresgrund, auf der dem Ufer abgewandten Seite. Töte vor dem Öffnen die ein, zwei Wachen dort."
+es = "{object:112948} está en el barco del capitán, pero no en sus cubiertas: está en lo más hondo de la proa, por una brecha del casco en el fondo del mar, en el lado opuesto a la orilla. Acaba con los uno o dos guardias de allí antes de abrirlo."
+pt = "{object:112948} está no navio do capitão, mas não nos conveses: fica no fundo da proa, acessível por uma brecha no casco no fundo do mar, do lado oposto à praia. Elimine os um ou dois guardas ali antes de abri-lo."
+ru = "{object:112948} находится на корабле капитана, но не на палубах: он лежит в самом низу носа, куда ведёт пролом в корпусе у морского дна, со стороны, обращённой от берега. Перед тем как открыть, убейте одного-двух стражей рядом."
+ko = "{object:112948}은(는) 선장의 배에 있지만 갑판 안에는 없습니다. 뱃머리 맨 아래에 있으며, 해안 반대쪽 해저의 선체 틈으로 들어갈 수 있습니다. 열기 전에 그곳의 경비병 한두 명을 처치하세요."
+zh_cn = "{object:112948}在船长那艘船上，但不在甲板里：它在船头最底部，从远离岸边一侧、海底处船壳的破口进去。打开前先清掉那里的一两个守卫。"
+zh_tw = "{object:112948}在船長那艘船上，但不在甲板裡：它在船頭最底部，從遠離岸邊一側、海底處船殼的破口進去。打開前先清掉那裡的一兩個守衛。"
+
+# Uncovering the Past: the four relics spawn at random spots of the dig site, different for each player, some hidden (Sarltooth's ledge, behind the tree at the foot of the ramp, a hollow in the south-east corner).
+[[note]]
+quest = 299
+phase = "objective"
+level = "info"
+en = "The fragments spawn at random spots of the dig site, different for each player. If one is missing, check the ledge where {npc:1353} stands, behind the tree at the foot of the ramp up to the cave, and a small hollow in the south-east corner seen from the bridge."
+fr = "Les fragments apparaissent à des endroits aléatoires du site de fouilles, différents pour chaque joueur. S'il en manque un, regardez sur la corniche de {npc:1353}, derrière l'arbre au pied de la rampe vers la grotte, et dans un petit creux du coin sud-est, visible depuis le pont."
+de = "Die Fragmente erscheinen an zufälligen Stellen der Ausgrabung, für jeden Spieler anders. Fehlt eins, sieh auf dem Felsvorsprung von {npc:1353} nach, hinter dem Baum am Fuß der Rampe zur Höhle und in einer kleinen Mulde in der Südostecke, von der Brücke aus sichtbar."
+es = "Los fragmentos aparecen en puntos al azar de la excavación, distintos para cada jugador. Si falta uno, mira en la cornisa de {npc:1353}, detrás del árbol al pie de la rampa a la cueva y en una pequeña hondonada de la esquina sureste, visible desde el puente."
+pt = "Os fragmentos surgem em pontos aleatórios da escavação, diferentes para cada jogador. Se faltar um, olhe na saliência de {npc:1353}, atrás da árvore ao pé da rampa para a caverna e numa pequena depressão no canto sudeste, visível da ponte."
+ru = "Фрагменты появляются в случайных местах раскопок, у каждого игрока в своих. Если одного не хватает, проверьте уступ, где стоит {npc:1353}, место за деревом у подножия подъёма к пещере и небольшую впадину в юго-восточном углу, видную с моста."
+ko = "조각은 발굴지의 무작위 위치에 나타나며 플레이어마다 다릅니다. 하나가 보이지 않으면 {npc:1353}이(가) 있는 바위 턱, 동굴로 오르는 비탈 아래 나무 뒤, 다리에서 내려다보이는 남동쪽 구석의 작은 구덩이를 확인하세요."
+zh_cn = "碎片在挖掘场的随机位置刷新，每个玩家都不同。如果少一个，去看看{npc:1353}所在的岩架、通往山洞的坡道底下那棵树后面，以及从桥上能看到的东南角小坑。"
+zh_tw = "碎片在挖掘場的隨機位置重生，每個玩家都不同。如果少一個，去看看{npc:1353}所在的岩架、通往山洞的坡道底下那棵樹後面，以及從橋上能看到的東南角小坑。"
+
+[[icon]]
+quest = 299
+phase = "objective"
+icon = "pickup"
+
+# Ormer's Revenge: Sarltooth usually stands on a ledge above the south wall, reached by the path in the south-west corner and planks; he sometimes roams the site floor; respawn about 5 minutes.
+[[note]]
+quest = 296
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:1353} usually stands on a high ledge above the south wall of the dig site: climb the path in the south-west corner, then cross the planks. He sometimes roams the site floor instead. Respawn about 5 minutes."
+fr = "{npc:1353} se tient en général sur une haute corniche au-dessus du mur sud du site de fouilles : montez par le sentier du coin sud-ouest, puis traversez les planches. Il erre parfois en bas, dans le site. Réapparition en 5 minutes environ."
+de = "{npc:1353} steht meist auf einem hohen Felsvorsprung über der Südwand der Ausgrabung: Steig den Pfad in der Südwestecke hinauf und geh über die Planken. Manchmal streift er stattdessen unten durch die Ausgrabung. Respawn etwa 5 Minuten."
+es = "{npc:1353} suele estar en una cornisa alta sobre el muro sur de la excavación: sube por el sendero de la esquina suroeste y cruza los tablones. A veces deambula abajo, por la excavación. Reaparece en unos 5 minutos."
+pt = "{npc:1353} costuma ficar numa saliência alta acima da parede sul da escavação: suba pela trilha do canto sudoeste e atravesse as tábuas. Às vezes ele vagueia lá embaixo, pela escavação. Reaparece em cerca de 5 minutos."
+ru = "{npc:1353} обычно стоит на высоком уступе над южной стеной раскопок: поднимитесь по тропе в юго-западном углу и пройдите по доскам. Иногда он бродит внизу по раскопкам. Возрождение примерно 5 минут."
+ko = "{npc:1353}은(는) 보통 발굴지 남쪽 벽 위 높은 바위 턱에 있습니다. 남서쪽 구석의 길을 올라가 널빤지를 건너세요. 가끔은 발굴지 바닥을 돌아다니기도 합니다. 재생성은 약 5분입니다."
+zh_cn = "{npc:1353}通常站在挖掘场南墙上方的高岩架上：从西南角的小路爬上去，再走过木板。有时他会在挖掘场底下游荡。重生约5分钟。"
+zh_tw = "{npc:1353}通常站在挖掘場南牆上方的高岩架上：從西南角的小路爬上去，再走過木板。有時他會在挖掘場底下遊蕩。重生約5分鐘。"
+
+# Blisters on The Land: the Fen Creepers are stealthed, seen only up close, in the streams and pools inland from the western coast.
+[[note]]
+quest = 275
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:1040} are stealthed and show only up close: walk along the streams and pools inland from the western coast. A /target macro with their name finds one nearby; listen for their stealth sound."
+fr = "Les {npc:1040} sont camouflés et n'apparaissent que de près : longez les ruisseaux et les mares à l'intérieur des terres depuis la côte ouest. Une macro /cible avec leur nom en trouve un à proximité ; guettez aussi leur bruit de camouflage."
+de = "{npc:1040} sind getarnt und erst aus der Nähe zu sehen: Lauf die Bäche und Tümpel landeinwärts von der Westküste ab. Ein /ziel-Makro mit ihrem Namen findet einen in der Nähe; achte auch auf ihr Tarnungsgeräusch."
+es = "Los {npc:1040} están en sigilo y solo se ven de cerca: recorre los arroyos y charcas tierra adentro desde la costa oeste. Una macro /objetivo con su nombre encuentra uno cercano; atento también al sonido de su sigilo."
+pt = "Os {npc:1040} estão furtivos e só aparecem de perto: percorra os riachos e poças para o interior a partir da costa oeste. Uma macro /alvo com o nome deles encontra um por perto; preste atenção ao som da furtividade."
+ru = "{npc:1040} незаметны и видны только вблизи: ходите вдоль ручьёв и прудов в глубине суши от западного побережья. Макрос /цель с их именем находит ближайшего; прислушивайтесь и к звуку их незаметности."
+ko = "{npc:1040}은(는) 은신 상태라 가까이 가야 보입니다. 서쪽 해안에서 내륙으로 이어지는 개울과 웅덩이를 따라 걸으세요. 이름으로 /대상 매크로를 쓰면 근처의 하나를 찾을 수 있고, 은신 소리에도 귀를 기울이세요."
+zh_cn = "{npc:1040}处于潜行状态，只有靠近才看得见：沿着西海岸往内陆的溪流和水塘走。用它们名字的/target宏可以找到附近的一只；也留意它们的潜行声音。"
+zh_tw = "{npc:1040}處於潛行狀態，只有靠近才看得見：沿著西海岸往內陸的溪流和水塘走。用牠們名字的/target巨集可以找到附近的一隻；也留意牠們的潛行聲音。"
+
+# The Thandol Span: the corpse lies on the lowest floor inside the bridge, down the stairs behind the doors halfway across; elite Dark Iron dwarves guard each floor and more come after the search.
+[[note]]
+quest = 631
+phase = "turnin"
+level = "warning"
+en = "{object:2652} lies inside the bridge itself: take one of the doors halfway across and go down the stairs to the lowest floor. Elite dwarves guard each floor and more come after you search the body: be ready to leave fast."
+fr = "{object:2652} se trouve à l'intérieur même du pont : prenez l'une des portes à mi-chemin et descendez l'escalier jusqu'au niveau le plus bas. Des nains élites gardent chaque niveau et d'autres arrivent après la fouille du corps : soyez prêt à partir vite."
+de = "{object:2652} liegt im Inneren der Brücke: Nimm auf halber Strecke eine der Türen und geh die Treppe bis ins unterste Stockwerk hinab. Elite-Zwerge bewachen jedes Stockwerk und nach dem Durchsuchen kommen weitere: Sei bereit, schnell zu verschwinden."
+es = "{object:2652} está dentro del propio puente: toma una de las puertas a mitad de camino y baja las escaleras hasta el piso más bajo. Enanos élite guardan cada piso y llegan más tras registrar el cuerpo: prepárate para salir rápido."
+pt = "{object:2652} fica dentro da própria ponte: entre por uma das portas no meio do caminho e desça as escadas até o andar mais baixo. Anões elite guardam cada andar e chegam mais depois que você revista o corpo: esteja pronto para sair rápido."
+ru = "{object:2652} лежит внутри самого моста: войдите в одну из дверей посередине и спуститесь по лестнице на самый нижний ярус. Каждый ярус охраняют элитные дворфы, а после обыска тела приходят ещё: будьте готовы быстро уйти."
+ko = "{object:2652}은(는) 다리 내부에 있습니다. 다리 중간쯤의 문 중 하나로 들어가 계단을 따라 가장 아래층까지 내려가세요. 층마다 정예 드워프가 지키고 있으며 시체를 조사하면 더 몰려오니 빠르게 빠져나갈 준비를 하세요."
+zh_cn = "{object:2652}就在桥体内部：从桥中段的门之一进去，沿楼梯下到最底层。每层都有精英矮人把守，搜查尸体后还会来更多：准备好迅速离开。"
+zh_tw = "{object:2652}就在橋體內部：從橋中段的門之一進去，沿樓梯下到最底層。每層都有精英矮人把守，搜查屍體後還會來更多：準備好迅速離開。"
+
+# Sully Balloo's Letter: the envelope is tiny, by the hand of a dwarf half-buried under rubble near a broken catapult, on the riverbed under the ruined span; the way out of the water is the beach to the east.
+[[note]]
+quest = 637
+phase = "accept"
+level = "info"
+en = "{object:2656} is tiny: it lies by the hand of a dwarf half-buried under rubble, next to a broken catapult on the riverbed below the ruined span. To get out, swim east to the beach on the north bank."
+fr = "{object:2656} est minuscule : elle se trouve près de la main d'un nain à moitié enseveli sous des décombres, à côté d'une catapulte brisée, au fond de la rivière sous le pont en ruine. Pour sortir, nagez vers l'est jusqu'à la plage de la rive nord."
+de = "{object:2656} ist winzig: Er liegt an der Hand eines halb unter Trümmern begrabenen Zwergs, neben einem zerbrochenen Katapult auf dem Flussgrund unter der zerstörten Brücke. Zum Rausgehen schwimm nach Osten zum Strand am Nordufer."
+es = "{object:2656} es diminuta: está junto a la mano de un enano medio enterrado bajo escombros, al lado de una catapulta rota en el lecho del río bajo el puente en ruinas. Para salir, nada hacia el este hasta la playa de la orilla norte."
+pt = "{object:2656} é minúscula: fica junto à mão de um anão meio soterrado sob escombros, ao lado de uma catapulta quebrada no leito do rio sob a ponte em ruínas. Para sair, nade para o leste até a praia da margem norte."
+ru = "{object:2656} совсем маленькое: оно лежит у руки дворфа, наполовину заваленного обломками, рядом со сломанной катапультой на дне реки под разрушенным пролётом. Чтобы выбраться, плывите на восток к пляжу на северном берегу."
+ko = "{object:2656}은(는) 아주 작습니다. 무너진 다리 아래 강바닥, 부서진 투석기 옆에 잔해에 반쯤 깔린 드워프의 손 옆에 있습니다. 물에서 나오려면 동쪽으로 헤엄쳐 북쪽 기슭의 모래사장으로 가세요."
+zh_cn = "{object:2656}很小：它在一个半埋在瓦砾下的矮人手边，旁边是一架破损的投石车，位于断桥下方的河底。要上岸，向东游到北岸的沙滩。"
+zh_tw = "{object:2656}很小：它在一個半埋在瓦礫下的矮人手邊，旁邊是一架破損的投石車，位於斷橋下方的河底。要上岸，向東游到北岸的沙灘。"
+
+# MacKreel's Moonshine: the giver stands on the broken west span, reached only by a long jump from the main bridge; then a 15-minute timer that dying fails.
+[[note]]
+quest = 647
+phase = "accept"
+level = "warning"
+en = "{npc:2696} stands on the broken western span, reached only by a jump from the jutting rail near the north end of the main bridge, with a speed boost, slow fall or as a ghost. Then 15 minutes, and dying fails it: dive and swim east to the beach."
+fr = "{npc:2696} est sur le pont ouest effondré, accessible seulement d'un saut depuis la rambarde saillante près du bout nord du grand pont, avec un bonus de vitesse, une chute lente ou en fantôme. Puis 15 minutes, et mourir la fait échouer : plongez, nagez vers l'est jusqu'à la plage."
+de = "{npc:2696} steht auf der eingestürzten Westbrücke, nur per Sprung vom vorstehenden Geländer nahe dem Nordende der Hauptbrücke erreichbar, mit Tempo-Bonus, Langsamem Fall oder als Geist. Dann 15 Minuten, Sterben lässt sie scheitern: Tauch ab, schwimm nach Osten zum Strand."
+es = "{npc:2696} está en el puente oeste derruido, al que solo se llega saltando desde la barandilla saliente cerca del extremo norte del puente principal, con velocidad extra, caída lenta o como fantasma. Luego 15 minutos, y morir la hace fracasar: bucea y nada al este hasta la playa."
+pt = "{npc:2696} fica no vão oeste desabado, alcançado só com um pulo do parapeito saliente perto da ponta norte da ponte principal, com bônus de velocidade, queda lenta ou como fantasma. Depois, 15 minutos, e morrer faz falhar: mergulhe e nade para o leste até a praia."
+ru = "{npc:2696} стоит на обрушенном западном пролёте, куда можно попасть только прыжком с выступающего парапета у северного конца главного моста, с ускорением, плавным падением или призраком. Затем 15 минут, смерть проваливает задание: ныряйте и плывите на восток к пляжу."
+ko = "{npc:2696}은(는) 무너진 서쪽 다리에 있으며, 본 다리 북쪽 끝 근처의 튀어나온 난간에서 이동 속도 증가, 느린 낙하, 유령 상태로 뛰어야만 갈 수 있습니다. 그 뒤 15분이 주어지며 죽으면 실패합니다. 물로 뛰어들어 동쪽 모래사장으로 헤엄치세요."
+zh_cn = "{npc:2696}站在西边断掉的桥段上，只能借助加速、缓落或灵魂状态，从主桥北端附近突出的栏杆跳过去。之后有15分钟，死亡会导致任务失败：跳进水里向东游到沙滩。"
+zh_tw = "{npc:2696}站在西邊斷掉的橋段上，只能藉助加速、緩落或靈魂狀態，從主橋北端附近突出的欄杆跳過去。之後有15分鐘，死亡會導致任務失敗：跳進水裡向東游到沙灘。"
+
+# Defeat Nek'rosh: a slope behind his camp, climbed from the road, reaches him without fighting through the tents; he is immune to fire, has two casters and flees.
+[[note]]
+quest = 474
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Reach {npc:2091} by the slope behind his camp, climbed from the road, instead of fighting through the tents. He fights with two casters, flees when low and is immune to fire."
+fr = "Atteignez {npc:2091} par la pente derrière son camp, en montant depuis la route, au lieu de traverser les tentes. Il combat avec deux lanceurs de sorts, fuit quand il est faible et est insensible au feu."
+de = "Erreiche {npc:2091} über den Hang hinter seinem Lager, von der Straße aus, statt dich durch die Zelte zu kämpfen. Er kämpft mit zwei Zauberwirkern, flieht bei wenig Leben und ist immun gegen Feuer."
+es = "Llega hasta {npc:2091} por la pendiente detrás de su campamento, subiendo desde el camino, en vez de abrirte paso entre las tiendas. Lucha con dos lanzadores de hechizos, huye cuando le queda poca vida y es inmune al fuego."
+pt = "Chegue até {npc:2091} pela encosta atrás do acampamento, subindo a partir da estrada, em vez de lutar entre as tendas. Ele luta com dois conjuradores, foge quando está fraco e é imune a fogo."
+ru = "Подойдите к {npc:2091} по склону за его лагерем, поднявшись от дороги, а не пробивайтесь через шатры. С ним два заклинателя, он убегает, когда ослабеет, и неуязвим к огню."
+ko = "천막 사이를 뚫고 가지 말고, 도로에서 진영 뒤쪽 비탈을 올라 {npc:2091}에게 가세요. 그는 주문시전자 둘과 함께 싸우고, 체력이 낮으면 도망치며, 화염에 면역입니다."
+zh_cn = "从大路爬上营地后方的斜坡去找{npc:2091}，不必穿过帐篷一路杀过去。他身边有两个施法者，血量低时会逃跑，并且免疫火焰。"
+zh_tw = "從大路爬上營地後方的斜坡去找{npc:2091}，不必穿過帳篷一路殺過去。他身邊有兩個施法者，血量低時會逃跑，並且免疫火焰。"
+
+# A Grim Task: Balgaras has several spawn spots and only one is used at a time; immune to Shadow.
+[[note]]
+quest = 304
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:1364} stands at only one of his spots at a time: inside a building of Dun Modr (an inn cellar too) or in the camps on the hills to the east. Look for his blue voidwalker. He is immune to Shadow."
+fr = "{npc:1364} n'occupe qu'un de ses emplacements à la fois : un bâtiment de Dun Modr (la cave de l'auberge aussi) ou les camps sur les collines à l'est. Cherchez son marcheur du Vide bleu. Il est insensible à l'Ombre."
+de = "{npc:1364} steht immer nur an einem seiner Orte: in einem Gebäude von Dun Modr (auch im Gasthauskeller) oder in den Lagern auf den Hügeln im Osten. Achte auf seinen blauen Leerwandler. Er ist immun gegen Schatten."
+es = "{npc:1364} solo está en uno de sus puntos a la vez: dentro de un edificio de Dun Modr (también el sótano de la posada) o en los campamentos de las colinas al este. Busca su abisario azul. Es inmune a las Sombras."
+pt = "{npc:1364} fica em só um dos seus pontos por vez: num prédio de Dun Modr (inclusive o porão da estalagem) ou nos acampamentos das colinas a leste. Procure o abissal azul dele. Ele é imune a Sombra."
+ru = "{npc:1364} стоит лишь в одном из своих мест: в здании Дун Модра (даже в подвале таверны) или в лагерях на холмах к востоку. Ищите его синего демона Бездны. Он невосприимчив к тьме."
+ko = "{npc:1364}은(는) 한 번에 한 곳에만 있습니다. 둔 모드르의 건물 안(여관 지하실 포함)이나 동쪽 언덕의 야영지입니다. 파란 공허방랑자를 찾으세요. 암흑 면역입니다."
+zh_cn = "{npc:1364}每次只出现在其中一个地点：丹莫德的某栋建筑里（包括旅店地窖）或东边山丘上的营地。找他那只蓝色的虚空行者。他免疫暗影。"
+zh_tw = "{npc:1364}每次只出現在其中一個地點：丹莫德的某棟建築裡（包括旅店地窖）或東邊山丘上的營地。找他那隻藍色的虛無行者。他免疫暗影。"
+
+# Spoils of War: every node is in the water around the harbor, many deep; crocolisks guard part of the iron.
+[[note]]
+quest = 98197
+level = "info"
+editions = ["forever"]
+en = "The timber and iron lie underwater all around the harbor, many on the seabed: bring {item:5996} or another way to breathe. Lowering ground clutter makes them easier to spot; level 26 crocolisks guard some of the iron."
+fr = "Le bois et le fer sont sous l'eau tout autour du port, souvent au fond : emportez {item:5996} ou un autre moyen de respirer. Baisser la densité du décor au sol aide à les repérer ; des crocilisques de niveau 26 gardent une partie du fer."
+de = "Holz und Eisen liegen überall um den Hafen unter Wasser, viel davon auf dem Meeresgrund: nimm {item:5996} oder ein anderes Mittel zum Atmen mit. Weniger Bodendetails machen sie leichter sichtbar; Krokilisken der Stufe 26 bewachen einen Teil des Eisens."
+es = "La madera y el hierro están bajo el agua alrededor del puerto, muchos en el fondo marino: lleva {item:5996} u otra forma de respirar. Bajar el detalle del suelo ayuda a verlos; crocoliscos de nivel 26 vigilan parte del hierro."
+pt = "A madeira e o ferro ficam debaixo d'água ao redor do porto, muitos no fundo do mar: leve {item:5996} ou outra forma de respirar. Reduzir os detalhes do solo ajuda a vê-los; crocoliscos de nível 26 guardam parte do ferro."
+ru = "Древесина и железо лежат под водой вокруг гавани, многие на дне: возьмите {item:5996} или другой способ дышать под водой. С меньшей детализацией земли их легче заметить; часть железа охраняют кроколиски 26-го уровня."
+ko = "목재와 철은 항구 주변 물속 곳곳에, 상당수는 바다 밑바닥에 있습니다. {item:5996} 등 수중 호흡 수단을 챙기세요. 지면 표현 설정을 낮추면 찾기 쉽고, 일부 철은 26레벨 악어가 지키고 있습니다."
+zh_cn = "木材和铁都在港口周围的水下，很多沉在海底：带上{item:5996}或其他水下呼吸手段。调低地面细节更容易看到它们；部分铁有26级鳄鱼看守。"
+zh_tw = "木材和鐵都在港口周圍的水下，很多沉在海底：帶上{item:5996}或其他水下呼吸手段。調低地面細節更容易看到它們；部分鐵有26級鱷魚看守。"
+
+# Carnage: the flesh drops at a low rate from the Maddened Rotclaws, and Carnage only appears once it is placed at the cave entrance in the east.
+[[note]]
+quest = 98283
+phase = "objective"
+level = "warning"
+editions = ["forever"]
+en = "{npc:271334} drop the flesh rarely: expect a dozen kills or more. Carnage does not stand around; he appears only once you place the flesh at the cave entrance near 69.5, 34.7."
+fr = "Les {npc:271334} lâchent rarement la chair : comptez une douzaine de victimes ou plus. Carnage n'est pas là en permanence ; il n'apparaît qu'une fois la chair déposée à l'entrée de la grotte, vers 69,5 34,7."
+de = "{npc:271334} lässt das Fleisch nur selten fallen: rechne mit einem Dutzend Kills oder mehr. Carnage steht nicht einfach herum; er erscheint erst, wenn du das Fleisch am Höhleneingang bei 69,5 34,7 ablegst."
+es = "{npc:271334} suelta la carne muy pocas veces: cuenta con una docena de muertes o más. Carnage no está siempre ahí; solo aparece cuando colocas la carne en la entrada de la cueva, cerca de 69,5 34,7."
+pt = "{npc:271334} raramente derruba a carne: conte com uma dúzia de abates ou mais. Carnage não fica parado por ali; ele só aparece depois que você coloca a carne na entrada da caverna, perto de 69,5 34,7."
+ru = "{npc:271334} редко оставляет плоть: рассчитывайте на дюжину убийств и больше. Carnage не стоит на месте постоянно — он появляется, только когда вы положите плоть у входа в пещеру около 69.5, 34.7."
+ko = "{npc:271334}은(는) 살점을 드물게 떨어뜨립니다. 열두 마리 이상은 잡을 각오를 하세요. Carnage은(는) 늘 있는 것이 아니라, 69.5, 34.7 근처 동굴 입구에 살점을 놓아야만 나타납니다."
+zh_cn = "{npc:271334}很少掉落血肉：预计要杀十几只甚至更多。Carnage平时并不在场，只有把血肉放在69.5, 34.7附近的洞口后才会出现。"
+zh_tw = "{npc:271334}很少掉落血肉：預計要殺十幾隻甚至更多。Carnage平時並不在場，只有把血肉放在69.5, 34.7附近的洞口後才會出現。"
+
+# Razormaw Needling: the incisors drop well only around the eastern cave, where the Highland Razormaws are many; the western hills have few of them.
+[[note]]
+quest = 98245
+phase = "objective"
+objective = 1
+level = "info"
+editions = ["forever"]
+en = "Farm the incisors around the eastern cave near 69, 31: the western hills have only a few {npc:1018}. Watch for {npc:1140} inside the cave."
+fr = "Récupérez les incisives autour de la grotte de l'est, vers 69 31 : les collines de l'ouest n'ont que quelques {npc:1018}. Attention à {npc:1140} dans la grotte."
+de = "Sammle die Schneidezähne rund um die östliche Höhle bei 69, 31: In den westlichen Hügeln gibt es nur wenige {npc:1018}. Achte in der Höhle auf {npc:1140}."
+es = "Consigue los incisivos alrededor de la cueva del este, cerca de 69, 31: en las colinas del oeste hay pocos {npc:1018}. Cuidado con {npc:1140} dentro de la cueva."
+pt = "Junte os incisivos em volta da caverna a leste, perto de 69, 31: as colinas a oeste têm poucos {npc:1018}. Cuidado com {npc:1140} dentro da caverna."
+ru = "Добывайте резцы у восточной пещеры около 69, 31: на западных холмах {npc:1018} мало. Остерегайтесь {npc:1140} внутри пещеры."
+ko = "앞니는 69, 31 근처 동쪽 동굴 주변에서 모으세요. 서쪽 언덕에는 {npc:1018}이(가) 몇 마리뿐입니다. 동굴 안의 {npc:1140}을(를) 조심하세요."
+zh_cn = "去东边69, 31附近的洞穴周围收集门牙：西边的山丘上{npc:1018}很少。小心洞里的{npc:1140}。"
+zh_tw = "去東邊69, 31附近的洞穴周圍收集門牙：西邊的山丘上{npc:1018}很少。小心洞裡的{npc:1140}。"
+
+# Understanding Our Present: Goaz Warder waits on a ledge reached from the hill above the camp, not from below; it roots itself often, which helps ranged players.
+[[note]]
+quest = 98216
+phase = "objective"
+objective = 1
+level = "info"
+editions = ["forever"]
+en = "Goaz Warder stands on a ledge above the camp: climb the hill from the tree near 31.2, 48.6, go up the boards past {npc:1353} and drop onto the ledge. Use the Goaz Stone on it; it often roots itself, so ranged classes can kite it."
+fr = "Goaz Warder se tient sur une corniche au-dessus du camp : montez la colline depuis l'arbre vers 31,2 48,6, grimpez les planches après {npc:1353} et sautez sur la corniche. Utilisez la Goaz Stone sur lui ; il s'immobilise souvent, les classes à distance peuvent le kiter."
+de = "Goaz Warder steht auf einem Felsvorsprung über dem Lager: Steig vom Baum bei 31,2 48,6 den Hügel hinauf, über die Bretter an {npc:1353} vorbei und spring auf den Vorsprung. Benutze den Goaz Stone an ihm; er wurzelt sich oft selbst fest, Fernkämpfer können ihn kiten."
+es = "Goaz Warder está en una cornisa sobre el campamento: sube la colina desde el árbol cerca de 31,2 48,6, sigue por las tablas más allá de {npc:1353} y salta a la cornisa. Usa la Goaz Stone en él; suele inmovilizarse, así que las clases a distancia pueden kitearlo."
+pt = "Goaz Warder fica numa saliência acima do acampamento: suba a colina a partir da árvore perto de 31,2 48,6, siga pelas tábuas passando por {npc:1353} e pule na saliência. Use a Goaz Stone nele; ele costuma se enraizar, então classes à distância podem kitá-lo."
+ru = "Goaz Warder стоит на уступе над лагерем: поднимитесь на холм от дерева около 31.2, 48.6, пройдите по доскам мимо {npc:1353} и спрыгните на уступ. Используйте на нём Goaz Stone; он часто обездвиживает себя, и бойцы дальнего боя могут его кайтить."
+ko = "Goaz Warder은(는) 야영지 위 바위턱에 있습니다. 31.2, 48.6 근처 나무에서 언덕을 올라 {npc:1353}을(를) 지나 판자를 타고 오른 뒤 바위턱으로 뛰어내리세요. Goaz Stone을(를) 사용하세요. 자주 스스로 묶이므로 원거리 직업은 카이팅할 수 있습니다."
+zh_cn = "Goaz Warder站在营地上方的岩架上：从31.2, 48.6附近的树爬上山坡，沿木板经过{npc:1353}，再跳到岩架上。对它使用Goaz Stone；它经常定住自己，远程职业可以风筝它。"
+zh_tw = "Goaz Warder站在營地上方的岩架上：從31.2, 48.6附近的樹爬上山坡，沿木板經過{npc:1353}，再跳到岩架上。對它使用Goaz Stone；它經常定住自己，遠程職業可以風箏它。"

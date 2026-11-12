@@ -223,6 +223,38 @@ export interface PlanRequest {
   mates?: StartState[];
   /** The professions each of `mates` levels, in their order. */
   mate_professions?: ProfessionGoal[][];
+  /** An objective guide: from `start`, every quest of these objectives with those leading to them,
+   * nothing else, in the best order whatever their levels (empty: a leveling guide). */
+  objectives?: GuideObjective[];
+  /** A dungeon guide saved before the objective guides (the dungeon's instance area): one dungeon objective. */
+  dungeon?: number | null;
+}
+
+/** What an objective guide completes: every quest of a dungeon (instance area) or a zone (area), or one quest. */
+export type GuideObjective = { dungeon: number } | { zone: number } | { quest: number };
+
+/** The objectives of a request (empty: a leveling guide), an old dungeon guide's dungeon included. */
+export function objectivesOf(request: PlanRequest | null | undefined): GuideObjective[] {
+  if (!request) return [];
+  const out = [...(request.objectives ?? [])];
+  const legacy = request.dungeon;
+  if (legacy != null && !out.some((o) => "dungeon" in o && o.dungeon === legacy)) out.unshift({ dungeon: legacy });
+  return out;
+}
+
+/** The quests a character has left in each zone (an area and those above it) and dungeon, by ID. */
+export interface ObjectiveCounts {
+  zones: Record<string, number>;
+  dungeons: Record<string, number>;
+}
+
+/** What a set of objectives plans for its character before the guide is computed. */
+export interface ObjectivePreview {
+  quests: number;
+  /** Quests of the objectives the character could take but the guide cannot plan, and why (English). */
+  excluded: { id: number; name: string; reason: string }[];
+  /** The level the quests ask, when above the character's. */
+  recommended: number | null;
 }
 
 export type RequiredQuest = number | string | { quest: number | string; min_level?: number | null; max_level?: number | null };
@@ -311,6 +343,12 @@ export interface Breakdown {
   waiting?: number;
 }
 
+/** A quest note of a step: how much it matters, and its text. */
+export interface StepNote {
+  level: "info" | "warning" | "must_read";
+  text: string;
+}
+
 export interface Step {
   kind: string;
   /** Grind steps: XP to have in `level` before going on. */
@@ -327,6 +365,10 @@ export interface Step {
   /** The XP they give (rested bonus included): what the addon counts. */
   farm_xp?: number;
   text: string;
+  /** How its quest is taken or its objective done (npc, object, item, item_drop, kill, elite, get, use, talk, buy, text, rare, event, pickup). */
+  icon?: string;
+  /** What the quest notes tell about it, in the guide's language, the one that matters most first. */
+  notes?: StepNote[];
   target?: { kind: string; id: number; name: string };
   zone?: string;
   /** The zone's ID (AreaTable). */
@@ -372,6 +414,8 @@ export interface Route {
   breakdown: Breakdown;
   /** The reputation goals and how far the guide gets (none without goals). */
   reputation?: ReputationReached[];
+  /** An objective guide's quests asking more than the character's level: the level recommended and those quests, highest first. */
+  recommended?: { level: number; quests: { id: number; name: string; level: number }[] } | null;
   professions?: RouteProfession[];
   steps: Step[];
 }
@@ -549,6 +593,10 @@ export const api = {
   /** Quests of the race and class whose ID is `query` or whose name holds it, the closest first. */
   questChoices: (race: string, klass: string, query: string, locale: string | null) =>
     invoke<QuestChoice[]>("quest_choices", { race, class: klass, query, locale }),
+  /** The quests a character has left in each zone and dungeon, for an objective guide. */
+  objectiveCounts: (start: StartState) => invoke<ObjectiveCounts>("objective_counts", { start }),
+  /** The quests a request's objectives plan for its character, and those they cannot. */
+  objectivePreview: (request: PlanRequest) => invoke<ObjectivePreview>("objective_preview", { request }),
   /** The starts the character can choose from (fewer than two: nothing to choose), the best score first. */
   previewStarts: (request: PlanRequest) => invoke<StartPreview>("preview_starts", { request }),
   /** Saves a guide of no steps from the request's character and settings (edited by hand), to fill in the editor. */
@@ -809,10 +857,15 @@ export interface MapInfo {
   bounds: { map: number; min_x: number; max_x: number; min_y: number; max_y: number } | null;
   /** Game zone (AreaTable ID) of a zone map. */
   area: number | null;
+  /** A dungeon's floor (kind 4): its number in the dungeon, from 1. */
+  floor?: number;
   /** Translated zone names by game locale. */
   names?: Record<string, string>;
   /** Outline on the parent map (pixel rings, even-odd), when known. */
   shape?: [number, number][][];
+  /** The world map: where each continent lies on it (its rectangle, 0..1, and the world area it
+   * shows). */
+  placements?: { map: number; ui: [number, number, number, number]; min_x: number; max_x: number; min_y: number; max_y: number }[];
 }
 
 /** What a click on "send" did. */

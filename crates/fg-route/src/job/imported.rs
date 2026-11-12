@@ -136,6 +136,8 @@ pub fn import_polestar(
         start: None,
         required_quests: Vec::new(),
         mate_professions: Vec::new(),
+        objectives: Vec::new(),
+        dungeon: None,
     };
     let editor = Editor::open(conn, overrides, &request, walks)?;
     let report = editor.follow(&polestar::steps(&chain, &who));

@@ -1,0 +1,347 @@
+# Quest notes of Stranglethorn Vale. See notes/README.md for the format.
+
+# Jungle Secrets: the giver offers it only away from the camp, once saved from the ambush on his
+# patrol; he stands at the camp for a while after appearing before he sets off.
+[[note]]
+quest = 215
+phase = "accept"
+level = "warning"
+en = "{npc:738} offers this quest only on his patrol away from the Rebel Camp, once saved from an ambush ({npc:775} ×2). He leaves the camp about 20 minutes after he appears: wait there, follow him and help him."
+fr = "{npc:738} ne propose cette quête que pendant sa patrouille hors du camp rebelle, une fois sauvé d'une embuscade ({npc:775} ×2). Il quitte le camp environ 20 minutes après son apparition : attendez-le, suivez-le et aidez-le."
+de = "{npc:738} bietet diese Quest nur auf seiner Patrouille außerhalb des Rebellenlagers an, sobald du ihn aus einem Hinterhalt gerettet hast ({npc:775} ×2). Er verlässt das Lager etwa 20 Minuten nach seinem Erscheinen: warte dort, folge ihm und hilf ihm."
+es = "{npc:738} solo ofrece esta misión durante su patrulla fuera del campamento rebelde, después de salvarlo de una emboscada ({npc:775} ×2). Sale del campamento unos 20 minutos después de aparecer: espéralo allí, síguelo y ayúdalo."
+pt = "{npc:738} só oferece esta missão durante sua patrulha fora do acampamento rebelde, depois de ser salvo de uma emboscada ({npc:775} ×2). Ele deixa o acampamento cerca de 20 minutos após aparecer: espere lá, siga-o e ajude-o."
+ru = "{npc:738} даёт это задание только во время патруля за пределами лагеря повстанцев, после того как вы спасёте его из засады ({npc:775} ×2). Он уходит из лагеря примерно через 20 минут после появления: ждите там, идите за ним и помогите ему."
+ko = "{npc:738}은(는) 반란군 야영지를 벗어나 순찰하는 동안, 매복({npc:775} ×2)에서 구해 준 뒤에만 이 퀘스트를 줍니다. 등장 후 약 20분 뒤 야영지를 떠나니, 그곳에서 기다렸다가 따라가서 도와주세요."
+zh_cn = "{npc:738}只在离开反抗军营地巡逻时、被你从伏击（{npc:775} ×2）中救下后才提供此任务。他出现约20分钟后离开营地：在那里等待，跟随并帮助他。"
+zh_tw = "{npc:738}只在離開反抗軍營地巡邏時、被你從伏擊（{npc:775} ×2）中救下後才提供此任務。他出現約20分鐘後離開營地：在那裡等待，跟隨並幫助他。"
+
+[[icon]]
+quest = 215
+phase = "accept"
+icon = "event"
+
+# Panther Mastery: the panthers stalk unseen until close, spread along the main road.
+[[note]]
+quest = 192
+phase = "objective"
+objective = 1
+level = "info"
+en = "{npc:684} are stealthed: you only see them up close. Walk along both sides of the main road and target them by name as you go."
+fr = "{npc:684} est camouflé : on ne le voit que de près. Longez les deux côtés de la route principale et ciblez-le par son nom en avançant."
+de = "{npc:684} ist getarnt: du siehst ihn erst aus der Nähe. Lauf beide Seiten der Hauptstraße ab und wähle ihn unterwegs per Namen ins Ziel."
+es = "{npc:684} está en sigilo: solo lo ves de cerca. Recorre ambos lados del camino principal y selecciónalo por su nombre mientras avanzas."
+pt = "{npc:684} fica furtivo: você só o vê de perto. Percorra os dois lados da estrada principal e selecione-o pelo nome enquanto avança."
+ru = "{npc:684} скрыт незаметностью: его видно только вблизи. Идите вдоль обеих сторон главной дороги и выбирайте его в цель по имени."
+ko = "{npc:684}은(는) 은신 상태라 가까이 가야 보입니다. 큰길 양쪽을 따라 걸으며 이름으로 대상을 지정하세요."
+zh_cn = "{npc:684}处于潜行状态，只有靠近才能看到。沿主路两侧前进，边走边按名字选中它们。"
+zh_tw = "{npc:684}處於潛行狀態，只有靠近才能看到。沿主路兩側前進，邊走邊按名字選取牠們。"
+
+# Bad Medicine: the medicine men heal themselves and the remedy is a rare drop.
+[[note]]
+quest = 204
+phase = "objective"
+objective = 1
+level = "info"
+en = "{npc:940} heal themselves: interrupt the heal or kill them fast. {item:2633} does not drop often, expect many kills."
+fr = "{npc:940} se soigne : interrompez le soin ou tuez-le vite. {item:2633} tombe rarement, prévoyez de nombreuses victimes."
+de = "{npc:940} heilt sich selbst: unterbrich die Heilung oder töte ihn schnell. {item:2633} droppt selten, rechne mit vielen Kills."
+es = "{npc:940} se cura a sí mismo: interrumpe la sanación o mátalo rápido. {item:2633} cae poco, prepárate para muchas muertes."
+pt = "{npc:940} se cura: interrompa a cura ou mate-o rápido. {item:2633} cai raramente, espere matar muitos."
+ru = "{npc:940} лечит себя: прерывайте лечение или убивайте быстро. {item:2633} выпадает редко, придётся убить многих."
+ko = "{npc:940}은(는) 스스로 치유합니다. 치유를 차단하거나 빨리 처치하세요. {item:2633}은(는) 잘 나오지 않으니 많이 잡을 각오를 하세요."
+zh_cn = "{npc:940}会治疗自己：打断治疗或迅速击杀。{item:2633}掉率不高，准备多杀一些。"
+zh_tw = "{npc:940}會治療自己：打斷治療或迅速擊殺。{item:2633}掉落率不高，準備多殺一些。"
+
+# Kurzen's Mystery: the four tablets stand in guarded ruins, one of them underwater.
+[[note]]
+quest = 207
+phase = "objective"
+level = "warning"
+en = "Each tablet leans against a wall in crowded ruins: one in Bal'lal Ruins, one underwater in the Vile Reef among elite murlocs, two in Zul'Kunda. Pull the guards one at a time, or sneak along the walls and ledges."
+fr = "Chaque tablette est adossée à un mur dans des ruines bien gardées : une aux ruines de Bal'lal, une sous l'eau au Récif infâme parmi des murlocs élites, deux à Zul'Kunda. Attirez les gardes un par un, ou faufilez-vous le long des murs et des corniches."
+de = "Jede Tafel lehnt an einer Wand in dicht bevölkerten Ruinen: eine in den Ruinen von Bal'lal, eine unter Wasser im Üblen Riff zwischen Elite-Murlocs, zwei in Zul'Kunda. Zieh die Wachen einzeln oder schleich an Mauern und Vorsprüngen entlang."
+es = "Cada tablilla está apoyada en un muro de unas ruinas llenas de enemigos: una en las Ruinas de Bal'lal, una bajo el agua en el Arrecife Vil entre múrlocs élite, dos en Zul'Kunda. Atrae a los guardias de uno en uno o avanza a escondidas por muros y salientes."
+pt = "Cada tábua fica encostada numa parede de ruínas cheias de inimigos: uma nas Ruínas de Bal'lal, uma debaixo d'água no Recife Vil entre murlocs de elite, duas em Zul'Kunda. Puxe os guardas um de cada vez ou esgueire-se pelas paredes e saliências."
+ru = "Каждая табличка стоит у стены в многолюдных руинах: одна в Руинах Бал'лала, одна под водой у Гнусного рифа среди элитных мурлоков, две в Зул'Кунде. Выманивайте стражей по одному или пробирайтесь вдоль стен и уступов."
+ko = "석판은 적이 많은 폐허의 벽에 하나씩 기대어 있습니다. 발랄 폐허에 하나, 정예 멀록이 있는 썩은 암초 물속에 하나, 줄쿤다에 둘. 경비병을 하나씩 끌어내거나 벽과 턱을 따라 몰래 이동하세요."
+zh_cn = "每块石板都靠在敌人密集的废墟墙边：巴尔拉废墟一块，邪恶暗礁水下一块（有精英鱼人），祖昆达两块。逐个引出守卫，或沿着墙壁和岩架潜行过去。"
+zh_tw = "每塊石板都靠在敵人密集的廢墟牆邊：巴爾拉廢墟一塊，邪惡暗礁水下一塊（有精英魚人），祖昆達兩塊。逐個引出守衛，或沿著牆壁和岩架潛行過去。"
+
+# The Bloodsail Buccaneers: the captains stand on the middle deck, the riddle lies lower down.
+[[note]]
+quest = 608
+phase = "objective"
+level = "info"
+en = "Each captain is one deck down, at the front of his ship: no need to go deeper. {item:4056}, lying on a lower deck of one of the ships, starts another quest."
+fr = "Chaque capitaine se trouve un pont plus bas, à l'avant de son navire : inutile de descendre plus loin. {item:4056}, posé sur un pont inférieur de l'un des navires, lance une autre quête."
+de = "Jeder Kapitän steht ein Deck tiefer, vorne auf seinem Schiff: weiter runter musst du nicht. {item:4056} liegt auf einem unteren Deck eines der Schiffe und startet eine weitere Quest."
+es = "Cada capitán está una cubierta más abajo, en la proa de su barco: no hace falta bajar más. {item:4056}, en una cubierta inferior de uno de los barcos, inicia otra misión."
+pt = "Cada capitão fica um convés abaixo, na proa do seu navio: não precisa descer mais. {item:4056}, num convés inferior de um dos navios, inicia outra missão."
+ru = "Каждый капитан находится палубой ниже, в носовой части своего корабля: глубже спускаться не нужно. {item:4056} лежит на нижней палубе одного из кораблей и начинает другое задание."
+ko = "각 선장은 자기 배의 한 층 아래 갑판, 뱃머리 쪽에 있습니다. 더 내려갈 필요는 없습니다. 배 한 척의 아래 갑판에 있는 {item:4056}은(는) 다른 퀘스트를 시작합니다."
+zh_cn = "每位船长都在下一层甲板的船头，不必再往下走。其中一艘船更下层甲板上的{item:4056}可以开启另一个任务。"
+zh_tw = "每位船長都在下一層甲板的船頭，不必再往下走。其中一艘船更下層甲板上的{item:4056}可以開啟另一個任務。"
+
+# Message in a Bottle: the turn-in stands on an island of stealthed level 50 cats.
+[[note]]
+quest = 594
+phase = "turnin"
+level = "warning"
+en = "{npc:2634} is on Jaguero Isle, roamed by level 50 {npc:2522} you cannot see coming: come from the shore and run into the sea if they jump you, they do not follow."
+fr = "{npc:2634} se trouve sur l'île de Jaguero, où rôde {npc:2522} niveau 50, invisible jusqu'à l'attaque : arrivez par la plage et fuyez dans la mer s'il vous saute dessus, il ne suit pas."
+de = "{npc:2634} ist auf der Jaguero-Insel, wo {npc:2522} der Stufe 50 umherstreift, ohne dass du ihn kommen siehst: komm vom Strand und flieh ins Meer, wenn er dich anspringt, er folgt nicht."
+es = "{npc:2634} está en la Isla Jaguero, donde merodea {npc:2522} de nivel 50 sin que lo veas venir: llega desde la orilla y huye al mar si te ataca, no te sigue."
+pt = "{npc:2634} fica na Ilha Jaguero, onde ronda {npc:2522} de nível 50 sem que você o veja chegar: venha pela praia e fuja para o mar se ele atacar, ele não segue."
+ru = "{npc:2634} находится на острове Ягуэро, где бродит {npc:2522} 50-го уровня, которого не видно до нападения: подходите с берега и уходите в море, если он нападёт, он не преследует."
+ko = "{npc:2634}은(는) 자구에로 섬에 있습니다. 보이지 않게 다가오는 50레벨 {npc:2522}이(가) 돌아다니니, 해변 쪽으로 접근하고 공격당하면 바다로 도망치세요. 따라오지 않습니다."
+zh_cn = "{npc:2634}在加古耶罗岛上，岛上游荡着看不见的50级{npc:2522}：从海岸靠近，如果被扑倒就跑进海里，它们不会追。"
+zh_tw = "{npc:2634}在加古耶羅島上，島上遊蕩著看不見的50級{npc:2522}：從海岸靠近，如果被撲倒就跑進海裡，牠們不會追。"
+
+# Arena Master: the trinket starting it comes from the arena's contested chest.
+[[note]]
+quest = 7810
+phase = "accept"
+level = "warning"
+en = "{item:18706} comes from the chest that appears in the Gurubashi Arena every three hours; the first player to loot it takes it, so expect a fight with others."
+fr = "{item:18706} vient du coffre qui apparaît dans l'arène des Gurubashi toutes les trois heures ; le premier joueur qui le pille l'emporte, attendez-vous à vous battre contre d'autres."
+de = "{item:18706} stammt aus der Truhe, die alle drei Stunden in der Arena der Gurubashi erscheint; wer sie zuerst plündert, bekommt es, also rechne mit Kämpfen gegen andere."
+es = "{item:18706} sale del cofre que aparece en la Arena Gurubashi cada tres horas; se lo lleva el primero que lo despoja, así que prepárate para pelear con otros."
+pt = "{item:18706} vem do baú que aparece na Arena Gurubashi a cada três horas; quem saquear primeiro leva, então espere lutar com outros jogadores."
+ru = "{item:18706} достаётся из сундука, который появляется на арене Гурубаши раз в три часа; его получает тот, кто первым откроет сундук, так что готовьтесь к схватке с другими."
+ko = "{item:18706}은(는) 구루바시 투기장에 3시간마다 나타나는 상자에서 나옵니다. 먼저 여는 플레이어가 가져가니 다른 플레이어와의 싸움을 각오하세요."
+zh_cn = "{item:18706}来自古拉巴什竞技场每三小时出现一次的宝箱；先拾取的玩家得到它，准备好和其他人争夺。"
+zh_tw = "{item:18706}來自古拉巴什競技場每三小時出現一次的寶箱；先拾取的玩家得到它，準備好和其他人爭奪。"
+
+[[icon]]
+quest = 7810
+phase = "accept"
+icon = "event"
+
+# Excelsior: the elder crocolisk shares spawn points with the ordinary saltwater crocolisks on the coast.
+[[note]]
+quest = 628
+phase = "objective"
+objective = 1
+level = "info"
+en = "The {npc:2635} spawns in place of an ordinary {npc:1151} along the coast north of the Horde camp. If none is up, kill the ordinary ones on the beach until it appears."
+fr = "L'{npc:2635} apparaît à la place d'un {npc:1151} ordinaire sur la côte au nord du camp de la Horde. S'il n'y en a aucun, tuez les crocilisques ordinaires de la plage jusqu'à ce qu'il apparaisse."
+de = "Der {npc:2635} erscheint anstelle eines gewöhnlichen {npc:1151} an der Küste nördlich des Hordenlagers. Ist keiner da, töte die gewöhnlichen am Strand, bis er auftaucht."
+es = "El {npc:2635} aparece en lugar de un {npc:1151} común en la costa al norte del campamento de la Horda. Si no hay ninguno, mata a los comunes de la playa hasta que salga."
+pt = "O {npc:2635} surge no lugar de um {npc:1151} comum na costa ao norte do acampamento da Horda. Se não houver nenhum, mate os comuns da praia até ele aparecer."
+ru = "{npc:2635} появляется вместо обычного зверя «{npc:1151}» на побережье к северу от лагеря Орды. Если его нет, убивайте обычных кроколисков на пляже, пока он не появится."
+ko = "{npc:2635}은(는) 호드 야영지 북쪽 해안에서 일반 {npc:1151} 대신 나타납니다. 보이지 않으면 해변의 일반 악어를 처치하며 나타날 때까지 기다리세요."
+zh_cn = "{npc:2635}会在部落营地以北的海岸上取代普通的{npc:1151}出现。如果一只都没有，就在海滩上击杀普通鳄鱼，直到它出现。"
+zh_tw = "{npc:2635}會在部落營地以北的海岸上取代普通的{npc:1151}出現。如果一隻都沒有，就在海灘上擊殺普通鱷魚，直到牠出現。"
+
+# Excelsior: the elder crocolisk is a random replacement spawn.
+[[icon]]
+quest = 628
+phase = "objective"
+objective = 1
+icon = "rare"
+
+# The Vile Reef: of the two tablet slabs, the one on the outer side of the wall can be looted without pulling the elite murlocs.
+[[note]]
+quest = 629
+phase = "objective"
+objective = 1
+level = "info"
+en = "Two stone slabs against the ruined wall hold the {item:4094}. Loot the one on the outer, north side (about 24.8, 22.9): the other faces the glowing altar among elite murlocs."
+fr = "Deux dalles de pierre contre le mur en ruine portent l'{item:4094}. Prenez celle du côté extérieur nord (environ 24,8, 22,9) : l'autre fait face à l'autel lumineux, parmi des murlocs élites."
+de = "Zwei Steinplatten an der zerfallenen Mauer tragen den {item:4094}. Plündere die auf der äußeren Nordseite (etwa 24,8, 22,9): Die andere liegt zum leuchtenden Altar hin zwischen Elite-Murlocs."
+es = "Dos losas de piedra contra el muro en ruinas tienen la {item:4094}. Saquea la del lado exterior norte (unos 24,8, 22,9): la otra da al altar brillante, entre múrlocs élite."
+pt = "Duas lajes de pedra junto ao muro em ruínas guardam o {item:4094}. Saqueie a do lado externo norte (cerca de 24,8, 22,9): a outra fica voltada ao altar brilhante, entre murlocs de elite."
+ru = "«{item:4094}» лежит на двух каменных плитах у разрушенной стены. Берите с той, что на внешней северной стороне (около 24.8, 22.9): другая обращена к светящемуся алтарю, среди элитных мурлоков."
+ko = "무너진 벽에 기댄 석판 두 개에 {item:4094}이(가) 있습니다. 바깥쪽 북면(약 24.8, 22.9)의 것을 가져가세요. 다른 하나는 빛나는 제단 쪽 정예 멀록들 사이에 있습니다."
+zh_cn = "倒塌墙边的两块石板上都有{item:4094}。拿外侧北面那块（约24.8, 22.9）：另一块朝向发光祭坛，周围都是精英鱼人。"
+zh_tw = "倒塌牆邊的兩塊石板上都有{item:4094}。拿外側北面那塊（約24.8, 22.9）：另一塊朝向發光祭壇，周圍都是精英魚人。"
+
+# Bloodscalp Clan Heads: Gan'zulah appears only after the witch doctors at his throne are killed, and respawns slowly.
+[[note]]
+quest = 584
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:1061} only shows up at his throne once the guards around it ({npc:660} ×2) are dead, and he respawns slowly. If he is missing, clear the courtyard and wait."
+fr = "{npc:1061} n'apparaît à son trône qu'une fois ses gardes ({npc:660} ×2) tués, et il réapparaît lentement. S'il est absent, nettoyez la cour et attendez."
+de = "{npc:1061} erscheint an seinem Thron erst, wenn seine Wachen ({npc:660} ×2) tot sind, und er respawnt langsam. Fehlt er, räum den Hof und warte."
+es = "{npc:1061} solo aparece en su trono cuando sus guardias ({npc:660} ×2) han muerto, y reaparece despacio. Si no está, limpia el patio y espera."
+pt = "{npc:1061} só aparece no trono depois que os guardas ao redor ({npc:660} ×2) morrem, e ele renasce devagar. Se não estiver lá, limpe o pátio e espere."
+ru = "{npc:1061} появляется у трона, только когда убиты его стражи ({npc:660} ×2), и возрождается медленно. Если его нет, зачистите двор и ждите."
+ko = "{npc:1061}은(는) 왕좌 주변의 경비병({npc:660} ×2)이 죽어야 나타나며 재생성이 느립니다. 보이지 않으면 안뜰을 정리하고 기다리세요."
+zh_cn = "{npc:1061}只有在王座周围的守卫（{npc:660} ×2）死后才会出现，且重生很慢。如果他不在，清理庭院后等待。"
+zh_tw = "{npc:1061}只有在王座周圍的守衛（{npc:660} ×2）死後才會出現，且重生很慢。如果他不在，清理庭院後等待。"
+
+# The Bloodsail Buccaneers: the charts and the orders each spawn at one of three spots on the beach camps; a looted one respawns elsewhere.
+[[note]]
+quest = 604
+phase = "objective"
+level = "info"
+en = "{item:3920} and {item:3921} each lie at one of three spots: the tent of the small camp, the rowboat on the beach, or the crates of the big camp full of warlocks. Check the boat and the small tent first; a looted document comes back at another spot."
+fr = "{item:3920} et {item:3921} se trouvent chacun à l'un de trois endroits : la tente du petit camp, la barque sur la plage ou les caisses du grand camp plein de démonistes. Vérifiez d'abord la barque et la petite tente ; un document ramassé réapparaît ailleurs."
+de = "{item:3920} und {item:3921} liegen jeweils an einer von drei Stellen: im Zelt des kleinen Lagers, im Ruderboot am Strand oder auf den Kisten des großen Lagers voller Hexenmeister. Sieh zuerst im Boot und im kleinen Zelt nach; ein aufgehobenes Dokument erscheint woanders wieder."
+es = "{item:3920} y {item:3921} están cada uno en uno de tres sitios: la tienda del campamento pequeño, el bote de la playa o las cajas del campamento grande lleno de brujos. Mira primero el bote y la tienda pequeña; un documento recogido reaparece en otro sitio."
+pt = "{item:3920} e {item:3921} ficam cada um em um de três lugares: a tenda do acampamento pequeno, o bote na praia ou os caixotes do acampamento grande cheio de bruxos. Olhe primeiro o bote e a tenda pequena; um documento pego reaparece em outro lugar."
+ru = "{item:3920} и {item:3921} лежат каждый в одном из трёх мест: в палатке малого лагеря, в лодке на пляже или на ящиках большого лагеря, полного чернокнижников. Сначала проверьте лодку и малую палатку; поднятый документ появляется в другом месте."
+ko = "{item:3920}와 {item:3921}는 각각 세 곳 중 한 곳에 있습니다: 작은 야영지의 천막, 해변의 보트, 흑마법사가 가득한 큰 야영지의 상자. 먼저 보트와 작은 천막을 확인하세요. 누가 집어 간 문서는 다른 곳에 다시 나타납니다."
+zh_cn = "{item:3920}和{item:3921}各在三个地点之一：小营地的帐篷、海滩上的小船，或满是术士的大营地的箱子上。先查看小船和小帐篷；被拾取的文件会在另一处重新出现。"
+zh_tw = "{item:3920}和{item:3921}各在三個地點之一：小營地的帳篷、海灘上的小船，或滿是術士的大營地的箱子上。先查看小船和小帳篷；被拾取的文件會在另一處重新出現。"
+
+# Stranglethorn Fever: Mokk comes with the third wave summoned by Unbagwa; the witch doctor must survive the first two, and a new try costs ten more fangs (Classic numbers; the waves are smaller in TBC).
+[[note]]
+quest = 348
+phase = "objective"
+objective = 1
+level = "warning"
+editions = ["classic", "forever"]
+en = "{npc:1514} only comes with the third wave of gorillas that {npc:1449} summons: keep the witch doctor alive through the first two waves; after that, looting Mokk is all that counts. If the witch doctor dies early, ten more {item:2799} are needed."
+fr = "{npc:1514} n'arrive qu'avec la troisième vague de gorilles invoquée par {npc:1449} : gardez le sorcier-docteur en vie pendant les deux premières ; ensuite, seul compte le butin de Mokk. Si le sorcier-docteur meurt trop tôt, il faut dix {item:2799} de plus."
+de = "{npc:1514} kommt erst mit der dritten Gorillawelle, die {npc:1449} beschwört: halte den Hexendoktor die ersten beiden Wellen am Leben; danach zählt nur, Mokk zu plündern. Stirbt der Hexendoktor zu früh, brauchst du zehn weitere {item:2799}."
+es = "{npc:1514} solo llega con la tercera oleada de gorilas que invoca {npc:1449}: mantén vivo al médico brujo durante las dos primeras; después solo importa saquear a Mokk. Si el médico brujo muere antes, necesitarás diez {item:2799} más."
+pt = "{npc:1514} só chega com a terceira onda de gorilas que {npc:1449} invoca: mantenha o mandingueiro vivo nas duas primeiras; depois, só importa saquear Mokk. Se o mandingueiro morrer antes, serão precisos mais dez {item:2799}."
+ru = "{npc:1514} появляется только с третьей волной горилл, которых призывает {npc:1449}: сохраните знахарю жизнь в первых двух волнах; дальше важно лишь обыскать Мокка. Если знахарь погибнет раньше, понадобится ещё десять {item:2799}."
+ko = "{npc:1514}는 {npc:1449}가 부르는 고릴라의 세 번째 무리와 함께 나타납니다. 처음 두 무리 동안 주술사를 살려 두세요. 그 뒤로는 모크의 전리품만 챙기면 됩니다. 주술사가 일찍 죽으면 {item:2799} 10개가 더 필요합니다."
+zh_cn = "{npc:1514}只在{npc:1449}召来的第三波猩猩中出现：前两波要保住巫医；之后只要拾取莫克就行。巫医若提前死亡，需要再交十个{item:2799}。"
+zh_tw = "{npc:1514}只在{npc:1449}召來的第三波猩猩中出現：前兩波要保住巫醫；之後只要拾取莫克就行。巫醫若提前死亡，需要再交十個{item:2799}。"
+
+# Cortello's Riddle: the next scroll lies half hidden in the water under the bridge of the Swamp of Sorrows.
+[[note]]
+quest = 624
+phase = "turnin"
+level = "info"
+en = "{object:2553} lies in the shallow water under the bridge in {zone:8}, on the north side of the middle pillar. It is hard to see: sweep your cursor over the water."
+fr = "{object:2553} se trouve dans l'eau peu profonde sous le pont ({zone:8}), côté nord du pilier central. Il est difficile à voir : balayez l'eau avec le curseur."
+de = "{object:2553} liegt im seichten Wasser unter der Brücke in {zone:8}, auf der Nordseite des mittleren Pfeilers. Sie ist schwer zu sehen: fahr mit dem Mauszeiger über das Wasser."
+es = "{object:2553} está en el agua poco profunda bajo el puente de {zone:8}, en el lado norte del pilar central. Cuesta verlo: pasa el cursor por el agua."
+pt = "{object:2553} fica na água rasa sob a ponte de {zone:8}, no lado norte do pilar central. É difícil de ver: passe o cursor sobre a água."
+ru = "{object:2553} лежит на мелководье под мостом ({zone:8}), с северной стороны центральной опоры. Его трудно заметить: водите курсором по воде."
+ko = "{object:2553}는 {zone:8}의 다리 아래 얕은 물속, 가운데 기둥 북쪽에 있습니다. 잘 보이지 않으니 커서를 물 위로 훑어 보세요."
+zh_cn = "{object:2553}在{zone:8}那座桥下的浅水中，中间桥墩的北侧。很难看清：用鼠标在水面上来回扫。"
+zh_tw = "{object:2553}在{zone:8}那座橋下的淺水中，中間橋墩的北側。很難看清：用滑鼠在水面上來回掃。"
+
+# Big Game Hunter: King Bangalash calls two panthers at half health; they stay after a failed attempt and add up.
+[[note]]
+quest = 208
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Below half health {npc:731} calls two panthers, which stay with him if you fail, and two more come at every new try. Clear the cats around him first and kill him in one go."
+fr = "Sous la moitié de sa vie, {npc:731} appelle deux panthères qui restent avec lui en cas d'échec, et deux autres arrivent à chaque nouvel essai. Éliminez d'abord les félins autour de lui et tuez-le d'une traite."
+de = "Unter halber Gesundheit ruft {npc:731} zwei Panther, die bei einem Fehlschlag bei ihm bleiben, und bei jedem neuen Versuch kommen zwei weitere. Räum zuerst die Katzen um ihn herum ab und töte ihn in einem Zug."
+es = "Por debajo de media vida, {npc:731} llama a dos panteras que se quedan con él si fallas, y llegan dos más en cada nuevo intento. Limpia primero los felinos de alrededor y mátalo de una vez."
+pt = "Abaixo de metade da vida, {npc:731} chama duas panteras que ficam com ele se você falhar, e vêm mais duas a cada nova tentativa. Limpe antes os felinos ao redor e mate-o de uma vez."
+ru = "Потеряв половину здоровья, {npc:731} призывает двух пантер, которые остаются с ним при неудаче, и с каждой новой попыткой приходят ещё две. Сначала перебейте кошек вокруг и убейте его с первого раза."
+ko = "{npc:731}는 생명력이 절반 아래로 떨어지면 표범 둘을 부르며, 실패하면 표범은 그 곁에 남고 다시 시도할 때마다 둘이 더 옵니다. 먼저 주변 고양이과 짐승을 처리하고 한 번에 처치하세요."
+zh_cn = "{npc:731}血量低于一半时会召来两只豹子，失败后豹子会留在他身边，每次重试还会再来两只。先清掉周围的猫科野兽，一口气杀掉他。"
+zh_tw = "{npc:731}血量低於一半時會召來兩隻豹子，失敗後豹子會留在他身邊，每次重試還會再來兩隻。先清掉周圍的貓科野獸，一口氣殺掉他。"
+
+# Supplies to Private Thorsen: he regularly patrols the road out of the camp and takes the supplies only while standing still, at the camp or at the end of his patrol.
+[[note]]
+quest = 198
+phase = "turnin"
+level = "warning"
+en = "{npc:738} regularly patrols the road out of the Rebel Camp and takes the supplies only while standing still, at the camp or at the end of his patrol. If he is away or dead, wait for him by the camp's fire."
+fr = "{npc:738} patrouille régulièrement sur la route hors du camp rebelle et ne prend les provisions que lorsqu'il est immobile, au camp ou au bout de sa patrouille. S'il est absent ou mort, attendez-le près du feu du camp."
+de = "{npc:738} patrouilliert regelmäßig die Straße außerhalb des Rebellenlagers und nimmt die Vorräte nur an, wenn er stillsteht, im Lager oder am Ende seiner Patrouille. Ist er fort oder tot, warte am Lagerfeuer auf ihn."
+es = "{npc:738} patrulla a menudo el camino fuera del campamento rebelde y solo acepta los suministros cuando está quieto, en el campamento o al final de su patrulla. Si no está o ha muerto, espéralo junto a la hoguera del campamento."
+pt = "{npc:738} patrulha com frequência a estrada fora do acampamento rebelde e só aceita os suprimentos quando está parado, no acampamento ou no fim da patrulha. Se ele não estiver ou tiver morrido, espere-o junto à fogueira do acampamento."
+ru = "{npc:738} регулярно патрулирует дорогу за лагерем повстанцев и принимает припасы, только когда стоит на месте: в лагере или в конце патруля. Если его нет или он погиб, ждите его у костра лагеря."
+ko = "{npc:738}은(는) 반란군 야영지 밖의 길을 주기적으로 순찰하며, 야영지나 순찰 끝 지점에서 멈춰 서 있을 때만 보급품을 받습니다. 자리에 없거나 죽었다면 야영지 모닥불 옆에서 기다리세요."
+zh_cn = "{npc:738}会定期沿着反抗军营地外的道路巡逻，只有在站定时才收下补给：在营地里或巡逻的终点。如果他不在或已死亡，就在营地的篝火旁等他。"
+zh_tw = "{npc:738}會定期沿著反抗軍營地外的道路巡邏，只有在站定時才收下補給：在營地裡或巡邏的終點。如果他不在或已死亡，就在營地的營火旁等他。"
+
+# The Hidden Key: the lockbox is a small box among the crates where the first Kurzen elites stand, along the right wall of the cave, before the ramp down; it takes a while to come back once opened.
+[[note]]
+quest = 328
+phase = "turnin"
+level = "warning"
+en = "In the cave keep to the right wall and do not take the ramp down. {object:288} is a small box among the crates where the first elites and a witch doctor stand. Once opened it takes up to 15 minutes to come back."
+fr = "Dans la grotte, longez le mur de droite et ne prenez pas la rampe qui descend. {object:288} est une petite boîte parmi les caisses où se tiennent les premiers élites et un sorcier-docteur. Une fois ouvert, il met jusqu'à 15 minutes à revenir."
+de = "Halte dich in der Höhle an die rechte Wand und nimm nicht die Rampe nach unten. {object:288} ist eine kleine Kiste zwischen den Kisten, wo die ersten Elite und ein Hexendoktor stehen. Einmal geöffnet, dauert es bis zu 15 Minuten, bis er wieder da ist."
+es = "En la cueva, sigue la pared derecha y no bajes por la rampa. {object:288} es una cajita entre las cajas donde están los primeros élites y un médico brujo. Una vez abierto, tarda hasta 15 minutos en volver."
+pt = "Na caverna, siga a parede da direita e não desça a rampa. {object:288} é uma caixinha entre os caixotes onde ficam os primeiros elites e um mandingueiro. Depois de aberto, leva até 15 minutos para voltar."
+ru = "В пещере держитесь правой стены и не спускайтесь по пандусу. {object:288} — маленький ящичек среди ящиков, где стоят первые элитные воины и знахарь. После открытия он появляется снова только через 15 минут."
+ko = "동굴에서는 오른쪽 벽을 따라가고 아래로 내려가는 비탈로 가지 마세요. {object:288}은(는) 첫 정예병들과 주술사가 서 있는 상자 더미 사이의 작은 상자입니다. 한 번 열리면 다시 나타나기까지 최대 15분이 걸립니다."
+zh_cn = "在山洞里沿右侧墙走，不要走下坡道。{object:288}是一个小盒子，夹在第一批精英和一个巫医所站的箱子堆中间。被打开后最多要15分钟才会重新出现。"
+zh_tw = "在山洞裡沿右側牆走，不要走下坡道。{object:288}是一個小盒子，夾在第一批精英和一個巫醫所站的箱子堆中間。被打開後最多要15分鐘才會重新出現。"
+
+# Bookie Herod: the records are a small stack of dark books on the upper floor of the compound's only two-storey house, against the back wall.
+[[note]]
+quest = 200
+phase = "turnin"
+level = "info"
+en = "{object:287} is a small stack of dark green books on the upper floor of the compound's only two-storey house, against the back wall: it blends into the wall."
+fr = "{object:287} est une petite pile de livres vert foncé à l'étage de la seule maison à deux niveaux du camp, contre le mur du fond : elle se confond avec le mur."
+de = "{object:287} sind ein kleiner Stapel dunkelgrüner Bücher im Obergeschoss des einzigen zweistöckigen Hauses im Lager, an der Rückwand: Er verschwimmt mit der Wand."
+es = "{object:287} es una pequeña pila de libros verde oscuro en el piso superior de la única casa de dos plantas del complejo, contra la pared del fondo: se confunde con la pared."
+pt = "{object:287} é uma pequena pilha de livros verde-escuros no andar de cima da única casa de dois andares do complexo, junto à parede dos fundos: ela se confunde com a parede."
+ru = "{object:287} — небольшая стопка тёмно-зелёных книг на верхнем этаже единственного двухэтажного дома в лагере, у задней стены: её трудно отличить от стены."
+ko = "{object:287}은(는) 기지에 하나뿐인 2층 집의 위층 뒷벽에 놓인 작은 진녹색 책 더미입니다. 벽과 색이 비슷해 눈에 잘 띄지 않습니다."
+zh_cn = "{object:287}是一小摞深绿色的书，在营地里唯一一栋两层房子的楼上，靠着后墙：它和墙几乎融为一体。"
+zh_tw = "{object:287}是一小疊深綠色的書，在營地裡唯一一棟兩層房子的樓上，靠著後牆：它和牆幾乎融為一體。"
+
+# Favor for Krazek: the ore is a mining node in the Drywhisker Gorge kobold cave (Mining or auction house); the path up hides behind a rock and a split tree east of Hammerfall.
+[[note]]
+quest = 627
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{item:4278} comes from {object:2653} nodes in a kobold cave: you need Mining, or buy the ore at the auction house. The narrow path up to the cave hides behind a big rock and a split tree, east of the Horde fort."
+fr = "{item:4278} s'obtient sur les gisements ({object:2653}) d'une grotte de kobolds : il faut le Minage, ou achetez le minerai à l'hôtel des ventes. L'étroit sentier qui monte à la grotte est caché derrière un gros rocher et un arbre fendu, à l'est du fort de la Horde."
+de = "{item:4278} stammt von Vorkommen ({object:2653}) in einer Koboldhöhle: Du brauchst Bergbau oder kaufst das Erz im Auktionshaus. Der schmale Pfad hinauf zur Höhle liegt versteckt hinter einem großen Felsen und einem gespaltenen Baum, östlich der Hordefestung."
+es = "{item:4278} sale de depósitos ({object:2653}) en una cueva de kóbolds: necesitas Minería, o compra el mineral en la casa de subastas. El estrecho sendero que sube a la cueva se oculta tras una gran roca y un árbol partido, al este del fuerte de la Horda."
+pt = "{item:4278} vem de depósitos ({object:2653}) numa caverna de kobolds: é preciso ter Mineração, ou compre o minério na casa de leilões. A trilha estreita que sobe até a caverna fica escondida atrás de uma grande rocha e uma árvore rachada, a leste do forte da Horda."
+ru = "{item:4278} добывается из залежей ({object:2653}) в пещере кобольдов: нужно Горное дело, или купите руду на аукционе. Узкая тропа к пещере скрыта за большим валуном и расщеплённым деревом, к востоку от крепости Орды."
+ko = "{item:4278}은(는) 코볼트 동굴의 {object:2653}에서 캡니다. 채광 기술이 필요하며, 없으면 경매장에서 사세요. 동굴로 오르는 좁은 길은 호드 요새 동쪽, 큰 바위와 갈라진 나무 뒤에 숨어 있습니다."
+zh_cn = "{item:4278}来自狗头人洞穴里的{object:2653}：需要采矿技能，或者在拍卖行购买矿石。通往洞穴的狭窄小路藏在部落要塞东边一块大岩石和一棵裂开的树后面。"
+zh_tw = "{item:4278}來自狗頭人洞穴裡的{object:2653}：需要採礦技能，或者在拍賣場購買礦石。通往洞穴的狹窄小路藏在部落要塞東邊一塊大岩石和一棵裂開的樹後面。"
+
+# Water Elementals: lesser water elementals are immune to Frost.
+[[note]]
+quest = 601
+phase = "objective"
+objective = 1
+level = "info"
+en = "{npc:691} is immune to Frost: casters should rely on Fire, Arcane or other schools here."
+fr = "{npc:691} est insensible au Givre : les lanceurs de sorts doivent miser ici sur le Feu, l'Arcane ou d'autres écoles."
+de = "{npc:691} ist immun gegen Frost: Zauberwirker setzen hier besser auf Feuer, Arkan oder andere Schulen."
+es = "{npc:691} es inmune a la Escarcha: los lanzadores de hechizos deben usar aquí Fuego, Arcano u otras escuelas."
+pt = "{npc:691} é imune a Gelo: conjuradores devem usar aqui Fogo, Arcano ou outras escolas."
+ru = "{npc:691} невосприимчив к магии льда: заклинателям лучше использовать здесь огонь, тайную магию или другие школы."
+ko = "{npc:691}은(는) 냉기에 면역입니다. 주문 시전자는 이곳에서 화염, 비전 등 다른 계열을 쓰세요."
+zh_cn = "{npc:691}免疫冰霜：施法者在这里应使用火焰、奥术或其他系别的法术。"
+zh_tw = "{npc:691}免疫冰霜：施法者在這裡應使用火焰、秘法或其他系別的法術。"
+
+# The Curse of the Tides: the altar is deep underwater among elite murlocs, and Gazban can root you there.
+[[note]]
+quest = 611
+phase = "objective"
+objective = 1
+level = "warning"
+en = "The altar lies deep underwater among elite murlocs: bring {item:5996} or another way to breathe, and swim down from straight above it to avoid them. {npc:2624} can freeze you in place underwater, so pull him up toward the surface to fight."
+fr = "L'autel se trouve en eau profonde parmi des murlocs élites : apportez {item:5996} ou un autre moyen de respirer, et descendez à la verticale de l'autel pour les éviter. {npc:2624} peut vous geler sur place sous l'eau : attirez-le vers la surface pour le combattre."
+de = "Der Altar liegt tief unter Wasser zwischen Elite-Murlocs: Nimm {item:5996} oder eine andere Atemhilfe mit und tauche senkrecht von oben hinab, um ihnen auszuweichen. {npc:2624} kann dich unter Wasser festfrieren, also zieh ihn zum Kämpfen Richtung Oberfläche."
+es = "El altar está a gran profundidad entre múrlocs élite: lleva {item:5996} u otra forma de respirar, y baja en vertical desde encima para evitarlos. {npc:2624} puede congelarte en el sitio bajo el agua, así que atráelo hacia la superficie para luchar."
+pt = "O altar fica no fundo, entre murlocs de elite: leve {item:5996} ou outro jeito de respirar e desça em linha reta por cima dele para evitá-los. {npc:2624} pode congelar você no lugar debaixo d'água, então puxe-o para perto da superfície para lutar."
+ru = "Алтарь находится глубоко под водой среди элитных мурлоков: возьмите {item:5996} или другой способ дышать и спускайтесь вертикально сверху, чтобы обойти их. {npc:2624} может заморозить вас на месте под водой, поэтому выманите его к поверхности."
+ko = "제단은 정예 멀록들 사이 깊은 물속에 있습니다. {item:5996} 등 숨 쉴 방법을 챙기고, 멀록을 피해 제단 바로 위에서 수직으로 내려가세요. {npc:2624}은(는) 물속에서 발을 얼려 묶을 수 있으니 수면 쪽으로 끌어올려 싸우세요."
+zh_cn = "祭坛在深水中，周围都是精英鱼人：带上{item:5996}或其他水下呼吸手段，从祭坛正上方垂直潜下去以避开它们。{npc:2624}能在水下把你冻在原地，所以把他拉到靠近水面的地方再打。"
+zh_tw = "祭壇在深水中，周圍都是精英魚人：帶上{item:5996}或其他水下呼吸手段，從祭壇正上方垂直潛下去以避開牠們。{npc:2624}能在水下把你凍在原地，所以把他拉到靠近水面的地方再打。"
+
+# Where's the Key?: the key is a rare drop from the trolls of the ruins, a few percent at most.
+[[note]]
+quest = 97329
+phase = "objective"
+objective = 1
+level = "warning"
+editions = ["forever"]
+en = "The key is a rare drop from the trolls of the ruins: count on 20 to 60 kills, so collect it while doing the other troll quests there."
+fr = "La clé est un butin rare des trolls des ruines : comptez 20 à 60 victimes, récupérez-la donc en faisant les autres quêtes sur les trolls du coin."
+de = "Der Schlüssel ist eine seltene Beute der Trolle in den Ruinen: rechne mit 20 bis 60 Kills, also sammle ihn bei den anderen Troll-Quests dort mit."
+es = "La llave es un botín raro de los trols de las ruinas: cuenta con 20 a 60 muertes, así que consíguela mientras haces las otras misiones de trols de allí."
+pt = "A chave é um saque raro dos trolls das ruínas: conte com 20 a 60 abates, então pegue-a enquanto faz as outras missões de trolls dali."
+ru = "Ключ — редкая добыча троллей в руинах: рассчитывайте на 20–60 убийств, так что добывайте его попутно с другими заданиями на троллей там."
+ko = "열쇠는 폐허의 트롤이 드물게 떨어뜨립니다. 20~60마리는 잡아야 하니 그곳의 다른 트롤 퀘스트를 하면서 함께 얻으세요."
+zh_cn = "钥匙是废墟中巨魔的稀有掉落：预计要杀20到60个，所以在做那里的其他巨魔任务时顺便收集。"
+zh_tw = "鑰匙是廢墟中食人妖的稀有掉落：預計要殺20到60個，所以在做那裡的其他食人妖任務時順便收集。"

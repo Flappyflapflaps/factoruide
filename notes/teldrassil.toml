@@ -1,0 +1,106 @@
+# Quest notes of Teldrassil. See notes/README.md for the format.
+
+# The Moss-twined Heart: the starting item drops from a rare timberling with a respawn of about two hours, often found dead.
+[[note]]
+quest = 927
+phase = "accept"
+level = "warning"
+en = "{npc:3535} is a rare timberling that takes about two hours to respawn and is often already dead. Check the riverbank below the waterfall while doing other quests rather than waiting for him."
+fr = "{npc:3535} est un monstre rare qui met environ deux heures à réapparaître et qui est souvent déjà mort. Passez voir la berge sous la cascade pendant vos autres quêtes plutôt que de l'attendre."
+de = "{npc:3535} ist ein seltener Gegner mit etwa zwei Stunden Respawn und oft schon tot. Schau beim Erledigen anderer Quests am Flussufer unter dem Wasserfall vorbei, statt auf ihn zu warten."
+es = "{npc:3535} es un enemigo raro que tarda unas dos horas en reaparecer y a menudo ya está muerto. Pasa por la orilla bajo la cascada mientras haces otras misiones en vez de esperarlo."
+pt = "{npc:3535} é um inimigo raro que leva cerca de duas horas para reaparecer e muitas vezes já está morto. Passe pela margem abaixo da cachoeira enquanto faz outras missões em vez de esperá-lo."
+ru = "{npc:3535} — редкий противник, который возрождается около двух часов и часто уже убит. Заглядывайте на берег под водопадом, выполняя другие задания, а не ждите его."
+ko = "{npc:3535}은(는) 다시 나타나는 데 약 2시간이 걸리는 희귀 몬스터로, 이미 죽어 있는 경우가 많습니다. 기다리지 말고 다른 퀘스트를 하면서 폭포 아래 강가를 확인하세요."
+zh_cn = "{npc:3535}是稀有怪物，重生大约要两个小时，而且常常已经被杀。不要守着等，做其他任务时顺路去瀑布下方的河岸看看。"
+zh_tw = "{npc:3535}是稀有怪物，重生大約要兩個小時，而且常常已經被殺。不要守著等，做其他任務時順路去瀑布下方的河岸看看。"
+
+[[icon]]
+quest = 927
+phase = "accept"
+icon = "rare"
+
+# Favored of Elune?: the feathers are ground objects near the owlbeasts, not drops; low ground clutter makes them visible.
+[[note]]
+quest = 3661
+phase = "objective"
+objective = 1
+level = "info"
+en = "The owlbeasts do not drop the feathers: pick up {object:153239} lying on the ground wherever they roam. Turning Ground Clutter down in the graphics options makes them much easier to spot."
+fr = "Les chouettards ne lâchent pas les plumes : ramassez les {object:153239} posées au sol là où ils rôdent. Baisser la « Végétation au sol » dans les options graphiques les rend bien plus visibles."
+de = "Die Eulenbestien lassen die Federn nicht fallen: Sammle {object:153239} vom Boden auf, wo sie umherstreifen. Wenn du die Bodenvegetation in den Grafikoptionen herunterdrehst, siehst du sie viel leichter."
+es = "Los lechúcicos no sueltan las plumas: recoge las {object:153239} del suelo allí donde merodean. Bajar el detalle del suelo en las opciones gráficas hace que se vean mucho mejor."
+pt = "Os corujursos não derrubam as penas: pegue as {object:153239} caídas no chão onde eles andam. Diminuir a vegetação rasteira nas opções gráficas facilita muito encontrá-las."
+ru = "Совухи не роняют перья: подбирайте {object:153239} с земли там, где они бродят. Если уменьшить детализацию травы в настройках графики, их гораздо легче заметить."
+ko = "올빼미야수는 깃털을 떨어뜨리지 않습니다. 녀석들이 돌아다니는 곳 바닥에 놓인 {object:153239}을(를) 주우세요. 그래픽 설정에서 지면 잡동사니를 낮추면 훨씬 잘 보입니다."
+zh_cn = "枭兽不会掉落羽毛：在它们出没的地方捡起地上的{object:153239}。在图像设置中调低地面杂物，会更容易看到。"
+zh_tw = "梟獸不會掉落羽毛：在牠們出沒的地方撿起地上的{object:153239}。在圖形設定中調低地面雜物，會更容易看到。"
+
+[[icon]]
+quest = 3661
+phase = "objective"
+objective = 1
+icon = "pickup"
+
+# Druid of the Claw: the charm only works when the corpse is selected before using it.
+[[note]]
+quest = 2561
+phase = "objective"
+objective = 1
+level = "info"
+en = "Kill {npc:7318}, then select his corpse before using {item:8363}. Using the charm first and clicking the corpse afterwards fails with an invalid target."
+fr = "Tuez {npc:7318}, puis ciblez son cadavre avant d'utiliser le {item:8363}. Utiliser le charme d'abord puis cliquer sur le cadavre échoue avec « cible incorrecte »."
+de = "Töte {npc:7318} und wähle dann seine Leiche aus, bevor du den {item:8363} benutzt. Benutzt du zuerst den Glücksbringer und klickst danach auf die Leiche, schlägt es mit ungültigem Ziel fehl."
+es = "Mata a {npc:7318} y selecciona su cadáver antes de usar el {item:8363}. Si usas primero el talismán y luego haces clic en el cadáver, falla por objetivo no válido."
+pt = "Mate {npc:7318} e selecione o cadáver dele antes de usar o {item:8363}. Usar o patuá primeiro e clicar no cadáver depois falha com alvo inválido."
+ru = "Убейте {npc:7318}, затем выберите его труп и только потом используйте {item:8363}. Если сначала использовать оберег, а потом щёлкнуть по трупу, будет ошибка «неверная цель»."
+ko = "{npc:7318}을(를) 처치한 뒤 시체를 먼저 대상으로 선택하고 {item:8363}을(를) 사용하세요. 부적을 먼저 사용하고 시체를 클릭하면 잘못된 대상이라며 실패합니다."
+zh_cn = "杀死{npc:7318}后，先选中他的尸体，再使用{item:8363}。先使用符咒再点击尸体会因目标无效而失败。"
+zh_tw = "殺死{npc:7318}後，先選取他的屍體，再使用{item:8363}。先使用符咒再點擊屍體會因目標無效而失敗。"
+
+# Mist: she follows a single player at a time and comes back about five minutes later.
+[[note]]
+quest = 938
+phase = "accept"
+level = "warning"
+en = "{npc:3568} follows only one player at a time. If she is not at her spot, someone else is leading her to the moonwell: wait about five minutes for her to come back."
+fr = "{npc:3568} ne suit qu'un seul joueur à la fois. Si elle n'est pas à sa place, quelqu'un d'autre la conduit au puits de lune : attendez environ cinq minutes qu'elle revienne."
+de = "{npc:3568} folgt immer nur einem Spieler. Ist sie nicht an ihrem Platz, führt sie gerade jemand anderes zum Mondbrunnen: Warte etwa fünf Minuten, bis sie zurückkommt."
+es = "{npc:3568} solo sigue a un jugador a la vez. Si no está en su sitio, otro la está llevando al pozo de la luna: espera unos cinco minutos a que vuelva."
+pt = "{npc:3568} segue só um jogador por vez. Se ela não estiver no lugar, outra pessoa a está levando ao poço lunar: espere uns cinco minutos até ela voltar."
+ru = "{npc:3568} следует только за одним игроком. Если её нет на месте, её уже ведёт к лунному колодцу кто-то другой: подождите около пяти минут, пока она вернётся."
+ko = "{npc:3568}은(는) 한 번에 한 플레이어만 따라갑니다. 제자리에 없다면 다른 사람이 달샘으로 데려가는 중이니, 돌아올 때까지 5분쯤 기다리세요."
+zh_cn = "{npc:3568}一次只跟随一名玩家。如果她不在原地，说明别人正带她去月亮井：等大约五分钟她就会回来。"
+zh_tw = "{npc:3568}一次只跟隨一名玩家。如果她不在原地，表示別人正帶她去月井：等大約五分鐘她就會回來。"
+
+# The Sprouted Fronds: Denalan's planter is reset each time another player turns in a quest to him.
+[[note]]
+quest = 2399
+phase = "accept"
+level = "warning"
+en = "Click {object:7510} in the planter as soon as {npc:2080} plants it: another player turning in a quest to him resets the planter. If no sprout grows, wait for someone else to turn in {quest:931} and click one quickly."
+fr = "Cliquez sur une {object:7510} dans la jardinière dès que {npc:2080} l'a plantée : un autre joueur qui lui rend une quête la réinitialise. Si rien ne pousse, attendez qu'un autre rende {quest:931} et cliquez vite sur une pousse."
+de = "Klicke auf einen {object:7510} im Pflanzkasten, sobald {npc:2080} ihn gepflanzt hat: Gibt ein anderer Spieler bei ihm eine Quest ab, wird der Kasten zurückgesetzt. Wächst nichts, warte, bis jemand {quest:931} abgibt, und klicke schnell."
+es = "Haz clic en una {object:7510} de la jardinera en cuanto {npc:2080} la plante: si otro jugador le entrega una misión, la jardinera se reinicia. Si no brota nada, espera a que otro entregue {quest:931} y haz clic rápido."
+pt = "Clique em uma {object:7510} no canteiro assim que {npc:2080} plantá-la: outro jogador entregando uma missão a ele reinicia o canteiro. Se nada brotar, espere alguém entregar {quest:931} e clique rápido."
+ru = "Щёлкните по предмету «{object:7510}» в кадке, как только {npc:2080} его посадит: если другой игрок сдаст ему задание, кадка сбросится. Если ничего не выросло, дождитесь, пока кто-то сдаст «{quest:931}», и быстро щёлкните."
+ko = "{npc:2080}이(가) 심자마자 화분의 {object:7510}을(를) 클릭하세요. 다른 플레이어가 그에게 퀘스트를 완료하면 화분이 초기화됩니다. 싹이 없으면 누군가 {quest:931}을(를) 완료할 때까지 기다렸다가 재빨리 클릭하세요."
+zh_cn = "{npc:2080}种下后立刻点击花盆里的{object:7510}：别的玩家向他交任务会重置花盆。如果什么都没长出来，就等别人交{quest:931}，然后迅速点击。"
+zh_tw = "{npc:2080}種下後立刻點擊花盆裡的{object:7510}：別的玩家向他交任務會重置花盆。如果什麼都沒長出來，就等別人交{quest:931}，然後迅速點擊。"
+
+# Escaping Ban'ethil: the escorted sentinel charges any hostile mob in sight, pauses on the way and fails the quest if left behind; respawn about 10 minutes.
+[[note]]
+quest = 99053
+phase = "objective"
+objective = 1
+level = "warning"
+editions = ["forever"]
+en = "Lynessa attacks every hostile mob she sees, even those others drag past, and stops a few times on the way up: stay close or the escort fails. Clear the furbolgs around her alcove first. She respawns in about 10 minutes."
+fr = "Lynessa attaque tous les monstres hostiles qu'elle voit, même ceux que d'autres traînent à côté, et s'arrête plusieurs fois en montant : restez près d'elle ou l'escorte échoue. Nettoyez d'abord les furbolgs autour de son alcôve. Elle réapparaît en 10 minutes environ."
+de = "Lynessa greift jeden feindlichen Gegner an, den sie sieht, auch solche, die andere vorbeiziehen, und hält unterwegs mehrmals an: bleib in ihrer Nähe, sonst scheitert die Eskorte. Räume zuerst die Furbolgs um ihre Nische. Ihr Respawn dauert etwa 10 Minuten."
+es = "Lynessa ataca a todo enemigo que ve, incluso los que otros arrastran cerca, y se detiene varias veces al subir: quédate cerca o la escolta fracasa. Limpia antes a los fúrbolgs alrededor de su hueco. Reaparece en unos 10 minutos."
+pt = "Lynessa ataca todo inimigo que vê, até os que outros arrastam por perto, e para algumas vezes na subida: fique perto ou a escolta falha. Limpe antes os furbolgs em volta do nicho dela. Ela reaparece em cerca de 10 minutos."
+ru = "Lynessa нападает на всех враждебных существ, которых видит, даже на тех, кого тащат мимо другие, и несколько раз останавливается по пути: держитесь рядом, иначе сопровождение провалится. Сначала зачистите фурболгов у её ниши. Она возрождается примерно через 10 минут."
+ko = "Lynessa은(는) 다른 플레이어가 끌고 지나가는 몬스터까지 눈에 보이는 적대 몬스터를 모두 공격하고, 올라가는 길에 몇 번 멈춥니다. 가까이 붙어 있지 않으면 호위가 실패합니다. 먼저 그녀가 있는 구석 주변의 퍼볼그를 처치하세요. 약 10분 후 다시 나타납니다."
+zh_cn = "Lynessa会攻击她看到的所有敌对怪物，连别人拉过去的也不放过，而且上行途中会停下好几次：紧跟着她，否则护送失败。先清掉她所在凹室周围的熊怪。她大约10分钟重生。"
+zh_tw = "Lynessa會攻擊她看到的所有敵對怪物，連別人拉過去的也不放過，而且上行途中會停下好幾次：緊跟著她，否則護送失敗。先清掉她所在凹室周圍的熊怪。她大約10分鐘重生。"

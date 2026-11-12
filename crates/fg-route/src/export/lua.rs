@@ -105,9 +105,15 @@ pub fn to_lua(routes: &[Route]) -> String {
                 r.buffs.iter().map(|b| lua_str(b)).collect::<Vec<_>>().join(", ")
             )
         };
+        // An objective guide's quests asking more than the character's level (`Route::recommended`).
+        let recommended = r
+            .recommended
+            .as_ref()
+            .map_or_else(String::new, |rec| format!(" recommendedLevel = {},", rec.level))
+            + if r.levels_ignored { " levelsIgnored = true," } else { "" };
         let _ = writeln!(
             out,
-            "FG.Routes[{}] = {{ race = {}, class = {}, faction = {}, locale = {}, fromLevel = {}, toLevel = {}, time = {}, levels = {{ {} }}, professions = {{ {} }}, reputations = {{ {} }}, spells = {{ {} }}, checkpoints = {{ {} }},{players}{buffs}{replan} steps = {{",
+            "FG.Routes[{}] = {{ race = {}, class = {}, faction = {}, locale = {}, fromLevel = {}, toLevel = {}, time = {}, levels = {{ {} }}, professions = {{ {} }}, reputations = {{ {} }}, spells = {{ {} }}, checkpoints = {{ {} }},{players}{buffs}{recommended}{replan} steps = {{",
             lua_str(&r.name),
             r.race_id,
             r.class_id,
@@ -157,6 +163,19 @@ pub fn to_lua(routes: &[Route]) -> String {
             ];
             if let Some(q) = s.quest {
                 fields.push(format!("q = {q}"));
+            }
+            // How the quest is taken or the objective done, and the quest notes (level 1-3, text).
+            if let Some(icon) = &s.icon {
+                fields.push(format!("ic = {}", lua_str(icon)));
+            }
+            if !s.notes.is_empty() {
+                fields.push(format!(
+                    "nt = {{ {} }}",
+                    (s.notes.iter())
+                        .map(|n| format!("{{ l = {}, t = {} }}", n.level.number(), lua_str(&n.text)))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ));
             }
             if s.bg {
                 fields.push("bg = true".into());

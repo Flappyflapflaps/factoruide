@@ -265,6 +265,7 @@ FG.Locales.frFR = {
     ["Clear the recorded events"] = "Effacer les événements enregistrés",
     ["Deletes the quest events this character recorded for the app."] = "Supprime les événements de quêtes que ce personnage a enregistrés pour l'application.",
     ["for %s"] = "pour %s",
+    ["Level %d recommended, you are %d"] = "Niveau %d recommandé, tu es %d",
     ["marked done, waiting for %s"] = "marquée faite, en attente de %s",
     ["%s: step %d"] = "%s : étape %d",
     ["%s ahead: step %d"] = "%s en avance : étape %d",
@@ -350,4 +351,8 @@ FG.Locales.frFR = {
     ["  starts inside: %s"] = "  commence dedans : %s",
     ["no dungeon ahead in the guide"] = "pas de donjon à venir dans le guide",
     ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg écrit le message de groupe dans la discussion (Entrée l'envoie)",
+    ["dungeon left aside: %s (%d steps; to undo: the “Undo the last mark” key)"] = "donjon laissé de côté : %s (%d étapes ; pour annuler : la touche « Annuler la dernière marque »)",
+    ["%s: %d steps left"] = "%s : %d étapes restantes",
+    ["Skip the dungeon"] = "Passer le donjon",
+    ["Mark the dungeon's steps not done as done: its quests not finished are left aside."] = "Marque comme faites les étapes du donjon qui ne le sont pas : ses quêtes non finies sont laissées de côté.",
 }

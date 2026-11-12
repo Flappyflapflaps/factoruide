@@ -1,0 +1,297 @@
+# Quest notes of Darkshore. See notes/README.md for the format.
+
+# Deep Ocean, Vast Sea: both lockboxes sit in the sterns of the wrecks and can be clicked from outside the hull.
+[[note]]
+quest = 982
+phase = "objective"
+level = "info"
+en = "Each lockbox lies at the stern of its wreck and can be opened from outside the hull: swim behind the ship and move the cursor over the hull until you can click it, instead of fighting through the murlocs inside."
+fr = "Chaque coffret se trouve à la poupe de son épave et peut être ouvert depuis l'extérieur de la coque : nagez derrière le navire et passez le curseur sur la coque jusqu'à pouvoir cliquer, au lieu de traverser les murlocs à l'intérieur."
+de = "Jede Kassette liegt am Heck ihres Wracks und lässt sich von außerhalb des Rumpfs öffnen: schwimm hinter das Schiff und fahr mit dem Cursor über den Rumpf, bis du klicken kannst, statt dich durch die Murlocs im Inneren zu kämpfen."
+es = "Cada caja de seguridad está en la popa de su barco hundido y se puede abrir desde fuera del casco: nada por detrás del barco y pasa el cursor sobre el casco hasta poder hacer clic, en vez de abrirte paso entre los múrlocs del interior."
+pt = "Cada cofre fica na popa do seu naufrágio e pode ser aberto de fora do casco: nade por trás do navio e passe o cursor sobre o casco até poder clicar, em vez de lutar contra os murlocs lá dentro."
+ru = "Каждый сундучок лежит в корме своего затонувшего корабля, и его можно открыть снаружи корпуса: подплывите к кораблю сзади и водите курсором по корпусу, пока не сможете кликнуть, вместо того чтобы пробиваться через мурлоков внутри."
+ko = "각 금고는 난파선 선미에 있어 선체 바깥에서 열 수 있습니다. 안의 멀록들을 뚫고 들어가지 말고, 배 뒤쪽으로 헤엄쳐 가서 클릭할 수 있을 때까지 커서를 선체 위로 움직이세요."
+zh_cn = "每个保险箱都在各自沉船的船尾，可以从船体外面打开：游到船的后方，把鼠标在船体上移动直到可以点击，不必杀穿船里的鱼人。"
+zh_tw = "每個保險箱都在各自沉船的船尾，可以從船體外面打開：游到船的後方，把滑鼠在船體上移動直到可以點擊，不必殺穿船裡的魚人。"
+
+# WANTED: Murkdeep!: he spawns after the hut camp and two waves from the sea are killed (stand near the campfire); he is sometimes already in the water nearby.
+[[note]]
+quest = 4740
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:10323} only comes once his camp is cleared: kill the murlocs at the three huts, stand by the campfire, then kill two waves coming from the sea; he arrives with the third, with a guard. He sometimes already waits in the water off the camp: look there first."
+fr = "{npc:10323} ne vient qu'une fois son camp nettoyé : tuez les murlocs des trois huttes, placez-vous près du feu de camp, puis tuez deux vagues venues de la mer ; il arrive avec la troisième, accompagné d'un garde. Il attend parfois déjà dans l'eau au large du camp : regardez-y d'abord."
+de = "{npc:10323} kommt erst, wenn sein Lager gesäubert ist: Töte die Murlocs bei den drei Hütten, stell dich ans Lagerfeuer und töte dann zwei Wellen aus dem Meer; er kommt mit der dritten, mit einer Wache. Manchmal wartet er schon im Wasser vor dem Lager: schau zuerst dort nach."
+es = "{npc:10323} solo aparece cuando su campamento está despejado: mata a los múrlocs de las tres chozas, ponte junto a la hoguera y luego mata dos oleadas que llegan del mar; él llega con la tercera, con un guardia. A veces ya espera en el agua frente al campamento: mira allí primero."
+pt = "{npc:10323} só aparece quando o acampamento dele está limpo: mate os murlocs das três cabanas, fique perto da fogueira e depois mate duas ondas que vêm do mar; ele chega com a terceira, com um guarda. Às vezes ele já espera na água em frente ao acampamento: olhe lá primeiro."
+ru = "{npc:10323} появляется только после зачистки лагеря: убейте мурлоков у трех хижин, встаньте у костра, затем убейте две волны, приходящие из моря; он придет с третьей вместе со стражем. Иногда он уже ждет в воде у лагеря: сначала посмотрите там."
+ko = "{npc:10323}은(는) 야영지를 정리해야 나타납니다. 오두막 세 채의 멀록을 처치하고 모닥불 옆에 선 뒤, 바다에서 오는 두 무리를 처치하세요. 세 번째 무리와 함께 경비병을 데리고 옵니다. 가끔은 이미 야영지 앞 물속에서 기다리고 있으니 먼저 확인하세요."
+zh_cn = "{npc:10323}只有在营地被清空后才会出现：杀掉三座小屋旁的鱼人，站在篝火旁，再杀掉从海里来的两波；他会随第三波带着一名护卫出现。有时他已经在营地外的水里等着：先去那里看看。"
+zh_tw = "{npc:10323}只有在營地被清空後才會出現：殺掉三座小屋旁的魚人，站在營火旁，再殺掉從海裡來的兩波；他會隨第三波帶著一名護衛出現。有時他已經在營地外的水裡等著：先去那裡看看。"
+
+[[icon]]
+quest = 4740
+phase = "objective"
+objective = 1
+icon = "event"
+
+# For Love Eternal: Anaya is almost transparent and wanders the southern part of Ameth'Aran; her yellow name gives her away.
+[[note]]
+quest = 963
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:3667} is a nearly see-through ghost with a yellow name who walks around the south of the ruins, easy to miss among the other spirits. Turn on NPC names to spot her."
+fr = "{npc:3667} est un fantôme presque transparent au nom jaune qui se promène dans le sud des ruines, facile à manquer parmi les autres esprits. Activez l'affichage des noms des PNJ pour la repérer."
+de = "{npc:3667} ist ein fast durchsichtiger Geist mit gelbem Namen, der im Süden der Ruinen umherläuft und zwischen den anderen Geistern leicht zu übersehen ist. Schalte NPC-Namen ein, um sie zu entdecken."
+es = "{npc:3667} es un fantasma casi transparente de nombre amarillo que pasea por el sur de las ruinas, fácil de pasar por alto entre los demás espíritus. Activa los nombres de PNJ para localizarla."
+pt = "{npc:3667} é um fantasma quase transparente de nome amarelo que anda pelo sul das ruínas, fácil de passar despercebido entre os outros espíritos. Ative os nomes de PNJs para encontrá-la."
+ru = "{npc:3667} — почти прозрачный призрак с желтым именем, бродящий по южной части руин; среди других духов ее легко не заметить. Включите отображение имен NPC, чтобы ее найти."
+ko = "{npc:3667}은(는) 노란 이름의 거의 투명한 유령으로 폐허 남쪽을 돌아다니며, 다른 혼령들 사이에서 놓치기 쉽습니다. NPC 이름 표시를 켜고 찾으세요."
+zh_cn = "{npc:3667}是一个几乎透明、名字为黄色的幽灵，在废墟南部游荡，混在其他灵魂中很容易错过。打开NPC名字显示来找她。"
+zh_tw = "{npc:3667}是一個幾乎透明、名字為黃色的幽靈，在廢墟南部遊蕩，混在其他靈魂中很容易錯過。打開NPC名字顯示來找她。"
+
+[[icon]]
+quest = 963
+phase = "objective"
+objective = 1
+icon = "rare"
+
+# Plagued Lands: the trap only works on the rabid bears; once captured, losing the bear does not fail the quest.
+[[note]]
+quest = 2118
+phase = "objective"
+objective = 1
+level = "info"
+en = "Use {item:7586} (it looks like a fishing bauble) close to a {npc:2164}, not a plain thistle bear. Once captured, the bear may be lost on the way back: the quest still counts, so you can hearth home."
+fr = "Utilisez {item:7586} (il ressemble à un appât de pêche) près d'un {npc:2164}, pas d'un simple ours des chardons. Une fois capturé, l'ours peut se perdre en route : la quête compte quand même, vous pouvez donc utiliser votre pierre de foyer."
+de = "Benutze {item:7586} (sieht aus wie ein Angelköder) nahe einem {npc:2164}, nicht bei einem normalen Distelbären. Ist er gefangen, kann der Bär unterwegs verloren gehen: die Quest zählt trotzdem, du kannst also deinen Ruhestein nutzen."
+es = "Usa {item:7586} (parece un cebo de pesca) cerca de un {npc:2164}, no de un oso de cardo normal. Una vez capturado, el oso puede perderse por el camino: la misión cuenta igual, así que puedes usar tu piedra de hogar."
+pt = "Use {item:7586} (parece uma isca de pesca) perto de um {npc:2164}, não de um urso-do-cardo comum. Depois de capturado, o urso pode se perder no caminho: a missão conta mesmo assim, então você pode usar a pedra de regresso."
+ru = "Используйте {item:7586} (похоже на блесну) рядом с существом {npc:2164}, а не с обычным медведем. После поимки медведь может потеряться по дороге: задание все равно засчитывается, так что можно воспользоваться камнем возвращения."
+ko = "{item:7586}(낚시 미끼처럼 생김)을(를) 일반 엉겅퀴 곰이 아닌 {npc:2164} 가까이에서 사용하세요. 포획한 곰은 돌아가는 길에 사라질 수 있지만 퀘스트는 그대로 인정되므로 귀환석을 써도 됩니다."
+zh_cn = "在{npc:2164}附近使用{item:7586}（看起来像钓鱼用的鱼饵），不要对普通的蓟熊使用。抓到后熊可能在回去的路上走丢：任务仍然算完成，所以可以用炉石回去。"
+zh_tw = "在{npc:2164}附近使用{item:7586}（看起來像釣魚用的魚餌），不要對普通的薊熊使用。抓到後熊可能在回去的路上走丟：任務仍然算完成，所以可以用爐石回去。"
+
+# Cave Mushrooms: the right-hand passage after the cave entrance has few naga and the Death Caps; the lower level is crowded and has an elite.
+[[note]]
+quest = 947
+phase = "objective"
+level = "info"
+en = "Inside the cave, take the right-hand passage: few naga, {item:5270} at its end and {item:5271} along the way, which respawn fast. The lower level holds many more naga and an elite."
+fr = "Dans la grotte, prenez le passage de droite : peu de nagas, {item:5270} au bout et {item:5271} en chemin, qui réapparaissent vite. Le niveau inférieur abrite bien plus de nagas et une élite."
+de = "Nimm in der Höhle den rechten Gang: wenige Naga, {item:5270} an seinem Ende und {item:5271} unterwegs, die schnell respawnen. Die untere Ebene hat viel mehr Naga und einen Elitegegner."
+es = "Dentro de la cueva, toma el pasaje de la derecha: pocas nagas, {item:5270} al final y {item:5271} por el camino, que reaparecen rápido. El nivel inferior tiene muchas más nagas y una élite."
+pt = "Dentro da caverna, pegue a passagem da direita: poucas nagas, {item:5270} no fim e {item:5271} pelo caminho, que ressurgem rápido. O nível inferior tem muito mais nagas e uma elite."
+ru = "В пещере идите правым проходом: там мало наг, в конце {item:5270}, а по пути {item:5271}, которые быстро вырастают снова. На нижнем уровне наг гораздо больше и есть элитный противник."
+ko = "동굴 안에서는 오른쪽 통로로 가세요. 나가가 적고, 끝에 {item:5270}이(가), 가는 길에 빨리 재생성되는 {item:5271}이(가) 있습니다. 아래층에는 나가가 훨씬 많고 정예도 있습니다."
+zh_cn = "进入洞穴后走右边的通道：纳迦很少，尽头有{item:5270}，沿途有刷新很快的{item:5271}。下层的纳迦多得多，还有一个精英。"
+zh_tw = "進入洞穴後走右邊的通道：納迦很少，盡頭有{item:5270}，沿途有重生很快的{item:5271}。下層的納迦多得多，還有一個精英。"
+
+# The Blackwood Corrupted: the talisman is in the demon's bag on the ground, not in his loot; a failed attempt costs the bowl and the samples.
+[[note]]
+quest = 4763
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Once {item:12347} is used at the bonfire, the furbolgs turn friendly for a few minutes and {npc:10373} appears. The talisman is in {object:177624} on the ground beside him, not on his body. If you fail, bowl and samples are gone: abandon and start over."
+fr = "Une fois {item:12347} utilisé au feu de camp, les furbolgs deviennent amicaux quelques minutes et {npc:10373} apparaît. Le talisman est dans {object:177624}, au sol à côté de lui, pas sur son corps. En cas d'échec, bol et échantillons sont perdus : abandonnez et recommencez."
+de = "Sobald {item:12347} am Lagerfeuer benutzt ist, werden die Furbolgs für einige Minuten freundlich und {npc:10373} erscheint. Der Talisman liegt in {object:177624} am Boden neben ihm, nicht an seiner Leiche. Scheiterst du, sind Schale und Proben weg: Quest abbrechen und neu beginnen."
+es = "Al usar {item:12347} en la hoguera, los fúrbolg se vuelven amistosos unos minutos y aparece {npc:10373}. El talismán está en {object:177624}, en el suelo junto a él, no en su cuerpo. Si fallas, pierdes el cuenco y las muestras: abandona y empieza de nuevo."
+pt = "Ao usar {item:12347} na fogueira, os furbolgs ficam amistosos por alguns minutos e {npc:10373} aparece. O talismã está em {object:177624}, no chão ao lado dele, não no corpo. Se falhar, a tigela e as amostras se perdem: abandone e recomece."
+ru = "После использования предмета {item:12347} у костра фурболги на несколько минут становятся дружелюбными и появляется {npc:10373}. Талисман лежит в объекте «{object:177624}» на земле рядом с ним, а не в его добыче. При неудаче чаша и образцы пропадут: откажитесь от задания и начните заново."
+ko = "모닥불에서 {item:12347}을(를) 사용하면 늑대인간들이 몇 분간 우호적으로 바뀌고 {npc:10373}이(가) 나타납니다. 부적은 시체가 아니라 그 옆 바닥의 {object:177624}에 들어 있습니다. 실패하면 그릇과 표본이 사라지니 퀘스트를 포기하고 다시 시작하세요."
+zh_cn = "在篝火处使用{item:12347}后，熊怪会友好几分钟，{npc:10373}随之出现。护符在他身旁地上的{object:177624}里，不在他的尸体上。失败的话碗和样本都会消失：放弃任务重新开始。"
+zh_tw = "在營火處使用{item:12347}後，熊怪會友好幾分鐘，{npc:10373}隨之出現。護符在他身旁地上的{object:177624}裡，不在他的屍體上。失敗的話碗和樣本都會消失：放棄任務重新開始。"
+
+# The Absent Minded Prospector (escort): Remtravel ignores mobs he is not fighting and has little health; golems respawn fast and two troggs, one a caster, ambush him at the end.
+[[note]]
+quest = 731
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Let {npc:2917} be attacked first: mobs you pull ahead are ignored and he walks on into more. Golems respawn fast around the site, and at the end two troggs ambush him, one a caster: take it off him at once, he has little health."
+fr = "Laissez {npc:2917} se faire attaquer en premier : il ignore les monstres que vous attirez devant lui et continue vers d'autres. Les golems réapparaissent vite sur le site, et à la fin deux troggs lui tendent une embuscade, dont un lanceur de sorts : détournez-le aussitôt, il a peu de vie."
+de = "Lass {npc:2917} zuerst angegriffen werden: Gegner, die du vorher ziehst, ignoriert er und läuft weiter in neue hinein. Golems respawnen schnell auf dem Gelände, und am Ende überfallen ihn zwei Troggs, einer davon ein Zauberwirker: lenk ihn sofort ab, er hat wenig Leben."
+es = "Deja que ataquen primero a {npc:2917}: ignora a los enemigos que atraigas por delante y sigue andando hacia más. Los gólems reaparecen rápido en la excavación, y al final dos troggs le tienden una emboscada, uno de ellos lanzador de hechizos: quítaselo de encima enseguida, tiene poca vida."
+pt = "Deixe {npc:2917} ser atacado primeiro: ele ignora os inimigos que você puxa à frente e segue andando para outros. Os golens ressurgem rápido no local, e no final dois troggs o emboscam, um deles conjurador: tire-o de cima dele na hora, ele tem pouca vida."
+ru = "Дайте противникам сначала напасть на персонажа {npc:2917}: тех, кого вы выманиваете заранее, он игнорирует и идет дальше к новым. Големы на раскопках быстро возрождаются, а в конце на него нападают два трогга, один из них заклинатель: сразу отвлеките его на себя, здоровья у старика мало."
+ko = "{npc:2917}이(가) 먼저 공격받게 두세요. 앞서 끌어온 적은 무시하고 계속 걸어가 더 많은 적을 끌어들입니다. 발굴지의 골렘은 빨리 재생성되고, 마지막에 트로그 둘이 매복하며 그중 하나는 주문 시전자입니다. 그는 생명력이 낮으니 즉시 어그로를 가져오세요."
+zh_cn = "让{npc:2917}先被攻击：你提前拉的怪他会无视，继续往前走并引来更多。挖掘场的魔像刷新很快，最后会有两个穴居人伏击他，其中一个是施法者：立刻把它从他身上拉走，他的血很少。"
+zh_tw = "讓{npc:2917}先被攻擊：你提前拉的怪他會無視，繼續往前走並引來更多。挖掘場的魔像重生很快，最後會有兩個穴居人伏擊他，其中一個是施法者：立刻把它從他身上拉走，他的血很少。"
+
+# Tharnariun's Hope: the den is reached by a short path from about 52.4, 35.8; the cubs and the Den Mother come together.
+[[note]]
+quest = 2139
+phase = "objective"
+objective = 1
+level = "warning"
+en = "The den is reached by a short path starting at about 52.4, 35.8, between the furbolg camps; elsewhere the slope stops you. Pulling one cub brings the others and {npc:6788} with it."
+fr = "On accède à la tanière par un court sentier qui part vers 52.4, 35.8, entre les camps de furbolgs ; ailleurs la pente vous arrête. Attirer un ourson fait venir les autres et {npc:6788} avec lui."
+de = "Zur Höhle führt ein kurzer Pfad ab etwa 52.4, 35.8 zwischen den Furbolglagern; anderswo kommst du den Hang nicht hinauf. Ziehst du ein Junges, kommen die anderen und {npc:6788} mit."
+es = "A la guarida se llega por un sendero corto que empieza hacia 52.4, 35.8, entre los campamentos fúrbolg; por otro lado la pendiente te detiene. Atraer a un osezno trae a los demás y a {npc:6788} con él."
+pt = "Chega-se à toca por uma trilha curta que começa por volta de 52.4, 35.8, entre os acampamentos furbolgs; em outros pontos a encosta impede a subida. Puxar um filhote traz os outros e {npc:6788} junto."
+ru = "К логову ведет короткая тропа, начинающаяся около 52.4, 35.8, между лагерями фурболгов; в других местах по склону не подняться. Если выманить одного медвежонка, придут остальные и {npc:6788}."
+ko = "굴로 가는 짧은 길은 늑대인간 야영지 사이, 약 52.4, 35.8에서 시작됩니다. 다른 곳은 비탈에 막힙니다. 새끼 하나를 끌면 나머지와 {npc:6788}이(가) 함께 옵니다."
+zh_cn = "通往巢穴的是一条从约52.4, 35.8开始的短小路，位于熊怪营地之间；其他地方会被山坡挡住。拉一只幼崽会把其他幼崽和{npc:6788}一起引来。"
+zh_tw = "通往巢穴的是一條從約52.4, 35.8開始的短小路，位於熊怪營地之間；其他地方會被山坡擋住。拉一隻幼崽會把其他幼崽和{npc:6788}一起引來。"
+
+# The Twilight Camp: two books stand at the table; the wrong one strikes the player.
+[[note]]
+quest = 949
+phase = "turnin"
+level = "info"
+en = "Two books stand at the table: if one strikes you (and breaks stealth), it is the wrong one; {object:12666} is the book at the other end."
+fr = "Deux livres sont posés près de la table : si l'un vous frappe (et brise le camouflage), c'est le mauvais ; {object:12666} est le livre à l'autre bout."
+de = "Zwei Bücher stehen am Tisch: Schlägt dich eines (und bricht Verstohlenheit), ist es das falsche; {object:12666} ist das Buch am anderen Ende."
+es = "Hay dos libros junto a la mesa: si uno te golpea (y rompe el sigilo), es el equivocado; {object:12666} es el libro del otro extremo."
+pt = "Há dois livros junto à mesa: se um atacar você (e quebrar a furtividade), é o errado; {object:12666} é o livro na outra ponta."
+ru = "У стола лежат две книги: если одна бьет вас (и снимает незаметность), это не та; {object:12666} — книга на другом конце."
+ko = "탁자에 책이 두 권 있습니다. 하나가 당신을 공격하면(은신도 풀림) 잘못된 책이며, {object:12666}은(는) 반대쪽 끝에 있는 책입니다."
+zh_cn = "桌边有两本书：如果其中一本攻击你（并打破潜行），那就是错的；{object:12666}是另一头的那本书。"
+zh_tw = "桌邊有兩本書：如果其中一本攻擊你（並打破潛行），那就是錯的；{object:12666}是另一頭的那本書。"
+
+# Escape Through Stealth: hearthing before Volcor is out of the cave and the quest shows complete fails it.
+[[note]]
+quest = 995
+phase = "objective"
+objective = 1
+level = "warning"
+en = "After choosing stealth, wait until the quest shows complete, once {npc:3692} is out of the cave, before you hearth or leave: hearthing at once fails it."
+fr = "Après avoir choisi la discrétion, attendez que la quête soit indiquée comme terminée, une fois {npc:3692} sorti de la grotte, avant d'utiliser votre pierre de foyer ou de partir : l'utiliser tout de suite fait échouer la quête."
+de = "Nachdem du Verstohlenheit gewählt hast, warte, bis die Quest als abgeschlossen gilt, sobald {npc:3692} aus der Höhle ist, bevor du den Ruhestein nutzt oder gehst: sofort zurückzukehren lässt sie scheitern."
+es = "Tras elegir el sigilo, espera a que la misión figure como completada, cuando {npc:3692} haya salido de la cueva, antes de usar la piedra de hogar o irte: usarla enseguida hace fracasar la misión."
+pt = "Depois de escolher a furtividade, espere a missão aparecer como concluída, quando {npc:3692} sair da caverna, antes de usar a pedra de regresso ou ir embora: usá-la na hora faz a missão falhar."
+ru = "Выбрав скрытный путь, дождитесь, пока задание отметится выполненным, когда {npc:3692} выйдет из пещеры, и только потом используйте камень возвращения или уходите: если сделать это сразу, задание будет провалено."
+ko = "은신을 선택한 뒤에는 {npc:3692}이(가) 동굴을 빠져나가 퀘스트가 완료로 표시될 때까지 기다렸다가 귀환석을 쓰거나 떠나세요. 바로 귀환하면 실패합니다."
+zh_cn = "选择潜行后，要等{npc:3692}离开洞穴、任务显示完成后再用炉石或离开：立刻用炉石会导致任务失败。"
+zh_tw = "選擇潛行後，要等{npc:3692}離開洞穴、任務顯示完成後再用爐石或離開：立刻用爐石會導致任務失敗。"
+
+# Gyromast's Revenge: the robot is an elite that turns hostile near Gelkak; it will not follow into the water and resets there; the fallen tree on the beach helps kiting.
+[[note]]
+quest = 2078
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:6669} is an elite that turns hostile once you bring it near {npc:6667}: come at full health. It does not follow far into the water but heals there. Kiting it around the fallen tree on the beach keeps it off you."
+fr = "{npc:6669} est une élite qui devient hostile dès que vous l'amenez près de {npc:6667} : arrivez avec toute votre vie. Il ne vous suit pas loin dans l'eau mais s'y soigne. Le faire tourner autour de l'arbre tombé sur la plage le tient à distance."
+de = "{npc:6669} ist ein Elitegegner, der feindlich wird, sobald du ihn zu {npc:6667} bringst: komm mit vollem Leben. Ins Wasser folgt er nicht weit, heilt sich dort aber. Kitest du ihn um den umgestürzten Baum am Strand, bleibt er von dir weg."
+es = "{npc:6669} es una élite que se vuelve hostil en cuanto la acercas a {npc:6667}: llega con la vida completa. No te sigue mucho en el agua, pero allí se cura. Hacerlo girar alrededor del árbol caído de la playa lo mantiene lejos de ti."
+pt = "{npc:6669} é uma elite que fica hostil assim que você a leva perto de {npc:6667}: chegue com a vida cheia. Não segue você muito na água, mas se cura lá. Fazê-lo correr em volta da árvore caída na praia o mantém longe de você."
+ru = "{npc:6669} — элитный противник, который становится враждебным, как только вы подведете его к персонажу {npc:6667}: приходите с полным здоровьем. В воду он далеко не идет, но там восстанавливается. Если водить его вокруг упавшего дерева на пляже, он вас не достанет."
+ko = "{npc:6669}은(는) {npc:6667} 근처로 데려가면 적대적으로 바뀌는 정예입니다. 생명력을 가득 채우고 가세요. 물속으로는 멀리 따라오지 않지만 그곳에서 회복합니다. 해변의 쓰러진 나무 주위로 끌고 다니면 공격받지 않습니다."
+zh_cn = "{npc:6669}是精英，一靠近{npc:6667}就会变为敌对：满血再去。它不会追你太远进水里，但会在那里回血。绕着海滩上的倒树放风筝可以让它打不到你。"
+zh_tw = "{npc:6669}是精英，一靠近{npc:6667}就會變為敵對：滿血再去。它不會追你太遠進水裡，但會在那裡回血。繞著海灘上的倒樹放風箏可以讓它打不到你。"
+
+# The Sleeper Has Awakened (Classic and TBC; Forever reworked the escort): the escort follows the player, the two scripted ambushes only trigger on the road, and he dozes off on the way (the horn wakes him).
+[[note]]
+quest = 5321
+phase = "objective"
+objective = 2
+level = "warning"
+editions = ["classic", "tbc"]
+en = "{npc:11218} falls asleep now and then: wake him with {item:13536}. Lead him through the woods beside the road, never on it: the two ambushes only come on the road, and their casters kill him fast."
+fr = "{npc:11218} s'endort de temps en temps : réveillez-le avec {item:13536}. Menez-le par les bois à côté de la route, jamais dessus : les deux embuscades n'arrivent que sur la route, et leurs lanceurs de sorts le tuent vite."
+de = "{npc:11218} schläft ab und zu ein: weck ihn mit {item:13536}. Führ ihn neben der Straße durch den Wald, nie auf ihr: die beiden Hinterhalte kommen nur auf der Straße, und ihre Zauberwirker töten ihn schnell."
+es = "{npc:11218} se duerme de vez en cuando: despiértalo con {item:13536}. Guíalo por el bosque junto al camino, nunca por él: las dos emboscadas solo aparecen en el camino y sus lanzadores de hechizos lo matan rápido."
+pt = "{npc:11218} adormece de vez em quando: acorde-o com {item:13536}. Leve-o pela mata ao lado da estrada, nunca por ela: as duas emboscadas só surgem na estrada, e os conjuradores delas o matam rápido."
+ru = "{npc:11218} время от времени засыпает: будите его предметом {item:13536}. Ведите его лесом вдоль дороги, но не по ней: обе засады появляются только на дороге, и их заклинатели быстро его убивают."
+ko = "{npc:11218}은(는) 가끔 잠이 듭니다. {item:13536}(으)로 깨우세요. 길 위가 아니라 길 옆 숲으로만 데려가세요. 두 번의 매복은 길 위에서만 나타나며, 매복의 주문 시전자들이 그를 빠르게 죽입니다."
+zh_cn = "{npc:11218}时不时会睡着：用{item:13536}叫醒他。带他走道路旁的树林，不要走在路上：两次伏击只会在路上出现，伏击中的施法者会很快杀死他。"
+zh_tw = "{npc:11218}時不時會睡著：用{item:13536}叫醒他。帶他走道路旁的樹林，不要走在路上：兩次伏擊只會在路上出現，伏擊中的施法者會很快殺死他。"
+
+# The Powers Below: the book starting the quest is a very rare drop of the Twilight cultists (often 100+ kills); it is a party-loot item.
+[[note]]
+quest = 968
+phase = "accept"
+level = "warning"
+en = "{item:5352} is a very rare drop from {npc:2338} and {npc:2339}: a hundred kills or more is common. In a party, every member can loot it from the same corpse."
+fr = "{item:5352} est un butin très rare sur {npc:2338} et {npc:2339} : une centaine de victimes ou plus n'a rien d'exceptionnel. En groupe, chaque membre peut le ramasser sur le même cadavre."
+de = "{item:5352} ist eine sehr seltene Beute von {npc:2338} und {npc:2339}: hundert Kills oder mehr sind normal. In einer Gruppe kann jedes Mitglied es von derselben Leiche plündern."
+es = "{item:5352} es un botín muy raro de {npc:2338} y {npc:2339}: es normal necesitar cien muertes o más. En grupo, cada miembro puede despojarlo del mismo cadáver."
+pt = "{item:5352} é um saque muito raro de {npc:2338} e {npc:2339}: é comum precisar de cem abates ou mais. Em grupo, cada membro pode saqueá-lo do mesmo cadáver."
+ru = "{item:5352} — очень редкая добыча с противников {npc:2338} и {npc:2339}: сотня убийств и больше — обычное дело. В группе каждый участник может забрать его с одного и того же трупа."
+ko = "{item:5352}은(는) {npc:2338}와(과) {npc:2339}에게서 매우 드물게 떨어집니다. 백 마리 이상 잡는 일도 흔합니다. 파티에서는 모든 파티원이 같은 시체에서 획득할 수 있습니다."
+zh_cn = "{item:5352}是{npc:2338}和{npc:2339}极为稀有的掉落：杀上一百只甚至更多很常见。组队时，每名队员都能从同一具尸体上拾取它。"
+zh_tw = "{item:5352}是{npc:2338}和{npc:2339}極為稀有的掉落：殺上一百隻甚至更多很常見。組隊時，每名隊員都能從同一具屍體上拾取它。"
+
+# Therylune's Escape: she is stealthed on the island of the Master's Glaive and respawns roughly 10 minutes after someone starts her escort.
+[[note]]
+quest = 945
+phase = "accept"
+level = "warning"
+en = "{npc:3584} is stealthed on the south side of the island and hard to spot. If she is not there, someone has just started her escort: she comes back after about 10 minutes."
+fr = "{npc:3584} est camouflée au sud de l'île et difficile à repérer. Si elle n'y est pas, quelqu'un vient de commencer son escorte : elle revient au bout de 10 minutes environ."
+de = "{npc:3584} ist auf der Südseite der Insel getarnt und schwer zu sehen. Ist sie nicht da, hat gerade jemand ihre Eskorte begonnen: sie kommt nach etwa 10 Minuten zurück."
+es = "{npc:3584} está en sigilo en el lado sur de la isla y cuesta verla. Si no está, alguien acaba de empezar su escolta: vuelve tras unos 10 minutos."
+pt = "{npc:3584} fica furtiva no lado sul da ilha e é difícil de ver. Se ela não estiver lá, alguém acabou de começar a escolta: ela volta depois de uns 10 minutos."
+ru = "{npc:3584} скрыта в незаметности на южной стороне острова, ее трудно разглядеть. Если ее нет, кто-то только что начал ее сопровождать: она вернется примерно через 10 минут."
+ko = "{npc:3584}은(는) 섬 남쪽에 은신해 있어 눈에 잘 띄지 않습니다. 보이지 않는다면 누군가 방금 호위를 시작한 것입니다. 약 10분 뒤에 돌아옵니다."
+zh_cn = "{npc:3584}潜行在岛屿南侧，很难发现。如果她不在，说明有人刚开始护送她：大约10分钟后她会回来。"
+zh_tw = "{npc:3584}潛行在島嶼南側，很難發現。如果她不在，說明有人剛開始護送她：大約10分鐘後她會回來。"
+
+# The Tower of Althalaxx (soul gem): low drop chance in practice (40+ kills is common); the gem is a party-loot item.
+[[note]]
+quest = 970
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{item:5366} is a rare drop: plan on 40 kills or more. In a party, every member on the quest can loot it from the same corpse, so grouping saves a lot of time."
+fr = "{item:5366} est un butin rare : comptez 40 victimes ou plus. En groupe, chaque membre ayant la quête peut la ramasser sur le même cadavre : se grouper fait gagner beaucoup de temps."
+de = "{item:5366} ist eine seltene Beute: rechne mit 40 Kills oder mehr. In einer Gruppe kann jedes Mitglied mit der Quest ihn von derselben Leiche plündern, eine Gruppe spart also viel Zeit."
+es = "{item:5366} es un botín raro: cuenta con 40 muertes o más. En grupo, cada miembro con la misión puede despojarla del mismo cadáver, así que agruparse ahorra mucho tiempo."
+pt = "{item:5366} é um saque raro: conte com 40 abates ou mais. Em grupo, cada membro com a missão pode saqueá-la do mesmo cadáver, então se agrupar economiza muito tempo."
+ru = "{item:5366} — редкая добыча: рассчитывайте на 40 убийств и больше. В группе каждый участник с заданием может забрать его с одного и того же трупа, так что группа сильно экономит время."
+ko = "{item:5366}은(는) 드물게 떨어집니다. 40마리 이상은 잡을 각오를 하세요. 파티에서는 퀘스트를 가진 모든 파티원이 같은 시체에서 획득할 수 있어 파티를 맺으면 시간이 크게 줄어듭니다."
+zh_cn = "{item:5366}掉率很低：做好杀40只甚至更多的准备。组队时，每名有此任务的队员都能从同一具尸体上拾取，组队能省下大量时间。"
+zh_tw = "{item:5366}掉率很低：做好殺40隻甚至更多的準備。組隊時，每名有此任務的隊員都能從同一具屍體上拾取，組隊能省下大量時間。"
+
+# Escape Through Force: the escort ignores mobs the player pulls and walks on into more.
+[[note]]
+quest = 994
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:3692} ignores mobs you pull and walks on into more: let them attack him first. Clear the furbolgs on the way out of the cave beforehand, and stay close."
+fr = "{npc:3692} ignore les monstres que vous attirez et continue vers d'autres : laissez-les l'attaquer d'abord. Nettoyez au préalable les furbolgs sur le chemin de sortie de la grotte et restez près de lui."
+de = "{npc:3692} ignoriert Gegner, die du ziehst, und läuft weiter in neue hinein: Lass sie zuerst ihn angreifen. Räum vorher die Furbolgs auf dem Weg aus der Höhle weg und bleib dicht bei ihm."
+es = "{npc:3692} ignora a los enemigos que atraes y sigue hacia otros: deja que lo ataquen a él primero. Limpia antes los furbolgs del camino de salida de la cueva y no te alejes."
+pt = "{npc:3692} ignora os inimigos que você puxa e segue em direção a outros: deixe que o ataquem primeiro. Limpe antes os furbolgs no caminho de saída da caverna e fique perto."
+ru = "{npc:3692} не замечает противников, которых вы выманили, и идёт дальше, в новых: пусть сначала нападут на него. Заранее перебейте фурболгов на выходе из пещеры и держитесь рядом."
+ko = "{npc:3692}은(는) 당신이 끌어온 적을 무시하고 다른 적에게 걸어갑니다. 적이 먼저 그를 공격하게 두세요. 미리 동굴 밖으로 나가는 길의 털보를 정리하고 가까이 붙어 있으세요."
+zh_cn = "{npc:3692}会无视你拉来的怪，继续走向更多敌人：让怪先攻击他。事先清掉出洞路上的熊怪，并紧跟着他。"
+zh_tw = "{npc:3692}會無視你拉來的怪，繼續走向更多敵人：讓怪先攻擊他。事先清掉出洞路上的熊怪，並緊跟著他。"
+
+# One Shot. One Kill.: three waves of furbolgs, and the quest only completes a while after the last one dies.
+[[note]]
+quest = 5713
+phase = "objective"
+objective = 1
+level = "info"
+en = "Three waves of furbolgs attack, a named leader in the last one; you have time to recover between them. Fight next to {npc:11711}, who deals much of the damage, and stay after the last kill: the quest can take a minute or more to complete."
+fr = "Trois vagues de furbolgs attaquent, un chef nommé dans la dernière ; vous avez le temps de récupérer entre elles. Combattez près de {npc:11711}, qui fait une bonne partie des dégâts, et restez après la dernière : la quête peut mettre une minute ou plus à se valider."
+de = "Drei Wellen Furbolgs greifen an, in der letzten ein benannter Anführer; dazwischen bleibt Zeit zum Erholen. Kämpfe neben {npc:11711}, die viel Schaden macht, und bleib nach dem letzten Kill: Die Quest kann eine Minute oder länger brauchen."
+es = "Atacan tres oleadas de fúrbolg, con un líder con nombre en la última; entre ellas te da tiempo a recuperarte. Lucha junto a {npc:11711}, que hace buena parte del daño, y quédate tras la última: la misión puede tardar un minuto o más en completarse."
+pt = "Três ondas de furbolgs atacam, com um líder nomeado na última; dá tempo de se recuperar entre elas. Lute perto de {npc:11711}, que causa boa parte do dano, e fique após a última: a missão pode levar um minuto ou mais para ser concluída."
+ru = "Нападают три волны фурболгов, в последней — именной вожак; между ними есть время восстановиться. Сражайтесь рядом с {npc:11711}, она наносит много урона, и не уходите после последнего убийства: задание может засчитаться через минуту и больше."
+ko = "퍼볼그가 세 차례 공격하며, 마지막에는 이름 있는 우두머리가 옵니다. 사이사이 회복할 시간이 있습니다. 피해를 많이 주는 {npc:11711} 곁에서 싸우고, 마지막 처치 후에도 머무르세요. 퀘스트 완료까지 1분 이상 걸릴 수 있습니다."
+zh_cn = "熊怪会分三波进攻，最后一波有一个有名字的首领，波次之间有时间恢复。在{npc:11711}身边作战，她能打出不少伤害；最后一个死后别走开：任务可能要一分钟或更久才完成。"
+zh_tw = "熊怪會分三波進攻，最後一波有一個有名字的首領，波次之間有時間恢復。在{npc:11711}身邊作戰，她能打出不少傷害；最後一個死後別走開：任務可能要一分鐘或更久才完成。"
+
+# Baron Marinous: the starting item drops from an elite summoned by using the amulet (20 fragments from the Stormscale naga) at the Fathom Stone below the spiral stairs of the Ruins of Mathystra; the stone is gone for a while after each summon.
+[[note]]
+quest = 98028
+phase = "accept"
+level = "warning"
+editions = ["forever"]
+en = "The quest starts from an item dropped by an elite you summon: combine 20 amulet fragments from the naga, then use the amulet at the {object:669236}, at the bottom of the spiral stairs in the ruins (around 59, 22). The stone vanishes for a while after each summon."
+fr = "La quête commence par un objet laissé par un élite que vous invoquez : assemblez 20 fragments d'amulette pris aux nagas, puis utilisez l'amulette à la {object:669236}, au pied de l'escalier en colimaçon des ruines (vers 59, 22). La pierre disparaît un moment après chaque invocation."
+de = "Die Quest beginnt mit einem Gegenstand, den ein von dir beschworener Elitegegner fallen lässt: setze 20 Amulettfragmente der Naga zusammen und benutze das Amulett am {object:669236}, unten an der Wendeltreppe der Ruinen (etwa 59, 22). Der Stein verschwindet nach jeder Beschwörung eine Weile."
+es = "La misión empieza con un objeto que suelta un élite que invocas: junta 20 fragmentos de amuleto de los naga y usa el amuleto en {object:669236}, al pie de la escalera de caracol de las ruinas (hacia 59, 22). La piedra desaparece un rato tras cada invocación."
+pt = "A missão começa com um item deixado por uma elite que você invoca: junte 20 fragmentos de amuleto das nagas e use o amuleto em {object:669236}, ao pé da escada em caracol das ruínas (perto de 59, 22). A pedra some por um tempo após cada invocação."
+ru = "Задание начинается с предмета, который выпадает из призванного вами элитного противника: соберите 20 осколков амулета с наг и используйте амулет у объекта {object:669236} внизу винтовой лестницы в руинах (около 59, 22). После каждого призыва камень на время исчезает."
+ko = "이 퀘스트는 직접 소환하는 정예가 떨어뜨리는 아이템으로 시작합니다. 나가에게서 얻은 목걸이 조각 20개를 합친 뒤, 폐허의 나선 계단 아래(59, 22 근처)에 있는 {object:669236}에서 목걸이를 사용하세요. 소환할 때마다 돌이 한동안 사라집니다."
+zh_cn = "任务由你召唤出的精英掉落的物品开始：收集纳迦掉落的20块护符碎片并合成，然后在废墟螺旋楼梯底部（约59, 22）的{object:669236}处使用护符。每次召唤后石头会消失一段时间。"
+zh_tw = "任務由你召喚出的精英掉落的物品開始：收集納迦掉落的20塊護符碎片並合成，然後在廢墟螺旋樓梯底部（約59, 22）的{object:669236}處使用護符。每次召喚後石頭會消失一段時間。"

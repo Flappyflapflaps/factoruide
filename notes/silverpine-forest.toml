@@ -1,0 +1,250 @@
+# Quest notes of Silverpine Forest. See notes/README.md for the format.
+
+# Arugal's Folly (Remedy of Arugal): looting the spellbooks summons a worgen into the room.
+[[note]]
+quest = 422
+phase = "objective"
+objective = 1
+level = "info"
+en = "Taking the books upstairs brings {npc:1770} into the room: loot them with health and mana to spare."
+fr = "Prendre les livres à l'étage fait venir {npc:1770} dans la pièce : ramassez-les avec de la vie et du mana en réserve."
+de = "Wenn du oben die Bücher nimmst, kommt {npc:1770} in den Raum: nimm sie nur mit genug Gesundheit und Mana."
+es = "Al coger los libros del piso de arriba aparece {npc:1770} en la sala: recógelos con salud y maná de sobra."
+pt = "Pegar os livros no andar de cima traz {npc:1770} para a sala: pegue-os com vida e mana de sobra."
+ru = "Если взять книги наверху, в комнату придёт {npc:1770}: забирайте их, имея запас здоровья и маны."
+ko = "위층에서 책을 가져가면 {npc:1770}이(가) 방으로 들어옵니다. 생명력과 마나에 여유가 있을 때 챙기세요."
+zh_cn = "拿取楼上的书会引来{npc:1770}进入房间：请在生命值和法力值充足时拾取。"
+zh_tw = "拿取樓上的書會引來{npc:1770}進入房間：請在生命值和法力值充足時拾取。"
+
+# Escorting Erland: once escorted, he is gone for several minutes before he is back.
+[[note]]
+quest = 435
+phase = "accept"
+level = "info"
+en = "If {npc:1978} is not there, another player has just escorted him: he comes back about 8 minutes later."
+fr = "Si {npc:1978} n'est pas là, un autre joueur vient de l'escorter : il revient environ 8 minutes plus tard."
+de = "Ist {npc:1978} nicht da, hat ihn gerade ein anderer Spieler eskortiert: Er kommt etwa 8 Minuten später zurück."
+es = "Si {npc:1978} no está, otro jugador acaba de escoltarlo: vuelve unos 8 minutos después."
+pt = "Se {npc:1978} não estiver lá, outro jogador acabou de escoltá-lo: ele volta cerca de 8 minutos depois."
+ru = "Если {npc:1978} нет на месте, его только что сопроводил другой игрок: он вернётся примерно через 8 минут."
+ko = "{npc:1978}이(가) 없다면 다른 플레이어가 막 호위를 마친 것입니다. 약 8분 뒤에 다시 나타납니다."
+zh_cn = "如果{npc:1978}不在，说明其他玩家刚护送过他：大约8分钟后他会重新出现。"
+zh_tw = "如果{npc:1978}不在，表示其他玩家剛護送過他：大約8分鐘後他會重新出現。"
+
+# Escorting Erland: he walks into the wolves along the way and stops to fight them.
+[[note]]
+quest = 435
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:1978} walks straight into the wolves on his way and stops to fight them: go ahead of him and kill them first."
+fr = "{npc:1978} fonce droit sur les loups de son chemin et s'arrête pour les combattre : passez devant lui et tuez-les d'abord."
+de = "{npc:1978} läuft direkt in die Wölfe auf seinem Weg und bleibt stehen, um sie zu bekämpfen: geh ihm voraus und töte sie zuerst."
+es = "{npc:1978} se mete de lleno entre los lobos de su camino y se detiene a luchar: adelántate y mátalos primero."
+pt = "{npc:1978} anda direto para os lobos do caminho e para para lutar: vá à frente dele e mate-os primeiro."
+ru = "{npc:1978} идёт прямо на волков на своём пути и останавливается, чтобы сражаться: идите впереди и убивайте их заранее."
+ko = "{npc:1978}은(는) 길에 있는 늑대에게 곧장 걸어 들어가 멈춰서 싸웁니다. 앞서 가서 늑대를 먼저 처치하세요."
+zh_cn = "{npc:1978}会径直走进路上的狼群并停下来战斗：走在他前面，先把狼杀掉。"
+zh_tw = "{npc:1978}會直接走進路上的狼群並停下來戰鬥：走在他前面，先把狼殺掉。"
+
+# Pyrewood Ambush: four waves of elite villagers (1, 2, 3, 3) with short pauses between them.
+[[note]]
+quest = 452
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Speaking to {npc:2058} starts four waves of elites (1, 2, 3, then 3) with only a few seconds between them: start at full health and mana."
+fr = "Parler à {npc:2058} déclenche quatre vagues d'élites (1, 2, 3, puis 3) espacées de quelques secondes seulement : commencez avec toute votre vie et votre mana."
+de = "Ein Gespräch mit {npc:2058} startet vier Wellen von Elites (1, 2, 3, dann 3) mit nur wenigen Sekunden Pause: beginne mit voller Gesundheit und vollem Mana."
+es = "Hablar con {npc:2058} inicia cuatro oleadas de élites (1, 2, 3 y luego 3) con solo unos segundos entre ellas: empieza con la salud y el maná al máximo."
+pt = "Falar com {npc:2058} inicia quatro ondas de elites (1, 2, 3 e depois 3) com só alguns segundos entre elas: comece com vida e mana cheias."
+ru = "Разговор с {npc:2058} запускает четыре волны элитных врагов (1, 2, 3, затем 3) с паузой всего в несколько секунд: начинайте с полным здоровьем и маной."
+ko = "{npc:2058}에게 말을 걸면 정예 몹이 네 차례(1, 2, 3, 그리고 3) 몇 초 간격으로 몰려옵니다. 생명력과 마나를 가득 채우고 시작하세요."
+zh_cn = "与{npc:2058}对话会引来四波精英（1、2、3、再3个），每波间隔仅几秒：请在生命值和法力值全满时开始。"
+zh_tw = "與{npc:2058}對話會引來四波精英（1、2、3、再3個），每波間隔僅幾秒：請在生命值和法力值全滿時開始。"
+
+# Border Crossings: the apprentices guarding the crate cast slowing frostbolts at long range and
+# link; the back of the camp has fewer of them.
+[[note]]
+quest = 477
+phase = "turnin"
+level = "warning"
+en = "{npc:1867} around the crate cast slowing frostbolts from far away and join each other's fights: come in from behind the tents and pull them one at a time."
+fr = "{npc:1867} autour de la caisse lance de loin des éclairs de givre qui ralentissent, et ses semblables se joignent au combat : arrivez par l'arrière des tentes et attirez-les un par un."
+de = "{npc:1867} rund um die Kiste wirkt aus großer Entfernung verlangsamende Frostblitze, und die anderen schließen sich dem Kampf an: komm von hinter den Zelten und zieh sie einzeln."
+es = "{npc:1867} alrededor de la caja lanza desde lejos Descargas de Escarcha que ralentizan, y los demás se unen al combate: entra por detrás de las tiendas y atráelos de uno en uno."
+pt = "{npc:1867} perto do caixote lança de longe Setas de Gelo que deixam lento, e os outros entram na luta: chegue por trás das tendas e puxe-os um de cada vez."
+ru = "{npc:1867} у ящика издалека бьёт замедляющими ледяными стрелами, а соседи вступают в бой: заходите из-за палаток и выманивайте их по одному."
+ko = "상자 주변의 {npc:1867}은(는) 멀리서 감속 효과가 있는 얼음화살을 쏘고 서로의 전투에 합류합니다. 천막 뒤쪽으로 다가가 하나씩 끌어내세요."
+zh_cn = "箱子周围的{npc:1867}会从远处施放减速的寒冰箭，并互相支援：从帐篷后方接近，逐个拉怪。"
+zh_tw = "箱子周圍的{npc:1867}會從遠處施放緩速的寒冰箭，並互相支援：從帳篷後方接近，逐個拉怪。"
+
+# The Weaver: the archmage stands at the back of the town hall among linked casters with pets;
+# pulling carelessly brings the whole room.
+[[note]]
+quest = 480
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:2120} stands at the back of the town hall with several linked casters and their pets. Pull the room one group at a time, or bring help."
+fr = "{npc:2120} se tient au fond de l'hôtel de ville avec plusieurs lanceurs de sorts liés et leurs familiers. Attirez la salle un groupe à la fois, ou venez accompagné."
+de = "{npc:2120} steht hinten im Rathaus bei mehreren verbundenen Zauberwirkern und ihren Begleitern. Zieh den Raum Gruppe für Gruppe oder bring Hilfe mit."
+es = "{npc:2120} está al fondo del ayuntamiento con varios lanzadores de hechizos vinculados y sus mascotas. Atrae la sala de grupo en grupo o ve acompañado."
+pt = "{npc:2120} fica no fundo da prefeitura com vários conjuradores vinculados e seus ajudantes. Puxe a sala um grupo por vez, ou leve ajuda."
+ru = "{npc:2120} стоит в глубине ратуши рядом с несколькими связанными заклинателями и их питомцами. Выманивайте их по одной группе или возьмите помощь."
+ko = "{npc:2120}은(는) 회관 안쪽에서 서로 연결된 여러 주문시전자 및 그 소환수와 함께 서 있습니다. 한 무리씩 끌어내거나 도움을 받으세요."
+zh_cn = "{npc:2120}站在市政厅深处，身边有数名相互关联的施法者及其宠物。一次只拉一组，或者找人帮忙。"
+zh_tw = "{npc:2120}站在市政廳深處，身邊有數名相互關聯的施法者及其寵物。一次只拉一組，或者找人幫忙。"
+
+# Beren's Peril: the cave sits on a hilltop reached by a narrow trail hidden behind trees just
+# north of the road, hard to spot.
+[[note]]
+quest = 516
+phase = "objective"
+level = "info"
+en = "The cave sits on a hilltop reached by a narrow trail that starts just north of the road at about 60.5, 74.7, hidden behind three big trees."
+fr = "La grotte se trouve au sommet d'une colline, accessible par un sentier étroit qui part juste au nord de la route vers 60,5, 74,7, caché derrière trois grands arbres."
+de = "Die Höhle liegt auf einer Hügelkuppe, erreichbar über einen schmalen Pfad, der knapp nördlich der Straße bei etwa 60,5, 74,7 beginnt, versteckt hinter drei großen Bäumen."
+es = "La cueva está en lo alto de una colina, a la que se llega por un sendero estrecho que empieza justo al norte del camino hacia 60,5, 74,7, oculto tras tres árboles grandes."
+pt = "A caverna fica no alto de uma colina, alcançada por uma trilha estreita que começa logo ao norte da estrada, por volta de 60,5, 74,7, escondida atrás de três árvores grandes."
+ru = "Пещера находится на вершине холма; к ней ведёт узкая тропа, которая начинается чуть севернее дороги, около 60.5, 74.7, и скрыта за тремя большими деревьями."
+ko = "동굴은 언덕 꼭대기에 있으며, 길 바로 북쪽 약 60.5, 74.7에서 시작하는 좁은 오솔길로 올라갑니다. 오솔길은 큰 나무 세 그루 뒤에 가려져 있습니다."
+zh_cn = "洞穴位于山顶，需走一条窄小径上去，小径起点在道路北侧约60.5, 74.7处，藏在三棵大树后面。"
+zh_tw = "洞穴位於山頂，需走一條窄小徑上去，小徑起點在道路北側約60.5, 74.7處，藏在三棵大樹後面。"
+
+# A Recipe For Death: the south wall gap avoids the front gate; the journal is in the inn's upper far-right room by Berard.
+[[note]]
+quest = 450
+phase = "objective"
+objective = 1
+level = "info"
+en = "Enter the village through the gap in its south wall and follow the wall to the inn. The journal is in a bookcase upstairs, in the far right room, next to {npc:2106} (elite)."
+fr = "Entrez dans le village par la brèche de son mur sud et longez le mur jusqu'à l'auberge. Le journal est dans une bibliothèque à l'étage, dans la pièce du fond à droite, à côté de {npc:2106} (élite)."
+de = "Betritt das Dorf durch die Lücke in seiner Südmauer und folge der Mauer bis zum Gasthaus. Das Tagebuch steht in einem Bücherregal im Obergeschoss, im hintersten Raum rechts, neben {npc:2106} (Elite)."
+es = "Entra en la aldea por el hueco de su muro sur y sigue el muro hasta la posada. El diario está en una estantería del piso de arriba, en la habitación del fondo a la derecha, junto a {npc:2106} (élite)."
+pt = "Entre na vila pela brecha no muro sul e siga o muro até a estalagem. O diário está numa estante no andar de cima, no quarto do fundo à direita, ao lado de {npc:2106} (elite)."
+ru = "Войдите в деревню через пролом в южной стене и идите вдоль стены до таверны. Дневник лежит в книжном шкафу наверху, в дальней правой комнате, рядом с {npc:2106} (элита)."
+ko = "남쪽 담장의 틈으로 마을에 들어가 담장을 따라 여관까지 가세요. 일지는 위층 오른쪽 맨 끝 방의 책장에 있으며, 정예 {npc:2106} 바로 옆입니다."
+zh_cn = "从村子南墙的缺口进入，沿着墙走到旅店。日记在楼上最右侧房间的书架里，就在精英{npc:2106}旁边。"
+zh_tw = "從村子南牆的缺口進入，沿著牆走到旅店。日記在樓上最右側房間的書架裡，就在菁英{npc:2106}旁邊。"
+
+# The Dead Fields: the banshee is not always up; she appears in the middle of the field after a wait.
+[[note]]
+quest = 437
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:1983} is not always there: she appears in the middle of the field from time to time. If she is missing, kill the gnolls around it while you wait."
+fr = "{npc:1983} n'est pas toujours là : elle apparaît de temps en temps au milieu du champ. Si elle est absente, tuez les gnolls des environs en l'attendant."
+de = "{npc:1983} ist nicht immer da: Sie erscheint von Zeit zu Zeit mitten auf dem Feld. Fehlt sie, töte die Gnolle in der Nähe, während du wartest."
+es = "{npc:1983} no siempre está: aparece de vez en cuando en el centro del campo. Si no está, mata a los gnolls de alrededor mientras esperas."
+pt = "{npc:1983} nem sempre está lá: ela aparece de tempos em tempos no meio do campo. Se ela não estiver, mate os gnolls ao redor enquanto espera."
+ru = "{npc:1983} бывает на месте не всегда: она время от времени появляется посреди поля. Если её нет, убивайте гноллов поблизости, пока ждёте."
+ko = "{npc:1983}은(는) 항상 있지는 않으며, 가끔씩 들판 한가운데에 나타납니다. 보이지 않으면 기다리는 동안 주변의 놀을 처치하세요."
+zh_cn = "{npc:1983}并不总在那里：她会不时出现在田野中央。如果她不在，就一边等待一边击杀周围的豺狼人。"
+zh_tw = "{npc:1983}並不總在那裡：她會不時出現在田野中央。如果她不在，就一邊等待一邊擊殺周圍的豺狼人。"
+
+[[icon]]
+quest = 437
+phase = "objective"
+objective = 1
+icon = "rare"
+
+# Old Fire-Eye (Forever): his purple shield only falls once a swing of the Moonsilver Blade lands;
+# the blade's on-hit effect then carries the fight.
+[[note]]
+quest = 95140
+phase = "objective"
+objective = 1
+level = "must_read"
+editions = ["forever"]
+en = "Equip the Moonsilver Blade before fighting Old Fire-Eye: his purple shield only falls once a swing of the blade lands, and its strikes then do most of the damage."
+fr = "Équipez la Lame d'argent lunaire avant d'affronter le Vieil Œil-de-feu : son bouclier violet ne tombe qu'une fois un coup de la lame porté, et ses frappes font ensuite l'essentiel des dégâts."
+de = "Rüste die Mondsilberklinge aus, bevor du Altes Feuerauge angreifst: Sein violetter Schild fällt erst, wenn ein Hieb der Klinge trifft, und ihre Treffer machen danach den Großteil des Schadens."
+es = "Equípate la Hoja de plata lunar antes de luchar contra el Viejo Ojo de Fuego: su escudo morado solo cae cuando acierta un golpe de la hoja, y luego sus impactos hacen casi todo el daño."
+pt = "Equipe a Lâmina de Prata Lunar antes de enfrentar o Velho Olho-de-fogo: o escudo roxo dele só cai quando um golpe da lâmina acerta, e depois os golpes dela causam a maior parte do dano."
+ru = "Наденьте Клинок лунного серебра перед боем со Старым Огнеглазом: его фиолетовый щит спадает только после удачного удара клинком, а затем удары клинка наносят основной урон."
+ko = "늙은 불눈과 싸우기 전에 달은빛 검을 장착하세요. 검으로 한 번 적중해야 보라색 보호막이 사라지고, 이후 검의 타격이 대부분의 피해를 줍니다."
+zh_cn = "与老火眼战斗前装备月银之刃：只有用这把剑命中一次，他的紫色护盾才会消失，之后剑的打击会造成大部分伤害。"
+zh_tw = "與老火眼戰鬥前裝備月銀之刃：只有用這把劍命中一次，他的紫色護盾才會消失，之後劍的打擊會造成大部分傷害。"
+
+# Lumina Windsinger (Forever): she is shared by everyone; while another player escorts her out the
+# cage is empty until she respawns.
+[[note]]
+quest = 91862
+level = "warning"
+editions = ["forever"]
+en = "If Lumina is not in her cage in the keep's basement, another player is escorting her out: wait for her to come back."
+fr = "Si Lumina n'est pas dans sa cage au sous-sol du donjon, un autre joueur l'escorte dehors : attendez son retour."
+de = "Ist Lumina nicht in ihrem Käfig im Keller der Feste, eskortiert sie gerade ein anderer Spieler hinaus: Warte, bis sie zurückkommt."
+es = "Si Lumina no está en su jaula en el sótano del torreón, otro jugador la está escoltando fuera: espera a que vuelva."
+pt = "Se Lumina não estiver na jaula no porão da fortaleza, outro jogador a está escoltando para fora: espere ela voltar."
+ru = "Если Люмины нет в клетке в подвале крепости, её выводит другой игрок: дождитесь её возвращения."
+ko = "루미나가 요새 지하의 우리에 없다면 다른 플레이어가 호위 중입니다. 돌아올 때까지 기다리세요."
+zh_cn = "如果卢米娜不在要塞地下室的笼子里，说明另一名玩家正在护送她出去：等她回来。"
+zh_tw = "如果盧米娜不在要塞地下室的籠子裡，表示另一名玩家正在護送她出去：等她回來。"
+
+# The Offering Stone (Forever): the Beren's Peril undead respawn very fast and the altar is at the
+# very end of the cave, so the way in and out is a long fight.
+[[note]]
+quest = 95884
+level = "warning"
+editions = ["forever"]
+en = "Beren's Peril is packed with undead that respawn very quickly, and the stone is at the very end of the cave (entrance near 60.5, 72.5): go in with a group or expect to fight your way out."
+fr = "Le Péril de Beren grouille de morts-vivants qui réapparaissent très vite, et la pierre est tout au fond de la grotte (entrée vers 60.5, 72.5) : entrez en groupe ou attendez-vous à combattre pour ressortir."
+de = "Berens Gefahr ist voller Untoter, die sehr schnell respawnen, und der Stein liegt ganz am Ende der Höhle (Eingang bei etwa 60.5, 72.5): Geh in einer Gruppe hinein oder kämpf dich auch wieder hinaus."
+es = "El Peligro de Beren está lleno de no-muertos que reaparecen muy rápido, y la piedra está al final de la cueva (entrada cerca de 60.5, 72.5): entra en grupo o prepárate para salir luchando."
+pt = "O Perigo de Beren está cheio de mortos-vivos que renascem muito rápido, e a pedra fica bem no fim da caverna (entrada perto de 60.5, 72.5): entre em grupo ou prepare-se para sair lutando."
+ru = "Пещера Берена кишит нежитью, которая возрождается очень быстро, а камень в самом её конце (вход около 60.5, 72.5): идите группой или готовьтесь пробиваться обратно с боем."
+ko = "베렌의 위험에는 매우 빨리 재생성되는 언데드가 가득하고, 돌은 동굴 가장 끝(입구 약 60.5, 72.5)에 있습니다. 파티로 들어가거나 싸우며 빠져나올 각오를 하세요."
+zh_cn = "贝伦的危险里满是重生极快的亡灵，而石头在洞穴最深处（入口约60.5, 72.5）：组队进入，否则准备好一路杀出来。"
+zh_tw = "貝倫的危險裡滿是重生極快的不死生物，而石頭在洞穴最深處（入口約60.5, 72.5）：組隊進入，否則準備好一路殺出來。"
+
+# The Horn of Xelthos: the freed prisoner opens the courtyard door, which stays open after a death, an alternative to the breaching charge.
+[[note]]
+quest = 78261
+phase = "objective"
+objective = 1
+level = "warning"
+editions = ["forever"]
+en = "Without the breaching charge, pull the lever of the cell beside {npc:3914} and talk to the prisoner: he opens the courtyard door, which stays open even if you die and run back."
+fr = "Sans la charge de brèche, tirez le levier de la cellule près de {npc:3914} et parlez au prisonnier : il ouvre la porte de la cour, qui reste ouverte même si vous mourez et revenez en courant."
+de = "Ohne die Sprengladung zieh den Hebel der Zelle neben {npc:3914} und sprich mit dem Gefangenen: Er öffnet das Hoftor, das offen bleibt, selbst wenn du stirbst und zurückläufst."
+es = "Sin la carga de brecha, tira de la palanca de la celda junto a {npc:3914} y habla con el prisionero: abre la puerta del patio, que sigue abierta aunque mueras y vuelvas corriendo."
+pt = "Sem a carga explosiva, puxe a alavanca da cela ao lado de {npc:3914} e fale com o prisioneiro: ele abre a porta do pátio, que continua aberta mesmo se você morrer e voltar correndo."
+ru = "Без подрывного заряда потяните рычаг камеры рядом с {npc:3914} и поговорите с пленником: он откроет дверь во двор, и она останется открытой, даже если вы умрете и вернетесь."
+ko = "돌파 폭약이 없다면 {npc:3914} 옆 감방의 레버를 당기고 죄수와 대화하세요. 그가 안뜰 문을 열어 주며, 죽고 다시 달려와도 문은 열린 채로 남습니다."
+zh_cn = "没有破门炸药的话，拉动{npc:3914}旁边牢房的拉杆并与囚犯交谈：他会打开庭院的门，即使你死亡后跑回来，门也保持打开。"
+zh_tw = "沒有破門炸藥的話，拉動{npc:3914}旁邊牢房的拉桿並與囚犯交談：他會打開庭院的門，即使你死亡後跑回來，門也保持打開。"
+
+# The Horn of Xelthos: the payment comes by a letter received in a capital, then is collected back at the dead drop.
+[[note]]
+quest = 78261
+phase = "turnin"
+level = "info"
+editions = ["forever"]
+en = "The reward is not given at the dead drop: visit a major city to receive a letter, then go back to the dead drop to collect it."
+fr = "La récompense n'est pas remise à la boîte aux lettres morte : allez dans une capitale pour recevoir une lettre, puis retournez à la boîte pour la récupérer."
+de = "Die Belohnung gibt es nicht am toten Briefkasten: geh in eine Hauptstadt, um einen Brief zu erhalten, und kehr dann zum toten Briefkasten zurück, um sie abzuholen."
+es = "La recompensa no se entrega en el buzón secreto: visita una capital para recibir una carta y vuelve luego al buzón para recogerla."
+pt = "A recompensa não é entregue no ponto de coleta: visite uma capital para receber uma carta e depois volte ao ponto de coleta para pegá-la."
+ru = "Награду не выдают в тайнике: посетите столицу, чтобы получить письмо, затем вернитесь к тайнику и заберите ее."
+ko = "보상은 비밀 수신함에서 바로 주어지지 않습니다. 대도시를 방문해 편지를 받은 뒤 비밀 수신함으로 돌아가 보상을 받으세요."
+zh_cn = "奖励不会在秘密投递点直接发放：先去一座主城收到一封信，再回到投递点领取。"
+zh_tw = "獎勵不會在秘密投遞點直接發放：先去一座主城收到一封信，再回到投遞點領取。"
+
+# The Horn of Xelthos: the payment comes by a letter received in a capital, then is collected back at the dead drop.
+[[note]]
+quest = 78307
+phase = "turnin"
+level = "info"
+editions = ["forever"]
+en = "The reward is not given at the dead drop: visit a major city to receive a letter, then go back to the dead drop to collect it."
+fr = "La récompense n'est pas remise à la boîte aux lettres morte : allez dans une capitale pour recevoir une lettre, puis retournez à la boîte pour la récupérer."
+de = "Die Belohnung gibt es nicht am toten Briefkasten: geh in eine Hauptstadt, um einen Brief zu erhalten, und kehr dann zum toten Briefkasten zurück, um sie abzuholen."
+es = "La recompensa no se entrega en el buzón secreto: visita una capital para recibir una carta y vuelve luego al buzón para recogerla."
+pt = "A recompensa não é entregue no ponto de coleta: visite uma capital para receber uma carta e depois volte ao ponto de coleta para pegá-la."
+ru = "Награду не выдают в тайнике: посетите столицу, чтобы получить письмо, затем вернитесь к тайнику и заберите ее."
+ko = "보상은 비밀 수신함에서 바로 주어지지 않습니다. 대도시를 방문해 편지를 받은 뒤 비밀 수신함으로 돌아가 보상을 받으세요."
+zh_cn = "奖励不会在秘密投递点直接发放：先去一座主城收到一封信，再回到投递点领取。"
+zh_tw = "獎勵不會在秘密投遞點直接發放：先去一座主城收到一封信，再回到投遞點領取。"

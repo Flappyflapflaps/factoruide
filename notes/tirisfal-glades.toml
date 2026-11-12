@@ -1,0 +1,272 @@
+# Quest notes of Tirisfal Glades. See notes/README.md for the format.
+
+# At War With The Scarlet Crusade (Melrache): the tower can be reached over the ridge from the
+# west, avoiding the Scarlet camps that line the path up from the road.
+[[note]]
+quest = 372
+phase = "objective"
+level = "info"
+en = "Reach the tower from its western tip (about 77,30), away from the path, to skip most of the Scarlet camps along the road."
+fr = "Rejoignez la tour par sa pointe ouest (vers 77,30), à l'écart du chemin, pour éviter la plupart des camps écarlates le long de la route."
+de = "Erreiche den Turm über seine Westspitze (etwa 77,30), abseits des Weges, um die meisten Lager des Scharlachroten Kreuzzugs an der Straße zu umgehen."
+es = "Llega a la torre por su extremo oeste (sobre 77,30), lejos del camino, para evitar la mayoría de los campamentos Escarlata de la ruta."
+pt = "Chegue à torre pela ponta oeste (perto de 77,30), longe do caminho, para evitar a maioria dos acampamentos Escarlates ao longo da estrada."
+ru = "Подходите к башне с западной оконечности (около 77,30), в стороне от тропы, чтобы обойти большинство лагерей Алого ордена вдоль дороги."
+ko = "길에서 벗어나 서쪽 끝(약 77,30)에서 탑으로 다가가면 길가의 붉은십자군 야영지 대부분을 피할 수 있습니다."
+zh_cn = "离开小路，从西端（约77,30）接近塔楼，可以避开路边大部分血色十字军营地。"
+zh_tw = "離開小路，從西端（約77,30）接近塔樓，可以避開路邊大部分血色十字軍營地。"
+
+# The Family Crypt: three floors of hard-hitting undead with patrols and fast respawns; the
+# captain waits in the lowest room.
+[[note]]
+quest = 408
+phase = "objective"
+level = "warning"
+en = "The crypt's undead hit hard, respawn quickly and patrols join fights: wait for each patrol to pass, then pull one at a time. {npc:1658} is on the bottom floor."
+fr = "Les morts-vivants de la crypte frappent fort, réapparaissent vite et des patrouilles se joignent aux combats : attendez que chaque patrouille passe, puis attirez-les un par un. {npc:1658} est à l'étage le plus bas."
+de = "Die Untoten der Gruft schlagen hart zu, respawnen schnell und Patrouillen mischen sich in Kämpfe ein: warte, bis jede Patrouille vorbei ist, und zieh sie dann einzeln. {npc:1658} ist auf der untersten Ebene."
+es = "Los no-muertos de la cripta golpean fuerte, reaparecen rápido y las patrullas se unen a los combates: espera a que pase cada patrulla y atráelos de uno en uno. {npc:1658} está en el piso más bajo."
+pt = "Os mortos-vivos da cripta batem forte, renascem rápido e as patrulhas entram nas lutas: espere cada patrulha passar e puxe-os um de cada vez. {npc:1658} fica no andar mais baixo."
+ru = "Нежить в склепе бьёт больно, быстро возрождается, а патрули вмешиваются в бой: дождитесь, пока пройдёт патруль, и выманивайте по одному. {npc:1658} на самом нижнем ярусе."
+ko = "묘지의 언데드는 강하게 때리고 빨리 재생성되며, 순찰병이 전투에 끼어듭니다. 순찰병이 지나가길 기다렸다가 하나씩 끌어내세요. {npc:1658}은(는) 가장 아래층에 있습니다."
+zh_cn = "墓穴里的亡灵攻击很高、重生很快，巡逻怪还会加入战斗：等巡逻过去后再逐个拉怪。{npc:1658}在最底层。"
+zh_tw = "墓穴裡的不死生物攻擊很高、重生很快，巡邏怪還會加入戰鬥：等巡邏過去後再逐個拉怪。{npc:1658}在最底層。"
+
+# A Plague Upon Thee (barrel): placing the barrel only does half; clicking the smoking barrel offers the follow-up that is turned in at the Bulwark.
+[[note]]
+quest = 5902
+phase = "objective"
+level = "warning"
+en = "Click the crate in the middle of the mill to set the barrel on it, then click the smoking barrel itself: it offers {quest:6390}, the step that sends you back to the quest giver."
+fr = "Cliquez sur la caisse au centre de la scierie pour y poser le tonneau, puis cliquez sur le tonneau fumant lui-même : il propose {quest:6390}, l'étape qui vous renvoie au donneur de quête."
+de = "Klicke die Kiste in der Mitte der Sägemühle an, um das Fass daraufzustellen, und dann das rauchende Fass selbst: Es bietet {quest:6390} an, den Schritt, der dich zum Auftraggeber zurückschickt."
+es = "Haz clic en la caja del centro del aserradero para dejar el barril encima y luego en el propio barril humeante: ofrece {quest:6390}, el paso que te devuelve a quien te dio la misión."
+pt = "Clique no caixote no meio da serraria para pôr o barril em cima e depois no próprio barril fumegante: ele oferece {quest:6390}, a etapa que leva você de volta a quem deu a missão."
+ru = "Щёлкните по ящику в центре лесопилки, чтобы поставить на него бочку, затем по самой дымящейся бочке: она предложит {quest:6390} — этап, который возвращает вас к тому, кто выдал задание."
+ko = "제재소 한가운데 상자를 클릭해 통을 올려놓은 뒤, 연기가 나는 통 자체를 클릭하세요. {quest:6390}을(를) 받을 수 있으며, 이 단계로 퀘스트를 준 NPC에게 돌아갑니다."
+zh_cn = "点击伐木场中央的箱子把桶放上去，然后再点击冒烟的桶本身：它会提供{quest:6390}，也就是带你回去找任务发布者的那一步。"
+zh_tw = "點擊伐木場中央的箱子把桶放上去，然後再點擊冒煙的桶本身：它會提供{quest:6390}，也就是帶你回去找任務發布者的那一步。"
+
+# Proving Allegiance: the candle comes from the crate beside the quest giver, and another one can be taken after a failed fight.
+[[note]]
+quest = 409
+phase = "objective"
+objective = 1
+level = "info"
+en = "Take {item:3080} from {object:1586} beside {npc:1497}, then use it at the altar on the small island to summon {npc:1946}. She hits hard: if she kills you, take another candle from the crate and try again."
+fr = "Prenez une {item:3080} dans la {object:1586} à côté de {npc:1497}, puis utilisez-la sur l'autel de la petite île pour invoquer {npc:1946}. Elle frappe fort : si elle vous tue, reprenez une bougie dans la caisse et recommencez."
+de = "Nimm eine {item:3080} aus der {object:1586} neben {npc:1497} und benutze sie am Altar auf der kleinen Insel, um {npc:1946} zu beschwören. Sie schlägt hart zu: Tötet sie dich, nimm eine neue Kerze aus der Kiste und versuch es noch einmal."
+es = "Coge una {item:3080} del {object:1586} junto a {npc:1497} y úsala en el altar de la isla pequeña para invocar a {npc:1946}. Golpea fuerte: si te mata, coge otra vela del cajón y vuelve a intentarlo."
+pt = "Pegue uma {item:3080} no {object:1586} ao lado de {npc:1497} e use-a no altar da ilhota para invocar {npc:1946}. Ela bate forte: se ela matar você, pegue outra vela no caixote e tente de novo."
+ru = "Возьмите {item:3080} из предмета «{object:1586}» рядом с {npc:1497} и используйте её у алтаря на маленьком острове, чтобы призвать {npc:1946}. Она бьёт сильно: если она вас убьёт, возьмите из ящика новую свечу и попробуйте снова."
+ko = "{npc:1497} 옆의 {object:1586}에서 {item:3080}을(를) 꺼내 작은 섬의 제단에서 사용하면 {npc:1946}이(가) 소환됩니다. 공격이 강하니, 죽으면 상자에서 양초를 다시 꺼내 재도전하세요."
+zh_cn = "从{npc:1497}旁边的{object:1586}中拿一支{item:3080}，然后在小岛上的祭坛使用它召唤{npc:1946}。她攻击很猛：如果被她杀死，就从箱子里再拿一支蜡烛重试。"
+zh_tw = "從{npc:1497}旁邊的{object:1586}中拿一支{item:3080}，然後在小島上的祭壇使用它召喚{npc:1946}。她攻擊很猛：如果被她殺死，就從箱子裡再拿一支蠟燭重試。"
+
+# Garments of Darkness: the healing only counts when cast with Lesser Heal rank 2.
+[[note]]
+quest = 5650
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Only Lesser Heal (Rank 2) counts on {npc:12428}: train it first, heal him with it, then cast Power Word: Fortitude on him."
+fr = "Seul Soins inférieurs (rang 2) compte sur {npc:12428} : apprenez-le d'abord, soignez-le avec, puis lancez-lui Mot de pouvoir : Robustesse."
+de = "Bei {npc:12428} zählt nur Geringes Heilen (Rang 2): Lerne es zuerst, heile ihn damit und wirke dann Machtwort: Seelenstärke auf ihn."
+es = "Con {npc:12428} solo cuenta Sanación inferior (rango 2): apréndela primero, sánalo con ella y luego lánzale Palabra de poder: entereza."
+pt = "Em {npc:12428} só conta Cura Menor (grau 2): aprenda-a primeiro, cure-o com ela e depois lance Palavra de Poder: Fortitude nele."
+ru = "На {npc:12428} засчитывается только «Малое исцеление» (уровень 2): сначала выучите его, вылечите им цель, затем примените «Слово силы: Стойкость»."
+ko = "{npc:12428}에게는 하급 치유 (2레벨)만 인정됩니다. 먼저 배워서 그것으로 치유한 뒤 신의 권능: 인내를 걸어 주세요."
+zh_cn = "对{npc:12428}只有次级治疗术（等级2）才算数：先学会它，用它治疗他，然后对他施放真言术：韧。"
+zh_tw = "對{npc:12428}只有次級治療術（等級2）才算數：先學會它，用它治療他，然後對他施放真言術：韌。"
+
+# Sticks and Bones: the branches are hard to see on the ground and come back quickly.
+[[note]]
+quest = 86784
+phase = "objective"
+objective = 1
+level = "warning"
+editions = ["forever"]
+en = "The dry branches lie flat by the clusters of trees and blend into the grass: sweep the cursor over the ground until it turns into a gear. A branch comes back about 30 seconds after it is taken."
+fr = "Les branches sèches sont posées à plat près des bosquets et se confondent avec l'herbe : balayez le sol avec le curseur jusqu'à ce qu'il devienne un engrenage. Une branche revient environ 30 secondes après avoir été prise."
+de = "Die trockenen Zweige liegen flach bei den Baumgruppen und gehen im Gras unter: Fahre mit dem Mauszeiger über den Boden, bis er zum Zahnrad wird. Ein Zweig erscheint etwa 30 Sekunden nach dem Aufheben wieder."
+es = "Las ramas secas están en el suelo junto a los grupos de árboles y se confunden con la hierba: pasa el cursor por el suelo hasta que se convierta en un engranaje. Una rama reaparece unos 30 segundos después de cogerla."
+pt = "Os galhos secos ficam no chão junto aos grupos de árvores e se confundem com a grama: passe o cursor pelo chão até ele virar uma engrenagem. Um galho volta cerca de 30 segundos depois de ser pego."
+ru = "Сухие ветки лежат у групп деревьев и сливаются с травой: водите курсором по земле, пока он не станет шестерёнкой. Ветка появляется снова примерно через 30 секунд после того, как её подобрали."
+ko = "마른 나뭇가지는 나무 군락 옆 바닥에 놓여 있어 풀과 구분하기 어렵습니다. 커서가 톱니바퀴로 바뀔 때까지 바닥을 훑어보세요. 가지는 주운 뒤 약 30초 만에 다시 생깁니다."
+zh_cn = "干树枝平躺在树丛旁，与草地融为一体：用鼠标在地面上扫过，直到指针变成齿轮。树枝被拾取后约30秒重新出现。"
+zh_tw = "乾樹枝平躺在樹叢旁，與草地融為一體：用滑鼠在地面上掃過，直到游標變成齒輪。樹枝被拾取後約30秒重新出現。"
+
+[[icon]]
+quest = 86784
+phase = "objective"
+objective = 1
+icon = "pickup"
+editions = ["forever"]
+
+# That Shadowvale Green Elixir: the bottles are in a cellar under a ruin, not in the nearby house.
+[[note]]
+quest = 95314
+phase = "objective"
+objective = 1
+level = "warning"
+editions = ["forever"]
+en = "The bottles are in the cellar under the roofless ruin (entrance near 13, 65.7), not in the two-storey house beside it; more stand on the wine racks along the corridors. The undead inside are level 11-12."
+fr = "Les bouteilles sont dans la cave sous la ruine sans toit (entrée vers 13, 65.7), pas dans la maison à étage voisine ; d'autres sont sur les étagères à vin des couloirs. Les morts-vivants à l'intérieur sont de niveau 11-12."
+de = "Die Flaschen sind im Keller unter der dachlosen Ruine (Eingang bei 13, 65.7), nicht im zweistöckigen Haus daneben; weitere stehen in den Weinregalen der Gänge. Die Untoten drinnen sind Stufe 11-12."
+es = "Las botellas están en el sótano bajo la ruina sin techo (entrada cerca de 13, 65.7), no en la casa de dos plantas de al lado; hay más en los botelleros de los pasillos. Los no-muertos de dentro son de nivel 11-12."
+pt = "As garrafas ficam no porão sob a ruína sem teto (entrada perto de 13, 65.7), não na casa de dois andares ao lado; há mais nas adegas dos corredores. Os mortos-vivos lá dentro são de nível 11-12."
+ru = "Бутылки — в подвале под развалинами без крыши (вход около 13, 65.7), а не в двухэтажном доме рядом; ещё есть на винных стеллажах в коридорах. Нежить внутри 11-12-го уровня."
+ko = "병은 옆의 2층 집이 아니라 지붕 없는 폐허 아래 지하실에 있습니다(입구 13, 65.7 부근). 복도의 포도주 선반에도 더 있습니다. 안의 언데드는 11-12레벨입니다."
+zh_cn = "瓶子在无顶废墟下的地窖里（入口约在13, 65.7），不在旁边的两层房子里；走廊两侧的酒架上还有更多。里面的亡灵为11-12级。"
+zh_tw = "瓶子在無頂廢墟下的地窖裡（入口約在13, 65.7），不在旁邊的兩層房子裡；走廊兩側的酒架上還有更多。裡面的不死生物為11-12級。"
+
+# Making Repairs (Forever): the lumber is not outdoors, it lies on the floors of the cellar crypt
+# under the roofless burned house west of the Bulwark.
+[[note]]
+quest = 91316
+phase = "objective"
+objective = 1
+level = "info"
+editions = ["forever"]
+en = "The lumber is not outdoors: it lies on the floors of the cellar crypt under the roofless burned house (entrance near 13, 65.7)."
+fr = "Le bois n'est pas dehors : il est posé au sol dans la crypte sous la maison incendiée sans toit (entrée vers 13, 65.7)."
+de = "Das Holz liegt nicht im Freien, sondern auf dem Boden der Gruft im Keller des abgebrannten Hauses ohne Dach (Eingang bei etwa 13, 65.7)."
+es = "La madera no está al aire libre: está en el suelo de la cripta bajo la casa quemada sin techo (entrada cerca de 13, 65.7)."
+pt = "A madeira não fica ao ar livre: está no chão da cripta sob a casa queimada sem telhado (entrada perto de 13, 65.7)."
+ru = "Брёвна лежат не снаружи, а на полу склепа в подвале сгоревшего дома без крыши (вход около 13, 65.7)."
+ko = "목재는 바깥이 아니라 지붕 없는 불탄 집 아래 지하 묘실 바닥에 놓여 있습니다(입구 약 13, 65.7)."
+zh_cn = "木材不在野外，而是散落在无顶的烧毁房屋下方的地窖墓穴地面上（入口约13, 65.7）。"
+zh_tw = "木材不在野外，而是散落在無頂的燒毀房屋下方的地窖墓穴地面上（入口約13, 65.7）。"
+
+[[icon]]
+quest = 91316
+phase = "objective"
+objective = 1
+icon = "pickup"
+editions = ["forever"]
+
+# The One That Got Away (Forever): the crystal fragment lies on the ground in the left-hand part
+# of the same cellar crypt.
+[[note]]
+quest = 99153
+phase = "objective"
+objective = 1
+level = "info"
+editions = ["forever"]
+en = "The crystal lies on the ground in the left-hand part of the cellar crypt under the roofless burned house (entrance near 13, 65.7), around 9.7, 69.4."
+fr = "Le cristal est posé au sol dans la partie gauche de la crypte sous la maison incendiée sans toit (entrée vers 13, 65.7), vers 9.7, 69.4."
+de = "Der Kristall liegt im linken Teil der Gruft im Keller des abgebrannten Hauses ohne Dach (Eingang bei etwa 13, 65.7) auf dem Boden, etwa bei 9.7, 69.4."
+es = "El cristal está en el suelo, en la parte izquierda de la cripta bajo la casa quemada sin techo (entrada cerca de 13, 65.7), hacia 9.7, 69.4."
+pt = "O cristal está no chão, na parte esquerda da cripta sob a casa queimada sem telhado (entrada perto de 13, 65.7), perto de 9.7, 69.4."
+ru = "Кристалл лежит на земле в левой части склепа в подвале сгоревшего дома без крыши (вход около 13, 65.7), примерно у 9.7, 69.4."
+ko = "수정은 지붕 없는 불탄 집 아래 지하 묘실(입구 약 13, 65.7)의 왼쪽 구역 바닥, 약 9.7, 69.4에 놓여 있습니다."
+zh_cn = "水晶落在无顶的烧毁房屋下方地窖墓穴（入口约13, 65.7）左侧区域的地面上，约9.7, 69.4。"
+zh_tw = "水晶落在無頂的燒毀房屋下方地窖墓穴（入口約13, 65.7）左側區域的地面上，約9.7, 69.4。"
+
+[[icon]]
+quest = 99153
+phase = "objective"
+objective = 1
+icon = "pickup"
+editions = ["forever"]
+
+# Whispering Horror Residue (Forever): the starting item drops from an elite at the far end of the
+# cellar crypt, soloable a level or two above it.
+[[note]]
+quest = 95328
+phase = "accept"
+level = "warning"
+editions = ["forever"]
+en = "The item that starts this quest drops from Whispering Horror, a level 11-13 elite at the far end of the cellar crypt under the roofless burned house (entrance near 13, 65.7)."
+fr = "L'objet qui lance cette quête est laissé par l'Horreur murmurante, une élite de niveau 11-13 au fond de la crypte sous la maison incendiée sans toit (entrée vers 13, 65.7)."
+de = "Der Gegenstand, der diese Quest startet, wird vom Flüsternden Schrecken fallen gelassen, einem Elite der Stufe 11-13 am hinteren Ende der Gruft im Keller des abgebrannten Hauses ohne Dach (Eingang bei etwa 13, 65.7)."
+es = "El objeto que inicia esta misión lo suelta el Horror susurrante, un élite de nivel 11-13 al fondo de la cripta bajo la casa quemada sin techo (entrada cerca de 13, 65.7)."
+pt = "O item que inicia esta missão cai do Horror Sussurrante, um elite de nível 11-13 no fundo da cripta sob a casa queimada sem telhado (entrada perto de 13, 65.7)."
+ru = "Предмет, начинающий это задание, выпадает из Шепчущего ужаса — элитного существа 11-13 уровня в дальнем конце склепа под сгоревшим домом без крыши (вход около 13, 65.7)."
+ko = "이 퀘스트를 시작하는 아이템은 지붕 없는 불탄 집 아래 지하 묘실(입구 약 13, 65.7) 가장 안쪽에 있는 11-13레벨 정예, 속삭이는 공포가 떨어뜨립니다."
+zh_cn = "开启此任务的物品由低语恐魔掉落，它是无顶的烧毁房屋下方地窖墓穴（入口约13, 65.7）最深处的11-13级精英。"
+zh_tw = "開啟此任務的物品由低語恐魔掉落，它是無頂的燒毀房屋下方地窖墓穴（入口約13, 65.7）最深處的11-13級精英。"
+
+# A Lesson in Divinity (resurrect Falgan, Forever): the resurrected deathguard dies again after a
+# while for the next paladin; a lost symbol means a new one from Danitha Morr.
+[[note]]
+quest = 94438
+phase = "turnin"
+level = "warning"
+editions = ["forever"]
+en = "Turn the quest in to Deathguard Falgan right after resurrecting him: he soon dies again, and a new {item:6866} means walking back to Danitha Morr at Bandarion Keep."
+fr = "Rendez la quête au Garde-mort Falgan juste après l'avoir ressuscité : il meurt de nouveau peu après, et un nouveau {item:6866} oblige à retourner voir Danitha Morr au donjon de Bandarion."
+de = "Gib die Quest bei Todeswache Falgan gleich nach seiner Wiederbelebung ab: Er stirbt bald wieder, und ein neues {item:6866} heißt, zurück zu Danitha Morr in der Bandarionfeste zu laufen."
+es = "Entrega la misión al Guardia de la Muerte Falgan justo después de resucitarlo: vuelve a morir pronto, y un nuevo {item:6866} supone volver a pie hasta Danitha Morr en el Bastión de Bandarion."
+pt = "Entregue a missão ao Guarda da Morte Falgan logo depois de ressuscitá-lo: ele morre de novo em pouco tempo, e um novo {item:6866} exige voltar até Danitha Morr na Fortaleza Bandarion."
+ru = "Сдайте задание стражнику смерти Фальгану сразу после воскрешения: вскоре он снова умирает, а за новым предметом {item:6866} придётся идти обратно к Даните Морр в крепость Бандарион."
+ko = "죽음의 경비병 팔간을 되살린 직후 바로 퀘스트를 완료하세요. 곧 다시 죽으며, {item:6866}을(를) 새로 받으려면 반다리온 요새의 다니타 모르에게 걸어 돌아가야 합니다."
+zh_cn = "复活亡灵卫兵法尔甘后立即交任务：他很快会再次死去，而重新获取{item:6866}需要走回班达瑞恩要塞找达妮莎·莫尔。"
+zh_tw = "復活亡靈衛兵法爾甘後立即交任務：他很快會再次死去，而重新取得{item:6866}需要走回班達瑞恩要塞找達妮莎·莫爾。"
+
+# A Frightened Request (Forever): the objective completes by standing next to Edward's body in the
+# walled graveyard where Rath'mael is, once its mobs are cleared; nothing is clicked.
+[[note]]
+quest = 92401
+phase = "objective"
+level = "warning"
+editions = ["forever"]
+en = "{npc:250842} lies dead inside the walled graveyard next to {npc:250657}: clear the mobs there and stand beside his body. There is nothing to click."
+fr = "{npc:250842} gît mort dans le cimetière clos, près de {npc:250657} : éliminez les monstres sur place et tenez-vous à côté de son corps. Il n'y a rien à cliquer."
+de = "{npc:250842} liegt tot im ummauerten Friedhof neben {npc:250657}: Räume die Gegner dort und stell dich neben seine Leiche. Es gibt nichts anzuklicken."
+es = "{npc:250842} yace muerto dentro del cementerio amurallado junto a {npc:250657}: limpia los enemigos y quédate junto a su cuerpo. No hay nada que pulsar."
+pt = "{npc:250842} jaz morto dentro do cemitério murado ao lado de {npc:250657}: elimine os inimigos e fique ao lado do corpo dele. Não há nada para clicar."
+ru = "{npc:250842} лежит мёртвым на огороженном кладбище рядом с {npc:250657}: перебейте там противников и встаньте рядом с его телом. Нажимать ничего не нужно."
+ko = "{npc:250842}은(는) {npc:250657} 옆 담장 두른 묘지 안에 죽은 채 누워 있습니다. 그곳의 적을 처치하고 시신 옆에 서세요. 클릭할 것은 없습니다."
+zh_cn = "{npc:250842}死在{npc:250657}旁边的围墙墓地里：清掉那里的怪物，站到他的尸体旁即可，无需点击任何东西。"
+zh_tw = "{npc:250842}死在{npc:250657}旁邊的圍牆墓地裡：清掉那裡的怪物，站到他的屍體旁即可，無需點擊任何東西。"
+
+# As Above, So Below: the Shadowvale undead are in an underground catacomb whose entrance is hidden inside a burned house.
+[[note]]
+quest = 99152
+phase = "objective"
+objective = 1
+level = "info"
+editions = ["forever"]
+en = "The undead that drop the bones are underground: the catacomb entrance is inside a burned house at about 13, 65."
+fr = "Les morts-vivants qui lâchent les os sont sous terre : l'entrée des catacombes se trouve dans une maison incendiée, vers 13 65."
+de = "Die Untoten, die die Knochen fallen lassen, sind unter der Erde: Der Eingang zu den Katakomben liegt in einem abgebrannten Haus bei etwa 13, 65."
+es = "Los no-muertos que sueltan los huesos están bajo tierra: la entrada a las catacumbas está dentro de una casa quemada, hacia 13, 65."
+pt = "Os mortos-vivos que derrubam os ossos ficam no subsolo: a entrada das catacumbas fica dentro de uma casa queimada, por volta de 13, 65."
+ru = "Нежить, с которой падают кости, находится под землёй: вход в катакомбы — в сгоревшем доме примерно в 13, 65."
+ko = "뼈를 떨어뜨리는 언데드는 지하에 있습니다. 지하 묘지 입구는 약 13, 65의 불탄 집 안에 있습니다."
+zh_cn = "掉落骨头的亡灵在地下：地下墓穴的入口在大约13, 65处一座烧毁的房子里。"
+zh_tw = "掉落骨頭的不死族在地下：地下墓穴的入口在大約13, 65處一座燒毀的房子裡。"
+
+# Discipline: the item counts on any Deathguard of Deathknell or around Brill, not only the quest's listed one.
+[[note]]
+quest = 99134
+phase = "objective"
+objective = 1
+level = "info"
+editions = ["forever"]
+en = "The quest item works on any Deathguard in {zone:154} or around Brill, not only the one the map shows."
+fr = "L'objet de quête fonctionne sur n'importe quel garde de la Mort du {zone:154} ou des environs de Brill, pas seulement celui que montre la carte."
+de = "Der Questgegenstand wirkt auf jede Todeswache in {zone:154} oder rund um Brill, nicht nur auf die auf der Karte."
+es = "El objeto de misión funciona con cualquier guardia de la Muerte de {zone:154} o de los alrededores de Rémol, no solo con el que muestra el mapa."
+pt = "O item de missão funciona em qualquer guarda da morte de {zone:154} ou dos arredores de Brill, não só no que o mapa mostra."
+ru = "Предмет задания действует на любого стража смерти в {zone:154} или около Брилла, а не только на того, что показан на карте."
+ko = "퀘스트 아이템은 지도에 표시된 경비병만이 아니라 {zone:154} 또는 브릴 주변의 모든 죽음의 경비병에게 쓸 수 있습니다."
+zh_cn = "任务物品对{zone:154}或布瑞尔附近的任何亡灵卫兵都有效，不只是地图上标出的那个。"
+zh_tw = "任務物品對{zone:154}或布瑞爾附近的任何亡靈衛兵都有效，不只是地圖上標出的那個。"
+
+# Seeking Refuge: the escort NPC waits at the top of the tower past fast-respawning enemies; while someone escorts him he is gone up to about ten minutes.
+[[note]]
+quest = 99144
+phase = "accept"
+level = "warning"
+editions = ["forever"]
+en = "{npc:275954} waits at the top of the tower, past enemies that respawn quickly. If he is not there, someone is escorting him: he comes back a few minutes later (up to about 10)."
+fr = "{npc:275954} attend au sommet de la tour, après des ennemis qui réapparaissent vite. S'il n'y est pas, quelqu'un l'escorte : il revient quelques minutes plus tard (jusqu'à 10 environ)."
+de = "{npc:275954} wartet oben auf dem Turm, hinter Gegnern mit schnellem Respawn. Ist er nicht da, eskortiert ihn gerade jemand: er kommt ein paar Minuten später zurück (bis etwa 10)."
+es = "{npc:275954} espera en lo alto de la torre, tras enemigos que reaparecen rápido. Si no está, alguien lo está escoltando: vuelve unos minutos después (hasta unos 10)."
+pt = "{npc:275954} espera no alto da torre, depois de inimigos que reaparecem rápido. Se ele não estiver lá, alguém o está escoltando: ele volta alguns minutos depois (até uns 10)."
+ru = "{npc:275954} ждёт на вершине башни, за врагами, которые быстро возрождаются. Если его нет, кто-то его сопровождает: он вернётся через несколько минут (до 10)."
+ko = "{npc:275954}은(는) 빠르게 재생성되는 적들을 지나 탑 꼭대기에서 기다립니다. 없다면 누군가 그를 호위하는 중이니 몇 분 뒤(최대 약 10분)에 돌아옵니다."
+zh_cn = "{npc:275954}在塔顶等候，途中的敌人刷新很快。如果他不在，说明有人正在护送他：几分钟后（最多约10分钟）他会回来。"
+zh_tw = "{npc:275954}在塔頂等候，途中的敵人重生很快。如果他不在，表示有人正在護送他：幾分鐘後（最多約10分鐘）他會回來。"

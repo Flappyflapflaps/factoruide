@@ -72,6 +72,8 @@ pub fn run(conn: &Connection, opts: &ReadyOptions) -> Result<()> {
                 start: None,
                 required_quests: vec![],
                 mate_professions: vec![],
+                objectives: vec![],
+                dungeon: None,
             };
             let outcome = job::plan(conn, &overrides, &request, &|m| {
                 if let Some(m) = m.status()

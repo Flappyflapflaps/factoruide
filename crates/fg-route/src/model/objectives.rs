@@ -6,9 +6,9 @@ use super::entities::{alternatives, best_cluster};
 use super::givers::Givers;
 use super::sources::{
     ObjectiveKind, QuestRow, SourceKind, asks_for_work, count_for, on_reachable, one_place, parse_requirements,
-    talks_to, tames,
+    reads_as_delivery, talks_to, tames,
 };
-use super::types::{EntityKind, Guard, Loc, Objective, Spots};
+use super::types::{EntityKind, Guard, Loc, Objective, Pool, Spots};
 use crate::world::Pos;
 use std::collections::HashMap;
 
@@ -70,6 +70,7 @@ impl Objective {
             pull: 1.0,
             spawns: 0,
             pack: 1.0,
+            pool: Pool::default(),
             spots: None,
             guard: Guard::default(),
             beside_giver: false,
@@ -97,6 +98,15 @@ impl QuestBuilder<'_> {
         {
             // Taken during the run of its prerequisite and handed in outside: nothing of its own.
             if self.follows_in_the_run(r.id, d) {
+                return Ok(Vec::new());
+            }
+            // Given, handed in or started from a drop inside: that stop is in the dungeon. A
+            // delivery ("Speak with Nara Wildmane", given and handed in in Thunder Bluff): nothing
+            // in it. Either way no run of its own, which would come after the quests leading to it.
+            let inside = |l: &Loc| l.inside.is_some_and(|i| usize::from(i) == d);
+            let delivery = (r.objectives_text.as_deref())
+                .is_some_and(|t| reads_as_delivery(t, givers.ends.iter().map(|l| l.name.as_str())));
+            if delivery || givers.start_dungeon == Some(d) || givers.starts.iter().chain(&givers.ends).any(inside) {
                 return Ok(Vec::new());
             }
             let name = self.sources.dungeons[d].name.clone();
@@ -288,6 +298,13 @@ impl QuestBuilder<'_> {
             .and_then(|s| self.sources.dungeon_by_area.get(&s).copied());
         let kind = *kind;
         let d = match kind {
+            // Someone to talk to who lives outside only (Earthen Echo's Muln Earthfury, in Mulgore):
+            // talked to there, the quest filed under a dungeon or not.
+            ObjectiveKind::Talk
+                if self.has_points(kind.entity(), target) && self.dungeon_of(kind.entity(), target).is_none() =>
+            {
+                None
+            }
             ObjectiveKind::Creature
             | ObjectiveKind::KillCredit
             | ObjectiveKind::Talk
@@ -585,9 +602,16 @@ impl QuestBuilder<'_> {
     }
 
     /// Reach an area. Its points: `extra` = {zone: [[x, y], ...]}, a point `[x, y, z]` with its
-    /// height when known (its area trigger's).
+    /// height when known (its area trigger's), and `seconds` what is done there takes (a rogue's
+    /// infiltration of Shadowfang Keep alone, 25 minutes).
     fn explore(&self, quest: &QuestContext<'_>, text: Option<String>, extra: Option<&str>) -> Result<Objective, Skip> {
-        let area: HashMap<String, Vec<Vec<f64>>> = extra.and_then(|e| serde_json::from_str(e).ok()).unwrap_or_default();
+        let json: serde_json::Map<String, serde_json::Value> =
+            extra.and_then(|e| serde_json::from_str(e).ok()).unwrap_or_default();
+        let seconds = json.get("seconds").and_then(serde_json::Value::as_f64).unwrap_or(5.0);
+        let area: HashMap<String, Vec<Vec<f64>>> = (json.into_iter())
+            .filter(|(z, _)| z.parse::<i64>().is_ok())
+            .filter_map(|(z, pts)| Some((z, serde_json::from_value(pts).ok()?)))
+            .collect();
         let points: Vec<_> = area
             .iter()
             .flat_map(|(z, pts)| {
@@ -618,7 +642,7 @@ impl QuestBuilder<'_> {
         Ok(Objective::plain(
             loc,
             text.unwrap_or_else(|| "Explore the area".into()),
-            5.0,
+            seconds,
         ))
     }
 

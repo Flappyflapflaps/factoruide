@@ -164,6 +164,7 @@ FG.Locales.zhCN = {
     ["windows locked"] = "窗口已锁定",
     ["windows unlocked: drag them to move them"] = "窗口已解锁：拖动即可移动",
     ["for %s"] = "仅限%s",
+    ["Level %d recommended, you are %d"] = "建议等级 %d，你是 %d 级",
     ["marked done, waiting for %s"] = "已标记完成，等待%s",
     ["%s: step %d"] = "%s：第%d步",
     ["%s ahead: step %d"] = "%s领先：第%d步",
@@ -252,4 +253,8 @@ FG.Locales.zhCN = {
     ["  starts inside: %s"] = "  在里面开始：%s",
     ["no dungeon ahead in the guide"] = "指南中后面没有地下城",
     ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg 会在聊天中写好组队消息（按回车发送）",
+    ["dungeon left aside: %s (%d steps; to undo: the “Undo the last mark” key)"] = "已跳过地下城：%s（%d 步；撤销：“撤销上一个标记”键）",
+    ["%s: %d steps left"] = "%s：剩余 %d 步",
+    ["Skip the dungeon"] = "跳过地下城",
+    ["Mark the dungeon's steps not done as done: its quests not finished are left aside."] = "将地下城中未完成的步骤标记为完成：其未完成的任务被搁置。",
 }

@@ -1,0 +1,187 @@
+# Quest notes of Arathi Highlands. See notes/README.md for the format.
+
+# Stones of Binding: the turn-in is the small stone next to the central crystal of the Circle of Inner Binding.
+[[note]]
+quest = 651
+phase = "turnin"
+level = "info"
+en = "Hand the keys in at the small {object:2702} beside the big glowing crystal, not at the crystal itself."
+fr = "Rendez les clés à la petite {object:2702} à côté du grand cristal lumineux, pas au cristal lui-même."
+de = "Gib die Schlüssel am kleinen {object:2702} neben dem großen leuchtenden Kristall ab, nicht am Kristall selbst."
+es = "Entrega las llaves en la pequeña {object:2702} junto al gran cristal brillante, no en el propio cristal."
+pt = "Entregue as chaves na pequena {object:2702} ao lado do grande cristal brilhante, não no cristal em si."
+ru = "Сдавайте ключи у небольшого объекта «{object:2702}» рядом с большим светящимся кристаллом, а не у самого кристалла."
+ko = "열쇠는 크게 빛나는 수정이 아니라 그 옆의 작은 {object:2702}에 반납하세요."
+zh_cn = "把钥匙交给大发光水晶旁边那块小的{object:2702}，而不是水晶本身。"
+zh_tw = "把鑰匙交給大發光水晶旁邊那塊小的{object:2702}，而不是水晶本身。"
+
+# Stones of Binding: burning exiles drop charms against thundering ones, thundering against cresting, cresting against burning.
+[[note]]
+quest = 651
+phase = "objective"
+level = "info"
+en = "Exiles drop charms that banish another kind of exile: do the west circle ({npc:2760}), then the outer one ({npc:2762}), then the east one ({npc:2761}), using each circle's charms at the next. Keep spares for the end of the chain."
+fr = "Les exilés laissent tomber des charmes qui bannissent un autre type d'exilé : faites le cercle ouest ({npc:2760}), puis l'extérieur ({npc:2762}), puis l'est ({npc:2761}), en utilisant les charmes de chaque cercle au suivant. Gardez-en pour la fin de la chaîne."
+de = "Verbannte lassen Talismane fallen, die eine andere Art bannen: Erledige den Westkreis ({npc:2760}), dann den äußeren ({npc:2762}), dann den östlichen ({npc:2761}) und nutz die Talismane jedes Kreises beim nächsten. Heb Reste fürs Ende der Questreihe auf."
+es = "Los exiliados sueltan amuletos que destierran a otro tipo de exiliado: haz el círculo oeste ({npc:2760}), luego el exterior ({npc:2762}) y luego el este ({npc:2761}), usando los amuletos de cada círculo en el siguiente. Guarda algunos para el final de la cadena."
+pt = "Os exilados deixam cair amuletos que banem outro tipo de exilado: faça o círculo oeste ({npc:2760}), depois o externo ({npc:2762}) e depois o leste ({npc:2761}), usando os amuletos de cada círculo no seguinte. Guarde alguns para o fim da sequência."
+ru = "Изгнанники роняют амулеты, изгоняющие другой вид изгнанников: сначала западный круг ({npc:2760}), затем внешний ({npc:2762}), затем восточный ({npc:2761}), используя амулеты каждого круга в следующем. Оставьте запас на конец цепочки."
+ko = "추방자들은 다른 종류의 추방자를 퇴치하는 부적을 떨어뜨립니다. 서쪽 마법진({npc:2760}), 외곽 마법진({npc:2762}), 동쪽 마법진({npc:2761}) 순으로 진행하며 각 마법진의 부적을 다음 곳에 쓰세요. 연계 퀘스트 마지막을 위해 남는 것은 보관하세요."
+zh_cn = "流放者会掉落能放逐另一种流放者的符咒：按西边法阵（{npc:2760}）、外围法阵（{npc:2762}）、东边法阵（{npc:2761}）的顺序进行，把每处得到的符咒用在下一处。留一些给任务链的最后一步。"
+zh_tw = "流放者會掉落能放逐另一種流放者的符咒：按西邊法陣（{npc:2760}）、外圍法陣（{npc:2762}）、東邊法陣（{npc:2761}）的順序進行，把每處得到的符咒用在下一處。留一些給任務鏈的最後一步。"
+
+# Sunken Treasure: fighting inside the cave lets the professor join in and elementals keep coming; pull them out of the cave.
+[[note]]
+quest = 665
+phase = "objective"
+objective = 1
+level = "warning"
+en = "Wait at the cave mouth: when the water elementals appear, pull them outside, away from {npc:2768}, and keep them busy until he finishes. If he joins the fight, more keep spawning: abandon and retake the quest."
+fr = "Attendez à l'entrée de la grotte : quand les élémentaires d'eau apparaissent, attirez-les dehors, loin de {npc:2768}, et occupez-les jusqu'à ce qu'il ait fini. S'il se joint au combat, d'autres arrivent sans fin : abandonnez la quête et reprenez-la."
+de = "Warte am Höhleneingang: Wenn die Wasserelementare erscheinen, zieh sie nach draußen, weg von {npc:2768}, und beschäftige sie, bis er fertig ist. Mischt er im Kampf mit, kommen immer neue: Brich die Quest ab und nimm sie neu an."
+es = "Espera en la entrada de la cueva: cuando aparezcan los elementales de agua, sácalos fuera, lejos de {npc:2768}, y entretenlos hasta que termine. Si él entra en combate, no dejan de aparecer más: abandona la misión y vuelve a aceptarla."
+pt = "Espere na entrada da caverna: quando os elementais da água surgirem, puxe-os para fora, longe de {npc:2768}, e ocupe-os até ele terminar. Se ele entrar na luta, surgem mais sem parar: abandone a missão e aceite-a de novo."
+ru = "Ждите у входа в пещеру: когда появятся водяные элементали, выманите их наружу, подальше от персонажа {npc:2768}, и занимайте их, пока он не закончит. Если он вступит в бой, они будут появляться снова и снова: откажитесь от задания и возьмите его заново."
+ko = "동굴 입구에서 기다리세요. 물의 정령이 나타나면 {npc:2768}에게서 떨어진 바깥으로 끌어내 그가 작업을 마칠 때까지 붙잡아 두세요. 그가 전투에 끼어들면 정령이 끝없이 나오니 퀘스트를 포기하고 다시 받으세요."
+zh_cn = "在洞口等待：水元素出现后，把它们拉到洞外，远离{npc:2768}，并拖住它们直到他完成工作。如果他加入战斗，元素会不断刷新：放弃任务后重新接取。"
+zh_tw = "在洞口等待：水元素出現後，把它們拉到洞外，遠離{npc:2768}，並拖住它們直到他完成工作。如果他加入戰鬥，元素會不斷重生：放棄任務後重新接取。"
+
+# Sunken Treasure: with the goggles on, the gems that are up show on the minimap.
+[[note]]
+quest = 666
+phase = "objective"
+objective = 1
+level = "info"
+en = "Wear {item:4491}: the gem nodes then show on your minimap, and only those are really there. Bring water breathing if you can."
+fr = "Portez {item:4491} : les gisements de gemmes apparaissent alors sur votre minicarte, et seuls ceux-là sont vraiment présents. Emportez de quoi respirer sous l'eau si possible."
+de = "Setz {item:4491} auf: Dann erscheinen die Edelsteinfundorte auf deiner Minikarte, und nur diese sind wirklich da. Nimm wenn möglich etwas für Wasseratmung mit."
+es = "Ponte {item:4491}: los nodos de gemas aparecerán en tu minimapa, y solo esos están realmente ahí. Lleva respiración acuática si puedes."
+pt = "Use {item:4491}: os pontos de gemas aparecem no seu minimapa, e só esses estão mesmo lá. Leve respiração aquática se puder."
+ru = "Наденьте {item:4491}: тогда самоцветы появятся на миникарте, и только они действительно на месте. По возможности возьмите средство подводного дыхания."
+ko = "{item:4491}를 착용하세요. 그러면 보석 위치가 미니맵에 표시되며, 표시된 것만 실제로 있습니다. 가능하면 수중 호흡 수단을 챙기세요."
+zh_cn = "戴上{item:4491}：宝石位置会显示在小地图上，只有显示出来的才真的存在。可以的话带上水下呼吸。"
+zh_tw = "戴上{item:4491}：寶石位置會顯示在小地圖上，只有顯示出來的才真的存在。可以的話帶上水下呼吸。"
+
+# Deep Sea Salvage: the four items are inside the two wrecks and hard to see; where each one lies.
+[[note]]
+quest = 662
+phase = "objective"
+level = "info"
+en = "The four items blend into the wrecks. Eastern ship, middle deck: the log in a half barrel near the stairs, the charts on the ledge around the mast. Western ship: the charts on crates by a cannon, middle deck, the log on the sand in the hold."
+fr = "Les quatre objets se confondent avec les épaves. Navire est, pont du milieu : le journal dans un demi-tonneau près de l'escalier, les cartes sur le rebord autour du mât. Navire ouest : les cartes sur des caisses près d'un canon, pont du milieu, le journal sur le sable de la cale."
+de = "Die vier Gegenstände sind in den Wracks kaum zu sehen. Östliches Schiff, mittleres Deck: das Logbuch in einem halben Fass bei der Treppe, die Karten auf dem Sims um den Mast. Westliches Schiff: die Karten auf Kisten bei einer Kanone, mittleres Deck, das Logbuch im Sand im Laderaum."
+es = "Los cuatro objetos se confunden con los barcos hundidos. Barco del este, cubierta central: el diario en un medio barril junto a la escalera, las cartas en el saliente del mástil. Barco del oeste: las cartas sobre cajas junto a un cañón, cubierta central, y el diario en la arena de la bodega."
+pt = "Os quatro itens se confundem com os naufrágios. Navio do leste, convés do meio: o diário num meio barril perto da escada, as cartas na saliência ao redor do mastro. Navio do oeste: as cartas sobre caixotes perto de um canhão, convés do meio, e o diário na areia do porão."
+ru = "Все четыре предмета сливаются с обломками. Восточный корабль, средняя палуба: журнал в половине бочки у лестницы, карты на выступе вокруг мачты. Западный корабль: карты на ящиках у пушки на средней палубе, журнал на песке в трюме."
+ko = "네 물건은 난파선과 색이 비슷해 잘 안 보입니다. 동쪽 배 중간 갑판: 계단 근처 반쪽 통 안에 항해 일지, 돛대 둘레 선반에 항해도. 서쪽 배: 중간 갑판 대포 옆 상자 위에 항해도, 선창 바닥 모래 위에 항해 일지."
+zh_cn = "四件物品与沉船颜色相近。东边的船中层甲板：航海日志在楼梯旁的半截木桶里，航海图在桅杆周围的台沿上。西边的船：航海图在中层甲板大炮旁的箱子上，航海日志在底舱的沙地上。"
+zh_tw = "四件物品與沉船顏色相近。東邊的船中層甲板：航海日誌在樓梯旁的半截木桶裡，航海圖在桅杆周圍的台沿上。西邊的船：航海圖在中層甲板大砲旁的箱子上，航海日誌在底艙的沙地上。"
+
+# Breaking the Keystone: Fozruk wanders with three kobold guards (one casts sleep); the turn-in at the Keystone spawns the elite giant Thenan.
+[[note]]
+quest = 652
+level = "warning"
+en = "{npc:2611} carries {item:4469} and roams around the zone with three kobold guards, one of which casts sleep. Turning in at {object:2688} spawns {npc:2763}, an elite giant: be ready, or walk away until he leaves."
+fr = "{npc:2611} porte {item:4469} et parcourt la zone avec trois gardes kobolds, dont un lance un sommeil. Rendre la quête à {object:2688} fait apparaître {npc:2763}, un géant élite : soyez prêt, ou éloignez-vous jusqu'à ce qu'il parte."
+de = "{npc:2611} trägt {item:4469} und zieht mit drei Koboldwachen durch das Gebiet, von denen eine Schlaf wirkt. Die Abgabe bei {object:2688} lässt {npc:2763} erscheinen, einen Elite-Riesen: sei bereit oder geh weg, bis er verschwindet."
+es = "{npc:2611} lleva {item:4469} y recorre la zona con tres guardias kóbold, uno de los cuales lanza sueño. Entregar la misión en {object:2688} hace aparecer a {npc:2763}, un gigante élite: prepárate o aléjate hasta que se vaya."
+pt = "{npc:2611} carrega {item:4469} e percorre a zona com três guardas kobolds, um dos quais lança sono. Entregar a missão em {object:2688} faz surgir {npc:2763}, um gigante de elite: esteja pronto ou afaste-se até ele ir embora."
+ru = "{npc:2611} носит {item:4469} и бродит по зоне с тремя кобольдами-стражами, один из которых усыпляет. Сдача задания у {object:2688} вызывает {npc:2763}, элитного великана: будьте готовы или отойдите, пока он не исчезнет."
+ko = "{npc:2611}는 {item:4469}을 지니고 코볼트 경비병 셋과 지역을 돌아다니며, 그중 하나는 수면을 겁니다. {object:2688}에서 퀘스트를 완료하면 정예 거인 {npc:2763}이 나타납니다. 대비하거나 그가 사라질 때까지 물러나세요."
+zh_cn = "{npc:2611}带着{item:4469}，与三名狗头人护卫在区域内游荡，其中一名会施放催眠。在{object:2688}交任务会召出精英巨人{npc:2763}：做好准备，或走开等他消失。"
+zh_tw = "{npc:2611}帶著{item:4469}，與三名狗頭人護衛在區域內遊蕩，其中一名會施放催眠。在{object:2688}交任務會召出精英巨人{npc:2763}：做好準備，或走開等他消失。"
+
+# Summoning the Princess: Myzrael is an elite who keeps summoning adds; the scroll is consumed and she despawns after about 10 minutes, a new scroll comes from re-taking the quest.
+[[note]]
+quest = 656
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:2755} is an elite who keeps calling elemental adds: bring a group, focus her and ignore the adds. {item:4472} is used up and she leaves after about 10 minutes: to try again, abandon the quest and take it again from {npc:2785} in {zone:3}."
+fr = "{npc:2755}, une élite, invoque sans cesse des élémentaires : venez en groupe et frappez-la elle seule. {item:4472} est consommé et elle part après 10 minutes environ : pour réessayer, abandonnez la quête et reprenez-la auprès de {npc:2785} ({zone:3})."
+de = "{npc:2755} ist ein Elitegegner und ruft ständig Elementare herbei: komm mit einer Gruppe, greif nur sie an und ignoriere die Helfer. {item:4472} wird verbraucht, und sie verschwindet nach etwa 10 Minuten: für einen neuen Versuch die Quest abbrechen und bei {npc:2785} ({zone:3}) neu annehmen."
+es = "{npc:2755} es una élite que no deja de invocar elementales: ve en grupo, céntrate en ella e ignora los esbirros. {item:4472} se gasta y ella se va tras unos 10 minutos: para reintentarlo, abandona la misión y vuelve a aceptarla de {npc:2785} en {zone:3}."
+pt = "{npc:2755} é uma elite que invoca elementais sem parar: vá em grupo, foque nela e ignore os ajudantes. {item:4472} é consumido e ela vai embora após uns 10 minutos: para tentar de novo, abandone a missão e pegue-a outra vez com {npc:2785} em {zone:3}."
+ru = "{npc:2755} — элитный противник, постоянно призывающий элементалей: приходите группой, бейте ее и не отвлекайтесь на помощников. {item:4472} расходуется, а она исчезает примерно через 10 минут: для новой попытки отмените задание и возьмите его снова у {npc:2785} ({zone:3})."
+ko = "{npc:2755}은(는) 정령을 계속 불러내는 정예입니다. 파티를 꾸려 그녀만 집중 공격하고 정령은 무시하세요. {item:4472}은(는) 사용하면 사라지고 그녀는 약 10분 뒤 떠납니다. 다시 하려면 퀘스트를 포기하고 {zone:3}의 {npc:2785}에게서 다시 받으세요."
+zh_cn = "{npc:2755}是精英，会不断召唤元素帮手：组队前往，集中攻击她，无视帮手。{item:4472}使用后就会消失，她约10分钟后离开：若要重试，放弃任务，再到{zone:3}找{npc:2785}重新接取。"
+zh_tw = "{npc:2755}是精英，會不斷召喚元素幫手：組隊前往，集中攻擊她，無視幫手。{item:4472}使用後就會消失，她約10分鐘後離開：若要重試，放棄任務，再到{zone:3}找{npc:2785}重新接取。"
+
+# Worth Its Weight in Gold: the shadow hunters live only in the cave south-east of Witherbark Village; its entrance is reached by a trail past two snake statues.
+[[note]]
+quest = 691
+phase = "objective"
+objective = 3
+level = "info"
+en = "{npc:2557} is found only inside a cave in the hills south-east of the troll village, and its mouth is hard to spot: follow the trail past two snake statues to reach it."
+fr = "{npc:2557} ne se trouve que dans une grotte des collines au sud-est du village troll, dont l'entrée est difficile à repérer : suivez le sentier qui passe devant deux statues de serpent pour l'atteindre."
+de = "{npc:2557} findest du nur in einer Höhle in den Hügeln südöstlich des Trolldorfs, deren Eingang schwer zu sehen ist: Folge dem Pfad an zwei Schlangenstatuen vorbei, um sie zu erreichen."
+es = "{npc:2557} solo se encuentra dentro de una cueva en las colinas al sudeste del poblado trol, y su entrada es difícil de ver: sigue el sendero que pasa junto a dos estatuas de serpiente para llegar."
+pt = "{npc:2557} só é encontrado dentro de uma caverna nas colinas a sudeste da aldeia troll, e a entrada é difícil de ver: siga a trilha que passa por duas estátuas de serpente para chegar lá."
+ru = "{npc:2557} встречается только в пещере в холмах к юго-востоку от деревни троллей, и вход в неё трудно заметить: идите по тропе мимо двух статуй змей."
+ko = "{npc:2557}은(는) 트롤 마을 남동쪽 언덕의 동굴 안에만 있으며 입구를 찾기 어렵습니다. 뱀 석상 두 개를 지나는 오솔길을 따라가세요."
+zh_cn = "{npc:2557}只在巨魔村庄东南方山丘中的一个洞穴里出现，洞口很难发现：沿着经过两座蛇像的小路走就能到达。"
+zh_tw = "{npc:2557}只在食人妖村莊東南方山丘中的一個洞穴裡出現，洞口很難發現：沿著經過兩座蛇像的小路走就能到達。"
+
+# Items of Power: the charged bramble appears on the center stone and must be looted; dying first loses the sticks.
+[[note]]
+quest = 1948
+phase = "objective"
+objective = 2
+level = "warning"
+en = "After you use {item:7273} at the center stone, {item:7272} appears on the stone instead of going to your bags: loot it before leaving. Dying before you loot it loses both, and the ten sticks must be gathered again."
+fr = "Après avoir utilisé {item:7273} à la pierre centrale, {item:7272} apparaît sur la pierre au lieu d'aller dans vos sacs : ramassez-le avant de partir. Si vous mourez avant, vous perdez les deux et devez récupérer à nouveau les dix bâtons."
+de = "Nachdem du {item:7273} am mittleren Stein benutzt hast, erscheint {item:7272} auf dem Stein statt in deinen Taschen: Plündere ihn, bevor du gehst. Stirbst du vorher, sind beide weg und du musst die zehn Stecken erneut sammeln."
+es = "Tras usar {item:7273} en la piedra central, {item:7272} aparece sobre la piedra en vez de ir a tus bolsas: recógela antes de irte. Si mueres antes, pierdes ambos y tendrás que reunir de nuevo los diez palos."
+pt = "Depois de usar {item:7273} na pedra central, {item:7272} aparece sobre a pedra em vez de ir para as bolsas: pegue antes de sair. Se você morrer antes, perde os dois e terá de juntar as dez varas de novo."
+ru = "После использования {item:7273} у центрального камня {item:7272} появляется на камне, а не в сумках: заберите его, прежде чем уйти. Если умрёте раньше, потеряете и то и другое и придётся заново собирать десять палочек."
+ko = "가운데 돌에서 {item:7273}을(를) 사용하면 {item:7272}은(는) 가방이 아니라 돌 위에 나타납니다. 떠나기 전에 꼭 챙기세요. 챙기기 전에 죽으면 둘 다 잃고 막대 열 개를 다시 모아야 합니다."
+zh_cn = "在中央石头处使用{item:7273}后，{item:7272}会出现在石头上而不是进入背包：离开前要拾取。拾取前死亡会两样都丢失，必须重新收集十根图腾棒。"
+zh_tw = "在中央石頭處使用{item:7273}後，{item:7272}會出現在石頭上而不是進入背包：離開前要拾取。拾取前死亡會兩樣都遺失，必須重新收集十根圖騰棒。"
+
+# Wanted! Marez Cowl: she appears at one of a few spots in Stromgarde, mostly behind the houses left of the main road, with a stealthed rogue.
+[[note]]
+quest = 684
+phase = "objective"
+objective = 1
+level = "warning"
+en = "{npc:2783} appears at one of a few spots in the ruined town, mostly behind the houses left of the main road, with a stealthed rogue beside her. If she is not at her marker, search the other tier and the southeast corner by the well."
+fr = "{npc:2783} apparaît à l'un de quelques endroits de la ville en ruine, surtout derrière les maisons à gauche de la rue principale, avec un voleur camouflé à ses côtés. Si elle n'est pas à son repère, cherchez à l'autre niveau et dans le coin sud-est près du puits."
+de = "{npc:2783} erscheint an einer von wenigen Stellen der zerstörten Stadt, meist hinter den Häusern links der Hauptstraße, mit einem getarnten Schurken neben sich. Ist sie nicht an ihrer Markierung, such auf der anderen Ebene und in der Südostecke am Brunnen."
+es = "{npc:2783} aparece en uno de varios sitios de la ciudad en ruinas, sobre todo tras las casas a la izquierda de la calle principal, con un pícaro sigiloso a su lado. Si no está en su marca, busca en el otro nivel y en la esquina sureste junto al pozo."
+pt = "{npc:2783} surge em um de poucos pontos da cidade em ruínas, quase sempre atrás das casas à esquerda da rua principal, com um ladino furtivo ao lado. Se ela não estiver no marcador, procure no outro nível e no canto sudeste, perto do poço."
+ru = "{npc:2783} появляется в одном из нескольких мест разрушенного города, чаще всего за домами слева от главной улицы, рядом с ней незаметный разбойник. Если ее нет у метки, поищите на другом ярусе и в юго-восточном углу у колодца."
+ko = "{npc:2783}은(는) 폐허 도시의 몇몇 장소 중 한 곳에 나타나며, 주로 큰길 왼쪽 집들 뒤에 은신한 도적과 함께 있습니다. 표시된 위치에 없으면 다른 층과 우물 옆 남동쪽 구석을 찾아보세요."
+zh_cn = "{npc:2783}会在废墟城镇里几个地点之一出现，多半在主路左侧的房屋后面，身边有一个潜行的盗贼。如果她不在标记处，就去另一层和东南角的井边找找。"
+zh_tw = "{npc:2783}會在廢墟城鎮裡幾個地點之一出現，多半在主路左側的房屋後面，身邊有一個潛行的盜賊。如果她不在標記處，就去另一層和東南角的井邊找找。"
+
+# Attack on the Tower: opening each of Trelane's chests calls in 3 to 5 elite ogres at the chest.
+[[note]]
+quest = 696
+phase = "objective"
+level = "warning"
+en = "Opening {object:2717}, {object:2718} or {object:2716}, one per floor of the tower, calls in 3 to 5 elite ogres at the chest. Loot and get away at once; dying inside the tower and coming back for the next chest also works."
+fr = "Ouvrir {object:2717}, {object:2718} ou {object:2716}, un par étage de la tour, fait venir 3 à 5 ogres élites près du coffre. Pillez et partez aussitôt ; mourir dans la tour et revenir pour le coffre suivant marche aussi."
+de = "Das Öffnen von {object:2717}, {object:2718} oder {object:2716}, je eins pro Stockwerk des Turms, ruft 3 bis 5 Elite-Oger an die Truhe. Plündere und verschwinde sofort; im Turm zu sterben und für die nächste Truhe zurückzukommen, klappt auch."
+es = "Abrir {object:2717}, {object:2718} o {object:2716}, uno por piso de la torre, hace aparecer de 3 a 5 ogros élite junto al cofre. Saquea y aléjate enseguida; morir dentro de la torre y volver a por el siguiente cofre también funciona."
+pt = "Abrir {object:2717}, {object:2718} ou {object:2716}, um por andar da torre, chama de 3 a 5 ogros elite junto ao baú. Saqueie e saia na hora; morrer dentro da torre e voltar para o próximo baú também funciona."
+ru = "Открытие {object:2717}, {object:2718} или {object:2716} (по одному на этаж башни) вызывает к сундуку от 3 до 5 элитных огров. Забирайте добычу и сразу уходите; можно и умереть в башне, а затем вернуться за следующим сундуком."
+ko = "탑의 층마다 하나씩 있는 {object:2717}, {object:2718}, {object:2716}을(를) 열면 상자 옆에 정예 오우거 3~5마리가 나타납니다. 챙기고 바로 빠지세요. 탑 안에서 죽은 뒤 다음 상자를 위해 돌아오는 방법도 통합니다."
+zh_cn = "打开{object:2717}、{object:2718}或{object:2716}（塔的每层各一个）会在箱子旁召来3到5个精英食人魔。拿完立刻离开；死在塔里再回来开下一个箱子也行。"
+zh_tw = "打開{object:2717}、{object:2718}或{object:2716}（塔的每層各一個）會在箱子旁召來3到5個精英食人魔。拿完立刻離開；死在塔裡再回來開下一個箱子也行。"
+
+# Eagle's Fist: the Messenger Bag is on top of Thoradin's Wall; the way up is a jumping path from the broken cart leaning on the wall on the Hillsbrad side, just north of the gate.
+[[note]]
+quest = 79975
+phase = "turnin"
+level = "info"
+editions = ["forever"]
+en = "The bag is on top of the great wall. Climb from the {zone:267} side, just north of the gate: jump onto the broken cart leaning on the wall, up to the fallen ladder, then from rock to rock to the top."
+fr = "Le sac est au sommet de la grande muraille. Grimpez côté {zone:267}, juste au nord de la porte : sautez sur la charrette cassée appuyée contre le mur, jusqu'à l'échelle tombée, puis de rocher en rocher jusqu'en haut."
+de = "Die Tasche liegt oben auf der großen Mauer. Klettere auf der Seite von {zone:267}, gleich nördlich des Tors: spring auf den kaputten Karren an der Mauer, hoch zur umgefallenen Leiter und dann von Fels zu Fels nach oben."
+es = "La bolsa está en lo alto de la gran muralla. Sube por el lado de {zone:267}, justo al norte de la puerta: salta al carro roto apoyado en el muro, luego a la escalera caída y de roca en roca hasta arriba."
+pt = "A bolsa fica no alto da grande muralha. Suba pelo lado de {zone:267}, logo ao norte do portão: pule na carroça quebrada encostada no muro, depois na escada caída e de pedra em pedra até o topo."
+ru = "Сумка лежит наверху великой стены. Забирайтесь со стороны локации {zone:267}, чуть севернее ворот: прыгните на сломанную телегу у стены, затем на упавшую лестницу и по камням наверх."
+ko = "가방은 거대한 성벽 꼭대기에 있습니다. 성문 바로 북쪽, {zone:267} 쪽에서 올라가세요. 성벽에 기대 있는 부서진 수레에 뛰어오른 뒤 쓰러진 사다리로, 이어서 바위를 차례로 밟고 꼭대기까지 오르세요."
+zh_cn = "包裹在大城墙顶上。从{zone:267}一侧、城门北边不远处往上爬：跳上靠在墙边的破马车，再到倒下的梯子上，然后踩着岩石一路跳到顶。"
+zh_tw = "包裹在大城牆頂上。從{zone:267}一側、城門北邊不遠處往上爬：跳上靠在牆邊的破馬車，再到倒下的梯子上，然後踩著岩石一路跳到頂。"

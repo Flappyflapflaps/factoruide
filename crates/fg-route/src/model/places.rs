@@ -41,8 +41,7 @@ impl Places {
         inns.push(start.clone());
         let start_inn = inns.len() - 1;
         let trainers = finder.with_subname(&format!("{} Trainer", profile.class_name))?;
-        // The vendor flag of the client the data was read from (1.12 for Classic and Forever).
-        let vendors = finder.with_flag(if edition == crate::xp::Edition::Tbc { 128 } else { 4 })?;
+        let vendors = finder.vendors(edition, profile)?;
         let profession_trainers = if profession_trainers {
             finder.profession_trainers(edition)?
         } else {
@@ -214,8 +213,8 @@ impl NpcFinder<'_> {
             .collect())
     }
 
-    /// NPCs with an NPC flag (`npc_flags`) friendly to the character; none without the column.
-    fn with_flag(&self, flag: i64) -> Result<Vec<Loc>> {
+    /// Friendly vendors, excluding known class-gated shops the whole group cannot open.
+    fn vendors(&self, edition: crate::xp::Edition, profile: &Profile) -> Result<Vec<Loc>> {
         let known: bool = self.conn.query_row(
             "SELECT count(*) > 0 FROM pragma_table_info('m_npc') WHERE name = 'npc_flags'",
             [],
@@ -224,13 +223,27 @@ impl NpcFinder<'_> {
         if !known {
             return Ok(Vec::new());
         }
+        // The vendor flag of the client the data was read from (1.12 for Classic and Forever).
+        let flag = if edition == crate::xp::Edition::Tbc { 128 } else { 4 };
         let mut stmt = self.conn.prepare(
-            "SELECT id FROM m_npc WHERE (npc_flags & ?1) != 0 AND (friendly_to IS NULL OR instr(friendly_to, ?2) > 0)",
+            "SELECT id, coalesce(subname, '') FROM m_npc
+             WHERE (npc_flags & ?1) != 0 AND (friendly_to IS NULL OR instr(friendly_to, ?2) > 0)",
         )?;
-        let ids: Vec<i64> = stmt
-            .query_map(rusqlite::params![flag, self.faction], |r| r.get(0))?
+        let rows: Vec<(i64, String)> = stmt
+            .query_map(rusqlite::params![flag, self.faction], |r| Ok((r.get(0)?, r.get(1)?)))?
             .collect::<rusqlite::Result<_>>()?;
-        Ok(ids.into_iter().filter_map(|id| self.place(id)).collect())
+        // The demon trainers' shops (and Gorzeeki's, who has no title) open for warlocks only,
+        // though the NPCs carry the vendor flag; seen in game on WoW Forever. TBC's data does not
+        // show the same restriction.
+        let can_use_warlock_shops =
+            edition == crate::xp::Edition::Tbc || profile.class_ids().into_iter().all(|class| class == 9);
+        Ok(rows
+            .into_iter()
+            .filter(|(id, title)| {
+                can_use_warlock_shops || (*id != 14437 && !matches!(title.as_str(), "Demon Trainer" | "Demon Master"))
+            })
+            .filter_map(|(id, _)| self.place(id))
+            .collect())
     }
 }
 

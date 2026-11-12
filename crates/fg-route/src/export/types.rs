@@ -1,5 +1,6 @@
 //! What a guide is made of: its steps, their kinds and targets, and the route around them.
 
+use super::notes::StepNote;
 use super::phrase::Phrase;
 use crate::faction::Faction;
 use crate::model::EntityKind;
@@ -182,6 +183,13 @@ pub struct Step {
     /// The step's sentences, language-neutral.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub say: Vec<Phrase>,
+    /// How its quest is taken or its objective done (`notes::ICONS`), written with the notes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    /// What the quest notes (`notes/`) tell about it, in the guide's language, the one that
+    /// matters most first: written when the guide is shown or installed (`render`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<StepNote>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target: Option<Target>,
     /// Zone of the step (its English name, written in a language by `render`) and its ID.
@@ -312,6 +320,8 @@ impl Step {
             child_name: None,
             text: String::new(),
             say: Vec::new(),
+            icon: None,
+            notes: Vec::new(),
             target: None,
             zone: None,
             zone_id: None,
@@ -422,6 +432,15 @@ pub struct Route {
     /// when one is missing.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub buffs: Vec<String>,
+    /// An objective guide's quests asking more than the character's level at the start: the
+    /// level recommended (the highest) and those quests. The guide is planned at the
+    /// character's level anyway: the app and the addon warn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recommended: Option<Recommended>,
+    /// An objective guide: its steps' levels are only where the character would be, the addon
+    /// does not leave the steps planned well below the character's level behind.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub levels_ignored: bool,
     pub steps: Vec<Step>,
 }
 
@@ -433,6 +452,22 @@ pub struct Replanned {
     /// When the character asked (unix seconds, the addon's id of the request).
     pub asked: i64,
     /// The character's level then.
+    pub level: i64,
+}
+
+/// The level an objective guide's quests ask, above the character's (`Route::recommended`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Recommended {
+    pub level: i64,
+    /// The quests asking more than the character's level, highest first.
+    pub quests: Vec<QuestAbove>,
+}
+
+/// A quest an objective guide does above its level: its ID, name and the level it asks.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuestAbove {
+    pub id: i64,
+    pub name: String,
     pub level: i64,
 }
 

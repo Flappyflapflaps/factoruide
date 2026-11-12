@@ -2,7 +2,7 @@
 //! areas discovered, the mobs and objects of the log met on the way, and what it does while
 //! there (quests turned in and taken around a stop).
 
-use super::Planner;
+use super::Simulator;
 use super::state::{Event, Kind, Landed, Leg, State, Stop};
 use crate::model::{Loc, Met};
 use crate::world::Pos;
@@ -24,7 +24,8 @@ pub(crate) type FarmKey = (u64, [u64; 5]);
 pub(crate) type FarmWalks = std::cell::RefCell<FxHashMap<FarmKey, Rc<[Met]>>>;
 
 /// Walks whose farmed mobs are remembered, beyond which the memo starts over.
-const FARM_MEMO: usize = 1 << 20;
+/// What a table of 2^20 buckets holds (7/8 of them): it never doubles for the last ones.
+const FARM_MEMO: usize = (1 << 20) / 8 * 7;
 
 /// Distance from `p` to the segment `a`-`b` (same continent).
 pub(crate) fn segment_dist(p: &Pos, a: &Pos, b: &Pos) -> f64 {
@@ -38,7 +39,7 @@ pub(crate) fn segment_dist(p: &Pos, a: &Pos, b: &Pos) -> f64 {
     ((p.x - a.x - t * dx).powi(2) + (p.y - a.y - t * dy).powi(2)).sqrt()
 }
 
-impl Planner<'_> {
+impl Simulator<'_> {
     /// Move to `target`, recording how.
     pub(crate) fn go(&self, s: &mut State, target: &Pos, zone: i64, record: &mut impl FnMut(&State, Event)) {
         let start = s.pos;
@@ -225,7 +226,7 @@ impl Planner<'_> {
     /// (the walk there, the spot itself and the walk away from it).
     pub(crate) fn farm_along(&self, s: &mut State, a: &Pos, b: &Pos, record: &mut impl FnMut(&State, Event)) {
         let p = self.params;
-        let all = self.farm_all.replace(false);
+        let all = self.farm_all.is_some_and(|once| once.replace(false));
         if !(p.farm_on_way || all) || p.farm_corridor <= 0.0 || a.continent != b.continent || a == b {
             return;
         }
@@ -304,11 +305,11 @@ impl Planner<'_> {
             head,
             [a.x.to_bits(), a.y.to_bits(), b.x.to_bits(), b.y.to_bits(), heights],
         );
-        if let Some(mobs) = self.farm_walks.borrow().get(&key) {
+        if let Some(mobs) = self.memo.farm_walks.borrow().get(&key) {
             return mobs.clone();
         }
         let mobs = farm();
-        let mut memo = self.farm_walks.borrow_mut();
+        let mut memo = self.memo.farm_walks.borrow_mut();
         if memo.len() >= FARM_MEMO {
             memo.clear();
         }
@@ -325,15 +326,15 @@ impl Planner<'_> {
             return;
         }
         let here = s.pos;
-        if let Some(heres) = self.heres.borrow_mut().as_mut() {
-            heres.push(here);
+        if let Some(heres) = self.heres {
+            heres.borrow_mut().push(here);
         }
         let (cx, cy) = ((here.x / radius).floor() as i64, (here.y / radius).floor() as i64);
         loop {
             let mut best: Option<(f64, Stop, &Loc)> = None;
             for dx in -1..=1 {
                 for dy in -1..=1 {
-                    let Some(cell) = self.camp.get(&(here.continent, cx + dx, cy + dy)) else {
+                    let Some(cell) = self.ix.camp.get(&(here.continent, cx + dx, cy + dy)) else {
                         continue;
                     };
                     // The cheap tests first: the NPC at hand, nearer than the best so far, a
@@ -375,7 +376,7 @@ impl Planner<'_> {
                         let wanted = if start {
                             s.log + 1 + CAMP_LOG_MARGIN <= self.params.quest_log_size
                                 && self.availability().can_accept(s, i)
-                                && !self.blocks[iu].iter().any(|&y| {
+                                && !self.ix.blocks[iu].iter().any(|&y| {
                                     s.planned.flags[y as usize] & 1 != 0
                                         && !s.accepted[y as usize]
                                         && !s.turned[y as usize]

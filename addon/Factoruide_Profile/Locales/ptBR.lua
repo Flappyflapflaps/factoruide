@@ -164,6 +164,7 @@ FG.Locales.ptBR = {
     ["windows locked"] = "janelas travadas",
     ["windows unlocked: drag them to move them"] = "janelas destravadas: arraste-as para movê-las",
     ["for %s"] = "para %s",
+    ["Level %d recommended, you are %d"] = "Nível %d recomendado, você é nível %d",
     ["marked done, waiting for %s"] = "marcada como feita, aguardando %s",
     ["%s: step %d"] = "%s: etapa %d",
     ["%s ahead: step %d"] = "%s adiantado: etapa %d",
@@ -252,4 +253,8 @@ FG.Locales.ptBR = {
     ["  starts inside: %s"] = "  começa lá dentro: %s",
     ["no dungeon ahead in the guide"] = "nenhuma masmorra adiante no guia",
     ["/fg lfg writes the group message in the chat (Enter sends it)"] = "/fg lfg escreve a mensagem de grupo no chat (Enter envia)",
+    ["dungeon left aside: %s (%d steps; to undo: the “Undo the last mark” key)"] = "masmorra deixada de lado: %s (%d etapas; para desfazer: a tecla “Desfazer a última marcação”)",
+    ["%s: %d steps left"] = "%s: faltam %d etapas",
+    ["Skip the dungeon"] = "Pular a masmorra",
+    ["Mark the dungeon's steps not done as done: its quests not finished are left aside."] = "Marca como feitas as etapas não feitas da masmorra: suas missões não terminadas ficam de lado.",
 }

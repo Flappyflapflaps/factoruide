@@ -17,6 +17,7 @@ pub mod power;
 pub mod profession;
 pub mod sync;
 pub mod terrain;
+mod threads;
 #[cfg(any(test, feature = "testing"))]
 pub use model::fixture;
 #[cfg(any(test, feature = "testing"))]

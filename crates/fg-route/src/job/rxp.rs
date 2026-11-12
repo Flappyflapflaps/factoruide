@@ -150,6 +150,8 @@ pub fn import(
         start: None,
         required_quests: Vec::new(),
         mate_professions: Vec::new(),
+        objectives: Vec::new(),
+        dungeon: None,
     };
     let editor = Editor::open(conn, overrides, &request, walks)?;
     let mut report = ImportReport::default();

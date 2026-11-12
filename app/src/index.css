@@ -66,7 +66,6 @@
   --land-hover: rgba(245, 232, 200, 0.9);
   --land-hover-fill: rgba(245, 232, 200, 0.18);
   --map-bg: #0a1522;
-  --game-map: saturate(0.85) brightness(0.9) contrast(0.95);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 13px;
   background: var(--surface-0);
@@ -119,7 +118,6 @@
   --land-hover: rgba(50, 36, 16, 0.85);
   --land-hover-fill: rgba(50, 36, 16, 0.1);
   --map-bg: #d8dee8;
-  --game-map: saturate(0.9) contrast(0.97);
 }
 /* The dark theme's sky by day: a pale blue gradient, the ultramarine light from the left edge and
    a touch of cyan from the top right, softer (no texture). */
@@ -176,7 +174,6 @@
   --land-hover: rgba(50, 36, 16, 0.85);
   --land-hover-fill: rgba(50, 36, 16, 0.1);
   --map-bg: #ddd4c1;
-  --game-map: saturate(0.9) contrast(0.97);
   --edge: linear-gradient(110deg, #9a4a10, #c98a2b);
   --edge-hover: linear-gradient(110deg, #b55a16, #dca040);
   --progress-from: rgba(154, 74, 16, 0.16);
@@ -4087,6 +4084,33 @@ button.link.cmp-jump {
 .sl-tip-why.warn {
   color: var(--warn-text);
 }
+/* Quest notes: a mark after the line and the notes in its bubble, yellow (good to know), orange
+   (watch out) or red (must read). */
+.sl-note-mark {
+  flex: none;
+  font-size: 11px;
+}
+.note-info {
+  --note: var(--warn-text);
+}
+.note-warning {
+  --note: color-mix(in srgb, var(--warn-text) 45%, var(--bad));
+}
+.note-must_read {
+  --note: var(--bad);
+}
+.sl-note-mark {
+  color: var(--note);
+}
+.sl-tip-quest-note {
+  margin-top: 4px;
+  padding-left: 6px;
+  border-left: 2px solid var(--note);
+  color: var(--text-secondary);
+}
+.sl-tip-quest-note b {
+  color: var(--note);
+}
 /* Killing the mobs on the way to an objective: a small toggle, what it gives on hover. */
 .sl-farm-toggle {
   flex: none;
@@ -4152,6 +4176,23 @@ button.link.cmp-jump {
 }
 .gm-layers {
   position: relative;
+}
+/* How many steps are drawn from the current one. */
+.gm-ahead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.gm-ahead input {
+  width: 120px;
+  padding: 0;
+}
+.gm-ahead span {
+  min-width: 44px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
 }
 .gm-menu {
   position: absolute;
@@ -4222,22 +4263,126 @@ button.link.cmp-jump {
   touch-action: none;
   user-select: none;
 }
-.gm-frame:active {
+.gm-frame .leaflet-grab {
+  cursor: grab;
+}
+.gm-frame .leaflet-dragging .leaflet-grab {
   cursor: grabbing;
 }
-.gm-frame > svg {
+/* The Leaflet map filling the frame, our controls over it. */
+.gm-leaflet {
   position: absolute;
   inset: 0;
-  display: block;
+  z-index: 0;
+}
+.gm-leaflet.leaflet-container {
+  background: transparent;
+  font: inherit;
+  outline: none;
 }
 .gm-frame > .error {
   position: absolute;
   inset: 12px auto auto 12px;
+  z-index: 1000;
+}
+/* A seam-free tiling: each tile a hair bigger than its place. */
+.gm-world-tiles .leaflet-tile {
+  width: 513px !important;
+  height: 513px !important;
+}
+/* (Leaflet adds its tiles' colours where they overlap, against seams while they fade in: a light
+   line on these overlapping ones.) */
+.gm-leaflet.leaflet-container img.leaflet-tile {
+  mix-blend-mode: normal;
+}
+/* The map's markers: an SVG each in a Leaflet icon, nothing of Leaflet's own look. */
+.gm-icon {
+  background: none;
+  border: none;
+}
+.gm-svg {
+  display: block;
+  overflow: visible;
+}
+.gm-marker .gm-label,
+.gm-offer .gm-label {
+  display: none;
+}
+.gm-marker.current .gm-label,
+.gm-marker:hover .gm-label,
+.gm-offer:hover .gm-label {
+  display: inline;
+}
+.gm-zone-name {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow:
+    0 0 3px rgba(0, 0, 0, 0.9),
+    0 0 1px #000;
+  pointer-events: none;
+}
+/* The guide's map while it is in a dungeon: the floor's map, the dungeon's steps beside it. */
+.dm-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  background: var(--map-bg);
+}
+.dm-map {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  overflow: auto;
+}
+.dm-map .zone-map-frame {
+  max-height: 100%;
+  margin: 0 auto;
+}
+.dm-map .zone-dot {
+  cursor: pointer;
+}
+.dm-steps {
+  flex: none;
+  width: 300px;
+  margin: 0;
+  padding: 8px 0;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--surface-1);
+  border-left: 1px solid var(--border);
+}
+.dm-steps li button {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 12px;
+  text-align: left;
+  color: var(--text-primary);
+}
+.dm-steps li.active button {
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+.dm-n {
+  flex: none;
+  min-width: 1.6em;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.dm-steps li.active .dm-n {
+  color: inherit;
 }
 /* The game's maps a little softened, as the other maps of the app. */
-.gm-image {
-  filter: var(--game-map);
-}
 .gm-walk,
 .gm-flight,
 .gm-link,
@@ -4265,19 +4410,53 @@ button.link.cmp-jump {
   stroke-width: 1.2;
   stroke-dasharray: 2 6;
 }
-.gm-all path {
+path.gm-all {
   opacity: 0.32;
 }
-.gm-zone path {
+path.gm-zone {
   opacity: 0.8;
 }
-.gm-zone.only path {
+path.gm-zone.only {
   opacity: 0.9;
 }
-.gm-lit path {
+path.gm-lit {
   stroke: #fff;
   stroke-width: 3.2;
-  filter: drop-shadow(0 0 3px rgba(79, 224, 207, 0.9));
+}
+/* Its glow: a wide soft stroke under it (a filter would slow every frame of a pan). */
+path.gm-lit-glow {
+  stroke: rgba(79, 224, 207, 0.45);
+  stroke-width: 8;
+  stroke-dasharray: none;
+}
+/* An island in the sky on the stitched world map: a pale glow round it, a double gold frame. */
+.gm-isle-glow {
+  fill: #bcd6ef;
+  fill-opacity: 1;
+  opacity: 0.12;
+}
+.gm-isle-frame {
+  fill: none;
+  stroke: #6b4a12;
+  stroke-width: 6;
+}
+.gm-isle-frame-in {
+  fill: none;
+  stroke: #e2b84a;
+  stroke-width: 2.5;
+}
+/* The way along the steps drawn: small chevrons over the lines, dark edged to show on any map. */
+path.gm-arrows {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+path.gm-arrows.gm-arrows-under {
+  stroke: rgba(0, 0, 0, 0.75);
+  stroke-width: 4;
 }
 .gm-zone-label {
   fill: #fff;
@@ -4357,6 +4536,7 @@ button.link.cmp-jump {
 }
 .gm-legend {
   position: absolute;
+  z-index: 1000;
   top: 10px;
   left: 10px;
   display: flex;
@@ -4391,6 +4571,7 @@ button.link.cmp-jump {
 }
 .gm-zoom {
   position: absolute;
+  z-index: 1000;
   top: 10px;
   right: 10px;
   display: flex;
@@ -4768,4 +4949,105 @@ button.link.cmp-jump {
   display: inline-block;
   margin-left: 0;
   vertical-align: middle;
+}
+
+/* Dungeon guide page: the recorded characters, the dungeons at the character's level. */
+.dungeon-page .panel {
+  margin-bottom: 14px;
+}
+.dungeon-characters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dungeon-characters button.active,
+.dungeon-characters button.active:hover:not(:disabled) {
+  border-color: var(--accent-edge);
+  background: var(--accent-fill);
+}
+button.dungeon.near:not(.forced) {
+  border-color: var(--accent-edge);
+}
+.dungeon-paste {
+  margin-top: 8px;
+}
+
+/* Objective guide page: the objectives chosen, how to add one, the quests found. */
+.objective-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.objective-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-0);
+}
+.objective-list li .kind {
+  flex: none;
+  min-width: 64px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.objective-list li strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.objective-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.objective-add button.active,
+.objective-add button.active:hover:not(:disabled),
+.quest-picker button.active {
+  border-color: var(--accent-edge);
+  background: var(--accent-fill);
+}
+.zone-picker input,
+.quest-picker input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.zone-picker fieldset {
+  margin: 0 0 10px;
+  border: none;
+  padding: 0;
+}
+.zone-picker legend {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+.quest-picker ul,
+.objective-excluded ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.quest-picker li button {
+  width: 100%;
+  margin-bottom: 4px;
+  text-align: left;
+}
+.objective-excluded {
+  margin-bottom: 10px;
+}
+.objective-name {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0;
 }

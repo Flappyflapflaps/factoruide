@@ -1,13 +1,6 @@
 # Forever-only corrections (format: ../quests.toml).
 
 [[quest]]
-# Northshire: the letter to Tordrin Sternblade, hunter trainer (Forever's new human hunter),
-# not a warrior quest as the sources record it (warriors get Simple Letter, 3100).
-id = 92479
-races_mask = 1
-classes_mask = 4
-
-[[quest]]
 # Trouble in the Valley: Benedict's Orders drop from Corporal Adamore, whose Kul Tiras marines come
 # to his help together and do not chase far (players' reports): the step says how to pull them.
 id = 95621
@@ -23,16 +16,8 @@ pre_all = [95621]
 objectives = [{ type = "creature", id = 261367, amount = 1, text = "Help Walton: defeat Terry Longdrink and the Kul Tiras marines" }]
 
 [[quest]]
-# Redridge: Tharil'zun and Shadow Magic come after Marshal Marris' Forever quests too, not only
-# Blackrock Menace as in Classic (the sources copy Classic's link): with Blackrock Menace and
-# Alther's Mill done but Blackrock Blockade abandoned, Marris offers neither (seen in game,
-# 2026-10-11). The three are in Tharil'zun's series.
-id = 19
-pre_all = [98386, 98387]
-
-[[quest]]
 id = 115
-pre_all = [98386, 98387]
+pre_all = [98386]
 
 [[quest]]
 # Darnassus: In Search of Thaelrid has no race restriction in the sources, but Dawnwatcher
@@ -40,63 +25,22 @@ pre_all = [98386, 98387]
 id = 1198
 races_mask = 4294967373 # the Alliance (Skyborne included)
 
-# Forever's new race and class pairs: their class quests have no class (nor race) in the
-# sources, so every class of the race got them. The race is the one whose start zone or
-# reputation the quest belongs to (client_charbaseinfo for the pairs that exist).
-
-[[quest]]
-# Valley of Trials: the orc mage's letter (Orgrimmar reputation); the troll mage's is Glyphic Tablet.
-id = 98576
-races_mask = 2
-classes_mask = 128
-
-[[quest]]
-# Valley of Trials: the troll warlock's letter (Darkspear reputation).
-id = 98575
-races_mask = 128
-classes_mask = 256
-
-[[quest]]
-# Coldridge Valley: the gnome priest's letter (Gnomeregan reputation).
-id = 98574
-races_mask = 64
-classes_mask = 16
-
-[[quest]]
-# Deathknell and Tirisfal: the undead paladin's letter, then Aramis Hammerhand's, Shari Stilwell's
-# and Hilda the Breaker's quests (paladin trainers). Like the other classes' letters from Shadow
-# Priest Sarvis (3095-3099), it is only offered once The Mindless Ones is done: guides sent
-# players to take it right away (GitHub #26).
-id = 98601
-races_mask = 16
-classes_mask = 2
-pre_any = [364]
+# Forever's new race and class pairs: their class quests had no class nor race in the sources,
+# so every class of the race got them. The sources give their class now; where a race is still
+# set below, it is the one whose start zone or reputation the quest belongs to
+# (client_charbaseinfo for the pairs that exist).
 
 [[quest]]
 # Rediscovering the Light (teaches Holy Light): the sources only describe its objective, so the
 # guides left it out (GitHub #17). The Injured Deathguard around Aramis Hammerhand are healed,
 # not killed.
 id = 90902
-races_mask = 16
-classes_mask = 2
 objectives = [{ type = "talk", id = 259377, amount = 5, text = "Heal Injured Deathguard with Holy Light" }]
 
 [[quest]]
 id = 91208
-races_mask = 16
-classes_mask = 2
 # Coming to Terms: offer aid to the Frightened Paladin west of Deathknell.
 objectives = [{ type = "talk", id = 246143, amount = 1, text = "Offer aid to the Frightened Paladin" }]
-
-[[quest]]
-id = 91209
-races_mask = 16
-classes_mask = 2
-
-[[quest]]
-id = 91282
-races_mask = 16
-classes_mask = 2
 
 [[quest]]
 id = 98389
@@ -127,47 +71,34 @@ pre_all = [96896]
 # caches give them the whole Alliance, and dwarves are its only shamans (client_charbaseinfo).
 id = 94449
 races_mask = 4
-classes_mask = 64
 
 [[quest]]
 id = 94465
 races_mask = 4
-classes_mask = 64
-
-[[quest]]
-id = 94466
-races_mask = 4
-classes_mask = 64
 
 [[quest]]
 id = 94467
 races_mask = 4
-classes_mask = 64
 
 [[quest]]
 id = 94468
 races_mask = 4
-classes_mask = 64
 
 [[quest]]
 id = 94472
 races_mask = 4
-classes_mask = 64
 
 [[quest]]
 id = 94473
 races_mask = 4
-classes_mask = 64
 
 [[quest]]
 id = 94494
 races_mask = 4
-classes_mask = 64
 
 [[quest]]
 id = 94495
 races_mask = 68
-classes_mask = 64
 
 [[quest]]
 # Call of Water (dwarf shaman): the waterskins are filled by using them in the water, at places no
@@ -175,32 +106,27 @@ classes_mask = 64
 # falls below Hervdana's cave, "where the fresh meets the brackish".
 id = 94497
 races_mask = 68
-classes_mask = 64
 objectives = [{ type = "trigger", text = "Fill the Unfilled Brown Waterskin at the base of the falls", at = { zone = 11, x = 65.7, y = 76.4 } }]
 
 [[quest]]
 id = 94499
 races_mask = 68
-classes_mask = 64
 objectives = [{ type = "trigger", text = "Fill the Unfilled Red Waterskin at Stonewatch Falls", at = { zone = 44, x = 73.7, y = 61.6 } }]
 
 [[quest]]
 id = 94500
 races_mask = 68
-classes_mask = 64
 objectives = [{ type = "trigger", text = "Fill the Unfilled Blue Waterskin in the waters of Astranaar", at = { zone = 331, x = 37.0, y = 51.6 } }]
 
 [[quest]]
 id = 94501
 races_mask = 68
-classes_mask = 64
 
 [[quest]]
 # Westfall, Stendel's Pond: drinking the Water Sapta summons the Corrupt Minor Manifestation of
 # Water, which drops the bracers; the sources only know Silverpine's (the Horde's chain).
 id = 94502
 races_mask = 68
-classes_mask = 64
 objectives = [{ type = "trigger", text = "Drink the Water Sapta at Stendel's Pond and defeat the Corrupt Minor Manifestation of Water for its bracers", at = { zone = 40, x = 47.5, y = 60.4 } }]
 
 [[quest]]
@@ -209,181 +135,65 @@ objectives = [{ type = "trigger", text = "Drink the Water Sapta at Stendel's Pon
 # place: put at the pond.
 id = 94503
 races_mask = 68
-classes_mask = 64
 ends = [{ type = "npc", id = 258661 }]
 remove_ends = [{ type = "npc", id = 5895 }]
 
 [[quest]]
 id = 94505
 races_mask = 68
-classes_mask = 64
 starts = [{ type = "npc", id = 258661 }]
 remove_starts = [{ type = "npc", id = 5895 }]
 
 [[quest]]
 id = 94616
 races_mask = 4
-classes_mask = 64
 
 [[quest]]
 id = 94789
 races_mask = 4
-classes_mask = 64
 
 [[quest]]
-# Call of Earth: "Find Teo Hammerstorm in Dun Morogh", no turn-in known.
+# Call of Earth: "Find Teo Hammerstorm in Dun Morogh", for the dwarf shaman (the sources now
+# give its turn-in).
 id = 96243
 races_mask = 4
-classes_mask = 64
-ends = [{ type = "npc", id = 257446 }]
 
 [[quest]]
 # Elwynn: the pet quests of Josephine Carson, hunter trainer, for any Alliance hunter (quest
 # caches).
 id = 94792
 races_mask = 4294967308
-classes_mask = 4
 
 [[quest]]
 id = 94793
 races_mask = 4294967304
-classes_mask = 4
 
 [[quest]]
 id = 94863
 races_mask = 4294967308
-classes_mask = 4
 
 [[quest]]
 id = 94864
 races_mask = 4294967308
-classes_mask = 4
-
-[[quest]]
-# Priest trainers' quests (Divine Grace, Confounding Flash, Contingency Plan): their races are the
-# quest caches'.
-id = 94773
-classes_mask = 16
-
-[[quest]]
-id = 94774
-classes_mask = 16
-
-[[quest]]
-id = 94817
-classes_mask = 16
-
-[[quest]]
-id = 94819
-classes_mask = 16
-
-[[quest]]
-id = 94824
-classes_mask = 16
-
-[[quest]]
-# Ashenvale: Seeking the Kor Gem is a paladin quest, as in Classic (1442).
-id = 95042
-classes_mask = 2
-
-[[quest]]
-# Moonglade: the druid's cat form quests.
-id = 98340
-classes_mask = 1024
 
 [[quest]]
 # The Skyborne druid's chain (98341 -> 98404 -> 98738, back to Dendrite Starblaze) follows either
 # side's trainer quest; the quest series only shows the Horde's.
 id = 98341
-classes_mask = 1024
-pre_any = [98340, 98393]
-
-[[quest]]
-id = 98342
-classes_mask = 1024
+pre_any = [98393]
 
 [[quest]]
 id = 98362 # To Thunder Bluff
-classes_mask = 1024
 pre_any = [98738]
 
 [[quest]]
-id = 98393
-classes_mask = 1024
-
-[[quest]]
-id = 98394
-classes_mask = 1024
-
-[[quest]]
-id = 98396
-classes_mask = 1024
-
-[[quest]]
 id = 98397 # To Darnassus
-classes_mask = 1024
 pre_any = [98738]
 
 [[quest]]
 id = 98404
 classes_mask = 1024
 pre_all = [98341]
-
-[[quest]]
-id = 98405
-classes_mask = 1024
-
-[[quest]]
-id = 98731
-classes_mask = 1024
-
-[[quest]]
-id = 98738
-classes_mask = 1024
-
-[[quest]]
-id = 98739
-classes_mask = 1024
-
-[[quest]]
-# Zephras Isle: the Skyborne hunter's pet quests, recorded for every race (races_mask 0).
-id = 94007
-races_mask = 12884901888
-
-[[quest]]
-id = 94013
-races_mask = 12884901888
-
-[[quest]]
-id = 94050
-races_mask = 12884901888
-
-[[quest]]
-id = 94978
-races_mask = 12884901888
-
-[[quest]]
-id = 94979
-races_mask = 12884901888
-
-[[quest]]
-# Zephras Isle: the Windshaper Skyborne's shaman quests, recorded for every race or for the
-# Classic Horde (Windshaper Skyborne are the only Skyborne shamans). The quest caches give 92467
-# and 92468 the whole Horde: their givers are on the island, which only Skyborne start on.
-id = 97243
-races_mask = 8589934592
-
-[[quest]]
-id = 97244
-races_mask = 8589934592
-
-[[quest]]
-id = 97245
-races_mask = 8589934592
-
-[[quest]]
-id = 97257
-races_mask = 8589934592
 
 [[quest]]
 id = 92466
@@ -401,76 +211,22 @@ races_mask = 8589934592
 # Silithus: A More Fitting Reward follows the shaman's The Darkreaver Menace (8258), as in TBC.
 id = 8259
 races_mask = 8589934770 # the Horde (Skyborne included)
-classes_mask = 64
-
-[[quest]]
-# A Lesson in Divinity: the undead paladin's Redemption chain (Forever's Tome of Divinity, GitHub
-# #12), at Bandarion Keep and in the Undercity. The sources know neither its class nor its order:
-# Danitha Morr sends to Tanis Alderwood (94427), who wants linen (94434) and sends back (94435);
-# Danitha sends to Deathguard Billmuth (94436), who sends to raise Deathguard Falgan (94438), who
-# wants the attack plans (94440); Billmuth sends back to Danitha (94441), who teaches Redemption
-# (the quest series, the quests' texts).
-id = 94427
-races_mask = 16
-classes_mask = 2
 
 [[quest]]
 id = 94434
-races_mask = 16
-classes_mask = 2
 pre_all = [94427]
-
-[[quest]]
-id = 94435
-races_mask = 16
-classes_mask = 2
-pre_all = [94434]
-
-[[quest]]
-id = 94436
-races_mask = 16
-classes_mask = 2
-pre_all = [94435]
 
 [[quest]]
 # Raise Deathguard Falgan with the Symbol of Life: no source has the objective (Classic's Symbol of
 # Life quests have Narm or Henze Faulk as a creature).
 id = 94438
-races_mask = 16
-classes_mask = 2
-pre_all = [94436]
 objectives = [{ type = "creature", id = 257663, amount = 1 }]
-
-[[quest]]
-id = 94440
-races_mask = 16
-classes_mask = 2
-pre_all = [94438]
-
-[[quest]]
-id = 94441
-races_mask = 16
-classes_mask = 2
-pre_all = [94440]
-
-[[quest]]
-# Deathknell: The Adventurer (Executor Arren) has no prerequisite in the sources (marked
-# it "TBD"), so guides took it on arrival, when Arren does not offer it yet (GitHub #12). The
-# other races' Adventurer comes after their start zone's last quest before the trip to the next
-# town (Burning Blade Medallion, Skirmish at Echo Ridge...); here The Red Messenger, before
-# Vital Intelligence sends to Brill. Not checked in game yet.
-id = 96656
-pre_any = [382]
 
 [[quest]]
 # Contingency Plan, Darnassus's (Priestess Alathea): taken to High Priestess Mims in Ironforge
 # like the others (its text), a turn-in no source has.
 id = 94820
 ends = [{ type = "npc", id = 258785 }]
-
-[[quest]]
-id = 94003 # The Skybreaker Bulwark: the Skyborne warrior's (Seena Skybreaker)
-races_mask = 12884901888 # the Skyborne, both factions
 
 [[spawn]]
 # Call of Water (dwarf shaman): the Minor Manifestation of Water appears in the middle of Stendel's
@@ -592,7 +348,10 @@ objectives = [
 
 [[quest]]
 # From the Ashes: only described; the four Attack Plans are objects in the Angerfang Encampment.
+# Offered with War Banners, also without Report to Captain Stoutfist (series: War Banners and
+# From the Ashes side by side).
 id = 98221
+remove_pre = [473]
 objectives = [
   { type = "object", id = 671481, amount = 1, text = "Destroy the Attack Plan: Menethil Harbor" },
   { type = "object", id = 671486, amount = 1, text = "Destroy the Attack Plan: Thelsamar" },
@@ -1055,13 +814,6 @@ y = 49.2
 # reports and comments; each was taken by our routes before the giver offers it).
 
 [[quest]]
-# Bandarion Keep: Hadric Harlson offers it once The Cult of the Damned and Remnants of War are
-# handed in (not offered on the first visit, seen in game, players' reports). It is the first of its
-# series, so the series import cannot give it.
-id = 96899
-pre_all = [96897, 96898]
-
-[[quest]]
 # Scout Support: High Executor Darthalia offers it after Battle of Hillsbrad part II (seen in game,
 # players' reports). First of its series too.
 id = 98094
@@ -1072,12 +824,6 @@ pre_all = [528]
 # Classic (players' reports on 425 and 91921: "Allows you to start quest Ivar the Foul").
 id = 425
 pre_all = [91921]
-
-[[quest]]
-# Holy Diver: Gwennyth offers it once all nine beached sea creatures and turtles are handed in
-# (players' report, 2026-10-06).
-id = 87760
-pre_all = [4722, 4723, 4725, 4727, 4728, 4730, 4731, 4732, 4733]
 
 [[quest]]
 # Stop the Spread: Dalar Dawnweaver did not offer it to two players who had not run his Arugal's
@@ -1151,11 +897,11 @@ id = 95998
 objectives = [{ type = "object", id = 460003, amount = 1, text = "Sit by the Basic Campfire until you get Boosted Rest" }]
 # The Great Outdoors: Sam Sarsaparilla gives it; William Pestle (the sources') does not (Forever's
 # quest page lists Sam only).
-remove_starts = [{ type = "npc", id = 253 }]
 
 [[quest]]
 id = 96101
 objectives = [{ type = "object", id = 460003, amount = 1, text = "Sit by the Basic Campfire until you get Boosted Rest" }]
+races_mask = 12884901888 # both Skyborne: they start on Zephras Isle, the quest page shows both sides
 
 [[quest]]
 id = 96604
@@ -1254,84 +1000,9 @@ races_mask = 162
 [[quest]]
 id = 1521
 races_mask = 162
-# --- Dungeon quest XP, givers seen on Forever's quest pages, library books (data wave 2) ---
-
-# Dungeon quests: Forever's own XP, received in game after the build that halved the dungeon
-# bonus (players' reports; Wailing Caverns about 1.94 times Classic's, Shadowfang Keep about
-# 2.675). The sources have Classic's.
-[[quest]]
-# Deviate Hides: 3100 in game (Classic 1600). No mailbox starts it in game: Nalpak only (the
-# Orgrimmar mailbox comes from the sources).
-id = 1486
-xp = 3100
-remove_starts = [{ type = "object", id = 659159 }]
-
-[[quest]]
-# Deathstalkers in Shadowfang: 5350 (Classic 2000).
-id = 1098
-xp = 5350
-
-[[quest]]
-# Leaders of the Fang: 4300 (Classic 2200).
-id = 914
-xp = 4300
-
-[[quest]]
-# Trouble at the Docks: 2650 (Classic 1350).
-id = 959
-xp = 2650
-
-[[quest]]
-# Serpentbloom: 3300 (Classic 1700).
-id = 962
-xp = 3300
-
-[[quest]]
-# Deviate Eradication: 4000 (Classic 2050).
-id = 1487
-xp = 4000
-
-[[quest]]
-# Smart Drinks: 2650 (Classic 1350).
-id = 1491
-xp = 2650
-
-[[quest]]
-# The Glowing Shard: 5150 (Classic 2650).
-id = 6981
-xp = 5150
-
-[[quest]]
-# The Book of Ur: 5600 (Classic 2100).
-id = 1013
-xp = 5600
-
-[[quest]]
-# Arugal Must Die: 8850 (Classic 3300).
-id = 1014
-xp = 8850
+# --- Givers seen on Forever's quest pages, library books (data wave 2) ---
 
 # Givers and enders as Forever's quest pages list them (the sources' extras removed).
-[[quest]]
-# Poor Old Blanchy: Verna Furlbrow only, not the Stormwind mailbox.
-id = 151
-remove_starts = [{ type = "object", id = 696264 }]
-
-[[quest]]
-# The Power to Destroy...: Varimathras only, not the Orgrimmar mailbox.
-id = 5725
-remove_starts = [{ type = "object", id = 658924 }]
-
-[[quest]]
-# Camping 101: Cooking: Brakk gives it (seen in game), not Cook Torka (who takes it back).
-id = 96655
-remove_starts = [{ type = "npc", id = 3191 }]
-
-[[quest]]
-# This Fruit Could Bite Back: Cook Torka gives it, not Grimtak.
-id = 96825
-remove_starts = [{ type = "npc", id = 3881 }]
-
 [[quest]]
 # Speak with Dillinger: Austil de Mon only, not Baltus Fowler.
 id = 1818
@@ -1365,19 +1036,16 @@ id = 94489
 amounts = [{ type = "killcredit", id = 258134, amount = 7 }]
 
 [[quest]]
-# An Alarming Request (level 30) only leads to Heart of Disruption (level 24, series:
-# An Alarming Request, Heart of Disruption, Friend of the Kirin Tor): a breadcrumb, not what
-# Starving Arcane and Heart of Disruption need first (the sources' links).
-id = 92432
-breadcrumb_for = 92458
-
-[[quest]]
+# Starving Arcane does not need An Alarming Request first (the sources' link).
 id = 92457
 remove_pre = [92432]
 
 [[quest]]
+# Heart of Disruption (Alliance) comes after An Alarming Request (level 30, series: An Alarming
+# Request, Heart of Disruption, Friend of the Kirin Tor), as the Horde's comes after Blood in the
+# Streets: in game, Image of Archmage Modera does not offer it to a level 28 character.
 id = 92458
-remove_pre = [92432]
+pre_all = [92432]
 
 [[quest]]
 # Call of Air (Skyborne shaman): taken back by Prate Cloudseer in Thousand Needles (the quest's
@@ -1390,205 +1058,288 @@ ends = [{ type = "npc", id = 5905 }]
 # Library books: the book starts nothing in game; Owen Thadd or Garion Wendell offers the quest
 # while the book is in the bags (the sources list the book's object as a giver too). The book is
 # given as the quest's starting item: the planner loots it before going to the librarian.
+# The game files the library's quests (and the books Jennea Cannon and Oran Snakewrithe take) under
+# Special (-284), the category of event quests the planner leaves out: `zone_or_sort = 0` keeps
+# them in the guides, and Friend of the Library's rewards with them.
+
+[[quest]]
+# Friend of the Library
+id = 78150
+zone_or_sort = 0
+
+[[quest]]
+# Greater Friend of the Library
+id = 79536
+zone_or_sort = 0
+
+[[quest]]
+# Greater Friend of the Library
+id = 82208
+zone_or_sort = 0
+
+[[quest]]
+# Undead Potatoes
+id = 84395
+zone_or_sort = 0
+
+[[quest]]
+# Magma or Lava?
+id = 84396
+zone_or_sort = 0
+
+[[quest]]
+# Northern Kalimdor - A Comprehensive Guide
+id = 84397
+zone_or_sort = 0
+
+[[quest]]
+# A Study of the Light
+id = 84398
+zone_or_sort = 0
+
+[[quest]]
+# Ka-Boom!
+id = 84399
+zone_or_sort = 0
+
+[[quest]]
+# The Knight and the Lady
+id = 84400
+zone_or_sort = 0
+
+[[quest]]
+# Scourge: Undead Menace or Misunderstood?
+id = 84401
+zone_or_sort = 0
+
+[[quest]]
+# Necromancy 101
+id = 84402
+zone_or_sort = 0
 
 [[quest]]
 # Nar'thalas Almanac
 id = 78124
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 409496 }]
 starts = [{ type = "item", id = 209843 }]
 
 [[quest]]
 # The Dalaran Digest
 id = 78127
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 409501 }]
 starts = [{ type = "item", id = 209844 }]
 
 [[quest]]
 # Bewitchments and Glamours
 id = 78142
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 409562 }]
 starts = [{ type = "item", id = 209845 }]
 
 [[quest]]
 # Secrets of the Dreamers
 id = 78143
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 409692 }]
 starts = [{ type = "item", id = 209846 }]
 
 [[quest]]
 # Arcanic Systems Manual
 id = 78145
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 409700 }]
 starts = [{ type = "item", id = 209847 }]
 
 [[quest]]
 # Goaz Scrolls
 id = 78146
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 409717 }]
 starts = [{ type = "item", id = 209848 }]
 
 [[quest]]
 # Crimes Against Anatomy
 id = 78147
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 409735 }]
 starts = [{ type = "item", id = 209849 }]
 
 [[quest]]
 # Runes of the Sorcerer-Kings
 id = 78148
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 409731 }]
 starts = [{ type = "item", id = 209850 }]
 
 [[quest]]
 # Fury of the Land
 id = 78149
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 409711 }]
 starts = [{ type = "item", id = 209851 }]
 
 [[quest]]
 # Archmage Antonidas: The Unabridged Autobiography
 id = 79091
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 386691 }]
 starts = [{ type = "item", id = 203754 }]
 
 [[quest]]
 # Archmage Theocritus' Research Journal
 id = 79092
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 386759 }]
 starts = [{ type = "item", id = 203755 }]
 
 [[quest]]
 # Rumi of Gnomeregan: The Collected Works
 id = 79093
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 408014 }]
 starts = [{ type = "item", id = 208860 }]
 
 [[quest]]
 # The Lessons of Ta'zo
 id = 79094
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 405149 }]
 starts = [{ type = "item", id = 207972 }]
 
 [[quest]]
 # The Apothecary's Metaphysical Primer
 id = 79095
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 405879 }]
 starts = [{ type = "item", id = 208185 }]
 
 [[quest]]
 # Ataeric: On Arcane Curiosities
 id = 79096
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 410299 }]
 starts = [{ type = "item", id = 210177 }]
 
 [[quest]]
 # Baxtan: On Destructive Magics
 id = 79097
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 407566 }]
 starts = [{ type = "item", id = 208800 }]
 
 [[quest]]
 # Basilisks: Should Petrification be Feared?
 id = 79535
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 421526 }]
 starts = [{ type = "item", id = 213165 }]
 
 [[quest]]
 # Geomancy: The Stone-Cold Truth
 id = 79947
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 423895 }]
 starts = [{ type = "item", id = 215683 }]
 
 [[quest]]
 # Defensive Magics 101
 id = 79948
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 423896 }]
 starts = [{ type = "item", id = 215815 }]
 
 [[quest]]
 # A Web of Lies: Debunking Myths and Legends
 id = 79949
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 423897 }]
 starts = [{ type = "item", id = 215816 }]
 
 [[quest]]
 # Demons and You
 id = 79950
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 423898 }]
 starts = [{ type = "item", id = 215817 }]
 
 [[quest]]
 # Mummies: A Guide to the Unsavory Undead
 id = 79951
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 423899 }]
 starts = [{ type = "item", id = 215820 }]
 
 [[quest]]
 # RwlRwlRwlRwl!
 id = 79952
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 423900 }]
 starts = [{ type = "item", id = 215822 }]
 
 [[quest]]
 # A Ludite's Guide to Caring for Your Demonic Pet
 id = 79953
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 423901 }]
 starts = [{ type = "item", id = 215824 }]
 
 [[quest]]
 # Sanguine Sorcery
 id = 81947
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 441247 }]
 starts = [{ type = "item", id = 220345 }]
 
 [[quest]]
 # Legends of the Tidesages
 id = 81949
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 441248 }]
 starts = [{ type = "item", id = 220346 }]
 
 [[quest]]
 # The Liminal and the Arcane
 id = 81951
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 441249 }]
 starts = [{ type = "item", id = 220347 }]
 
 [[quest]]
 # Everyday Etiquette
 id = 81952
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 441250 }]
 starts = [{ type = "item", id = 220348 }]
 
 [[quest]]
 # Stonewrought Design
 id = 81953
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 441251 }]
 starts = [{ type = "item", id = 220349 }]
 
 [[quest]]
 # Venomous Journeys
 id = 81954
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 441252 }]
 starts = [{ type = "item", id = 220350 }]
 
 [[quest]]
 # A Mind of Metal
 id = 81955
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 441253 }]
 starts = [{ type = "item", id = 220352 }]
 
 [[quest]]
 # Conjurer's Codex
 id = 81956
+zone_or_sort = 0
 remove_starts = [{ type = "object", id = 441254 }]
 starts = [{ type = "item", id = 220353 }]
-
-[[quest]]
-# Mulgore: Grace of An'she and Mu'sha is timed ("before the incense burns to ash in ten minutes"),
-# which no source records: the guide did eight steps between taking and turning it in, and the
-# game failed it (GitHub #34).
-id = 95805
-time_limit = 600
 
 [[quest]]
 # Call of Earth (dwarf shaman, third step): given by the Minor Manifestation of Earth, only taken
@@ -1601,12 +1352,6 @@ remove_starts = [{ type = "npc", id = 257446 }]
 # Seeking Caitlin only sends to Caitlin Grassman, who gives Lost in the Thicket Things.
 id = 95737
 breadcrumb_for = 95647
-
-[[quest]]
-# An Enticing Offer: 6 Vials of Animal Blood and 18 Duskweed Petals (quest caches; players'
-# progress reached them).
-id = 99130
-amounts = [{ type = "item", id = 286215, amount = 6 }, { type = "item", id = 286214, amount = 18 }]
 
 [[quest]]
 # Grant's Shield, Silvia's Sword and Ira's Dagger: Darkshire quests started by an item (quest
@@ -1786,11 +1531,6 @@ races_mask = 146
 
 [[quest]]
 # (as above)
-id = 1960
-races_mask = 146
-
-[[quest]]
-# (as above)
 id = 1962
 races_mask = 146
 
@@ -1854,11 +1594,6 @@ races_mask = 4294967304
 
 [[quest]]
 # (as above)
-id = 6124
-races_mask = 4294967304
-
-[[quest]]
-# (as above)
 id = 6125
 races_mask = 4294967304
 
@@ -1880,11 +1615,22 @@ friendly_to = "AH"
 id = 268047 # Theramore Emissary
 friendly_to = "A"
 
-[[quest]]
-# A Dynamite Plan: ten Rough Dynamite, made by a profession; bought at an auction house when the
-# guide is made with that option.
-id = 92749
-objectives = [{ type = "item", id = 4358, amount = 10 }]
+[[npc]]
+# Lakeshire's guards (Stormwind faction, friendly to the Alliance on Forever's NPC page): taken
+# for hostile creatures, they kept Guard Howe's and Deputy Feldon's quests out of the guides.
+id = 275075 # Lakeshire Protector
+friendly_to = "A"
+
+[[npc]]
+# Supply crates by Guard Parker in Lakeshire: level 60 and neutral in game, no creature type on
+# Forever's NPC page. Taken for hostile guards, they kept A Free Lunch and its chain out of the
+# guides.
+id = 256740 # Crate of Enchanting Supplies
+friendly_to = "AH"
+
+[[npc]]
+id = 256741 # Basket of Textile Supplies
+friendly_to = "AH"
 
 [[drop]]
 # Underground Map: its two droppers (Dark Iron Map quests) at the rate of the Dark Iron Map.
@@ -2110,14 +1856,6 @@ id = 4489 # Summon Felsteed: Orc,Undead
 races_mask = 8589934610
 
 [[quest]]
-id = 5638 # Desperate Prayer: Dwarf
-races_mask = 4
-
-[[quest]]
-id = 5640 # Desperate Prayer: Dwarf
-races_mask = 4
-
-[[quest]]
 id = 6081 # Training the Beast: Orc,Undead,Troll
 races_mask = 146
 
@@ -2178,3 +1916,406 @@ id = 95647
 remove_ends = [{ type = "npc", id = 1480 }]
 ends = [{ type = "npc", id = 262681 }]
 objectives = [{ type = "creature", id = 262681, amount = 1, text = "Find Ardin Grassman in the Excavation Site" }]
+
+# Creatures placed in the capitals and starting towns with no side known: an elite Infernal (an
+# invasion's, at 93 places from Goldshire to Thunder Bluff), Argent Healers in Thunder Bluff and
+# the city folk of patch 1.60.1. Taken for hostile guards, they kept Marshal Dughan, Cairne
+# Bloodhoof, Tinkmaster Overspark and the Undercity's apothecaries out of the guides. None gives,
+# takes back or is the target of a quest: their places are dropped.
+[[npc]]
+id = 278863 # Infernal
+remove_spawns = true
+
+[[npc]]
+id = 31282 # Argent Healer
+remove_spawns = true
+
+[[npc]]
+id = 276795 # Anya Rince
+remove_spawns = true
+
+[[npc]]
+id = 277368 # Gevreka
+remove_spawns = true
+
+[[npc]]
+id = 274917 # Boborus Overvolt
+remove_spawns = true
+
+[[npc]]
+id = 268048 # Darkspear Emissary
+remove_spawns = true
+
+[[npc]]
+id = 276798 # Malus
+remove_spawns = true
+
+[[npc]]
+id = 271034 # Gragtharr
+remove_spawns = true
+
+[[npc]]
+id = 271035 # Nalrekk Fizzlewrench
+remove_spawns = true
+
+[[npc]]
+id = 271036 # Rorschak
+remove_spawns = true
+
+[[npc]]
+id = 277639 # Alyz
+remove_spawns = true
+
+[[npc]]
+id = 277726 # Amethryn
+remove_spawns = true
+
+[[npc]]
+id = 277062 # Ancelina
+remove_spawns = true
+
+[[npc]]
+id = 273256 # Arrgrah Stonewall
+remove_spawns = true
+
+[[npc]]
+id = 274780 # Damin Dawnshadow
+remove_spawns = true
+
+[[npc]]
+id = 261578 # Riding Striped Nightsaber
+remove_spawns = true
+
+[[npc]]
+id = 276756 # Solluna
+remove_spawns = true
+
+[[npc]]
+id = 273437 # Turlethion Moonrage
+remove_spawns = true
+
+# Emeraldon Oracle: the green dragons of Ashenvale's dream portal (elites of level 61), which the
+# sources also place 22 times in Orgrimmar. Counted as hostile guards around Thrall they put the
+# Hidden Enemies chain (Ragefire Chasm) out of reach of every Horde guide.
+[[npc]]
+id = 12476
+remove_spawns_in = [1637]
+
+# C's dead drop near Pyrewood (rogue class quests). The Horn of Xelthos and the Eye of Bhossca are
+# infiltrations alone, an outing of their own, not the group's run of the dungeon: Shadowfang Keep's
+# courtyard (two half-keys pick-pocketed there make the Twin Key, which opens a chest in the
+# stables), and the Scarlet Monastery (the uniform from the stables outside, the Scryer's Key
+# pick-pocketed in the Graveyard, a letter in the Library, a coffer back in the Graveyard). Their
+# follow-ups come by mail once in a capital city (the Eye's only from level 30), read at its
+# mailbox, and are handed in at the dead drop for the reward (quest pages and players' reports).
+[[quest]]
+id = 78261
+objectives = [{ type = "trigger", text = "Infiltrate Shadowfang Keep alone and take The Horn of Xelthos (the Twin Key's halves are pick-pocketed in the courtyard)", at = { zone = 130, x = 44.8, y = 67.8 }, minutes = 25 }]
+
+[[quest]]
+id = 78307
+remove_starts = [{ type = "object", id = 410369 }]
+starts = [
+  { type = "object", id = 142075 }, # Mailbox, Stormwind City
+  { type = "object", id = 32349 }, # Mailbox, Ironforge
+  { type = "object", id = 142110 }, # Mailbox, Darnassus
+  { type = "object", id = 173047 }, # Mailbox, Orgrimmar
+  { type = "object", id = 143985 }, # Mailbox, Thunder Bluff
+  { type = "object", id = 177044 }, # Mailbox, Undercity
+]
+
+[[quest]]
+id = 78676
+min_level = 30
+pre_all = [78307]
+objectives = [{ type = "trigger", text = "Infiltrate the Scarlet Monastery alone and take The Eye of Bhossca (the uniform from the stables, the Scryer's Key in the Graveyard)", at = { zone = 85, x = 82.6, y = 33.8 }, minutes = 35 }]
+
+[[quest]]
+# Given by mail once in a capital city: the mailboxes of the capitals start it.
+id = 78699
+pre_all = [78676]
+starts = [
+  { type = "object", id = 142075 }, # Mailbox, Stormwind City
+  { type = "object", id = 32349 }, # Mailbox, Ironforge
+  { type = "object", id = 142110 }, # Mailbox, Darnassus
+  { type = "object", id = 173047 }, # Mailbox, Orgrimmar
+  { type = "object", id = 143985 }, # Mailbox, Thunder Bluff
+  { type = "object", id = 177044 }, # Mailbox, Undercity
+]
+
+# Order and class checks seen in game by players (2026-11-09).
+
+[[quest]]
+# Alonso's Dragonslayer quests, Mystral Lake in Ashenvale: Warrior quests. Paladins and a Shaman
+# found no Alonso there.
+id = 78132 # Dragonslayer's Helm
+classes_mask = 1
+
+[[quest]]
+id = 78133 # Dragonslayer's Shield
+classes_mask = 1
+
+[[quest]]
+id = 78134 # Dragonslayer's Lance
+classes_mask = 1
+
+[[quest]]
+# Lightforge Ingots follows The Lost Ingots, the end of the Lightforge Iron chain (series), not
+# instead of it: Glorin Steelbrow does not offer it before.
+id = 526
+pre_all = [324]
+
+[[quest]]
+# The Broodmother: Muln Earthfury offers it only once Defending the Dead is handed in to him.
+id = 96261
+pre_all = [96259]
+
+[[quest]]
+# Daily Delivery only leads to James Halloran, who gives Young Crocolisk Skins: Einar Stonegrip
+# no longer offers it once Young Crocolisk Skins is taken.
+id = 469
+breadcrumb_for = 484
+
+[[quest]]
+# Highland Hides: James Halloran offers Young Crocolisk Skins first, Highland Hides only once it
+# is handed in.
+id = 98815
+pre_all = [484]
+
+[[quest]]
+# Forgotten Loa Idols: Master Vornal offers it only once Report to Sen'jin Village is handed in.
+id = 97225
+pre_all = [805]
+
+[[quest]]
+# Whuut's the Rush: Yelmak offers it only once Yelmak's Medley is handed in to Kor'geld.
+id = 97275
+pre_all = [97242]
+
+# Corma Villard's chain in the Wetlands (Hearts of the Lost, then Essene Villard's Accessories and
+# Sentiments of the Lost): players' reports since the launch, Corma offers no quest at any level and
+# Essene is gone (GitHub #161).
+[[quest]]
+id = 87318
+status = "removed"
+reason = "Corma Villard offers no quest in game, Essene Villard is gone"
+
+[[quest]]
+id = 88757
+status = "removed"
+reason = "Started by Essene Villard, gone"
+
+[[quest]]
+id = 88758
+status = "removed"
+reason = "Started by Essene Villard, gone"
+
+[[quest]]
+# Murloc Gills: Alba Fairmoon offers it after Testing the Wells, the step before it in her Westfall
+# storyline.
+id = 92744
+pre_all = [92742]
+
+[[quest]]
+# The Gurubashi Legends of Old: Kin'weelay speaks of "this piece of the tablet you have brought
+# me", the Tablet Shard of The Vile Reef, which comes first.
+id = 95748
+pre_all = [629]
+
+# Foal Play (94615) and Apple of My Eye (95561), Riverglades: their quest items come from objects
+# new to the game, every one opened gives it: the Pawprint Tracing from the Tracks, the Fresh
+# Apples from the Fresh Apple objects.
+[[object]]
+id = 625779
+name = "Track"
+zone = 16591
+
+[[object]]
+id = 645233
+name = "Fresh Apple"
+zone = 16591
+
+[[drop]]
+item = 267223 # Pawprint Tracing
+objects = [625779]
+chance = 1.0
+
+[[drop]]
+item = 271431 # Fresh Apple
+objects = [645233]
+chance = 1.0
+
+[[spawn]]
+type = "object"
+id = 625779
+zone = 16591
+x = 54.2
+y = 77.9
+
+[[spawn]]
+type = "object"
+id = 625779
+zone = 16591
+x = 54.8
+y = 77.9
+
+[[spawn]]
+type = "object"
+id = 625779
+zone = 16591
+x = 54.9
+y = 78.5
+
+[[spawn]]
+type = "object"
+id = 645233
+zone = 16591
+x = 61.1
+y = 86.1
+
+[[spawn]]
+type = "object"
+id = 645233
+zone = 16591
+x = 61.3
+y = 83.3
+
+[[spawn]]
+type = "object"
+id = 645233
+zone = 16591
+x = 61.9
+y = 86.1
+
+[[spawn]]
+type = "object"
+id = 645233
+zone = 16591
+x = 62.9
+y = 83.8
+
+[[spawn]]
+type = "object"
+id = 645233
+zone = 16591
+x = 64.8
+y = 83.2
+
+[[spawn]]
+type = "object"
+id = 645233
+zone = 16591
+x = 65.4
+y = 83.5
+
+[[spawn]]
+type = "object"
+id = 645233
+zone = 16591
+x = 65.6
+y = 81.6
+
+# The Drowned City, the Alliance's chain (players' reports, the quests' texts): Brother Nimetz sends
+# to Southshore once Troll Witchery is done; Loremaster Dibbs gives the two dungeon quests after
+# that report, then one follow-up for each: the fetish after the fetishes, the translations after
+# the tablets. The sources know none of these links and offered the blue rewards from level 30.
+[[quest]]
+id = 95786
+pre_all = [205]
+
+[[quest]]
+id = 95787
+pre_all = [95786]
+
+[[quest]]
+id = 95788
+pre_all = [95786]
+
+[[quest]]
+id = 95798
+pre_all = [95788]
+
+[[quest]]
+# Findings for the Explorer's League: the translations go to Historian Karnik in Ironforge, not
+# back to Loremaster Dibbs.
+id = 95799
+pre_all = [95787]
+ends = [{ type = "npc", id = 2916 }]
+remove_ends = [{ type = "npc", id = 2277 }]
+
+# Corrections from players' reports on each guide quest (2026-11-12).
+
+[[quest]]
+# Swelling Forces: offered once Return to Onu is handed in.
+id = 98013
+pre_all = [950]
+
+[[quest]]
+# Returning to Port: Wendel Mathers offers it after The Cook in the Cage.
+id = 97048
+pre_all = [97047]
+
+[[quest]]
+# Deliver the Second Shipment: after Driftwood, as Deliver the First Shipment from the same giver.
+id = 94929
+pre_all = [1398]
+
+[[quest]]
+# Razormaw Needling: taken without Crimson Crate Delivery, which only leads to it.
+id = 98245
+remove_pre = [98240]
+
+[[quest]]
+id = 98240
+breadcrumb_for = 98245
+
+[[drop]]
+# Primitive Key (Where's the Key?): 20 to 60 Bloodscalps killed for it.
+item = 277957
+npcs = [588, 595, 597, 660, 671, 699, 701]
+chance = 0.03
+
+[[drop]]
+# Fenris Isle Key: about 40 Rot Hides killed for it.
+item = 267412
+npcs = [1942, 1943, 1944, 1948]
+chance = 0.025
+
+[[drop]]
+# Malignant Rotclaw Flesh (Carnage), which brings Carnage out once placed at the cave: about 20
+# Maddened Rotclaws killed for it.
+item = 280331
+npcs = [271334]
+chance = 0.05
+
+[[respawn]]
+# Whispering Horror: about 10 minutes.
+type = "npc"
+id = 260396
+seconds = 600
+
+[[respawn]]
+# Encroaching Soldier and Outraged Pillager (Wrongly Blamed, Justly Corrected): about 6 minutes.
+type = "npc"
+id = 268622
+seconds = 360
+
+[[respawn]]
+type = "npc"
+id = 268623
+seconds = 360
+
+[[spawn]]
+# Discarded Fishing Toolbox (Silver of the Waves): more places along the shore.
+type = "object"
+id = 665289
+zone = 38
+x = 48.9
+y = 54.2
+
+[[spawn]]
+type = "object"
+id = 665289
+zone = 38
+x = 48.0
+y = 40.0
